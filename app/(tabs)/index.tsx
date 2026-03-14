@@ -71,22 +71,46 @@ function TypingDots() {
       Animated.loop(
         Animated.sequence([
           Animated.delay(i * 160),
-          Animated.timing(a.current, { toValue: 1, duration: 380, useNativeDriver: true }),
-          Animated.timing(a.current, { toValue: 0, duration: 380, useNativeDriver: true }),
+          Animated.timing(a.current, {
+            toValue: 1,
+            duration: 380,
+            useNativeDriver: true,
+          }),
+          Animated.timing(a.current, {
+            toValue: 0,
+            duration: 380,
+            useNativeDriver: true,
+          }),
         ]),
       ).start(),
     );
   }, []);
   return (
-    <View style={{ flexDirection: "row", gap: 5, paddingVertical: 4, paddingHorizontal: 2 }}>
+    <View
+      style={{
+        flexDirection: "row",
+        gap: 5,
+        paddingVertical: 4,
+        paddingHorizontal: 2,
+      }}
+    >
       {anims.map((a, i) => (
         <Animated.View
           key={i}
           style={{
-            width: 7, height: 7, borderRadius: 4,
+            width: 7,
+            height: 7,
+            borderRadius: 4,
             backgroundColor: C.accent,
             opacity: a.current,
-            transform: [{ translateY: a.current.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }],
+            transform: [
+              {
+                translateY: a.current.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -5],
+                }),
+              },
+            ],
           }}
         />
       ))}
@@ -95,11 +119,14 @@ function TypingDots() {
 }
 
 const SLASH_COMMANDS = [
-  { command: "/help",   description: "Show help and tool list" },
-  { command: "/clear",  description: "Archive current session history" },
-  { command: "/reset",  description: "Reset session and summary" },
-  { command: "/think",  description: "Enable deep reasoning mode" },
-  { command: "/remind", description: "Set a reminder (e.g. /remind buy milk in 10m)" },
+  { command: "/help", description: "Show help and tool list" },
+  { command: "/clear", description: "Archive current session history" },
+  { command: "/reset", description: "Reset session and summary" },
+  { command: "/think", description: "Enable deep reasoning mode" },
+  {
+    command: "/remind",
+    description: "Set a reminder (e.g. /remind buy milk in 10m)",
+  },
 ];
 
 // ─── Recording pulse ──────────────────────────────────────────────────────
@@ -108,28 +135,48 @@ function RecordingIndicator() {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.35, duration: 600, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1,    duration: 600, useNativeDriver: true }),
+        Animated.timing(pulse, {
+          toValue: 1.35,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
       ]),
     ).start();
   }, []);
   return (
-    <Animated.View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: C.danger, transform: [{ scale: pulse }] }} />
+    <Animated.View
+      style={{
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: C.danger,
+        transform: [{ scale: pulse }],
+      }}
+    />
   );
 }
 
 // ─── Message status icon ──────────────────────────────────────────────────
 function MessageStatusIcon({ status }: { status?: string }) {
-  if (status === "sending")   return <Text style={styles.statusIcon}>⏱</Text>;
-  if (status === "completed" || status === "streaming") return <Text style={[styles.statusIcon, { color: C.accent }]}>✓</Text>;
-  if (status === "failed")    return <Text style={[styles.statusIcon, { color: C.danger }]}>✗</Text>;
+  if (status === "sending") return <Text style={styles.statusIcon}>⏱</Text>;
+  if (status === "completed" || status === "streaming")
+    return <Text style={[styles.statusIcon, { color: C.accent }]}>✓</Text>;
+  if (status === "failed")
+    return <Text style={[styles.statusIcon, { color: C.danger }]}>✗</Text>;
   return null;
 }
 
 // ─── Connection indicator ─────────────────────────────────────────────────
 function ConnectionIndicator({ state }: { state: ConnectionState }) {
-  const color = state === "online" ? C.accent : state === "syncing" ? C.syncing : C.danger;
-  const label = state === "online" ? "ONLINE" : state === "syncing" ? "SYNCING" : "OFFLINE";
+  const color =
+    state === "online" ? C.accent : state === "syncing" ? C.syncing : C.danger;
+  const label =
+    state === "online" ? "ONLINE" : state === "syncing" ? "SYNCING" : "OFFLINE";
   return (
     <View style={styles.headerStatus}>
       <View style={[styles.statusDot, { backgroundColor: color }]} />
@@ -139,9 +186,18 @@ function ConnectionIndicator({ state }: { state: ConnectionState }) {
 }
 
 // ─── Search overlay ───────────────────────────────────────────────────────
-function SearchOverlay({ visible, query, onChangeQuery, onClose, results }: {
-  visible: boolean; query: string; onChangeQuery: (q: string) => void;
-  onClose: () => void; results: number;
+function SearchOverlay({
+  visible,
+  query,
+  onChangeQuery,
+  onClose,
+  results,
+}: {
+  visible: boolean;
+  query: string;
+  onChangeQuery: (q: string) => void;
+  onClose: () => void;
+  results: number;
 }) {
   if (!visible) return null;
   return (
@@ -156,9 +212,13 @@ function SearchOverlay({ visible, query, onChangeQuery, onClose, results }: {
           placeholderTextColor={C.textMuted}
           autoFocus
         />
-        {query.length > 0 && <Text style={styles.searchCount}>{results} found</Text>}
+        {query.length > 0 && (
+          <Text style={styles.searchCount}>{results} found</Text>
+        )}
         <TouchableOpacity onPress={onClose}>
-          <Text style={{ color: C.accent, fontSize: 13, fontWeight: "700" }}>CLOSE</Text>
+          <Text style={{ color: C.accent, fontSize: 13, fontWeight: "700" }}>
+            CLOSE
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -167,19 +227,30 @@ function SearchOverlay({ visible, query, onChangeQuery, onClose, results }: {
 
 // ─── Message Bubble ───────────────────────────────────────────────────────
 function MessageBubble({ msg }: { msg: ExtendedMessage }) {
-  const isUser  = msg.role === "user";
+  const isUser = msg.role === "user";
   const isEmpty = msg.content === "" && !isUser;
 
   return (
-    <View style={[styles.bubbleRow, isUser ? styles.bubbleRowUser : styles.bubbleRowAI]}>
+    <View
+      style={[
+        styles.bubbleRow,
+        isUser ? styles.bubbleRowUser : styles.bubbleRowAI,
+      ]}
+    >
       {!isUser && (
         <View style={styles.avatar}>
           <Text style={{ fontSize: 14 }}>👻</Text>
         </View>
       )}
-      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}>
+      <View
+        style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}
+      >
         {msg.media_url && (
-          <Image source={{ uri: msg.media_url }} style={styles.attachedImage} resizeMode="cover" />
+          <Image
+            source={{ uri: msg.media_url }}
+            style={styles.attachedImage}
+            resizeMode="cover"
+          />
         )}
         {isEmpty ? (
           <TypingDots />
@@ -190,7 +261,10 @@ function MessageBubble({ msg }: { msg: ExtendedMessage }) {
         )}
         <View style={styles.tsRow}>
           <Text style={styles.ts}>
-            {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {new Date(msg.timestamp * 1000).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </Text>
           {isUser && <MessageStatusIcon status={msg.status} />}
         </View>
@@ -203,39 +277,86 @@ function MessageBubble({ msg }: { msg: ExtendedMessage }) {
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const {
-    config, messages, appendMessage, appendStream, commitStream,
-    isStreaming, setStreaming, connectionState, setConnectionState,
-    setConnected, setMessages, setLastSentMessage, lastSentMessage,
-    removeMessage, updateMessageStatus, enqueueMessage, dequeueMessages,
-    _lastCommitTime, _lastCommitContent,
+    config,
+    messages,
+    appendMessage,
+    appendStream,
+    commitStream,
+    isStreaming,
+    setStreaming,
+    connectionState,
+    setConnectionState,
+    setConnected,
+    setMessages,
+    setLastSentMessage,
+    lastSentMessage,
+    removeMessage,
+    updateMessageStatus,
+    enqueueMessage,
+    dequeueMessages,
+    _lastCommitTime,
+    _lastCommitContent,
   } = useGhostStore();
 
-  const [input, setInput]                 = useState("");
-  const [pendingMedia, setPendingMedia]   = useState<{ uri: string; b64: string; mimeType: string } | null>(null);
-  const [recording, setRecording]         = useState<Audio.Recording | null>(null);
-  const [isRecording, setIsRecording]     = useState(false);
+  const [input, setInput] = useState("");
+  const [pendingMedia, setPendingMedia] = useState<{
+    uri: string;
+    b64: string;
+    mimeType: string;
+  } | null>(null);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
-  const durationTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const listRef         = useRef<FlatList>(null);
-  const localIdSeq      = useRef(0);
+  const durationTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const listRef = useRef<FlatList>(null);
+  const localIdSeq = useRef(0);
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSendAtRef   = useRef(0);
-  const [activeError, setActiveError] = useState<{ error: GhostError; partialContent?: string } | null>(null);
-  const [searchVisible, setSearchVisible]   = useState(false);
-  const [searchQuery, setSearchQuery]       = useState("");
-  const [searchResults, setSearchResults]   = useState(0);
+  const lastSendAtRef = useRef(0);
+  const [activeError, setActiveError] = useState<{
+    error: GhostError;
+    partialContent?: string;
+  } | null>(null);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(0);
   const [showSlashSuggestions, setShowSlashSuggestions] = useState(false);
-  const [attachExpanded, setAttachExpanded]               = useState(false);
+  const [attachExpanded, setAttachExpanded] = useState(false);
   const attachAnim = useRef(new Animated.Value(0)).current;
-  const [loadingOlder, setLoadingOlder]     = useState(false);
-  const [totalMessages, setTotalMessages]   = useState(0);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [totalMessages, setTotalMessages] = useState(0);
 
   // Tracks input bar Y position so slash modal can anchor to it
   const inputBarY = useRef(0);
 
-  const makeLocalMessageId = () => { localIdSeq.current += 1; return `local-${Date.now()}-${localIdSeq.current}`; };
-  const normalizeAssistantContent = (text: string) => text.replace(/\s+/g, " ").trim();
+  const makeLocalMessageId = () => {
+    localIdSeq.current += 1;
+    return `local-${Date.now()}-${localIdSeq.current}`;
+  };
+  const normalizeAssistantContent = (text: string) =>
+    text.replace(/\s+/g, " ").trim();
+
+  const shouldHideAssistantStatus = (text: string) => {
+    const t = text.trim().toLowerCase();
+    if (!t) return true;
+    return (
+      t === "thinking" ||
+      t === "thinking..." ||
+      t.startsWith("using tool") ||
+      t.startsWith("using tools") ||
+      t.startsWith("tool:") ||
+      t.startsWith("tool call") ||
+      t.startsWith("calling tool")
+    );
+  };
+
+  const sanitizeAssistantText = (text: string) => {
+    const lines = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => !shouldHideAssistantStatus(line));
+    return lines.join("\n").trim();
+  };
 
   // ── Health polling ────────────────────────────────────────────────────
   useEffect(() => {
@@ -248,13 +369,16 @@ export default function ChatScreen() {
     };
     poll();
     const interval = setInterval(poll, 30_000);
-    return () => { active = false; clearInterval(interval); };
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [config, setConnectionState]);
 
   // ── WS state ─────────────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onWSStateChange((state) => {
-      if (state === "connected")    setConnectionState("online");
+      if (state === "connected") setConnectionState("online");
       else if (state === "reconnecting") setConnectionState("syncing");
     });
     return unsub;
@@ -263,25 +387,45 @@ export default function ChatScreen() {
   // ── Load history ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!config) return;
-    fetchHistory(config, 60, 0).then((data) => {
-      setMessages([...data.messages].reverse().map((m) => ({ ...m, status: "completed" as const })));
-      setTotalMessages(data.total);
-    }).catch(() => {});
+    fetchHistory(config, 60, 0)
+      .then((data) => {
+        setMessages(
+          [...data.messages]
+            .reverse()
+            .map((m) => ({ ...m, status: "completed" as const })),
+        );
+        setTotalMessages(data.total);
+      })
+      .catch(() => {});
 
     connectWebSocket(config);
     const unsub = onWSMessage((msg) => {
       if (msg.type === "assistant_message") {
-        const state  = useGhostStore.getState();
-        const incoming = normalizeAssistantContent(msg.content ?? "");
+        const state = useGhostStore.getState();
+        const incoming = sanitizeAssistantText(msg.content ?? "");
         if (!incoming) return;
         if (state.isStreaming) return;
         if (Date.now() - lastSendAtRef.current > 120000) return;
-        if (state._lastCommitTime && Date.now() - state._lastCommitTime < 3000) {
-          if (normalizeAssistantContent(state._lastCommitContent) === incoming) return;
+        if (
+          state._lastCommitTime &&
+          Date.now() - state._lastCommitTime < 3000
+        ) {
+          if (normalizeAssistantContent(state._lastCommitContent) === incoming)
+            return;
         }
         const last = state.messages[state.messages.length - 1];
-        if (last?.role === "assistant" && normalizeAssistantContent(last.content) === incoming) return;
-        appendMessage({ id: makeLocalMessageId(), role: "assistant", content: incoming, timestamp: Date.now() / 1000, status: "completed" });
+        if (
+          last?.role === "assistant" &&
+          normalizeAssistantContent(last.content) === incoming
+        )
+          return;
+        appendMessage({
+          id: makeLocalMessageId(),
+          role: "assistant",
+          content: incoming,
+          timestamp: Date.now() / 1000,
+          status: "completed",
+        });
       }
     });
     return unsub;
@@ -291,7 +435,8 @@ export default function ChatScreen() {
   useEffect(() => {
     if (connectionState === "online" && config) {
       const queued = dequeueMessages();
-      for (const msg of queued) doSend(msg.content, msg.mediaB64, msg.mediaType);
+      for (const msg of queued)
+        doSend(msg.content, msg.mediaB64, msg.mediaType);
     }
   }, [connectionState]);
 
@@ -301,9 +446,14 @@ export default function ChatScreen() {
 
   // ── Search filter ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (!searchQuery.trim()) { setSearchResults(0); return; }
+    if (!searchQuery.trim()) {
+      setSearchResults(0);
+      return;
+    }
     const q = searchQuery.toLowerCase();
-    setSearchResults(messages.filter((m) => m.content.toLowerCase().includes(q)).length);
+    setSearchResults(
+      messages.filter((m) => m.content.toLowerCase().includes(q)).length,
+    );
   }, [searchQuery, messages]);
 
   // ── Load older messages ───────────────────────────────────────────────
@@ -312,7 +462,9 @@ export default function ChatScreen() {
     setLoadingOlder(true);
     try {
       const data = await fetchHistory(config, 30, messages.length);
-      const older = [...data.messages].reverse().map((m) => ({ ...m, status: "completed" as const }));
+      const older = [...data.messages]
+        .reverse()
+        .map((m) => ({ ...m, status: "completed" as const }));
       setMessages([...older, ...messages]);
       setTotalMessages(data.total);
     } catch {}
@@ -320,98 +472,176 @@ export default function ChatScreen() {
   }, [config, messages, loadingOlder, totalMessages, setMessages]);
 
   // ── Core send ─────────────────────────────────────────────────────────
-  const doSend = useCallback(async (text: string, mediaB64?: string, mediaType?: string, mediaUri?: string) => {
-    if (!config) return;
-    lastSendAtRef.current = Date.now();
-    const userMsgId = makeLocalMessageId();
-    appendMessage({ id: userMsgId, role: "user", content: text || "📎 Attachment", timestamp: Date.now() / 1000, media_url: mediaUri, status: "sending" });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    appendMessage(createStreamingPlaceholder());
-    setStreaming(true);
-    setActiveError(null);
-    setLastSentMessage({ content: text, mediaB64, mediaType });
+  const doSend = useCallback(
+    async (
+      text: string,
+      mediaB64?: string,
+      mediaType?: string,
+      mediaUri?: string,
+    ) => {
+      if (!config) return;
+      lastSendAtRef.current = Date.now();
+      const userMsgId = makeLocalMessageId();
+      appendMessage({
+        id: userMsgId,
+        role: "user",
+        content: text || "📎 Attachment",
+        timestamp: Date.now() / 1000,
+        media_url: mediaUri,
+        status: "sending",
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      appendMessage(createStreamingPlaceholder());
+      setStreaming(true);
+      setActiveError(null);
+      setLastSentMessage({ content: text, mediaB64, mediaType });
 
-    streamTimeoutRef.current = setTimeout(() => {
-      if (useGhostStore.getState().isStreaming) commitStream();
-    }, 30_000);
+      streamTimeoutRef.current = setTimeout(() => {
+        if (useGhostStore.getState().isStreaming) commitStream();
+      }, 30_000);
 
-    const firstChunkReceived = { current: false };
+      const firstChunkReceived = { current: false };
 
-    await sendMessage(config, {
-      content: text, mediaB64, mediaType,
-      onChunk: (chunk) => {
-        if (!firstChunkReceived.current) {
-          firstChunkReceived.current = true;
-          updateMessageStatus(userMsgId, "completed");
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-        appendStream(chunk);
-      },
-      onDone: (fullText) => {
-        if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
-        const hasReply = fullText.trim().length > 0;
-        commitStream();
-        if (hasReply) {
-          updateMessageStatus(userMsgId, "completed");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } else {
+      await sendMessage(config, {
+        content: text,
+        mediaB64,
+        mediaType,
+        onChunk: (chunk) => {
+          if (shouldHideAssistantStatus(chunk)) return;
+          if (!firstChunkReceived.current) {
+            firstChunkReceived.current = true;
+            updateMessageStatus(userMsgId, "completed");
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          appendStream(chunk);
+        },
+        onDone: (fullText) => {
+          if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
+          const cleaned = sanitizeAssistantText(fullText);
+          const hasReply = cleaned.trim().length > 0;
+          commitStream();
+          if (hasReply) {
+            updateMessageStatus(userMsgId, "completed");
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } else {
+            updateMessageStatus(userMsgId, "failed");
+            setActiveError({
+              error: {
+                kind: "empty_stream",
+                message: "Ghost returned no response.",
+                retryable: true,
+              },
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          }
+        },
+        onError: (err) => {
+          if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
+          const partial = useGhostStore.getState().streamBuffer;
+          commitStream();
           updateMessageStatus(userMsgId, "failed");
-          setActiveError({ error: { kind: "empty_stream", message: "Ghost returned no response.", retryable: true } });
+          const msgs = useGhostStore.getState().messages;
+          const lastMsg = msgs[msgs.length - 1];
+          if (lastMsg?.role === "assistant" && lastMsg.content.trim() === "")
+            removeMessage(lastMsg.id);
+          setActiveError({
+            error: err,
+            partialContent: partial?.trim().length > 0 ? partial : undefined,
+          });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
-      },
-      onError: (err) => {
-        if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
-        const partial = useGhostStore.getState().streamBuffer;
-        commitStream();
-        updateMessageStatus(userMsgId, "failed");
-        const msgs = useGhostStore.getState().messages;
-        const lastMsg = msgs[msgs.length - 1];
-        if (lastMsg?.role === "assistant" && lastMsg.content.trim() === "") removeMessage(lastMsg.id);
-        setActiveError({ error: err, partialContent: partial?.trim().length > 0 ? partial : undefined });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      },
-    });
-  }, [config, appendMessage, appendStream, commitStream, setStreaming, setLastSentMessage, updateMessageStatus, removeMessage]);
+        },
+      });
+    },
+    [
+      config,
+      appendMessage,
+      appendStream,
+      commitStream,
+      setStreaming,
+      setLastSentMessage,
+      updateMessageStatus,
+      removeMessage,
+    ],
+  );
 
   // ── Send handler ──────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     if (!config || (!input.trim() && !pendingMedia) || isStreaming) return;
-    const text  = input.trim();
+    const text = input.trim();
     const media = pendingMedia;
     setInput("");
     setPendingMedia(null);
     if (connectionState === "offline") {
-      enqueueMessage({ content: text, mediaB64: media?.b64, mediaType: media?.mimeType });
-      appendMessage({ id: makeLocalMessageId(), role: "user", content: text || "📎 Attachment", timestamp: Date.now() / 1000, media_url: media?.uri, status: "sending" });
+      enqueueMessage({
+        content: text,
+        mediaB64: media?.b64,
+        mediaType: media?.mimeType,
+      });
+      appendMessage({
+        id: makeLocalMessageId(),
+        role: "user",
+        content: text || "📎 Attachment",
+        timestamp: Date.now() / 1000,
+        media_url: media?.uri,
+        status: "sending",
+      });
       return;
     }
     await doSend(text, media?.b64, media?.mimeType, media?.uri);
-  }, [config, input, pendingMedia, isStreaming, connectionState, doSend, enqueueMessage, appendMessage]);
+  }, [
+    config,
+    input,
+    pendingMedia,
+    isStreaming,
+    connectionState,
+    doSend,
+    enqueueMessage,
+    appendMessage,
+  ]);
 
   // ── Retry ─────────────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
     if (!lastSentMessage || isStreaming) return;
     setActiveError(null);
-    doSend(lastSentMessage.content, lastSentMessage.mediaB64, lastSentMessage.mediaType);
+    doSend(
+      lastSentMessage.content,
+      lastSentMessage.mediaB64,
+      lastSentMessage.mediaType,
+    );
   }, [lastSentMessage, isStreaming, doSend]);
 
   const handleDismissError = useCallback(() => setActiveError(null), []);
 
   // ── Image / document pickers ──────────────────────────────────────────
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, base64: true, quality: 0.8 });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      base64: true,
+      quality: 0.8,
+    });
     if (!result.canceled && result.assets[0].base64) {
-      setPendingMedia({ uri: result.assets[0].uri, b64: result.assets[0].base64, mimeType: "image/jpeg" });
+      setPendingMedia({
+        uri: result.assets[0].uri,
+        b64: result.assets[0].base64,
+        mimeType: "image/jpeg",
+      });
     }
   };
 
   const pickDocument = async () => {
     if (!config) return;
-    const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "*/*",
+      copyToCacheDirectory: true,
+    });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      const { b64, mime_type } = await uploadFile(config, asset.uri, asset.mimeType ?? "application/octet-stream", asset.name);
+      const { b64, mime_type } = await uploadFile(
+        config,
+        asset.uri,
+        asset.mimeType ?? "application/octet-stream",
+        asset.name,
+      );
       setPendingMedia({ uri: asset.uri, b64, mimeType: mime_type });
     }
   };
@@ -420,72 +650,124 @@ export default function ChatScreen() {
   const startRecording = async () => {
     const { status } = await Audio.requestPermissionsAsync();
     if (status !== "granted") return;
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-    const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-    setRecording(rec); setIsRecording(true); setRecordDuration(0);
-    durationTimer.current = setInterval(() => setRecordDuration((d) => d + 1), 1000);
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+    });
+    const { recording: rec } = await Audio.Recording.createAsync(
+      Audio.RecordingOptionsPresets.HIGH_QUALITY,
+    );
+    setRecording(rec);
+    setIsRecording(true);
+    setRecordDuration(0);
+    durationTimer.current = setInterval(
+      () => setRecordDuration((d) => d + 1),
+      1000,
+    );
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const stopRecording = async () => {
     if (!recording || !config) return;
     if (durationTimer.current) clearInterval(durationTimer.current);
-    setIsRecording(false); setIsTranscribing(true);
+    setIsRecording(false);
+    setIsTranscribing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await recording.stopAndUnloadAsync();
     const uri = recording.getURI();
     setRecording(null);
     if (uri) {
       const transcript = await transcribeAudio(config, uri);
-      setInput((prev) => transcript ? (prev ? prev + " " + transcript : transcript) : prev + " [Voice — transcription unavailable]");
+      setInput((prev) =>
+        transcript
+          ? prev
+            ? prev + " " + transcript
+            : transcript
+          : prev + " [Voice — transcription unavailable]",
+      );
     }
-    setIsTranscribing(false); setRecordDuration(0);
+    setIsTranscribing(false);
+    setRecordDuration(0);
   };
 
-  const toggleRecording = () => isRecording ? stopRecording() : startRecording();
-  const formatDuration  = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const toggleRecording = () =>
+    isRecording ? stopRecording() : startRecording();
+  const formatDuration = (s: number) =>
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   // ── Clear chat ────────────────────────────────────────────────────────
   const handleClearChat = useCallback(() => {
     if (!config) return;
-    if (isStreaming) { if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current); commitStream(); }
-    Alert.alert("Clear chat?", "This archives the mobile history. Ghost's long-term memory is unaffected.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Clear", style: "destructive", onPress: async () => {
-        try {
-          await clearChat(config);
-          setMessages([]); setActiveError(null); setTotalMessages(0);
-        } catch {
-          setActiveError({ error: { kind: "network", message: "Failed to clear chat", retryable: false } });
-        }
-      }},
-    ]);
+    if (isStreaming) {
+      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
+      commitStream();
+    }
+    Alert.alert(
+      "Clear chat?",
+      "This archives the mobile history. Ghost's long-term memory is unaffected.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await clearChat(config);
+              setMessages([]);
+              setActiveError(null);
+              setTotalMessages(0);
+            } catch {
+              setActiveError({
+                error: {
+                  kind: "network",
+                  message: "Failed to clear chat",
+                  retryable: false,
+                },
+              });
+            }
+          },
+        },
+      ],
+    );
   }, [config, isStreaming, commitStream, setMessages]);
 
   // ── Input change ──────────────────────────────────────────────────────
   const handleInputChange = (text: string) => {
     setInput(text);
-    setShowSlashSuggestions(text === "/" || (text.startsWith("/") && !text.includes(" ")));
+    setShowSlashSuggestions(
+      text === "/" || (text.startsWith("/") && !text.includes(" ")),
+    );
   };
 
   // ── Attach tray toggle ───────────────────────────────────────────────
   const toggleAttach = () => {
     const toValue = attachExpanded ? 0 : 1;
     setAttachExpanded(!attachExpanded);
-    Animated.spring(attachAnim, { toValue, useNativeDriver: true, tension: 120, friction: 10 }).start();
+    Animated.spring(attachAnim, {
+      toValue,
+      useNativeDriver: true,
+      tension: 120,
+      friction: 10,
+    }).start();
   };
 
   const displayMessages = searchQuery.trim()
-    ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? messages.filter((m) =>
+        m.content.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
     : messages;
 
   // ── No config ─────────────────────────────────────────────────────────
   if (!config) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
+      <View
+        style={[styles.container, styles.centered, { paddingTop: insets.top }]}
+      >
         <Text style={{ fontSize: 54, marginBottom: 18 }}>👻</Text>
         <Text style={styles.noConfigTitle}>Ghost not configured</Text>
-        <Text style={styles.noConfigSub}>Go to ⚙️ Settings to connect to your Pi</Text>
+        <Text style={styles.noConfigSub}>
+          Go to ⚙️ Settings to connect to your Pi
+        </Text>
       </View>
     );
   }
@@ -504,18 +786,33 @@ export default function ChatScreen() {
           <ConnectionIndicator state={connectionState} />
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.searchBtn} onPress={() => setSearchVisible(!searchVisible)}>
+          <TouchableOpacity
+            style={styles.searchBtn}
+            onPress={() => setSearchVisible(!searchVisible)}
+          >
             <Text style={styles.searchBtnText}>⌕</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.clearBtn, isStreaming && styles.clearBtnOff]} onPress={handleClearChat} disabled={isStreaming}>
+          <TouchableOpacity
+            style={[styles.clearBtn, isStreaming && styles.clearBtnOff]}
+            onPress={handleClearChat}
+            disabled={isStreaming}
+          >
             <Text style={styles.clearBtnText}>CLEAR</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* ── Search overlay ── */}
-      <SearchOverlay visible={searchVisible} query={searchQuery} onChangeQuery={setSearchQuery}
-        onClose={() => { setSearchVisible(false); setSearchQuery(""); }} results={searchResults} />
+      <SearchOverlay
+        visible={searchVisible}
+        query={searchQuery}
+        onChangeQuery={setSearchQuery}
+        onClose={() => {
+          setSearchVisible(false);
+          setSearchQuery("");
+        }}
+        results={searchResults}
+      />
 
       {/* ── Messages ── */}
       <FlatList
@@ -525,7 +822,9 @@ export default function ChatScreen() {
         renderItem={({ item }) => <MessageBubble msg={item} />}
         contentContainerStyle={styles.msgList}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() =>
+          listRef.current?.scrollToEnd({ animated: true })
+        }
         showsVerticalScrollIndicator={false}
         onStartReached={loadOlderMessages}
         onStartReachedThreshold={0.1}
@@ -533,19 +832,32 @@ export default function ChatScreen() {
           loadingOlder ? (
             <View style={{ padding: 12, alignItems: "center" }}>
               <ActivityIndicator color={C.accent} size="small" />
-              <Text style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>Loading older messages…</Text>
+              <Text style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>
+                Loading older messages…
+              </Text>
             </View>
           ) : messages.length > 0 && messages.length < totalMessages ? (
-            <TouchableOpacity style={{ padding: 12, alignItems: "center" }} onPress={loadOlderMessages}>
-              <Text style={{ color: C.accent, fontSize: 12, fontWeight: "600" }}>↑ Load older messages</Text>
+            <TouchableOpacity
+              style={{ padding: 12, alignItems: "center" }}
+              onPress={loadOlderMessages}
+            >
+              <Text
+                style={{ color: C.accent, fontSize: 12, fontWeight: "600" }}
+              >
+                ↑ Load older messages
+              </Text>
             </TouchableOpacity>
           ) : null
         }
         ListFooterComponent={
           activeError ? (
             <View style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
-              <ErrorCard error={activeError.error} partialContent={activeError.partialContent}
-                onRetry={activeError.error.retryable ? handleRetry : undefined} onDismiss={handleDismissError} />
+              <ErrorCard
+                error={activeError.error}
+                partialContent={activeError.partialContent}
+                onRetry={activeError.error.retryable ? handleRetry : undefined}
+                onDismiss={handleDismissError}
+              />
             </View>
           ) : null
         }
@@ -555,9 +867,16 @@ export default function ChatScreen() {
       {pendingMedia && (
         <View style={styles.mediaPreview}>
           <Image source={{ uri: pendingMedia.uri }} style={styles.mediaThumb} />
-          <Text style={styles.mediaLabel} numberOfLines={1}>Image attached</Text>
-          <TouchableOpacity onPress={() => setPendingMedia(null)} style={styles.mediaRemove}>
-            <Text style={{ color: C.danger, fontSize: 13, fontWeight: "700" }}>✕</Text>
+          <Text style={styles.mediaLabel} numberOfLines={1}>
+            Image attached
+          </Text>
+          <TouchableOpacity
+            onPress={() => setPendingMedia(null)}
+            style={styles.mediaRemove}
+          >
+            <Text style={{ color: C.danger, fontSize: 13, fontWeight: "700" }}>
+              ✕
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -565,7 +884,9 @@ export default function ChatScreen() {
       {/* ── Offline banner ── */}
       {connectionState === "offline" && (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>📡 Offline — messages will be sent when reconnected</Text>
+          <Text style={styles.offlineText}>
+            📡 Offline — messages will be sent when reconnected
+          </Text>
         </View>
       )}
 
@@ -575,8 +896,14 @@ export default function ChatScreen() {
           {SLASH_COMMANDS.map((sc, idx) => (
             <TouchableOpacity
               key={sc.command}
-              style={[styles.slashItem, idx === SLASH_COMMANDS.length - 1 && { borderBottomWidth: 0 }]}
-              onPress={() => { setInput(sc.command + " "); setShowSlashSuggestions(false); }}
+              style={[
+                styles.slashItem,
+                idx === SLASH_COMMANDS.length - 1 && { borderBottomWidth: 0 },
+              ]}
+              onPress={() => {
+                setInput(sc.command + " ");
+                setShowSlashSuggestions(false);
+              }}
             >
               <Text style={styles.slashCmd}>{sc.command}</Text>
               <Text style={styles.slashDesc}>{sc.description}</Text>
@@ -590,12 +917,31 @@ export default function ChatScreen() {
         <Animated.View
           style={[
             styles.attachTray,
-            { opacity: attachAnim, transform: [{ translateY: attachAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] },
+            {
+              opacity: attachAnim,
+              transform: [
+                {
+                  translateY: attachAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [12, 0],
+                  }),
+                },
+              ],
+            },
           ]}
         >
           <TouchableOpacity
             style={styles.attachOption}
-            onPress={() => { pickImage(); setAttachExpanded(false); Animated.spring(attachAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 10 }).start(); }}
+            onPress={() => {
+              pickImage();
+              setAttachExpanded(false);
+              Animated.spring(attachAnim, {
+                toValue: 0,
+                useNativeDriver: true,
+                tension: 120,
+                friction: 10,
+              }).start();
+            }}
           >
             <View style={styles.attachOptionIcon}>
               <Text style={{ fontSize: 20 }}>🖼</Text>
@@ -604,7 +950,16 @@ export default function ChatScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.attachOption}
-            onPress={() => { pickDocument(); setAttachExpanded(false); Animated.spring(attachAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 10 }).start(); }}
+            onPress={() => {
+              pickDocument();
+              setAttachExpanded(false);
+              Animated.spring(attachAnim, {
+                toValue: 0,
+                useNativeDriver: true,
+                tension: 120,
+                friction: 10,
+              }).start();
+            }}
           >
             <View style={styles.attachOptionIcon}>
               <Text style={{ fontSize: 20 }}>📄</Text>
@@ -615,18 +970,38 @@ export default function ChatScreen() {
       )}
 
       {/* ── Input bar ── */}
-      <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? Math.max(insets.bottom, 8) + 2 : 8 }]}>
-
+      <View
+        style={[
+          styles.inputBar,
+          {
+            paddingBottom:
+              Platform.OS === "ios" ? Math.max(insets.bottom, 8) + 2 : 8,
+          },
+        ]}
+      >
         {/* + attach button */}
         <TouchableOpacity
           style={[styles.attachBtn, attachExpanded && styles.attachBtnActive]}
           onPress={toggleAttach}
           disabled={isRecording || isTranscribing}
         >
-          <Animated.Text style={[
-            styles.attachBtnIcon,
-            { transform: [{ rotate: attachAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] },
-          ]}>+</Animated.Text>
+          <Animated.Text
+            style={[
+              styles.attachBtnIcon,
+              {
+                transform: [
+                  {
+                    rotate: attachAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "45deg"],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            +
+          </Animated.Text>
         </TouchableOpacity>
 
         {/* Text input with mic inside — OR recording state */}
@@ -635,8 +1010,14 @@ export default function ChatScreen() {
           <View style={styles.recordingInput}>
             {isTranscribing ? (
               <>
-                <ActivityIndicator size="small" color={C.warn} style={{ marginRight: 8 }} />
-                <Text style={[styles.recordingInputText, { color: C.warn }]}>Transcribing…</Text>
+                <ActivityIndicator
+                  size="small"
+                  color={C.warn}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={[styles.recordingInputText, { color: C.warn }]}>
+                  Transcribing…
+                </Text>
               </>
             ) : (
               <>
@@ -660,7 +1041,10 @@ export default function ChatScreen() {
               multiline
               maxLength={4000}
             />
-            <TouchableOpacity style={styles.micInside} onPress={toggleRecording}>
+            <TouchableOpacity
+              style={styles.micInside}
+              onPress={toggleRecording}
+            >
               <Text style={styles.micInsideIcon}>🎤</Text>
             </TouchableOpacity>
           </View>
@@ -673,13 +1057,23 @@ export default function ChatScreen() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.sendBtn, (isStreaming || isTranscribing || (!input.trim() && !pendingMedia)) && styles.sendBtnOff]}
+            style={[
+              styles.sendBtn,
+              (isStreaming ||
+                isTranscribing ||
+                (!input.trim() && !pendingMedia)) &&
+                styles.sendBtnOff,
+            ]}
             onPress={handleSend}
-            disabled={isStreaming || isTranscribing || (!input.trim() && !pendingMedia)}
+            disabled={
+              isStreaming || isTranscribing || (!input.trim() && !pendingMedia)
+            }
           >
-            {isStreaming
-              ? <ActivityIndicator color={C.bg} size="small" />
-              : <Text style={styles.sendArrow}>↑</Text>}
+            {isStreaming ? (
+              <ActivityIndicator color={C.bg} size="small" />
+            ) : (
+              <Text style={styles.sendArrow}>↑</Text>
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -689,46 +1083,82 @@ export default function ChatScreen() {
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:     { flex: 1, backgroundColor: C.bg },
-  centered:      { justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, backgroundColor: C.bg },
+  centered: { justifyContent: "center", alignItems: "center" },
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 18, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: C.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
   },
-  headerLeft:    { flexDirection: "row", alignItems: "center", gap: 12 },
-  headerRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerTitle: {
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-    fontSize: 17, fontWeight: "800", color: C.accent, letterSpacing: 7,
+    fontSize: 17,
+    fontWeight: "800",
+    color: C.accent,
+    letterSpacing: 7,
   },
-  headerStatus:  { flexDirection: "row", alignItems: "center", gap: 5 },
-  statusDot:     { width: 7, height: 7, borderRadius: 4 },
+  headerStatus: { flexDirection: "row", alignItems: "center", gap: 5 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusLabel: {
-    fontSize: 9, fontWeight: "700", letterSpacing: 1.5,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.5,
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
-  searchBtn:      { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#ffffff08" },
-  searchBtnText:  { color: C.textDim, fontSize: 16 },
+  searchBtn: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "#ffffff08",
+  },
+  searchBtnText: { color: C.textDim, fontSize: 16 },
   clearBtn: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: C.accentDim, borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: "#00FF8840",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.accentDim,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#00FF8840",
   },
-  clearBtnOff:   { opacity: 0.4 },
+  clearBtnOff: { opacity: 0.4 },
   clearBtnText: {
-    color: C.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.2,
+    color: C.accent,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
-  searchOverlay: { borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface },
-  searchBar:     { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
-  searchIcon:    { color: C.textDim, fontSize: 16 },
-  searchInput: {
-    flex: 1, color: C.text, fontSize: 14,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", paddingVertical: 4,
+  searchOverlay: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    backgroundColor: C.surface,
   },
-  searchCount:   { color: C.textDim, fontSize: 11 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  searchIcon: { color: C.textDim, fontSize: 16 },
+  searchInput: {
+    flex: 1,
+    color: C.text,
+    fontSize: 14,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    paddingVertical: 4,
+  },
+  searchCount: { color: C.textDim, fontSize: 11 },
 
   // ── Slash suggestions — no absolute positioning ───────────────────────
   slashOverlay: {
@@ -747,61 +1177,93 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
   },
   slashCmd: {
-    color: C.accent, fontSize: 13, fontWeight: "700", minWidth: 72,
+    color: C.accent,
+    fontSize: 13,
+    fontWeight: "700",
+    minWidth: 72,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-  slashDesc:     { color: C.textDim, fontSize: 12, flex: 1 },
+  slashDesc: { color: C.textDim, fontSize: 12, flex: 1 },
 
   // ── Messages ──────────────────────────────────────────────────────────
-  msgList:       { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 20 },
-  bubbleRow:     { flexDirection: "row", gap: 8 },
+  msgList: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 20 },
+  bubbleRow: { flexDirection: "row", gap: 8 },
   bubbleRowUser: { justifyContent: "flex-end" },
-  bubbleRowAI:   { justifyContent: "flex-start", alignItems: "flex-end" },
+  bubbleRowAI: { justifyContent: "flex-start", alignItems: "flex-end" },
   avatar: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
-    alignItems: "center", justifyContent: "center",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   bubble: {
-    maxWidth: "82%", borderRadius: 16,
-    paddingHorizontal: 13, paddingVertical: 10,
+    maxWidth: "82%",
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
   },
   bubbleUser: {
     backgroundColor: C.userBubble,
-    borderWidth: 1, borderColor: "#00FF8828",
+    borderWidth: 1,
+    borderColor: "#00FF8828",
     borderBottomRightRadius: 4,
   },
   bubbleAI: {
     backgroundColor: C.surface,
-    borderWidth: 1, borderColor: C.border,
+    borderWidth: 1,
+    borderColor: C.border,
     borderBottomLeftRadius: 4,
   },
   userText: {
-    color: C.text, fontSize: 15, lineHeight: 22,
+    color: C.text,
+    fontSize: 15,
+    lineHeight: 22,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-  tsRow:         { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 6 },
-  ts:            { color: C.textMuted, fontSize: 10 },
-  statusIcon:    { fontSize: 10, color: C.textDim },
+  tsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+    marginTop: 6,
+  },
+  ts: { color: C.textMuted, fontSize: 10 },
+  statusIcon: { fontSize: 10, color: C.textDim },
   attachedImage: { width: 190, height: 130, borderRadius: 8, marginBottom: 8 },
 
   mediaPreview: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border,
-    padding: 8, gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.surface,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    padding: 8,
+    gap: 8,
   },
-  mediaThumb:    { width: 38, height: 38, borderRadius: 6 },
-  mediaLabel:    { flex: 1, color: C.textDim, fontSize: 12 },
+  mediaThumb: { width: 38, height: 38, borderRadius: 6 },
+  mediaLabel: { flex: 1, color: C.textDim, fontSize: 12 },
   mediaRemove: {
-    width: 22, height: 22, alignItems: "center", justifyContent: "center",
-    backgroundColor: "#FF445520", borderRadius: 11,
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF445520",
+    borderRadius: 11,
   },
   // recordingBar removed — recording state lives inside the input bar
   offlineBanner: {
-    backgroundColor: "#1A1A0A", borderTopWidth: 1, borderTopColor: "#3A3A1A",
-    paddingHorizontal: 16, paddingVertical: 8, alignItems: "center",
+    backgroundColor: "#1A1A0A",
+    borderTopWidth: 1,
+    borderTopColor: "#3A3A1A",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: "center",
   },
-  offlineText:   { color: C.warn, fontSize: 12, fontWeight: "600" },
+  offlineText: { color: C.warn, fontSize: 12, fontWeight: "600" },
   // ── Input bar ───────────────────────────────────────────────────────────
   inputBar: {
     flexDirection: "row",
@@ -816,11 +1278,14 @@ const styles = StyleSheet.create({
 
   // + attach button
   attachBtn: {
-    width: 38, height: 38,
+    width: 38,
+    height: 38,
     borderRadius: 19,
     backgroundColor: "#ffffff0A",
-    borderWidth: 1, borderColor: C.border,
-    alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 1,
   },
   attachBtnActive: {
@@ -850,11 +1315,14 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   attachOptionIcon: {
-    width: 52, height: 52,
+    width: 52,
+    height: 52,
     borderRadius: 16,
     backgroundColor: "#0D1F2D",
-    borderWidth: 1, borderColor: C.border,
-    alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   attachOptionLabel: {
     color: C.textDim,
@@ -868,7 +1336,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flex: 1,
     flexDirection: "row",
-    alignItems: "center",          // keeps placeholder vertically centred
+    alignItems: "center", // keeps placeholder vertically centred
     backgroundColor: "#ffffff08",
     borderRadius: 22,
     borderWidth: 1,
@@ -885,15 +1353,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     lineHeight: 22,
-    paddingVertical: 0,            // wrapper padding handles vertical space
+    paddingVertical: 0, // wrapper padding handles vertical space
     // no background/border — wrapper handles it
   },
 
   // mic button inside the input
   micInside: {
-    width: 32, height: 32,
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    alignItems: "center", justifyContent: "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
   micInsideIcon: { fontSize: 16 },
 
@@ -925,31 +1395,42 @@ const styles = StyleSheet.create({
 
   // stop button (shown while recording)
   stopBtn: {
-    width: 38, height: 38,
+    width: 38,
+    height: 38,
     borderRadius: 19,
     backgroundColor: "#FF445522",
-    borderWidth: 1.5, borderColor: C.danger,
-    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: C.danger,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 1,
   },
   stopDot: {
-    width: 12, height: 12,
+    width: 12,
+    height: 12,
     borderRadius: 3,
     backgroundColor: C.danger,
   },
 
   // send button
   sendBtn: {
-    width: 38, height: 38,
+    width: 38,
+    height: 38,
     borderRadius: 19,
     backgroundColor: C.accent,
-    alignItems: "center", justifyContent: "center",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 1,
   },
   sendBtnOff: { backgroundColor: "#1A3028", opacity: 0.6 },
-  sendArrow:  { color: C.bg, fontSize: 18, fontWeight: "900" },
-  noConfigTitle: { color: C.text, fontSize: 19, fontWeight: "700", letterSpacing: 0.5 },
-  noConfigSub:   { color: C.textDim, fontSize: 14, marginTop: 10 },
+  sendArrow: { color: C.bg, fontSize: 18, fontWeight: "900" },
+  noConfigTitle: {
+    color: C.text,
+    fontSize: 19,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  noConfigSub: { color: C.textDim, fontSize: 14, marginTop: 10 },
 });
 
 // ─── Markdown styles ──────────────────────────────────────────────────────
@@ -967,14 +1448,33 @@ const mkStyles: Record<string, any> = {
   },
 
   // Headings
-  heading1: { color: "#FFFFFF", fontWeight: "800", fontSize: 20, marginTop: 14, marginBottom: 6, letterSpacing: 0.3 },
-  heading2: { color: "#FFFFFF", fontWeight: "700", fontSize: 17, marginTop: 12, marginBottom: 5 },
-  heading3: { color: "#E0F0FF", fontWeight: "700", fontSize: 15, marginTop: 10, marginBottom: 4 },
+  heading1: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 20,
+    marginTop: 14,
+    marginBottom: 6,
+    letterSpacing: 0.3,
+  },
+  heading2: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 17,
+    marginTop: 12,
+    marginBottom: 5,
+  },
+  heading3: {
+    color: "#E0F0FF",
+    fontWeight: "700",
+    fontSize: 15,
+    marginTop: 10,
+    marginBottom: 4,
+  },
 
   // Emphasis
   strong: { color: "#FFFFFF", fontWeight: "700" },
-  em:     { color: "#A8C8E8", fontStyle: "italic" },
-  s:      { color: C.textDim, textDecorationLine: "line-through" },
+  em: { color: "#A8C8E8", fontStyle: "italic" },
+  s: { color: C.textDim, textDecorationLine: "line-through" },
 
   // Inline code
   code_inline: {
@@ -1022,7 +1522,7 @@ const mkStyles: Record<string, any> = {
   },
 
   // Lists
-  bullet_list:  { marginVertical: 4 },
+  bullet_list: { marginVertical: 4 },
   ordered_list: { marginVertical: 4 },
   list_item: {
     marginBottom: 4,
@@ -1049,21 +1549,32 @@ const mkStyles: Record<string, any> = {
 
   // Tables
   table: {
-    borderWidth: 1, borderColor: "#0E2030",
-    borderRadius: 8, marginVertical: 8,
-    overflow: "hidden", backgroundColor: "#050D14",
+    borderWidth: 1,
+    borderColor: "#0E2030",
+    borderRadius: 8,
+    marginVertical: 8,
+    overflow: "hidden",
+    backgroundColor: "#050D14",
   },
   thead: { backgroundColor: "#0A1E30" },
   tbody: { backgroundColor: "#050D14" },
-  tr:    { borderBottomWidth: 1, borderBottomColor: "#0E2030" },
+  tr: { borderBottomWidth: 1, borderBottomColor: "#0E2030" },
   th: {
-    color: "#EAF4FF", fontWeight: "700", fontSize: 12,
-    paddingVertical: 8, paddingHorizontal: 10,
-    borderRightWidth: 1, borderRightColor: "#0E2030",
+    color: "#EAF4FF",
+    fontWeight: "700",
+    fontSize: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRightWidth: 1,
+    borderRightColor: "#0E2030",
   },
   td: {
-    color: C.text, fontSize: 12, lineHeight: 18,
-    paddingVertical: 8, paddingHorizontal: 10,
-    borderRightWidth: 1, borderRightColor: "#0E2030",
+    color: C.text,
+    fontSize: 12,
+    lineHeight: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRightWidth: 1,
+    borderRightColor: "#0E2030",
   },
 };
