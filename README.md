@@ -59,7 +59,7 @@ BRIDGE_PORT=8765
 BRIDGE_SECRET=pick_a_strong_secret_here
 
 # Absolute paths (adjust username if not 'pi')
-GHOST_DB_PATH=/home/pi/ghost/ghost.db
+GHOST_DB_PATH=/home/pi/ghost/workspace/ghost.db
 MEMORY_DIR=/home/pi/ghost/workspace/memory
 
 # Optional: system prompt prepended to every request
@@ -75,14 +75,28 @@ GHOST_SYSTEM_PROMPT=You are Ghost, a sovereign AI on a Raspberry Pi. Be concise.
 ### 2. Build and run manually (first test)
 
 ```bash
-cd ~/ghost-bridge
+cd ~/ghost/bridge
 go mod tidy
 go build -o ghost-bridge .
 ./ghost-bridge
 # 👻 Ghost Bridge running on 0.0.0.0:8765
 ```
 
-### 3. Install as a systemd service
+### 3. Deploy and Install Service (Recommended)
+
+The easiest way to install is using the included Makefile, which handles building, copying, and service configuration for you (even if your user isn't 'pi'). If your host or user differs, set `PI_HOST` and `PI_USER` once in `ghost/.env` and keep the deploy command short.
+
+**From your development machine:**
+
+```bash
+cd ../ghost/bridge
+
+make deploy
+```
+
+### 4. Manual Service Installation (Alternative)
+
+If you prefer to set it up manually:
 
 ```bash
 # Edit the service file if your username isn't 'pi'
@@ -97,7 +111,7 @@ sudo systemctl start ghost-bridge
 sudo journalctl -u ghost-bridge -f
 ```
 
-### 4. Firewall (local network only)
+### 5. Firewall (local network only)
 
 ```bash
 # Allow only your home network range
@@ -249,8 +263,8 @@ eas build --platform android --profile preview
 ```bash
 # On your dev machine:
 cd ../ghost/bridge
-make deploy PI_HOST=pi@192.168.1.42
 
-# Or manually on the Pi:
-go build -o ghost-bridge . && sudo systemctl restart ghost-bridge
+make deploy
 ```
+
+If the Pi IP changes, update `PI_HOST` in `ghost/.env` and run `make deploy` again.
