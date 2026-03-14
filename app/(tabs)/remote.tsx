@@ -275,7 +275,7 @@ export default function RemoteScreen() {
               resizeMode="contain"
             />
           ) : (
-            <Text style={styles.dimText}>Tap CAPTURE to grab Pi screen{'\n'}(requires scrot: sudo apt install scrot)</Text>
+            <Text style={styles.dimText}>Tap CAPTURE to grab the Pi screen</Text>
           )}
         </View>
 
