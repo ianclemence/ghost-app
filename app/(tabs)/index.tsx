@@ -20,6 +20,7 @@ import {
 import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import ErrorCard from "../../components/ErrorCard";
 import {
   checkHealth,
   clearChat,
@@ -29,7 +30,6 @@ import {
   onWSMessage,
   onWSStateChange,
   sendMessage,
-  searchMessages,
   transcribeAudio,
   uploadFile,
 } from "../../lib/ghostApi";
@@ -39,7 +39,6 @@ import {
   ExtendedMessage,
   useGhostStore,
 } from "../../lib/store";
-import ErrorCard from "../../components/ErrorCard";
 
 // ─── Palette ───────────────────────────────────────────────────────────────
 const C = {
@@ -151,13 +150,13 @@ function RecordingIndicator() {
 
 // ─── Status indicator for user messages ────────────────────────────────────
 function MessageStatusIcon({ status }: { status?: string }) {
-  if (status === 'sending') {
+  if (status === "sending") {
     return <Text style={styles.statusIcon}>⏱</Text>;
   }
-  if (status === 'completed' || status === 'streaming') {
+  if (status === "completed" || status === "streaming") {
     return <Text style={[styles.statusIcon, { color: C.accent }]}>✓</Text>;
   }
-  if (status === 'failed') {
+  if (status === "failed") {
     return <Text style={[styles.statusIcon, { color: C.danger }]}>✗</Text>;
   }
   return null;
@@ -165,8 +164,10 @@ function MessageStatusIcon({ status }: { status?: string }) {
 
 // ─── Connection indicator ──────────────────────────────────────────────────
 function ConnectionIndicator({ state }: { state: ConnectionState }) {
-  const color = state === 'online' ? C.accent : state === 'syncing' ? C.syncing : C.danger;
-  const label = state === 'online' ? 'ONLINE' : state === 'syncing' ? 'SYNCING' : 'OFFLINE';
+  const color =
+    state === "online" ? C.accent : state === "syncing" ? C.syncing : C.danger;
+  const label =
+    state === "online" ? "ONLINE" : state === "syncing" ? "SYNCING" : "OFFLINE";
   return (
     <View style={styles.headerStatus}>
       <View style={[styles.statusDot, { backgroundColor: color }]} />
@@ -230,7 +231,9 @@ function SearchOverlay({
           <Text style={styles.searchCount}>{results} found</Text>
         )}
         <TouchableOpacity onPress={onClose}>
-          <Text style={{ color: C.accent, fontSize: 13, fontWeight: '700' }}>CLOSE</Text>
+          <Text style={{ color: C.accent, fontSize: 13, fontWeight: "700" }}>
+            CLOSE
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -241,7 +244,7 @@ function SearchOverlay({
 function MessageBubble({ msg }: { msg: ExtendedMessage }) {
   const isUser = msg.role === "user";
   const isEmpty = msg.content === "" && !isUser;
-  const isError = msg.status === 'failed' && msg.errorKind;
+  const isError = msg.status === "failed" && msg.errorKind;
 
   return (
     <View
@@ -325,6 +328,7 @@ export default function ChatScreen() {
   const listRef = useRef<FlatList>(null);
   const localIdSeq = useRef(0);
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSendAtRef = useRef(0);
   const [activeError, setActiveError] = useState<{
     error: GhostError;
     partialContent?: string;
@@ -355,7 +359,7 @@ export default function ChatScreen() {
       if (!active || !config) return;
       const ok = await checkHealth(config);
       if (active) {
-        setConnectionState(ok ? 'online' : 'offline');
+        setConnectionState(ok ? "online" : "offline");
       }
     };
 
@@ -370,10 +374,10 @@ export default function ChatScreen() {
   // ── WebSocket state tracking ──────────────────────────────────────────
   useEffect(() => {
     const unsub = onWSStateChange((state) => {
-      if (state === 'connected') {
-        setConnectionState('online');
-      } else if (state === 'reconnecting') {
-        setConnectionState('syncing');
+      if (state === "connected") {
+        setConnectionState("online");
+      } else if (state === "reconnecting") {
+        setConnectionState("syncing");
       }
       // Don't set offline from WS — health poll handles that
     });
@@ -388,8 +392,8 @@ export default function ChatScreen() {
         setMessages(
           [...data.messages].reverse().map((m) => ({
             ...m,
-            status: 'completed' as const,
-          }))
+            status: "completed" as const,
+          })),
         );
         setTotalMessages(data.total);
       })
@@ -404,14 +408,19 @@ export default function ChatScreen() {
 
         // --- Dedup: Suppress during active stream ---
         if (state.isStreaming) return;
+        if (Date.now() - lastSendAtRef.current > 120000) return;
 
         // --- Dedup: Content-hash check within 3s window ---
         if (
           state._lastCommitTime &&
           Date.now() - state._lastCommitTime < 3000
         ) {
-          if (normalizeAssistantContent(state._lastCommitContent) === incoming) {
-            console.log("[dedup] WS message suppressed (content match within 3s window)");
+          if (
+            normalizeAssistantContent(state._lastCommitContent) === incoming
+          ) {
+            console.log(
+              "[dedup] WS message suppressed (content match within 3s window)",
+            );
             return;
           }
         }
@@ -430,7 +439,7 @@ export default function ChatScreen() {
           role: "assistant",
           content: incoming,
           timestamp: Date.now() / 1000,
-          status: 'completed',
+          status: "completed",
         });
       }
     });
@@ -439,7 +448,7 @@ export default function ChatScreen() {
 
   // Flush offline queue when coming online
   useEffect(() => {
-    if (connectionState === 'online' && config) {
+    if (connectionState === "online" && config) {
       const queued = dequeueMessages();
       for (const msg of queued) {
         doSend(msg.content, msg.mediaB64, msg.mediaType);
@@ -459,7 +468,7 @@ export default function ChatScreen() {
     }
     const q = searchQuery.toLowerCase();
     const count = messages.filter((m) =>
-      m.content.toLowerCase().includes(q)
+      m.content.toLowerCase().includes(q),
     ).length;
     setSearchResults(count);
   }, [searchQuery, messages]);
@@ -472,7 +481,7 @@ export default function ChatScreen() {
       const data = await fetchHistory(config, 30, messages.length);
       const older = [...data.messages].reverse().map((m) => ({
         ...m,
-        status: 'completed' as const,
+        status: "completed" as const,
       }));
       setMessages([...older, ...messages]);
       setTotalMessages(data.total);
@@ -481,82 +490,110 @@ export default function ChatScreen() {
   }, [config, messages, loadingOlder, totalMessages, setMessages]);
 
   // ── Core send logic ──────────────────────────────────────────────────
-  const doSend = useCallback(async (
-    text: string,
-    mediaB64?: string,
-    mediaType?: string,
-    mediaUri?: string,
-  ) => {
-    if (!config) return;
+  const doSend = useCallback(
+    async (
+      text: string,
+      mediaB64?: string,
+      mediaType?: string,
+      mediaUri?: string,
+    ) => {
+      if (!config) return;
+      lastSendAtRef.current = Date.now();
 
-    const userMsgId = makeLocalMessageId();
-    appendMessage({
-      id: userMsgId,
-      role: "user",
-      content: text || "📎 Attachment",
-      timestamp: Date.now() / 1000,
-      media_url: mediaUri,
-      status: 'sending',
-    });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const userMsgId = makeLocalMessageId();
+      appendMessage({
+        id: userMsgId,
+        role: "user",
+        content: text || "📎 Attachment",
+        timestamp: Date.now() / 1000,
+        media_url: mediaUri,
+        status: "sending",
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    appendMessage(createStreamingPlaceholder());
-    setStreaming(true);
-    setActiveError(null);
-    setLastSentMessage({ content: text, mediaB64, mediaType });
+      appendMessage(createStreamingPlaceholder());
+      setStreaming(true);
+      setActiveError(null);
+      setLastSentMessage({ content: text, mediaB64, mediaType });
 
-    // 30s stuck-placeholder fallback
-    streamTimeoutRef.current = setTimeout(() => {
-      const state = useGhostStore.getState();
-      if (state.isStreaming) {
-        console.log("[ghost] 30s stream placeholder timeout — committing");
-        commitStream();
-      }
-    }, 30_000);
-
-    // Update user message to "delivered" once stream starts
-    const firstChunkReceived = { current: false };
-
-    await sendMessage(config, {
-      content: text,
-      mediaB64,
-      mediaType,
-      onChunk: (chunk) => {
-        if (!firstChunkReceived.current) {
-          firstChunkReceived.current = true;
-          updateMessageStatus(userMsgId, 'completed');
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-        appendStream(chunk);
-      },
-      onDone: () => {
-        if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
-        commitStream();
-        updateMessageStatus(userMsgId, 'completed');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      },
-      onError: (err) => {
-        if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
+      // 30s stuck-placeholder fallback
+      streamTimeoutRef.current = setTimeout(() => {
         const state = useGhostStore.getState();
-        const partial = state.streamBuffer;
-        commitStream();
-        updateMessageStatus(userMsgId, 'failed');
-
-        // Remove the empty/partial assistant placeholder
-        const msgs = useGhostStore.getState().messages;
-        const lastMsg = msgs[msgs.length - 1];
-        if (lastMsg?.role === 'assistant' && lastMsg.content.trim() === '') {
-          removeMessage(lastMsg.id);
+        if (state.isStreaming) {
+          console.log("[ghost] 30s stream placeholder timeout — committing");
+          commitStream();
         }
+      }, 30_000);
 
-        setActiveError({
-          error: err,
-          partialContent: partial && partial.trim().length > 0 ? partial : undefined,
-        });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      },
-    });
-  }, [config, appendMessage, appendStream, commitStream, setStreaming, setLastSentMessage, updateMessageStatus, removeMessage]);
+      // Update user message to "delivered" once stream starts
+      const firstChunkReceived = { current: false };
+
+      await sendMessage(config, {
+        content: text,
+        mediaB64,
+        mediaType,
+        onChunk: (chunk) => {
+          if (!firstChunkReceived.current) {
+            firstChunkReceived.current = true;
+            updateMessageStatus(userMsgId, "completed");
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          appendStream(chunk);
+        },
+        onDone: (fullText) => {
+          if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
+          const hasReply = fullText.trim().length > 0;
+          commitStream();
+          if (hasReply) {
+            updateMessageStatus(userMsgId, "completed");
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } else {
+            updateMessageStatus(userMsgId, "failed");
+            setActiveError({
+              error: {
+                kind: "empty_stream",
+                message:
+                  "Ghost marked the request complete but returned no response.",
+                retryable: true,
+              },
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          }
+        },
+        onError: (err) => {
+          if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
+          const state = useGhostStore.getState();
+          const partial = state.streamBuffer;
+          commitStream();
+          updateMessageStatus(userMsgId, "failed");
+
+          // Remove the empty/partial assistant placeholder
+          const msgs = useGhostStore.getState().messages;
+          const lastMsg = msgs[msgs.length - 1];
+          if (lastMsg?.role === "assistant" && lastMsg.content.trim() === "") {
+            removeMessage(lastMsg.id);
+          }
+
+          setActiveError({
+            error: err,
+            partialContent:
+              partial && partial.trim().length > 0 ? partial : undefined,
+          });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        },
+      });
+    },
+    [
+      config,
+      appendMessage,
+      appendStream,
+      commitStream,
+      setStreaming,
+      setLastSentMessage,
+      updateMessageStatus,
+      removeMessage,
+    ],
+  );
 
   // ── Send handler ──────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
@@ -568,27 +605,44 @@ export default function ChatScreen() {
     setPendingMedia(null);
 
     // Queue if offline
-    if (connectionState === 'offline') {
-      enqueueMessage({ content: text, mediaB64: media?.b64, mediaType: media?.mimeType });
+    if (connectionState === "offline") {
+      enqueueMessage({
+        content: text,
+        mediaB64: media?.b64,
+        mediaType: media?.mimeType,
+      });
       appendMessage({
         id: makeLocalMessageId(),
         role: "user",
         content: text || "📎 Attachment",
         timestamp: Date.now() / 1000,
         media_url: media?.uri,
-        status: 'sending',
+        status: "sending",
       });
       return;
     }
 
     await doSend(text, media?.b64, media?.mimeType, media?.uri);
-  }, [config, input, pendingMedia, isStreaming, connectionState, doSend, enqueueMessage, appendMessage]);
+  }, [
+    config,
+    input,
+    pendingMedia,
+    isStreaming,
+    connectionState,
+    doSend,
+    enqueueMessage,
+    appendMessage,
+  ]);
 
   // ── Retry ─────────────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
     if (!lastSentMessage || isStreaming) return;
     setActiveError(null);
-    doSend(lastSentMessage.content, lastSentMessage.mediaB64, lastSentMessage.mediaType);
+    doSend(
+      lastSentMessage.content,
+      lastSentMessage.mediaB64,
+      lastSentMessage.mediaType,
+    );
   }, [lastSentMessage, isStreaming, doSend]);
 
   const handleDismissError = useCallback(() => {
@@ -714,8 +768,8 @@ export default function ChatScreen() {
             } catch {
               setActiveError({
                 error: {
-                  kind: 'network',
-                  message: 'Failed to clear chat',
+                  kind: "network",
+                  message: "Failed to clear chat",
                   retryable: false,
                 },
               });
@@ -729,7 +783,7 @@ export default function ChatScreen() {
   // Filtered messages for search
   const displayMessages = searchQuery.trim()
     ? messages.filter((m) =>
-        m.content.toLowerCase().includes(searchQuery.toLowerCase())
+        m.content.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : messages;
 
@@ -738,8 +792,8 @@ export default function ChatScreen() {
     !isStreaming &&
     !activeError &&
     messages.length > 0 &&
-    messages[messages.length - 1]?.role === 'assistant' &&
-    messages[messages.length - 1]?.status === 'completed';
+    messages[messages.length - 1]?.role === "assistant" &&
+    messages[messages.length - 1]?.status === "completed";
 
   // ── No config state ────────────────────────────────────────────────────
   if (!config) {
@@ -814,16 +868,20 @@ export default function ChatScreen() {
         onStartReachedThreshold={0.1}
         ListHeaderComponent={
           loadingOlder ? (
-            <View style={{ padding: 12, alignItems: 'center' }}>
+            <View style={{ padding: 12, alignItems: "center" }}>
               <ActivityIndicator color={C.accent} size="small" />
-              <Text style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>Loading older messages…</Text>
+              <Text style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>
+                Loading older messages…
+              </Text>
             </View>
           ) : messages.length > 0 && messages.length < totalMessages ? (
             <TouchableOpacity
-              style={{ padding: 12, alignItems: 'center' }}
+              style={{ padding: 12, alignItems: "center" }}
               onPress={loadOlderMessages}
             >
-              <Text style={{ color: C.accent, fontSize: 12, fontWeight: '600' }}>
+              <Text
+                style={{ color: C.accent, fontSize: 12, fontWeight: "600" }}
+              >
                 ↑ Load older messages
               </Text>
             </TouchableOpacity>
@@ -837,15 +895,15 @@ export default function ChatScreen() {
                 <ErrorCard
                   error={activeError.error}
                   partialContent={activeError.partialContent}
-                  onRetry={activeError.error.retryable ? handleRetry : undefined}
+                  onRetry={
+                    activeError.error.retryable ? handleRetry : undefined
+                  }
                   onDismiss={handleDismissError}
                 />
               </View>
             )}
             {/* Quick actions */}
-            {showQuickActions && (
-              <QuickActions onSelect={handleQuickAction} />
-            )}
+            {showQuickActions && <QuickActions onSelect={handleQuickAction} />}
           </>
         }
       />
@@ -895,9 +953,11 @@ export default function ChatScreen() {
       )}
 
       {/* ── Offline queue indicator ── */}
-      {connectionState === 'offline' && (
+      {connectionState === "offline" && (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>📡 Offline — messages will be sent when reconnected</Text>
+          <Text style={styles.offlineText}>
+            📡 Offline — messages will be sent when reconnected
+          </Text>
         </View>
       )}
 
@@ -987,10 +1047,10 @@ const styles = StyleSheet.create({
   searchBtn: {
     width: 30,
     height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 8,
-    backgroundColor: '#ffffff08',
+    backgroundColor: "#ffffff08",
   },
   searchBtnText: { color: C.textDim, fontSize: 16 },
   clearBtn: {
@@ -1019,8 +1079,8 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface,
   },
   searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
@@ -1030,7 +1090,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: C.text,
     fontSize: 14,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     paddingVertical: 4,
   },
   searchCount: { color: C.textDim, fontSize: 11 },
@@ -1073,9 +1133,9 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   tsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
     gap: 4,
     marginTop: 5,
   },
@@ -1114,21 +1174,21 @@ const styles = StyleSheet.create({
   recordingText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
   recordingHint: { color: C.textDim, fontSize: 11, marginLeft: "auto" },
   offlineBanner: {
-    backgroundColor: '#1A1A0A',
+    backgroundColor: "#1A1A0A",
     borderTopWidth: 1,
-    borderTopColor: '#3A3A1A',
+    borderTopColor: "#3A3A1A",
     paddingHorizontal: 16,
     paddingVertical: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   offlineText: {
     color: C.warn,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   quickActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
     paddingHorizontal: 10,
     paddingTop: 8,
@@ -1138,15 +1198,15 @@ const styles = StyleSheet.create({
     backgroundColor: C.accentDim,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#00FF8830',
+    borderColor: "#00FF8830",
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   quickActionText: {
     color: C.accent,
     fontSize: 12,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
   inputBar: {
     flexDirection: "row",
