@@ -1654,53 +1654,54 @@ const mkStyles: Record<string, any> = {
 
   // Inline code
   code_inline: {
-    backgroundColor: "#1A2332",
-    color: "#88FFCC",
+    backgroundColor: "#161B22", // GitHub-like dark code bg
+    color: "#79C0FF", // Blueish code text
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
     fontSize: 14,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#2A3A4A",
+    borderColor: "#30363D",
   },
 
   // Code block (fence)
   fence: {
-    backgroundColor: "#050A0F",
+    backgroundColor: "#0D1117", // Main dark background
     borderRadius: 12,
     marginVertical: 12,
     borderWidth: 1,
-    borderColor: "#1A2332",
+    borderColor: "#30363D",
     overflow: "hidden",
   },
   codeHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#111920",
+    backgroundColor: "#161B22", // Slightly lighter header
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#1A2332",
+    borderBottomColor: "#30363D",
   },
   codeLanguage: {
-    color: "#4A6080",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+    color: "#8B949E",
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "lowercase",
   },
   copyButton: {
-    color: "#00FF88",
-    fontSize: 11,
-    fontWeight: "600",
+    color: "#58A6FF",
+    fontSize: 12,
+    fontWeight: "500",
   },
   code_block: {
-    color: "#88FFCC",
+    color: "#E6EDF3", // Crisp white/gray text for code
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
     fontSize: 13,
     lineHeight: 20,
-    padding: 14,
+    padding: 16,
+    backgroundColor: "transparent", // Ensure no white bg leaks
   },
 
   // Blockquote
