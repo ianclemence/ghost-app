@@ -226,6 +226,8 @@ export default function ChatScreen() {
   const [searchQuery, setSearchQuery]       = useState("");
   const [searchResults, setSearchResults]   = useState(0);
   const [showSlashSuggestions, setShowSlashSuggestions] = useState(false);
+  const [attachExpanded, setAttachExpanded]               = useState(false);
+  const attachAnim = useRef(new Animated.Value(0)).current;
   const [loadingOlder, setLoadingOlder]     = useState(false);
   const [totalMessages, setTotalMessages]   = useState(0);
 
@@ -466,6 +468,13 @@ export default function ChatScreen() {
     setShowSlashSuggestions(text === "/" || (text.startsWith("/") && !text.includes(" ")));
   };
 
+  // ── Attach tray toggle ───────────────────────────────────────────────
+  const toggleAttach = () => {
+    const toValue = attachExpanded ? 0 : 1;
+    setAttachExpanded(!attachExpanded);
+    Animated.spring(attachAnim, { toValue, useNativeDriver: true, tension: 120, friction: 10 }).start();
+  };
+
   const displayMessages = searchQuery.trim()
     ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
     : messages;
@@ -553,24 +562,6 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* ── Recording indicator ── */}
-      {(isRecording || isTranscribing) && (
-        <View style={styles.recordingBar}>
-          {isTranscribing ? (
-            <>
-              <ActivityIndicator size="small" color={C.warn} style={{ transform: [{ scale: 0.8 }] }} />
-              <Text style={[styles.recordingText, { color: C.warn }]}>Transcribing...</Text>
-            </>
-          ) : (
-            <>
-              <RecordingIndicator />
-              <Text style={[styles.recordingText, { color: C.danger }]}>Recording {formatDuration(recordDuration)}</Text>
-              <Text style={styles.recordingHint}>Tap mic to stop</Text>
-            </>
-          )}
-        </View>
-      )}
-
       {/* ── Offline banner ── */}
       {connectionState === "offline" && (
         <View style={styles.offlineBanner}>
@@ -578,7 +569,7 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* ── Slash suggestions — sits ABOVE input bar, flush to it ── */}
+      {/* ── Slash suggestions ── */}
       {showSlashSuggestions && (
         <View style={styles.slashOverlay}>
           {SLASH_COMMANDS.map((sc, idx) => (
@@ -594,29 +585,103 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* ── Attach tray — slides in above input bar ── */}
+      {attachExpanded && (
+        <Animated.View
+          style={[
+            styles.attachTray,
+            { opacity: attachAnim, transform: [{ translateY: attachAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.attachOption}
+            onPress={() => { pickImage(); setAttachExpanded(false); Animated.spring(attachAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 10 }).start(); }}
+          >
+            <View style={styles.attachOptionIcon}>
+              <Text style={{ fontSize: 20 }}>🖼</Text>
+            </View>
+            <Text style={styles.attachOptionLabel}>Photo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.attachOption}
+            onPress={() => { pickDocument(); setAttachExpanded(false); Animated.spring(attachAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 10 }).start(); }}
+          >
+            <View style={styles.attachOptionIcon}>
+              <Text style={{ fontSize: 20 }}>📄</Text>
+            </View>
+            <Text style={styles.attachOptionLabel}>File</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
       {/* ── Input bar ── */}
       <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? Math.max(insets.bottom, 8) + 2 : 8 }]}>
-        <TouchableOpacity style={styles.iconBtn} onPress={pickImage}><Text style={styles.iconTxt}>🖼</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn} onPress={pickDocument}><Text style={styles.iconTxt}>📄</Text></TouchableOpacity>
-        <TextInput
-          style={styles.textInput}
-          value={input}
-          onChangeText={handleInputChange}
-          placeholder={isTranscribing ? "Transcribing…" : "Message Ghost…"}
-          placeholderTextColor={C.textMuted}
-          multiline maxLength={4000}
-          editable={!isTranscribing}
-        />
-        <TouchableOpacity style={[styles.iconBtn, isRecording && styles.iconBtnActive]} onPress={toggleRecording} disabled={isTranscribing}>
-          <Text style={styles.iconTxt}>{isRecording ? "⏹" : "🎤"}</Text>
-        </TouchableOpacity>
+
+        {/* + attach button */}
         <TouchableOpacity
-          style={[styles.sendBtn, (isStreaming || (!input.trim() && !pendingMedia)) && styles.sendBtnOff]}
-          onPress={handleSend}
-          disabled={isStreaming || (!input.trim() && !pendingMedia)}
+          style={[styles.attachBtn, attachExpanded && styles.attachBtnActive]}
+          onPress={toggleAttach}
+          disabled={isRecording || isTranscribing}
         >
-          {isStreaming ? <ActivityIndicator color={C.bg} size="small" /> : <Text style={styles.sendArrow}>↑</Text>}
+          <Animated.Text style={[
+            styles.attachBtnIcon,
+            { transform: [{ rotate: attachAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] },
+          ]}>+</Animated.Text>
         </TouchableOpacity>
+
+        {/* Text input with mic inside — OR recording state */}
+        {isRecording || isTranscribing ? (
+          /* ── Recording / transcribing replaces the text input ── */
+          <View style={styles.recordingInput}>
+            {isTranscribing ? (
+              <>
+                <ActivityIndicator size="small" color={C.warn} style={{ marginRight: 8 }} />
+                <Text style={[styles.recordingInputText, { color: C.warn }]}>Transcribing…</Text>
+              </>
+            ) : (
+              <>
+                <RecordingIndicator />
+                <Text style={[styles.recordingInputText, { color: C.danger }]}>
+                  {formatDuration(recordDuration)}
+                </Text>
+                <Text style={styles.recordingInputHint}>tap ⏹ to stop</Text>
+              </>
+            )}
+          </View>
+        ) : (
+          /* ── Normal text input with mic icon inside right edge ── */
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.textInput}
+              value={input}
+              onChangeText={handleInputChange}
+              placeholder="Message Ghost…"
+              placeholderTextColor={C.textMuted}
+              multiline
+              maxLength={4000}
+            />
+            <TouchableOpacity style={styles.micInside} onPress={toggleRecording}>
+              <Text style={styles.micInsideIcon}>🎤</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Stop button when recording / Send button otherwise */}
+        {isRecording ? (
+          <TouchableOpacity style={styles.stopBtn} onPress={stopRecording}>
+            <View style={styles.stopDot} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.sendBtn, (isStreaming || isTranscribing || (!input.trim() && !pendingMedia)) && styles.sendBtnOff]}
+            onPress={handleSend}
+            disabled={isStreaming || isTranscribing || (!input.trim() && !pendingMedia)}
+          >
+            {isStreaming
+              ? <ActivityIndicator color={C.bg} size="small" />
+              : <Text style={styles.sendArrow}>↑</Text>}
+          </TouchableOpacity>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -731,44 +796,159 @@ const styles = StyleSheet.create({
     width: 22, height: 22, alignItems: "center", justifyContent: "center",
     backgroundColor: "#FF445520", borderRadius: 11,
   },
-  recordingBar: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "#1A0A0A",
-    borderTopWidth: 1, borderTopColor: "#3A1A1A",
-    paddingHorizontal: 16, paddingVertical: 10,
-  },
-  recordingText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
-  recordingHint: { color: C.textDim, fontSize: 11, marginLeft: "auto" },
+  // recordingBar removed — recording state lives inside the input bar
   offlineBanner: {
     backgroundColor: "#1A1A0A", borderTopWidth: 1, borderTopColor: "#3A3A1A",
     paddingHorizontal: 16, paddingVertical: 8, alignItems: "center",
   },
   offlineText:   { color: C.warn, fontSize: 12, fontWeight: "600" },
+  // ── Input bar ───────────────────────────────────────────────────────────
   inputBar: {
-    flexDirection: "row", alignItems: "flex-end",
-    paddingHorizontal: 8, paddingTop: 8, gap: 5,
-    borderTopWidth: 1, borderTopColor: C.border,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
     backgroundColor: C.surface,
   },
-  iconBtn: {
-    width: 36, height: 36, alignItems: "center", justifyContent: "center",
-    borderRadius: 10, backgroundColor: "#ffffff08",
-  },
-  iconBtnActive: { backgroundColor: "#FF445522", borderWidth: 1, borderColor: "#FF445540" },
-  iconTxt:       { fontSize: 17 },
-  textInput: {
-    flex: 1, minHeight: 36, maxHeight: 110,
-    color: C.text, backgroundColor: "#ffffff08",
-    borderRadius: 12, paddingHorizontal: 13, paddingVertical: 8,
-    fontSize: 15, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+
+  // + attach button
+  attachBtn: {
+    width: 38, height: 38,
+    borderRadius: 19,
+    backgroundColor: "#ffffff0A",
     borderWidth: 1, borderColor: C.border,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 1,
   },
+  attachBtnActive: {
+    backgroundColor: C.accentDim,
+    borderColor: C.accent,
+  },
+  attachBtnIcon: {
+    color: C.textDim,
+    fontSize: 22,
+    fontWeight: "300",
+    lineHeight: 26,
+    includeFontPadding: false,
+  },
+
+  // attach tray
+  attachTray: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: C.surface,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  attachOption: {
+    alignItems: "center",
+    gap: 5,
+  },
+  attachOptionIcon: {
+    width: 52, height: 52,
+    borderRadius: 16,
+    backgroundColor: "#0D1F2D",
+    borderWidth: 1, borderColor: C.border,
+    alignItems: "center", justifyContent: "center",
+  },
+  attachOptionLabel: {
+    color: C.textDim,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+  },
+
+  // text input wrapper (holds input + inline mic)
+  inputWrapper: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    backgroundColor: "#ffffff08",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.border,
+    minHeight: 40,
+    maxHeight: 120,
+    paddingLeft: 14,
+    paddingRight: 4,
+    paddingVertical: 4,
+  },
+  textInput: {
+    flex: 1,
+    color: C.text,
+    fontSize: 15,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    lineHeight: 22,
+    paddingVertical: 4,
+    // no background/border — wrapper handles it
+  },
+
+  // mic button inside the input
+  micInside: {
+    width: 32, height: 32,
+    borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 2,
+  },
+  micInsideIcon: { fontSize: 16 },
+
+  // recording state replaces text input
+  recordingInput: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#140808",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#3A1A1A",
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  recordingInputText: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 1,
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+  },
+  recordingInputHint: {
+    color: C.textDim,
+    fontSize: 11,
+    marginLeft: "auto" as any,
+  },
+
+  // stop button (shown while recording)
+  stopBtn: {
+    width: 38, height: 38,
+    borderRadius: 19,
+    backgroundColor: "#FF445522",
+    borderWidth: 1.5, borderColor: C.danger,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 1,
+  },
+  stopDot: {
+    width: 12, height: 12,
+    borderRadius: 3,
+    backgroundColor: C.danger,
+  },
+
+  // send button
   sendBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: C.accent, alignItems: "center", justifyContent: "center",
+    width: 38, height: 38,
+    borderRadius: 19,
+    backgroundColor: C.accent,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 1,
   },
-  sendBtnOff:    { backgroundColor: C.textMuted, opacity: 0.3 },
-  sendArrow:     { color: C.bg, fontSize: 17, fontWeight: "900" },
+  sendBtnOff: { backgroundColor: "#1A3028", opacity: 0.6 },
+  sendArrow:  { color: C.bg, fontSize: 18, fontWeight: "900" },
   noConfigTitle: { color: C.text, fontSize: 19, fontWeight: "700", letterSpacing: 0.5 },
   noConfigSub:   { color: C.textDim, fontSize: 14, marginTop: 10 },
 });
