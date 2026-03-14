@@ -176,30 +176,6 @@ function ConnectionIndicator({ state }: { state: ConnectionState }) {
   );
 }
 
-// ─── Quick Actions ─────────────────────────────────────────────────────────
-function QuickActions({ onSelect }: { onSelect: (text: string) => void }) {
-  const suggestions = [
-    "Tell me more",
-    "Can you explain?",
-    "What else?",
-    "Summarize that",
-  ];
-  return (
-    <View style={styles.quickActions}>
-      {suggestions.map((s) => (
-        <TouchableOpacity
-          key={s}
-          style={styles.quickActionBtn}
-          onPress={() => onSelect(s)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.quickActionText}>{s}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-
 // ─── Search bar ────────────────────────────────────────────────────────────
 function SearchOverlay({
   visible,
@@ -649,11 +625,6 @@ export default function ChatScreen() {
     setActiveError(null);
   }, []);
 
-  // ── Quick action ──────────────────────────────────────────────────────
-  const handleQuickAction = useCallback((text: string) => {
-    setInput(text);
-  }, []);
-
   // ── Image picker ─────────────────────────────────────────────────────
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -787,14 +758,6 @@ export default function ChatScreen() {
       )
     : messages;
 
-  // Determine if we should show quick actions
-  const showQuickActions =
-    !isStreaming &&
-    !activeError &&
-    messages.length > 0 &&
-    messages[messages.length - 1]?.role === "assistant" &&
-    messages[messages.length - 1]?.status === "completed";
-
   // ── No config state ────────────────────────────────────────────────────
   if (!config) {
     return (
@@ -902,8 +865,6 @@ export default function ChatScreen() {
                 />
               </View>
             )}
-            {/* Quick actions */}
-            {showQuickActions && <QuickActions onSelect={handleQuickAction} />}
           </>
         }
       />
@@ -1186,28 +1147,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  quickActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  quickActionBtn: {
-    backgroundColor: C.accentDim,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#00FF8830",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  quickActionText: {
-    color: C.accent,
-    fontSize: 12,
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-  },
   inputBar: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -1303,4 +1242,42 @@ const mkStyles = {
     opacity: 0.8,
   } as any,
   hr: { backgroundColor: C.border, height: 1 } as any,
+  table: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 10,
+    marginVertical: 8,
+    overflow: "hidden",
+    backgroundColor: "#0A1119",
+  } as any,
+  thead: {
+    backgroundColor: "#102030",
+  } as any,
+  tbody: {
+    backgroundColor: "#0A1119",
+  } as any,
+  tr: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#1F3144",
+  } as any,
+  th: {
+    color: "#EAF4FF",
+    fontWeight: "700" as const,
+    fontSize: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRightWidth: 1,
+    borderRightColor: "#1F3144",
+    backgroundColor: "#102030",
+  } as any,
+  td: {
+    color: C.text,
+    fontSize: 12,
+    lineHeight: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRightWidth: 1,
+    borderRightColor: "#1F3144",
+    backgroundColor: "#0A1119",
+  } as any,
 };
