@@ -304,11 +304,36 @@ function MessageBubble({ msg }: { msg: ExtendedMessage }) {
         style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}
       >
         {msg.media_url && (
-          <Image
-            source={{ uri: msg.media_url }}
-            style={styles.attachedImage}
-            resizeMode="cover"
-          />
+          <View style={{ marginBottom: 8 }}>
+            {msg.media_type?.startsWith("image/") ? (
+              <Image
+                source={{ uri: msg.media_url }}
+                style={styles.attachedImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View
+                style={[
+                  styles.attachedImage,
+                  {
+                    backgroundColor: C.surface2,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 1,
+                    borderColor: C.border,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 24, marginBottom: 4 }}>📄</Text>
+                <Text
+                  style={{ color: C.textDim, fontSize: 11 }}
+                  numberOfLines={1}
+                >
+                  File Attachment
+                </Text>
+              </View>
+            )}
+          </View>
         )}
         {isStreamingPlaceholder ? (
           <TypingDots />
@@ -368,6 +393,7 @@ export default function ChatScreen() {
   const [recordDuration, setRecordDuration] = useState(0);
   const durationTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
   const localIdSeq = useRef(0);
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSendAtRef = useRef(0);
@@ -675,10 +701,12 @@ export default function ChatScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0].base64) {
+      const asset = result.assets[0];
       setPendingMedia({
-        uri: result.assets[0].uri,
-        b64: result.assets[0].base64,
-        mimeType: "image/jpeg",
+        uri: asset.uri,
+        b64: asset.base64,
+        mimeType: asset.mimeType ?? "image/jpeg",
+        name: asset.fileName ?? "image.jpg",
       });
     }
   };
@@ -697,7 +725,12 @@ export default function ChatScreen() {
         asset.mimeType ?? "application/octet-stream",
         asset.name,
       );
-      setPendingMedia({ uri: asset.uri, b64, mimeType: mime_type });
+      setPendingMedia({
+        uri: asset.uri,
+        b64,
+        mimeType: mime_type,
+        name: asset.name,
+      });
     }
   };
 
@@ -921,9 +954,30 @@ export default function ChatScreen() {
       {/* ── Pending media preview ── */}
       {pendingMedia && (
         <View style={styles.mediaPreview}>
-          <Image source={{ uri: pendingMedia.uri }} style={styles.mediaThumb} />
+          {pendingMedia.mimeType?.startsWith("image/") ? (
+            <Image
+              source={{ uri: pendingMedia.uri }}
+              style={styles.mediaThumb}
+            />
+          ) : (
+            <View
+              style={[
+                styles.mediaThumb,
+                {
+                  backgroundColor: C.surface2,
+                  alignItems: "center",
+                  justifyContent: "center",
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 18 }}>📄</Text>
+            </View>
+          )}
           <Text style={styles.mediaLabel} numberOfLines={1}>
-            Image attached
+            {pendingMedia.name ||
+              (pendingMedia.mimeType?.startsWith("image/")
+                ? "Image attached"
+                : "File attached")}
           </Text>
           <TouchableOpacity
             onPress={() => setPendingMedia(null)}
@@ -956,8 +1010,18 @@ export default function ChatScreen() {
                 idx === SLASH_COMMANDS.length - 1 && { borderBottomWidth: 0 },
               ]}
               onPress={() => {
-                setInput(sc.command + " ");
-                setShowSlashSuggestions(false);
+                const cmd = sc.command;
+                if (cmd === "/help" || cmd === "/clear" || cmd === "/reset") {
+                  // Send immediately
+                  setInput("");
+                  setShowSlashSuggestions(false);
+                  doSend(cmd);
+                } else {
+                  // Just fill and focus
+                  setInput(cmd + " ");
+                  setShowSlashSuggestions(false);
+                  setTimeout(() => inputRef.current?.focus(), 50);
+                }
               }}
             >
               <Text style={styles.slashCmd}>{sc.command}</Text>
@@ -1088,6 +1152,7 @@ export default function ChatScreen() {
           /* ── Normal text input with mic icon inside right edge ── */
           <View style={styles.inputWrapper}>
             <TextInput
+              ref={inputRef}
               style={styles.textInput}
               value={input}
               onChangeText={handleInputChange}
