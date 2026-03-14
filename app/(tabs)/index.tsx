@@ -1349,42 +1349,51 @@ const styles = StyleSheet.create({
   slashDesc: { color: C.textDim, fontSize: 12, flex: 1 },
 
   // ── Messages ──────────────────────────────────────────────────────────
-  msgList: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 20 },
-  bubbleRow: { flexDirection: "row", gap: 8 },
+  msgList: { paddingHorizontal: 12, paddingTop: 16, paddingBottom: 24 },
+  bubbleRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
   bubbleRowUser: { justifyContent: "flex-end" },
-  bubbleRowAI: { justifyContent: "flex-start", alignItems: "flex-end" },
+  bubbleRowAI: {
+    justifyContent: "flex-start",
+    alignItems: "flex-end", // avatar at bottom-left
+  },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: C.surface,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#111920",
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "#1A2332",
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 2, // align with bubble bottom
   },
   bubble: {
-    maxWidth: "82%",
-    borderRadius: 16,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
+    maxWidth: "85%",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   bubbleUser: {
-    backgroundColor: C.userBubble,
+    backgroundColor: "#0A1F18", // Darker teal-green
     borderWidth: 1,
-    borderColor: "#00FF8828",
+    borderColor: "#00FF8833",
     borderBottomRightRadius: 4,
   },
   bubbleAI: {
-    backgroundColor: C.surface,
+    backgroundColor: "#111920", // surface2 for better depth
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "#1A2332",
     borderBottomLeftRadius: 4,
   },
   userText: {
-    color: C.text,
-    fontSize: 15,
-    lineHeight: 22,
+    color: "#E0E0E0",
+    fontSize: 16,
+    lineHeight: 24,
     fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
   },
   tsRow: {
