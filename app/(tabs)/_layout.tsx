@@ -32,6 +32,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        sceneStyle: { backgroundColor: C.bg },
         tabBarStyle: {
           backgroundColor: C.bg,
           borderTopColor: C.border,
@@ -39,6 +40,7 @@ export default function TabLayout() {
           height: 68,
           paddingBottom: 8,
         },
+        tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}
     >

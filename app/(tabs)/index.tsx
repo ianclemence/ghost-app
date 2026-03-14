@@ -379,8 +379,9 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={insets.bottom + 60}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom + 60 : 0}
+      enabled={Platform.OS === "ios"}
     >
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
@@ -476,7 +477,7 @@ export default function ChatScreen() {
       <View
         style={[
           styles.inputBar,
-          { paddingBottom: Math.max(insets.bottom, 8) + 2 },
+          { paddingBottom: Platform.OS === "ios" ? Math.max(insets.bottom, 8) + 2 : 8 },
         ]}
       >
         <TouchableOpacity style={styles.iconBtn} onPress={pickImage}>
