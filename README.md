@@ -27,12 +27,6 @@ A React Native Expo app + Go HTTP bridge that gives your Ghost Pi a fully native
 
 ```
 ghost-app/
-├── bridge/                    ← Runs on your Raspberry Pi
-│   ├── main.go                  HTTP + WebSocket server
-│   ├── go.mod
-│   ├── Makefile                 Build / cross-compile / deploy
-│   └── ghost-bridge.service     systemd unit file
-│
 └── app/                       ← React Native Expo app
     ├── app/
     │   ├── _layout.tsx          Root layout, init, notifications
@@ -60,13 +54,13 @@ ghost-app/
 
 ```bash
 # From your dev machine:
-scp -r bridge/ pi@192.168.1.42:~/ghost-bridge/
+scp -r ../ghost/bridge/ pi@192.168.1.42:~/ghost-bridge/
 ```
 
 Or use the Makefile to cross-compile and deploy in one step:
 
 ```bash
-cd bridge
+cd ../ghost/bridge
 make deploy PI_HOST=pi@192.168.1.42
 ```
 
@@ -268,7 +262,7 @@ eas build --platform android --profile preview
 
 ```bash
 # On your dev machine:
-cd bridge
+cd ../ghost/bridge
 make deploy PI_HOST=pi@192.168.1.42
 
 # Or manually on the Pi:
