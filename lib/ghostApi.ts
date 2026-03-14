@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Message {
-  id: number;
+  id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
@@ -94,8 +94,8 @@ export async function searchMessages(cfg: GhostConfig, q: string): Promise<Messa
   return res.json();
 }
 
-export async function deleteMessage(cfg: GhostConfig, id: number): Promise<void> {
-  await fetch(`${baseURL(cfg)}/message?id=${id}`, {
+export async function deleteMessage(cfg: GhostConfig, id: string): Promise<void> {
+  await fetch(`${baseURL(cfg)}/message?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: headers(cfg),
   });

@@ -30,7 +30,9 @@ interface GhostStore {
 
 let nextTempId = -1;
 
-export const useGhostStore = create<GhostStore>((set, get) => ({
+const isTempId = (id: string) => id.startsWith("temp-");
+
+export const useGhostStore = create<GhostStore>((set) => ({
   config: null,
   setConfig: (cfg) => set({ config: cfg }),
 
@@ -63,7 +65,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
       // Update the placeholder assistant message in real-time
       const msgs = [...s.messages];
       const lastIdx = msgs.length - 1;
-      if (lastIdx >= 0 && msgs[lastIdx].role === 'assistant' && msgs[lastIdx].id < 0) {
+      if (lastIdx >= 0 && msgs[lastIdx].role === 'assistant' && isTempId(msgs[lastIdx].id)) {
         msgs[lastIdx] = { ...msgs[lastIdx], content: newBuffer };
       }
       return { streamBuffer: newBuffer, messages: msgs };
@@ -71,7 +73,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   commitStream: () =>
     set((s) => {
       const msgs = s.messages.map((m) =>
-        m.id < 0 ? { ...m, id: Date.now() } : m,
+        isTempId(m.id) ? { ...m, id: String(Date.now()) } : m,
       );
       return { streamBuffer: '', isStreaming: false, messages: msgs };
     }),
@@ -82,7 +84,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
 
 export function createStreamingPlaceholder(): Message {
   return {
-    id: nextTempId--,
+    id: `temp-${nextTempId--}`,
     role: 'assistant',
     content: '',
     timestamp: Date.now() / 1000,

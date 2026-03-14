@@ -219,7 +219,7 @@ export default function ChatScreen() {
     const unsub = onWSMessage((msg) => {
       if (msg.type === "assistant_message") {
         appendMessage({
-          id: Date.now(),
+          id: String(Date.now()),
           role: "assistant",
           content: msg.content,
           timestamp: Date.now() / 1000,
@@ -244,7 +244,7 @@ export default function ChatScreen() {
     setPendingMedia(null);
 
     appendMessage({
-      id: Date.now(),
+      id: String(Date.now()),
       role: "user",
       content: text || "📎 Attachment",
       timestamp: Date.now() / 1000,
@@ -263,7 +263,7 @@ export default function ChatScreen() {
       onError: (err) => {
         commitStream();
         appendMessage({
-          id: Date.now(),
+          id: String(Date.now()),
           role: "assistant",
           content: `⚠️ ${err}`,
           timestamp: Date.now() / 1000,
