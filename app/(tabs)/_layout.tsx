@@ -1,34 +1,66 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import { Platform, Text, View } from 'react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+const C = {
+  bg: '#0D1117',
+  border: '#1A2332',
+  accent: '#00FF88',
+  inactive: '#2A3A4A',
+};
+
+function TabIcon({ icon, label, focused }: { icon: string; label: string; focused: boolean }) {
+  return (
+    <View style={{ alignItems: 'center', gap: 3, paddingTop: 4 }}>
+      <Text style={{ fontSize: 19, opacity: focused ? 1 : 0.35 }}>{icon}</Text>
+      <Text
+        style={{
+          fontSize: 8,
+          fontWeight: focused ? '800' : '500',
+          color: focused ? C.accent : C.inactive,
+          letterSpacing: 1.2,
+          fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: {
+          backgroundColor: C.bg,
+          borderTopColor: C.border,
+          borderTopWidth: 1,
+          height: 68,
+          paddingBottom: 8,
+        },
+        tabBarShowLabel: false,
+      }}
+    >
       <Tabs.Screen
         name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
+        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="👻" label="CHAT" focused={focused} /> }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
+        name="remote"
+        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="🖥️" label="REMOTE" focused={focused} /> }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="📜" label="LOG" focused={focused} /> }}
+      />
+      <Tabs.Screen
+        name="memory"
+        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="🧠" label="MEM" focused={focused} /> }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" label="CFG" focused={focused} /> }}
       />
     </Tabs>
   );

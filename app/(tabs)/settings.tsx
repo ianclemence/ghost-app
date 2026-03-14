@@ -1,0 +1,288 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ScrollView, Platform, ActivityIndicator, Switch,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
+import { useGhostStore } from '../../lib/store';
+import { GhostConfig, saveConfig, checkHealth, connectWebSocket } from '../../lib/ghostApi';
+
+const C = {
+  bg: '#080C0F',
+  surface: '#0D1117',
+  border: '#1A2332',
+  accent: '#00FF88',
+  accentDim: '#00FF8822',
+  text: '#C8D8E8',
+  textDim: '#4A6080',
+  textMuted: '#2A3A4A',
+  danger: '#FF4455',
+  warn: '#FFAA00',
+};
+
+export default function SettingsScreen() {
+  const insets = useSafeAreaInsets();
+  const { config, setConfig, isConnected, setConnected } = useGhostStore();
+
+  const [host, setHost] = useState(config?.piHost ?? '');
+  const [port, setPort] = useState(config?.piPort ?? '8765');
+  const [secret, setSecret] = useState(config?.secret ?? '');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const [notifEnabled, setNotifEnabled] = useState(false);
+
+  useEffect(() => {
+    Notifications.getPermissionsAsync().then(({ status }) => {
+      setNotifEnabled(status === 'granted');
+    });
+  }, []);
+
+  const requestNotifications = async () => {
+    const { status } = await Notifications.requestPermissionsAsync();
+    setNotifEnabled(status === 'granted');
+  };
+
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult('idle');
+    const cfg: GhostConfig = { piHost: host.trim(), piPort: port.trim(), secret: secret.trim() };
+    const ok = await checkHealth(cfg);
+    setTestResult(ok ? 'ok' : 'fail');
+    setConnected(ok);
+    setTesting(false);
+  };
+
+  const saveAndConnect = async () => {
+    const cfg: GhostConfig = { piHost: host.trim(), piPort: port.trim(), secret: secret.trim() };
+    await saveConfig(cfg);
+    setConfig(cfg);
+    connectWebSocket(cfg);
+    setTestResult('idle');
+  };
+
+  const statusColor = testResult === 'ok' ? C.accent : testResult === 'fail' ? C.danger : C.textDim;
+  const statusText = testResult === 'ok' ? '✓ Connected' : testResult === 'fail' ? '✗ Unreachable' : '';
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 30 }}
+    >
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>SETTINGS</Text>
+      </View>
+
+      {/* Connection */}
+      <Section title="GHOST PI CONNECTION">
+        <Field
+          label="Pi IP Address"
+          value={host}
+          onChangeText={setHost}
+          placeholder="192.168.1.42"
+          keyboardType="numbers-and-punctuation"
+        />
+        <Field
+          label="Bridge Port"
+          value={port}
+          onChangeText={setPort}
+          placeholder="8765"
+          keyboardType="numeric"
+        />
+        <Field
+          label="Shared Secret"
+          value={secret}
+          onChangeText={setSecret}
+          placeholder="Optional auth secret"
+          secureTextEntry
+        />
+
+        <View style={styles.btnRow}>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnOutline]}
+            onPress={testConnection}
+            disabled={testing || !host}
+          >
+            {testing ? (
+              <ActivityIndicator color={C.accent} size="small" />
+            ) : (
+              <Text style={styles.btnOutlineText}>TEST</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnPrimary, !host && styles.btnDisabled]}
+            onPress={saveAndConnect}
+            disabled={!host}
+          >
+            <Text style={styles.btnPrimaryText}>SAVE & CONNECT</Text>
+          </TouchableOpacity>
+        </View>
+
+        {statusText !== '' && (
+          <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
+        )}
+      </Section>
+
+      {/* Notifications */}
+      <Section title="NOTIFICATIONS">
+        <View style={styles.toggleRow}>
+          <View>
+            <Text style={styles.toggleLabel}>Push Notifications</Text>
+            <Text style={styles.toggleSub}>Alert when Ghost sends proactive messages</Text>
+          </View>
+          <Switch
+            value={notifEnabled}
+            onValueChange={(v) => v ? requestNotifications() : null}
+            trackColor={{ false: C.border, true: C.accentDim }}
+            thumbColor={notifEnabled ? C.accent : C.textDim}
+          />
+        </View>
+      </Section>
+
+      {/* Bridge Setup Instructions */}
+      <Section title="PI SETUP INSTRUCTIONS">
+        <View style={styles.infoBox}>
+          <Text style={styles.infoText}>
+            {`1. Copy ghost-bridge/ folder to your Pi\n\n2. Add to your Ghost .env:\n   BRIDGE_PORT=8765\n   BRIDGE_SECRET=your_secret_here\n\n3. Build and run:\n   cd ghost-bridge\n   go build -o ghost-bridge .\n   ./ghost-bridge\n\n4. Or add to ghost.service as an ExecStartPost\n\n5. Open port 8765 in your firewall:\n   sudo ufw allow 8765`}
+          </Text>
+        </View>
+      </Section>
+
+      {/* Status */}
+      <Section title="STATUS">
+        <View style={styles.statusGrid}>
+          <StatusItem label="PI HOST" value={config?.piHost ?? 'Not set'} />
+          <StatusItem label="PORT" value={config?.piPort ?? '—'} />
+          <StatusItem label="CONNECTION" value={isConnected ? 'Online' : 'Offline'} accent={isConnected} />
+          <StatusItem label="APP VERSION" value="1.0.0" />
+        </View>
+      </Section>
+    </ScrollView>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionContent}>{children}</View>
+    </View>
+  );
+}
+
+function Field({ label, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        style={styles.fieldInput}
+        placeholderTextColor="#2A3A4A"
+        autoCapitalize="none"
+        autoCorrect={false}
+        {...props}
+      />
+    </View>
+  );
+}
+
+function StatusItem({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <View style={styles.statusItem}>
+      <Text style={styles.statusLabel}>{label}</Text>
+      <Text style={[styles.statusValue, accent && { color: '#00FF88' }]}>{value}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#080C0F' },
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  headerTitle: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontSize: 16, fontWeight: '700', color: C.accent, letterSpacing: 4,
+  },
+  section: { marginTop: 24, paddingHorizontal: 16 },
+  sectionTitle: {
+    color: C.textDim,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    marginBottom: 10,
+  },
+  sectionContent: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: 'hidden',
+    gap: 1,
+  },
+  field: { padding: 14, gap: 6 },
+  fieldLabel: { color: C.textDim, fontSize: 11, letterSpacing: 1 },
+  fieldInput: {
+    color: C.text,
+    fontSize: 15,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    paddingVertical: 6,
+  },
+  btnRow: { flexDirection: 'row', gap: 10, padding: 14 },
+  btn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPrimary: { backgroundColor: C.accent },
+  btnOutline: { borderWidth: 1, borderColor: C.accent },
+  btnDisabled: { opacity: 0.4 },
+  btnPrimaryText: {
+    color: C.bg,
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 1,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
+  btnOutlineText: {
+    color: C.accent,
+    fontWeight: '700',
+    fontSize: 12,
+    letterSpacing: 1,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
+  statusText: { paddingHorizontal: 14, paddingBottom: 12, fontSize: 13, fontWeight: '600' },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+  },
+  toggleLabel: { color: C.text, fontSize: 14 },
+  toggleSub: { color: C.textDim, fontSize: 12, marginTop: 2 },
+  infoBox: { padding: 14 },
+  infoText: {
+    color: C.textDim,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  statusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  statusItem: { width: '50%', padding: 14, gap: 4 },
+  statusLabel: { color: C.textMuted, fontSize: 10, letterSpacing: 1 },
+  statusValue: {
+    color: C.text,
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+});
