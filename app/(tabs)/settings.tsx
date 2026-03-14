@@ -1,5 +1,4 @@
 import Constants, { AppOwnership } from "expo-constants";
-import * as Notifications from "expo-notifications";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -48,11 +47,12 @@ export default function SettingsScreen() {
   const [notifEnabled, setNotifEnabled] = useState(false);
 
   useEffect(() => {
-    if (!isExpoGo) {
+    if (isExpoGo) return;
+    import("expo-notifications").then((Notifications) => {
       Notifications.getPermissionsAsync().then(({ status }) => {
         setNotifEnabled(status === "granted");
       });
-    }
+    });
   }, []);
 
   const requestNotifications = async () => {
@@ -62,6 +62,7 @@ export default function SettingsScreen() {
       );
       return;
     }
+    const Notifications = await import("expo-notifications");
     const { status } = await Notifications.requestPermissionsAsync();
     setNotifEnabled(status === "granted");
   };

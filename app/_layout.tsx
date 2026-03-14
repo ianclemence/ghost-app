@@ -2,29 +2,30 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as Notifications from 'expo-notifications';
 import Constants, { AppOwnership } from 'expo-constants';
 import { useGhostStore } from '../lib/store';
 import { loadConfig, checkHealth, connectWebSocket, onWSMessage } from '../lib/ghostApi';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
-if (!isExpoGo) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
-}
-
 export default function RootLayout() {
   const { setConfig, setConnected } = useGhostStore();
 
   useEffect(() => {
     (async () => {
+      let notifications: typeof import('expo-notifications') | null = null;
+      if (!isExpoGo) {
+        notifications = await import('expo-notifications');
+        notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+          }),
+        });
+      }
+
       // Load saved config on start
       const cfg = await loadConfig();
       if (cfg) {
@@ -36,8 +37,8 @@ export default function RootLayout() {
 
       // Listen for WS push and send local notification
       const unsub = onWSMessage((msg) => {
-        if (msg.type === 'assistant_message' && !isExpoGo) {
-          Notifications.scheduleNotificationAsync({
+        if (msg.type === 'assistant_message' && notifications) {
+          notifications.scheduleNotificationAsync({
             content: {
               title: '👻 Ghost',
               body: msg.content.slice(0, 100),
