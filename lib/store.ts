@@ -29,8 +29,10 @@ interface GhostStore {
 }
 
 let nextTempId = -1;
+let nextMessageId = 1;
 
 const isTempId = (id: string) => id.startsWith("temp-");
+const makeMessageId = () => `msg-${Date.now()}-${nextMessageId++}`;
 
 export const useGhostStore = create<GhostStore>((set) => ({
   config: null,
@@ -73,7 +75,7 @@ export const useGhostStore = create<GhostStore>((set) => ({
   commitStream: () =>
     set((s) => {
       const msgs = s.messages.map((m) =>
-        isTempId(m.id) ? { ...m, id: String(Date.now()) } : m,
+        isTempId(m.id) ? { ...m, id: makeMessageId() } : m,
       );
       return { streamBuffer: '', isStreaming: false, messages: msgs };
     }),

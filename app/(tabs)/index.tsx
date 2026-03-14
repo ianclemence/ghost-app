@@ -207,6 +207,12 @@ export default function ChatScreen() {
   const [recordDuration, setRecordDuration] = useState(0);
   const durationTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<FlatList>(null);
+  const localIdSeq = useRef(0);
+
+  const makeLocalMessageId = () => {
+    localIdSeq.current += 1;
+    return `local-${Date.now()}-${localIdSeq.current}`;
+  };
 
   // Load history on mount / config change
   useEffect(() => {
@@ -219,7 +225,7 @@ export default function ChatScreen() {
     const unsub = onWSMessage((msg) => {
       if (msg.type === "assistant_message") {
         appendMessage({
-          id: String(Date.now()),
+          id: makeLocalMessageId(),
           role: "assistant",
           content: msg.content,
           timestamp: Date.now() / 1000,
@@ -244,7 +250,7 @@ export default function ChatScreen() {
     setPendingMedia(null);
 
     appendMessage({
-      id: String(Date.now()),
+      id: makeLocalMessageId(),
       role: "user",
       content: text || "📎 Attachment",
       timestamp: Date.now() / 1000,
@@ -263,7 +269,7 @@ export default function ChatScreen() {
       onError: (err) => {
         commitStream();
         appendMessage({
-          id: String(Date.now()),
+          id: makeLocalMessageId(),
           role: "assistant",
           content: `⚠️ ${err}`,
           timestamp: Date.now() / 1000,
