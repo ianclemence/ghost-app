@@ -71,6 +71,11 @@ export default function HistoryScreen() {
       const reversed = [...data.messages].reverse();
       setTotal(data.total);
       setMessages((prev) => replace ? reversed : [...reversed, ...prev]);
+    } catch {
+      if (replace) {
+        setMessages([]);
+        setTotal(0);
+      }
     } finally {
       setLoading(false);
     }

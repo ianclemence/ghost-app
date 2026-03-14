@@ -12,7 +12,8 @@ const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 if (!isExpoGo) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
     }),

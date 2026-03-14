@@ -1,82 +1,121 @@
-import React, { useEffect, useState } from 'react';
+import Constants, { AppOwnership } from "expo-constants";
+import * as Notifications from "expo-notifications";
+import React, { useEffect, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Platform, ActivityIndicator, Switch,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Notifications from 'expo-notifications';
-import Constants, { AppOwnership } from 'expo-constants';
-import { useGhostStore } from '../../lib/store';
-import { GhostConfig, saveConfig, checkHealth, connectWebSocket } from '../../lib/ghostApi';
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  checkHealth,
+  connectWebSocket,
+  GhostConfig,
+  saveConfig,
+} from "../../lib/ghostApi";
+import { useGhostStore } from "../../lib/store";
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
 const C = {
-  bg: '#080C0F',
-  surface: '#0D1117',
-  border: '#1A2332',
-  accent: '#00FF88',
-  accentDim: '#00FF8822',
-  text: '#C8D8E8',
-  textDim: '#4A6080',
-  textMuted: '#2A3A4A',
-  danger: '#FF4455',
-  warn: '#FFAA00',
+  bg: "#080C0F",
+  surface: "#0D1117",
+  border: "#1A2332",
+  accent: "#00FF88",
+  accentDim: "#00FF8822",
+  text: "#C8D8E8",
+  textDim: "#4A6080",
+  textMuted: "#2A3A4A",
+  danger: "#FF4455",
+  warn: "#FFAA00",
 };
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { config, setConfig, isConnected, setConnected } = useGhostStore();
 
-  const [host, setHost] = useState(config?.piHost ?? '');
-  const [port, setPort] = useState(config?.piPort ?? '8765');
-  const [secret, setSecret] = useState(config?.secret ?? '');
+  const [host, setHost] = useState(config?.piHost ?? "");
+  const [port, setPort] = useState(config?.piPort ?? "8765");
+  const [secret, setSecret] = useState(config?.secret ?? "");
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const [testResult, setTestResult] = useState<"idle" | "ok" | "fail">("idle");
   const [notifEnabled, setNotifEnabled] = useState(false);
 
   useEffect(() => {
     if (!isExpoGo) {
       Notifications.getPermissionsAsync().then(({ status }) => {
-        setNotifEnabled(status === 'granted');
+        setNotifEnabled(status === "granted");
       });
     }
   }, []);
 
   const requestNotifications = async () => {
     if (isExpoGo) {
-      alert('Push notifications are not supported in Expo Go. Use a development build to enable them.');
+      alert(
+        "Push notifications are not supported in Expo Go. Use a development build to enable them.",
+      );
       return;
     }
     const { status } = await Notifications.requestPermissionsAsync();
-    setNotifEnabled(status === 'granted');
+    setNotifEnabled(status === "granted");
   };
 
   const testConnection = async () => {
     setTesting(true);
-    setTestResult('idle');
-    const cfg: GhostConfig = { piHost: host.trim(), piPort: port.trim(), secret: secret.trim() };
+    setTestResult("idle");
+    const cfg: GhostConfig = {
+      piHost: host.trim(),
+      piPort: port.trim(),
+      secret: secret.trim(),
+    };
     const ok = await checkHealth(cfg);
-    setTestResult(ok ? 'ok' : 'fail');
+    setTestResult(ok ? "ok" : "fail");
     setConnected(ok);
     setTesting(false);
   };
 
   const saveAndConnect = async () => {
-    const cfg: GhostConfig = { piHost: host.trim(), piPort: port.trim(), secret: secret.trim() };
+    const cfg: GhostConfig = {
+      piHost: host.trim(),
+      piPort: port.trim(),
+      secret: secret.trim(),
+    };
     await saveConfig(cfg);
     setConfig(cfg);
-    connectWebSocket(cfg);
-    setTestResult('idle');
+    const ok = await checkHealth(cfg);
+    setConnected(ok);
+    setTestResult(ok ? "ok" : "fail");
+    if (ok) {
+      connectWebSocket(cfg);
+    }
   };
 
-  const statusColor = testResult === 'ok' ? C.accent : testResult === 'fail' ? C.danger : C.textDim;
-  const statusText = testResult === 'ok' ? '✓ Connected' : testResult === 'fail' ? '✗ Unreachable' : '';
+  const statusColor =
+    testResult === "ok"
+      ? C.accent
+      : testResult === "fail"
+        ? C.danger
+        : C.textDim;
+  const statusText =
+    testResult === "ok"
+      ? "✓ Connected"
+      : testResult === "fail"
+        ? "✗ Unreachable"
+        : "";
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 30 }}
+      contentContainerStyle={{
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom + 30,
+      }}
     >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>SETTINGS</Text>
@@ -127,8 +166,10 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {statusText !== '' && (
-          <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
+        {statusText !== "" && (
+          <Text style={[styles.statusText, { color: statusColor }]}>
+            {statusText}
+          </Text>
         )}
       </Section>
 
@@ -137,11 +178,15 @@ export default function SettingsScreen() {
         <View style={styles.toggleRow}>
           <View>
             <Text style={styles.toggleLabel}>Push Notifications</Text>
-            <Text style={styles.toggleSub}>Alert when Ghost sends proactive messages</Text>
+            <Text style={styles.toggleSub}>
+              Alert when Ghost sends proactive messages
+            </Text>
           </View>
           <Switch
             value={notifEnabled}
-            onValueChange={(v) => v ? requestNotifications() : null}
+            onValueChange={(v) => {
+              if (v) requestNotifications();
+            }}
             trackColor={{ false: C.border, true: C.accentDim }}
             thumbColor={notifEnabled ? C.accent : C.textDim}
           />
@@ -160,9 +205,13 @@ export default function SettingsScreen() {
       {/* Status */}
       <Section title="STATUS">
         <View style={styles.statusGrid}>
-          <StatusItem label="PI HOST" value={config?.piHost ?? 'Not set'} />
-          <StatusItem label="PORT" value={config?.piPort ?? '—'} />
-          <StatusItem label="CONNECTION" value={isConnected ? 'Online' : 'Offline'} accent={isConnected} />
+          <StatusItem label="PI HOST" value={config?.piHost ?? "Not set"} />
+          <StatusItem label="PORT" value={config?.piPort ?? "—"} />
+          <StatusItem
+            label="CONNECTION"
+            value={isConnected ? "Online" : "Offline"}
+            accent={isConnected}
+          />
           <StatusItem label="APP VERSION" value="1.0.0" />
         </View>
       </Section>
@@ -170,7 +219,13 @@ export default function SettingsScreen() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -179,7 +234,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) {
+function Field({
+  label,
+  ...props
+}: { label: string } & React.ComponentProps<typeof TextInput>) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -194,17 +252,27 @@ function Field({ label, ...props }: { label: string } & React.ComponentProps<typ
   );
 }
 
-function StatusItem({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function StatusItem({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
   return (
     <View style={styles.statusItem}>
       <Text style={styles.statusLabel}>{label}</Text>
-      <Text style={[styles.statusValue, accent && { color: '#00FF88' }]}>{value}</Text>
+      <Text style={[styles.statusValue, accent && { color: "#00FF88" }]}>
+        {value}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#080C0F' },
+  container: { flex: 1, backgroundColor: "#080C0F" },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -212,16 +280,19 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
   },
   headerTitle: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
-    fontSize: 16, fontWeight: '700', color: C.accent, letterSpacing: 4,
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    fontSize: 16,
+    fontWeight: "700",
+    color: C.accent,
+    letterSpacing: 4,
   },
   section: { marginTop: 24, paddingHorizontal: 16 },
   sectionTitle: {
     color: C.textDim,
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
     marginBottom: 10,
   },
   sectionContent: {
@@ -229,7 +300,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
-    overflow: 'hidden',
+    overflow: "hidden",
     gap: 1,
   },
   field: { padding: 14, gap: 6 },
@@ -237,41 +308,46 @@ const styles = StyleSheet.create({
   fieldInput: {
     color: C.text,
     fontSize: 15,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     borderBottomWidth: 1,
     borderBottomColor: C.border,
     paddingVertical: 6,
   },
-  btnRow: { flexDirection: 'row', gap: 10, padding: 14 },
+  btnRow: { flexDirection: "row", gap: 10, padding: 14 },
   btn: {
     flex: 1,
     paddingVertical: 11,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   btnPrimary: { backgroundColor: C.accent },
   btnOutline: { borderWidth: 1, borderColor: C.accent },
   btnDisabled: { opacity: 0.4 },
   btnPrimaryText: {
     color: C.bg,
-    fontWeight: '800',
+    fontWeight: "800",
     fontSize: 12,
     letterSpacing: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
   btnOutlineText: {
     color: C.accent,
-    fontWeight: '700',
+    fontWeight: "700",
     fontSize: 12,
     letterSpacing: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
-  statusText: { paddingHorizontal: 14, paddingBottom: 12, fontSize: 13, fontWeight: '600' },
+  statusText: {
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    fontSize: 13,
+    fontWeight: "600",
+  },
   toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 14,
   },
   toggleLabel: { color: C.text, fontSize: 14 },
@@ -281,17 +357,17 @@ const styles = StyleSheet.create({
     color: C.textDim,
     fontSize: 12,
     lineHeight: 18,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   statusGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
-  statusItem: { width: '50%', padding: 14, gap: 4 },
+  statusItem: { width: "50%", padding: 14, gap: 4 },
   statusLabel: { color: C.textMuted, fontSize: 10, letterSpacing: 1 },
   statusValue: {
     color: C.text,
     fontSize: 13,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
 });

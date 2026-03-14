@@ -42,11 +42,32 @@ export async function loadConfig(): Promise<GhostConfig | null> {
 }
 
 export async function saveConfig(cfg: GhostConfig): Promise<void> {
-  await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+  await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify({
+    piHost: normalizeHost(cfg.piHost),
+    piPort: normalizePort(cfg.piPort),
+    secret: cfg.secret.trim(),
+  }));
 }
 
 function baseURL(cfg: GhostConfig): string {
-  return `http://${cfg.piHost}:${cfg.piPort}`;
+  return `http://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
+}
+
+function wsURL(cfg: GhostConfig): string {
+  return `ws://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
+}
+
+function normalizeHost(host: string): string {
+  return host
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/, '')
+    .replace(/:\d+$/, '');
+}
+
+function normalizePort(port: string): string {
+  const p = port.trim();
+  return p === '' ? '8765' : p;
 }
 
 function headers(cfg: GhostConfig): HeadersInit {
@@ -81,7 +102,7 @@ export async function fetchHistory(
     `${baseURL(cfg)}/history?limit=${limit}&offset=${offset}`,
     { headers: headers(cfg) },
   );
-  if (!res.ok) throw new Error('Failed to fetch history');
+  if (!res.ok) throw new Error(`Failed to fetch history (HTTP ${res.status})`);
   return res.json();
 }
 
@@ -295,7 +316,7 @@ export function connectWebSocket(cfg: GhostConfig): void {
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
   try { wsInstance?.close(); } catch {}
 
-  const url = `ws://${cfg.piHost}:${cfg.piPort}/ws?secret=${encodeURIComponent(cfg.secret)}`;
+  const url = `${wsURL(cfg)}/ws?secret=${encodeURIComponent(cfg.secret)}`;
   wsInstance = new WebSocket(url);
 
   wsInstance.onmessage = (e) => {
