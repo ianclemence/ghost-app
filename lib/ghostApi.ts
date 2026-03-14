@@ -201,6 +201,16 @@ export async function deleteMessage(
   });
 }
 
+export async function clearChat(
+  cfg: GhostConfig,
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/messages`, {
+    method: "DELETE",
+    headers: headers(cfg),
+  });
+  if (!res.ok) throw new Error(`Failed to clear chat (HTTP ${res.status})`);
+}
+
 // ─── Send (streaming SSE) ─────────────────────────────────────────────────
 
 export interface SendOptions {
@@ -238,7 +248,7 @@ export async function sendMessage(
       body: JSON.stringify(body),
     });
 
-    if (!res.ok || !res.body) {
+    if (!res.ok) {
       const errorBody = await res.text().catch(() => "");
       console.log("[ghost-bridge:send:response-error]", {
         url,
@@ -248,6 +258,45 @@ export async function sendMessage(
         hasBodyStream: Boolean(res.body),
       });
       opts.onError(`Server error: ${res.status}`);
+      return;
+    }
+
+    if (!res.body) {
+      const fallbackBody = await res.text().catch(() => "");
+      console.log("[ghost-bridge:send:stream-fallback]", {
+        url,
+        status: res.status,
+        statusText: res.statusText,
+        bodyLength: fallbackBody.length,
+      });
+
+      let fullText = "";
+      const lines = fallbackBody.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") {
+          console.log("[ghost-bridge:send:done-fallback]", {
+            url,
+            responseLength: fullText.length,
+          });
+          opts.onDone(fullText);
+          return;
+        }
+        try {
+          const text = JSON.parse(data) as string;
+          fullText += text;
+          opts.onChunk(text);
+        } catch {
+          fullText += data;
+          opts.onChunk(data);
+        }
+      }
+      console.log("[ghost-bridge:send:end-fallback]", {
+        url,
+        responseLength: fullText.length,
+      });
+      opts.onDone(fullText);
       return;
     }
 

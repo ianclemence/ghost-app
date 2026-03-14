@@ -74,9 +74,9 @@ export const useGhostStore = create<GhostStore>((set) => ({
     }),
   commitStream: () =>
     set((s) => {
-      const msgs = s.messages.map((m) =>
-        isTempId(m.id) ? { ...m, id: makeMessageId() } : m,
-      );
+      const msgs = s.messages
+        .map((m) => (isTempId(m.id) ? { ...m, id: makeMessageId() } : m))
+        .filter((m) => !(m.role === "assistant" && m.content.trim() === ""));
       return { streamBuffer: '', isStreaming: false, messages: msgs };
     }),
 

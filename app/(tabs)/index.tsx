@@ -5,6 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -20,6 +21,7 @@ import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
+  clearChat,
   connectWebSocket,
   fetchHistory,
   onWSMessage,
@@ -213,6 +215,8 @@ export default function ChatScreen() {
     localIdSeq.current += 1;
     return `local-${Date.now()}-${localIdSeq.current}`;
   };
+  const normalizeAssistantContent = (text: string) =>
+    text.replace(/\s+/g, " ").trim();
 
   // Load history on mount / config change
   useEffect(() => {
@@ -224,16 +228,27 @@ export default function ChatScreen() {
     connectWebSocket(config);
     const unsub = onWSMessage((msg) => {
       if (msg.type === "assistant_message") {
+        const state = useGhostStore.getState();
+        const incoming = normalizeAssistantContent(msg.content ?? "");
+        if (!incoming) return;
+        if (state.isStreaming) return;
+        const last = state.messages[state.messages.length - 1];
+        if (
+          last?.role === "assistant" &&
+          normalizeAssistantContent(last.content) === incoming
+        ) {
+          return;
+        }
         appendMessage({
           id: makeLocalMessageId(),
           role: "assistant",
-          content: msg.content,
+          content: incoming,
           timestamp: Date.now() / 1000,
         });
       }
     });
     return unsub;
-  }, [config]);
+  }, [config, appendMessage, setMessages]);
 
   useEffect(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
@@ -366,6 +381,33 @@ export default function ChatScreen() {
 
   const formatDuration = (s: number) =>
     `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const handleClearChat = useCallback(() => {
+    if (!config || isStreaming) return;
+    Alert.alert(
+      "Clear chat?",
+      "This will remove the current mobile chat history.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await clearChat(config);
+              setMessages([]);
+            } catch {
+              appendMessage({
+                id: makeLocalMessageId(),
+                role: "assistant",
+                content: "⚠️ Failed to clear chat",
+                timestamp: Date.now() / 1000,
+              });
+            }
+          },
+        },
+      ],
+    );
+  }, [appendMessage, config, isStreaming, setMessages]);
 
   // ── No config state ────────────────────────────────────────────────────
   if (!config) {
@@ -410,16 +452,13 @@ export default function ChatScreen() {
             </Text>
           </View>
         </View>
-        {isStreaming && (
-          <View style={styles.streamingBadge}>
-            <ActivityIndicator
-              size="small"
-              color={C.accent}
-              style={{ transform: [{ scale: 0.7 }] }}
-            />
-            <Text style={styles.streamingText}>thinking</Text>
-          </View>
-        )}
+        <TouchableOpacity
+          style={[styles.clearBtn, isStreaming && styles.clearBtnOff]}
+          onPress={handleClearChat}
+          disabled={isStreaming}
+        >
+          <Text style={styles.clearBtnText}>CLEAR</Text>
+        </TouchableOpacity>
       </View>
 
       {/* ── Messages ── */}
@@ -561,10 +600,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
-  streamingBadge: {
+  clearBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
     backgroundColor: C.accentDim,
     borderRadius: 12,
     paddingHorizontal: 10,
@@ -572,11 +610,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#00FF8840",
   },
-  streamingText: {
+  clearBtnOff: {
+    opacity: 0.4,
+  },
+  clearBtnText: {
     color: C.accent,
     fontSize: 10,
-    fontWeight: "600",
-    letterSpacing: 0.5,
+    fontWeight: "700",
+    letterSpacing: 1.2,
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
   msgList: { paddingHorizontal: 10, paddingVertical: 14, gap: 10 },
