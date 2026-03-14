@@ -11,13 +11,14 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import Markdown from "react-native-markdown-display";
+import Markdown, { ASTNode } from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ErrorCard from "../../components/ErrorCard";
@@ -277,6 +278,37 @@ function SearchOverlay({
   );
 }
 
+// ─── Custom Markdown Rules ───────────────────────────────────────────────
+const markdownRules = {
+  fence: (
+    node: ASTNode,
+    children: React.ReactNode,
+    parent: ASTNode[],
+    styles: any,
+  ) => {
+    const language = node.sourceInfo || "code";
+    return (
+      <View key={node.key} style={styles.fence}>
+        <View style={styles.codeHeader}>
+          <Text style={styles.codeLanguage}>{language.toUpperCase()}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              // Simplified copy hint
+              Alert.alert("Code Block", "Copying to clipboard...");
+            }}
+          >
+            <Text style={styles.copyButton}>Copy</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <Text style={styles.code_block}>{node.content}</Text>
+        </ScrollView>
+      </View>
+    );
+  },
+};
+
 // ─── Message Bubble ───────────────────────────────────────────────────────
 function MessageBubble({ msg }: { msg: ExtendedMessage }) {
   const isUser = msg.role === "user";
@@ -340,7 +372,9 @@ function MessageBubble({ msg }: { msg: ExtendedMessage }) {
         ) : isUser ? (
           <Text style={styles.userText}>{msg.content}</Text>
         ) : (
-          <Markdown style={mkStyles}>{assistantContent}</Markdown>
+          <Markdown style={mkStyles} rules={markdownRules}>
+            {assistantContent}
+          </Markdown>
         )}
         <View style={styles.tsRow}>
           <Text style={styles.ts}>
@@ -1567,13 +1601,13 @@ const mkStyles: Record<string, any> = {
   // Base text
   body: {
     color: C.text,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
     fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
   },
   paragraph: {
     marginTop: 0,
-    marginBottom: 8,
+    marginBottom: 12,
     flexWrap: "wrap",
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1584,28 +1618,28 @@ const mkStyles: Record<string, any> = {
   heading1: {
     color: "#FFFFFF",
     fontWeight: "800",
-    fontSize: 22,
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 24,
+    marginTop: 20,
+    marginBottom: 10,
     letterSpacing: 0.3,
   },
   heading2: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 19,
-    marginTop: 14,
-    marginBottom: 6,
+    fontSize: 20,
+    marginTop: 18,
+    marginBottom: 8,
   },
   heading3: {
     color: "#E0F0FF",
     fontWeight: "700",
-    fontSize: 16,
-    marginTop: 12,
-    marginBottom: 4,
+    fontSize: 18,
+    marginTop: 16,
+    marginBottom: 6,
   },
 
   // Emphasis
-  strong: { color: "#FFFFFF", fontWeight: "700" },
+  strong: { color: "#FFFFFF", fontWeight: "800" },
   em: { color: "#A8C8E8", fontStyle: "italic" },
   s: { color: C.textDim, textDecorationLine: "line-through" },
 
@@ -1614,80 +1648,99 @@ const mkStyles: Record<string, any> = {
     backgroundColor: "#1A2332",
     color: "#88FFCC",
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-    fontSize: 13,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+    fontSize: 14,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
     borderColor: "#2A3A4A",
   },
 
-  // Code block
+  // Code block (fence)
   fence: {
     backgroundColor: "#050A0F",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginVertical: 10,
+    borderRadius: 12,
+    marginVertical: 12,
     borderWidth: 1,
     borderColor: "#1A2332",
-    borderLeftWidth: 3,
-    borderLeftColor: C.accent,
+    overflow: "hidden",
+  },
+  codeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#111920",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1A2332",
+  },
+  codeLanguage: {
+    color: "#4A6080",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  copyButton: {
+    color: "#00FF88",
+    fontSize: 11,
+    fontWeight: "600",
   },
   code_block: {
     color: "#88FFCC",
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 20,
+    padding: 14,
   },
 
   // Blockquote
   blockquote: {
-    borderLeftWidth: 3,
-    borderLeftColor: C.accentDim,
-    paddingLeft: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: C.accent,
+    paddingLeft: 16,
     marginLeft: 0,
-    marginVertical: 8,
+    marginVertical: 12,
     opacity: 0.9,
     backgroundColor: "#0F1A15",
     borderRadius: 4,
-    paddingVertical: 6,
+    paddingVertical: 10,
   },
 
   // Lists
-  bullet_list: { marginVertical: 6 },
-  ordered_list: { marginVertical: 6 },
+  bullet_list: { marginVertical: 8 },
+  ordered_list: { marginVertical: 8 },
   list_item: {
-    marginBottom: 6,
+    marginBottom: 8,
     flexDirection: "row",
     alignItems: "flex-start",
   },
   bullet_list_icon: {
     color: C.accent,
-    fontSize: 16,
-    marginRight: 10,
-    lineHeight: 22,
+    fontSize: 18,
+    marginRight: 12,
+    lineHeight: 24,
   },
   ordered_list_icon: {
     color: C.accent,
-    fontSize: 15,
-    marginRight: 10,
-    fontWeight: "700",
-    lineHeight: 22,
+    fontSize: 16,
+    marginRight: 12,
+    fontWeight: "800",
+    lineHeight: 24,
   },
 
   // Links
   link: { color: C.accent, textDecorationLine: "underline" },
 
   // Horizontal rule
-  hr: { backgroundColor: C.border, height: 1, marginVertical: 12 },
+  hr: { backgroundColor: C.border, height: 1, marginVertical: 16 },
 
   // Tables
   table: {
     borderWidth: 1,
     borderColor: C.border,
     borderRadius: 8,
-    marginVertical: 10,
+    marginVertical: 12,
     overflow: "hidden",
     backgroundColor: "#050D14",
   },
@@ -1696,19 +1749,19 @@ const mkStyles: Record<string, any> = {
   tr: { borderBottomWidth: 1, borderBottomColor: C.border },
   th: {
     color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 13,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    fontWeight: "800",
+    fontSize: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRightWidth: 1,
     borderRightColor: C.border,
   },
   td: {
     color: C.text,
-    fontSize: 13,
-    lineHeight: 18,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRightWidth: 1,
     borderRightColor: C.border,
   },
