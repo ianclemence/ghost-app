@@ -286,23 +286,39 @@ const markdownRules = {
     parent: ASTNode[],
     styles: any,
   ) => {
-    const language = node.sourceInfo || "code";
+    const language = (node.sourceInfo || "code").toLowerCase();
+    const isTerminal = ["bash", "sh", "shell", "zsh"].includes(language);
+
+    const handleCopy = async () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await Clipboard.setStringAsync(node.content);
+      // Optional: show some temporary visual feedback
+    };
+
     return (
       <View key={node.key} style={styles.fence}>
-        <View style={styles.codeHeader}>
-          <Text style={styles.codeLanguage}>{language.toUpperCase()}</Text>
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              // Simplified copy hint
-              Alert.alert("Code Block", "Copying to clipboard...");
-            }}
-          >
-            <Text style={styles.copyButton}>Copy</Text>
+        <View style={[styles.codeHeader, isTerminal && styles.terminalHeader]}>
+          <View style={styles.headerLeft}>
+            {isTerminal && (
+              <View style={styles.terminalDots}>
+                <View style={[styles.dot, { backgroundColor: "#FF5F56" }]} />
+                <View style={[styles.dot, { backgroundColor: "#FFBD2E" }]} />
+                <View style={[styles.dot, { backgroundColor: "#27C93F" }]} />
+              </View>
+            )}
+            <Text style={styles.codeLanguage}>
+              {isTerminal ? "terminal" : language}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={handleCopy} activeOpacity={0.7}>
+            <Text style={styles.copyButton}>copy</Text>
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <Text style={styles.code_block}>{node.content}</Text>
+          <View style={styles.codeContent}>
+            {isTerminal && <Text style={styles.terminalPrompt}>$ </Text>}
+            <Text style={styles.code_block}>{node.content.trim()}</Text>
+          </View>
         </ScrollView>
       </View>
     );
@@ -1684,6 +1700,20 @@ const mkStyles: Record<string, any> = {
     borderBottomWidth: 1,
     borderBottomColor: "#30363D",
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  terminalDots: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
   codeLanguage: {
     color: "#8B949E",
     fontSize: 12,
@@ -1695,12 +1725,22 @@ const mkStyles: Record<string, any> = {
     fontSize: 12,
     fontWeight: "500",
   },
+  codeContent: {
+    flexDirection: "row",
+    padding: 16,
+  },
+  terminalPrompt: {
+    color: "#00FF88",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "700",
+  },
   code_block: {
     color: "#E6EDF3", // Crisp white/gray text for code
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
     fontSize: 13,
     lineHeight: 20,
-    padding: 16,
     backgroundColor: "transparent", // Ensure no white bg leaks
   },
 
