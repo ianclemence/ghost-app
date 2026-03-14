@@ -132,14 +132,44 @@ const SLASH_COMMANDS = [
 const shouldHideAssistantStatus = (text: string) => {
   const t = text.trim().toLowerCase();
   if (!t) return true;
+
+  // Exact phrases
   if (t === "thinking" || t === "thinking...") return true;
-  if (t.startsWith("reasoning")) return true;
-  if (t.startsWith("thought")) return true;
-  if (t.startsWith("using tool") || t.startsWith("using tools")) return true;
-  if (t.startsWith("tool:") || t.startsWith("tool call")) return true;
-  if (t.startsWith("calling tool")) return true;
-  if (t.startsWith("assistant tool")) return true;
-  if (/^\[.*(thinking|tool|tools).*\]$/.test(t)) return true;
+
+  // Patterns for status updates (handles markdown like *...* or [...])
+  const statusPatterns = [
+    "thinking",
+    "reasoning",
+    "thought",
+    "using tool",
+    "using tools",
+    "tool:",
+    "tool call",
+    "calling tool",
+    "assistant tool",
+    "ghost is using tool",
+    "working...",
+    "processing...",
+    "searching...",
+    "fetching...",
+    "reading...",
+    "writing...",
+    "executing...",
+    "finished",
+    "done",
+  ];
+
+  for (const pattern of statusPatterns) {
+    if (t.includes(pattern)) return true;
+  }
+
+  // Bracket/Markdown patterns
+  if (/^\[.*\]$/.test(t) && /(thinking|tool|reasoning)/i.test(t)) return true;
+  if (/\*.*(thinking|tool|reasoning).*\*$/i.test(t)) return true;
+  if (/^>.*$/.test(t) && /(thinking|reasoning|thought)/i.test(t)) return true;
+  if (/<thinking>/.test(t) || /<\/thinking>/.test(t)) return true;
+  if (/<thought>/.test(t) || /<\/thought>/.test(t)) return true;
+
   return false;
 };
 
