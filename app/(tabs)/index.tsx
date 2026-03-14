@@ -1153,7 +1153,7 @@ export default function ChatScreen() {
                 <Text style={[styles.recordingInputText, { color: C.danger }]}>
                   {formatDuration(recordDuration)}
                 </Text>
-                <Text style={styles.recordingInputHint}>tap ⏹ to stop</Text>
+                <Text style={styles.recordingInputHint}>Recording...</Text>
               </>
             )}
           </View>
