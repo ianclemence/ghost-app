@@ -129,6 +129,28 @@ const SLASH_COMMANDS = [
   },
 ];
 
+const shouldHideAssistantStatus = (text: string) => {
+  const t = text.trim().toLowerCase();
+  if (!t) return true;
+  if (t === "thinking" || t === "thinking...") return true;
+  if (t.startsWith("reasoning")) return true;
+  if (t.startsWith("thought")) return true;
+  if (t.startsWith("using tool") || t.startsWith("using tools")) return true;
+  if (t.startsWith("tool:") || t.startsWith("tool call")) return true;
+  if (t.startsWith("calling tool")) return true;
+  if (t.startsWith("assistant tool")) return true;
+  if (/^\[.*(thinking|tool|tools).*\]$/.test(t)) return true;
+  return false;
+};
+
+const sanitizeAssistantText = (text: string) => {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => !shouldHideAssistantStatus(line));
+  return lines.join("\n").trim();
+};
+
 // ─── Recording pulse ──────────────────────────────────────────────────────
 function RecordingIndicator() {
   const pulse = useRef(new Animated.Value(1)).current;
@@ -228,7 +250,13 @@ function SearchOverlay({
 // ─── Message Bubble ───────────────────────────────────────────────────────
 function MessageBubble({ msg }: { msg: ExtendedMessage }) {
   const isUser = msg.role === "user";
-  const isEmpty = msg.content === "" && !isUser;
+  const assistantContent = isUser
+    ? msg.content
+    : sanitizeAssistantText(msg.content);
+  const isStreamingPlaceholder =
+    !isUser && msg.status === "streaming" && assistantContent === "";
+  const isEmpty = !isUser && assistantContent === "";
+  if (!isUser && isEmpty && !isStreamingPlaceholder) return null;
 
   return (
     <View
@@ -252,12 +280,12 @@ function MessageBubble({ msg }: { msg: ExtendedMessage }) {
             resizeMode="cover"
           />
         )}
-        {isEmpty ? (
+        {isStreamingPlaceholder ? (
           <TypingDots />
         ) : isUser ? (
           <Text style={styles.userText}>{msg.content}</Text>
         ) : (
-          <Markdown style={mkStyles}>{msg.content}</Markdown>
+          <Markdown style={mkStyles}>{assistantContent}</Markdown>
         )}
         <View style={styles.tsRow}>
           <Text style={styles.ts}>
@@ -336,28 +364,6 @@ export default function ChatScreen() {
   const normalizeAssistantContent = (text: string) =>
     text.replace(/\s+/g, " ").trim();
 
-  const shouldHideAssistantStatus = (text: string) => {
-    const t = text.trim().toLowerCase();
-    if (!t) return true;
-    return (
-      t === "thinking" ||
-      t === "thinking..." ||
-      t.startsWith("using tool") ||
-      t.startsWith("using tools") ||
-      t.startsWith("tool:") ||
-      t.startsWith("tool call") ||
-      t.startsWith("calling tool")
-    );
-  };
-
-  const sanitizeAssistantText = (text: string) => {
-    const lines = text
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => !shouldHideAssistantStatus(line));
-    return lines.join("\n").trim();
-  };
-
   // ── Health polling ────────────────────────────────────────────────────
   useEffect(() => {
     if (!config) return;
@@ -404,7 +410,17 @@ export default function ChatScreen() {
         const state = useGhostStore.getState();
         const incoming = sanitizeAssistantText(msg.content ?? "");
         if (!incoming) return;
-        if (state.isStreaming) return;
+        if (state.isStreaming) {
+          if (state.streamBuffer.trim().length === 0) {
+            appendStream(incoming);
+            commitStream();
+            const lastUser = [...state.messages]
+              .reverse()
+              .find((m) => m.role === "user" && m.status === "sending");
+            if (lastUser?.id) updateMessageStatus(lastUser.id, "completed");
+          }
+          return;
+        }
         if (Date.now() - lastSendAtRef.current > 120000) return;
         if (
           state._lastCommitTime &&
@@ -507,13 +523,14 @@ export default function ChatScreen() {
         mediaB64,
         mediaType,
         onChunk: (chunk) => {
-          if (shouldHideAssistantStatus(chunk)) return;
+          const cleanedChunk = sanitizeAssistantText(chunk);
+          if (!cleanedChunk) return;
           if (!firstChunkReceived.current) {
             firstChunkReceived.current = true;
             updateMessageStatus(userMsgId, "completed");
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }
-          appendStream(chunk);
+          appendStream(cleanedChunk);
         },
         onDone: (fullText) => {
           if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
@@ -524,6 +541,14 @@ export default function ChatScreen() {
             updateMessageStatus(userMsgId, "completed");
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } else {
+            const state = useGhostStore.getState();
+            const lastAssistant = [...state.messages]
+              .reverse()
+              .find((m) => m.role === "assistant");
+            if (lastAssistant?.content?.trim().length) {
+              updateMessageStatus(userMsgId, "completed");
+              return;
+            }
             updateMessageStatus(userMsgId, "failed");
             setActiveError({
               error: {
