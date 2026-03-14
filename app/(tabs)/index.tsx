@@ -116,6 +116,17 @@ function TypingDots() {
   );
 }
 
+const SLASH_COMMANDS = [
+  { command: "/help", description: "Show help and tool list" },
+  { command: "/clear", description: "Archive current session history" },
+  { command: "/reset", description: "Reset session and summary" },
+  { command: "/think", description: "Enable deep reasoning mode" },
+  {
+    command: "/remind",
+    description: "Set a reminder (e.g. /remind buy milk in 10m)",
+  },
+];
+
 // ─── Recording pulse indicator ─────────────────────────────────────────────
 function RecordingIndicator() {
   const pulse = useRef(new Animated.Value(1)).current;
@@ -314,6 +325,7 @@ export default function ChatScreen() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(0);
+  const [showSlashSuggestions, setShowSlashSuggestions] = useState(false);
 
   // Loading older messages
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -758,6 +770,15 @@ export default function ChatScreen() {
       )
     : messages;
 
+  const handleInputChange = (text: string) => {
+    setInput(text);
+    if (text === "/") {
+      setShowSlashSuggestions(true);
+    } else if (!text.startsWith("/") || text.includes(" ")) {
+      setShowSlashSuggestions(false);
+    }
+  };
+
   // ── No config state ────────────────────────────────────────────────────
   if (!config) {
     return (
@@ -922,6 +943,27 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* ── Slash suggestions ── */}
+      {showSlashSuggestions && (
+        <View style={styles.slashOverlay}>
+          {SLASH_COMMANDS.map((sc) => (
+            <TouchableOpacity
+              key={sc.command}
+              style={styles.slashItem}
+              onPress={() => {
+                setInput(sc.command + " ");
+                setShowSlashSuggestions(false);
+              }}
+            >
+              <View style={styles.slashContent}>
+                <Text style={styles.slashCmd}>{sc.command}</Text>
+                <Text style={styles.slashDesc}>{sc.description}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* ── Input bar ── */}
       <View
         style={[
@@ -941,7 +983,7 @@ export default function ChatScreen() {
         <TextInput
           style={styles.textInput}
           value={input}
-          onChangeText={setInput}
+          onChangeText={handleInputChange}
           placeholder={isTranscribing ? "Transcribing…" : "Message Ghost…"}
           placeholderTextColor={C.textMuted}
           multiline
@@ -1055,7 +1097,41 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   searchCount: { color: C.textDim, fontSize: 11 },
-  msgList: { paddingHorizontal: 10, paddingVertical: 14, gap: 10 },
+  slashOverlay: {
+    position: "absolute",
+    bottom: 110,
+    left: 15,
+    right: 15,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: "hidden",
+    zIndex: 1000,
+  },
+  slashItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  slashContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  slashCmd: {
+    color: C.accent,
+    fontSize: 14,
+    fontWeight: "700",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    minWidth: 60,
+  },
+  slashDesc: {
+    color: C.textDim,
+    fontSize: 12,
+    flex: 1,
+  },
+  msgList: { paddingHorizontal: 15, paddingTop: 12, paddingBottom: 20 },
   bubbleRow: { flexDirection: "row", gap: 8 },
   bubbleRowUser: { justifyContent: "flex-end" },
   bubbleRowAI: { justifyContent: "flex-start", alignItems: "flex-end" },
