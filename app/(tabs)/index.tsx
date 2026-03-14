@@ -868,16 +868,16 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flex: 1,
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",          // keeps placeholder vertically centred
     backgroundColor: "#ffffff08",
     borderRadius: 22,
     borderWidth: 1,
     borderColor: C.border,
-    minHeight: 40,
+    minHeight: 44,
     maxHeight: 120,
     paddingLeft: 14,
     paddingRight: 4,
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   textInput: {
     flex: 1,
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     lineHeight: 22,
-    paddingVertical: 4,
+    paddingVertical: 0,            // wrapper padding handles vertical space
     // no background/border — wrapper handles it
   },
 
@@ -894,7 +894,6 @@ const styles = StyleSheet.create({
     width: 32, height: 32,
     borderRadius: 16,
     alignItems: "center", justifyContent: "center",
-    marginBottom: 2,
   },
   micInsideIcon: { fontSize: 16 },
 
