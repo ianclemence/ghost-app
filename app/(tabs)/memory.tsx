@@ -1,38 +1,65 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
-  Platform, ActivityIndicator, ScrollView,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useGhostStore } from '../../lib/store';
-import { fetchMemoryFiles, fetchMemoryFile } from '../../lib/ghostApi';
+  ActivityIndicator,
+  FlatList,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Markdown from "react-native-markdown-display";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { fetchMemoryFile, fetchMemoryFiles } from "../../lib/ghostApi";
+import { useGhostStore } from "../../lib/store";
 
 const C = {
-  bg: '#080C0F',
-  surface: '#0D1117',
-  border: '#1A2332',
-  accent: '#00FF88',
-  accentDim: '#00FF8822',
-  text: '#C8D8E8',
-  textDim: '#4A6080',
-  textMuted: '#2A3A4A',
-  purple: '#AA88FF',
+  bg: "#080C0F",
+  surface: "#0D1117",
+  surface2: "#111920",
+  border: "#1A2332",
+  accent: "#00FF88",
+  accentDim: "#00FF8822",
+  text: "#C8D8E8",
+  textDim: "#4A6080",
+  textMuted: "#2A3A4A",
 };
 
-interface MemoryFile {
+interface MemFile {
   name: string;
   modified: number;
   size: number;
 }
 
+function formatRelativeTime(unixMs: number): string {
+  const now = Date.now();
+  const diffMs = now - unixMs;
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay}d ago`;
+  return new Date(unixMs).toLocaleDateString();
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 export default function MemoryScreen() {
   const insets = useSafeAreaInsets();
   const { config } = useGhostStore();
-  const [files, setFiles] = useState<MemoryFile[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [content, setContent] = useState<string>('');
+  const [files, setFiles] = useState<MemFile[]>([]);
   const [loading, setLoading] = useState(false);
-  const [fileLoading, setFileLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [loadingFile, setLoadingFile] = useState(false);
 
   const loadFiles = useCallback(async () => {
     if (!config) return;
@@ -40,53 +67,63 @@ export default function MemoryScreen() {
     try {
       const data = await fetchMemoryFiles(config);
       setFiles(data.sort((a, b) => b.modified - a.modified));
-    } finally {
-      setLoading(false);
-    }
+    } catch {}
+    setLoading(false);
   }, [config]);
 
-  useEffect(() => { loadFiles(); }, [config]);
+  useEffect(() => {
+    loadFiles();
+  }, [loadFiles]);
 
   const openFile = async (name: string) => {
     if (!config) return;
-    setSelected(name);
-    setFileLoading(true);
+    setSelectedFile(name);
+    setLoadingFile(true);
     try {
-      const c = await fetchMemoryFile(config, name);
-      setContent(c);
+      const content = await fetchMemoryFile(config, name);
+      setFileContent(content);
     } catch {
-      setContent('Error loading file.');
-    } finally {
-      setFileLoading(false);
+      setFileContent("_Error loading file._");
     }
+    setLoadingFile(false);
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes}B`;
-    return `${(bytes / 1024).toFixed(1)}KB`;
-  };
+  const totalSize = files.reduce((a, f) => a + f.size, 0);
 
-  const formatDate = (ts: number) => {
-    const d = new Date(ts * 1000);
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
+  if (!config) {
+    return (
+      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
+        <Text style={{ color: C.textDim, fontSize: 14 }}>
+          Configure connection in Settings
+        </Text>
+      </View>
+    );
+  }
 
-  if (selected) {
+  if (selectedFile && fileContent !== null) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSelected(null)} style={styles.backBtn}>
-            <Text style={{ color: C.accent, fontSize: 20 }}>←</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setSelectedFile(null);
+              setFileContent(null);
+            }}
+          >
+            <Text style={styles.backBtn}>← BACK</Text>
           </TouchableOpacity>
-          <Text style={styles.fileTitle} numberOfLines={1}>{selected}</Text>
+          <Text style={styles.headerFile} numberOfLines={1}>
+            {selectedFile}
+          </Text>
         </View>
-        {fileLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={C.accent} />
-          </View>
+        {loadingFile ? (
+          <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
         ) : (
-          <ScrollView contentContainerStyle={styles.fileContent}>
-            <Text style={styles.fileText}>{content}</Text>
+          <ScrollView
+            style={styles.fileScroll}
+            contentContainerStyle={styles.fileContent}
+          >
+            <Markdown style={mdStyles}>{fileContent}</Markdown>
           </ScrollView>
         )}
       </View>
@@ -96,62 +133,68 @@ export default function MemoryScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>GHOST MEMORY</Text>
-        <TouchableOpacity onPress={loadFiles}>
-          <Text style={{ color: C.textDim, fontSize: 14 }}>↻</Text>
+        <View>
+          <Text style={styles.headerTitle}>MEMORY</Text>
+          <Text style={styles.headerSub}>
+            Ghost's long-term memory files — written during conversations
+          </Text>
+        </View>
+        <TouchableOpacity onPress={loadFiles} disabled={loading}>
+          <Text style={styles.refreshBtn}>↻</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Summary strip */}
+      {/* Summary stats */}
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{files.length}</Text>
-          <Text style={styles.statLabel}>LOG FILES</Text>
+        <View style={styles.statBox}>
+          <Text style={styles.statNum}>{files.length}</Text>
+          <Text style={styles.statLabel}>FILES</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>
-            {formatSize(files.reduce((acc, f) => acc + f.size, 0))}
-          </Text>
-          <Text style={styles.statLabel}>TOTAL SIZE</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>
-            {files.length > 0 ? formatDate(files[0].modified) : '—'}
-          </Text>
-          <Text style={styles.statLabel}>LAST ENTRY</Text>
+        <View style={styles.statBox}>
+          <Text style={styles.statNum}>{formatSize(totalSize)}</Text>
+          <Text style={styles.statLabel}>TOTAL</Text>
         </View>
       </View>
 
       {loading ? (
-        <View style={styles.centered}><ActivityIndicator color={C.accent} /></View>
+        <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
+      ) : files.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={{ color: C.textDim, fontSize: 14 }}>
+            No memory files found
+          </Text>
+        </View>
       ) : (
         <FlatList
           data={files}
           keyExtractor={(f) => f.name}
-          contentContainerStyle={{ padding: 12, gap: 8 }}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.fileRow} onPress={() => openFile(item.name)} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.fileRow}
+              onPress={() => openFile(item.name)}
+              activeOpacity={0.6}
+            >
               <View style={styles.fileIcon}>
-                <Text style={{ fontSize: 16 }}>📄</Text>
+                <Text style={{ fontSize: 14 }}>📝</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fileName}>{item.name}</Text>
-                <Text style={styles.fileMeta}>
-                  {new Date(item.modified * 1000).toLocaleString()} · {formatSize(item.size)}
+              <View style={styles.fileInfo}>
+                <Text style={styles.fileName} numberOfLines={1}>
+                  {item.name}
                 </Text>
+                <View style={styles.fileMeta}>
+                  <Text style={styles.fileMetaText}>
+                    {formatRelativeTime(item.modified * 1000)}
+                  </Text>
+                  <Text style={styles.fileMetaDot}>·</Text>
+                  <Text style={styles.fileMetaText}>
+                    {formatSize(item.size)}
+                  </Text>
+                </View>
               </View>
-              <Text style={{ color: C.textDim }}>›</Text>
+              <Text style={styles.fileChevron}>›</Text>
             </TouchableOpacity>
           )}
-          ListEmptyComponent={
-            <View style={styles.centered}>
-              <Text style={{ fontSize: 36 }}>🧠</Text>
-              <Text style={[styles.emptyText, { marginTop: 12 }]}>No memory files found</Text>
-              <Text style={{ color: C.textDim, fontSize: 12, marginTop: 6 }}>
-                Ghost stores episodic logs in workspace/memory/
-              </Text>
-            </View>
-          }
+          contentContainerStyle={{ paddingVertical: 8 }}
         />
       )}
     </View>
@@ -160,83 +203,146 @@ export default function MemoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
   headerTitle: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
-    fontSize: 16, fontWeight: '700', color: C.accent, letterSpacing: 4,
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    fontSize: 16,
+    fontWeight: "700",
+    color: C.accent,
+    letterSpacing: 4,
+  },
+  headerSub: {
+    color: C.textDim,
+    fontSize: 11,
+    marginTop: 4,
+    maxWidth: '80%',
+  },
+  headerFile: {
+    color: C.text,
+    fontSize: 14,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    flex: 1,
+    marginLeft: 12,
+  },
+  backBtn: {
+    color: C.accent,
+    fontSize: 13,
+    fontWeight: "700",
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+  },
+  refreshBtn: {
+    color: C.accent,
+    fontSize: 22,
+    fontWeight: "700",
   },
   statsRow: {
-    flexDirection: 'row',
-    padding: 12,
-    gap: 8,
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 10,
+    paddingVertical: 12,
   },
-  statCard: {
+  statBox: {
     flex: 1,
     backgroundColor: C.surface,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 12,
-    alignItems: 'center',
+    padding: 14,
+    alignItems: "center",
+    gap: 4,
   },
-  statValue: {
+  statNum: {
     color: C.accent,
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontSize: 20,
+    fontWeight: "800",
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
   statLabel: {
     color: C.textDim,
     fontSize: 9,
-    letterSpacing: 1,
-    marginTop: 3,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    letterSpacing: 1.5,
+    fontWeight: "600",
   },
   fileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 12,
-    gap: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ffffff06",
   },
   fileIcon: {
-    width: 36, height: 36,
+    width: 34,
+    height: 34,
     borderRadius: 8,
-    backgroundColor: C.accentDim,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  fileInfo: { flex: 1, gap: 3 },
   fileName: {
     color: C.text,
     fontSize: 14,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontWeight: '600',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-  fileMeta: { color: C.textDim, fontSize: 11, marginTop: 2 },
-  emptyText: { color: C.textDim, fontSize: 14 },
-  backBtn: { paddingRight: 12 },
-  fileTitle: {
-    flex: 1,
+  fileMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
+  fileMetaText: { color: C.textMuted, fontSize: 11 },
+  fileMetaDot: { color: C.textMuted, fontSize: 11 },
+  fileChevron: { color: C.textDim, fontSize: 18 },
+  fileScroll: { flex: 1 },
+  fileContent: { padding: 18 },
+});
+
+const mdStyles = {
+  body: {
     color: C.text,
     fontSize: 14,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  fileContent: { padding: 16 },
-  fileText: {
-    color: C.text,
+    lineHeight: 22,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  } as any,
+  heading1: { color: "#FFF", fontWeight: "800" as const, fontSize: 18, marginBottom: 8 },
+  heading2: { color: "#FFF", fontWeight: "700" as const, fontSize: 16, marginBottom: 6 },
+  heading3: { color: "#FFF", fontWeight: "600" as const, fontSize: 14, marginBottom: 4 },
+  code_inline: {
+    backgroundColor: "#00FF8814",
+    color: C.accent,
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    borderRadius: 4,
+    paddingHorizontal: 4,
     fontSize: 13,
-    lineHeight: 20,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-});
+  } as any,
+  fence: {
+    backgroundColor: "#080F18",
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+  } as any,
+  code_block: {
+    color: C.accent,
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    fontSize: 13,
+  } as any,
+  link: { color: C.accent } as any,
+  strong: { color: "#FFFFFF", fontWeight: "700" as const },
+  blockquote: {
+    borderLeftWidth: 3,
+    borderLeftColor: C.accent,
+    paddingLeft: 10,
+    opacity: 0.8,
+  } as any,
+  hr: { backgroundColor: C.border, height: 1 } as any,
+  list_item: { color: C.text, fontSize: 14 } as any,
+};

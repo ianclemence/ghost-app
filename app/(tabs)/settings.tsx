@@ -16,6 +16,7 @@ import {
   checkHealth,
   checkHealthDebug,
   connectWebSocket,
+  getWSState,
   GhostConfig,
   saveConfig,
 } from "../../lib/ghostApi";
@@ -38,7 +39,7 @@ const C = {
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { config, setConfig, isConnected, setConnected } = useGhostStore();
+  const { config, setConfig, connectionState, setConnectionState, setConnected } = useGhostStore();
 
   const [host, setHost] = useState(config?.piHost ?? "");
   const [port, setPort] = useState(config?.piPort ?? "8765");
@@ -46,6 +47,13 @@ export default function SettingsScreen() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"idle" | "ok" | "fail">("idle");
   const [notifEnabled, setNotifEnabled] = useState(false);
+
+  // Diagnostics state
+  const [diagLatency, setDiagLatency] = useState<number | null>(null);
+  const [diagBridgeVersion, setDiagBridgeVersion] = useState<string | null>(null);
+  const [diagBridgeUptime, setDiagBridgeUptime] = useState<number | null>(null);
+  const [diagWSState, setDiagWSState] = useState<string>('unknown');
+  const [diagLastRequest, setDiagLastRequest] = useState<string | null>(null);
 
   useEffect(() => {
     if (isExpoGo) return;
@@ -87,6 +95,18 @@ export default function SettingsScreen() {
     setTestResult(ok ? "ok" : "fail");
     setConnected(ok);
     setTesting(false);
+
+    // Update diagnostics
+    if (result.latencyMs !== undefined) setDiagLatency(result.latencyMs);
+    if (result.body) {
+      try {
+        const parsed = JSON.parse(result.body);
+        if (parsed.version) setDiagBridgeVersion(parsed.version);
+        if (parsed.uptime_s !== undefined) setDiagBridgeUptime(parsed.uptime_s);
+      } catch {}
+    }
+    setDiagWSState(getWSState());
+    setDiagLastRequest(new Date().toLocaleTimeString());
   };
 
   const saveAndConnect = async () => {
@@ -103,6 +123,25 @@ export default function SettingsScreen() {
     if (ok) {
       connectWebSocket(cfg);
     }
+  };
+
+  const resetConnection = async () => {
+    if (!config) return;
+    setConnectionState('syncing');
+    connectWebSocket(config);
+    const ok = await checkHealth(config);
+    setConnected(ok);
+    setTestResult(ok ? "ok" : "fail");
+    setDiagWSState(getWSState());
+    setDiagLastRequest(new Date().toLocaleTimeString());
+  };
+
+  const formatUptime = (seconds: number) => {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${mins}m`;
   };
 
   const statusColor =
@@ -182,6 +221,54 @@ export default function SettingsScreen() {
         )}
       </Section>
 
+      {/* Diagnostics */}
+      <Section title="CONNECTION DIAGNOSTICS">
+        <View style={styles.diagGrid}>
+          <DiagItem
+            label="BRIDGE URL"
+            value={config ? `${config.piHost}:${config.piPort}` : "Not set"}
+          />
+          <DiagItem
+            label="LATENCY"
+            value={diagLatency !== null ? `${diagLatency}ms` : "—"}
+            accent={diagLatency !== null && diagLatency < 200}
+          />
+          <DiagItem
+            label="BRIDGE VER."
+            value={diagBridgeVersion ?? "—"}
+          />
+          <DiagItem
+            label="BRIDGE UPTIME"
+            value={diagBridgeUptime !== null ? formatUptime(diagBridgeUptime) : "—"}
+          />
+          <DiagItem
+            label="WEBSOCKET"
+            value={diagWSState}
+            accent={diagWSState === 'connected'}
+          />
+          <DiagItem
+            label="LAST CHECK"
+            value={diagLastRequest ?? "—"}
+          />
+        </View>
+        <View style={styles.btnRow}>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnOutline]}
+            onPress={testConnection}
+            disabled={testing || !config}
+          >
+            <Text style={styles.btnOutlineText}>RUN DIAGNOSTICS</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnOutline, { borderColor: C.warn }]}
+            onPress={resetConnection}
+            disabled={!config}
+          >
+            <Text style={[styles.btnOutlineText, { color: C.warn }]}>RESET</Text>
+          </TouchableOpacity>
+        </View>
+      </Section>
+
       {/* Notifications */}
       <Section title="NOTIFICATIONS">
         <View style={styles.toggleRow}>
@@ -218,10 +305,10 @@ export default function SettingsScreen() {
           <StatusItem label="PORT" value={config?.piPort ?? "—"} />
           <StatusItem
             label="CONNECTION"
-            value={isConnected ? "Online" : "Offline"}
-            accent={isConnected}
+            value={connectionState === 'online' ? "Online" : connectionState === 'syncing' ? "Syncing" : "Offline"}
+            accent={connectionState === 'online'}
           />
-          <StatusItem label="APP VERSION" value="1.0.0" />
+          <StatusItem label="APP VERSION" value="1.1.0" />
         </View>
       </Section>
     </ScrollView>
@@ -272,10 +359,27 @@ function StatusItem({
 }) {
   return (
     <View style={styles.statusItem}>
-      <Text style={styles.statusLabel}>{label}</Text>
-      <Text style={[styles.statusValue, accent && { color: "#00FF88" }]}>
+      <Text style={styles.statusItemLabel}>{label}</Text>
+      <Text style={[styles.statusItemValue, accent && { color: "#00FF88" }]}>
         {value}
       </Text>
+    </View>
+  );
+}
+
+function DiagItem({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <View style={styles.diagItem}>
+      <Text style={styles.diagLabel}>{label}</Text>
+      <Text style={[styles.diagValue, accent && { color: C.accent }]}>{value}</Text>
     </View>
   );
 }
@@ -373,10 +477,26 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   statusItem: { width: "50%", padding: 14, gap: 4 },
-  statusLabel: { color: C.textMuted, fontSize: 10, letterSpacing: 1 },
-  statusValue: {
+  statusItemLabel: { color: C.textMuted, fontSize: 10, letterSpacing: 1 },
+  statusItemValue: {
     color: C.text,
     fontSize: 13,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  diagGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  diagItem: { width: '50%', padding: 14, gap: 4 },
+  diagLabel: {
+    color: C.textMuted,
+    fontSize: 9,
+    letterSpacing: 1.5,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
+  diagValue: {
+    color: C.text,
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });

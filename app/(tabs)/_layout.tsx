@@ -53,12 +53,8 @@ export default function TabLayout() {
         options={{ tabBarIcon: ({ focused }) => <TabIcon icon="🖥️" label="REMOTE" focused={focused} /> }}
       />
       <Tabs.Screen
-        name="history"
-        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="📜" label="LOG" focused={focused} /> }}
-      />
-      <Tabs.Screen
         name="memory"
-        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="🧠" label="MEM" focused={focused} /> }}
+        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="🧠" label="MEMORY" focused={focused} /> }}
       />
       <Tabs.Screen
         name="settings"
