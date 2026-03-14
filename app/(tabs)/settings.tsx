@@ -5,8 +5,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import Constants, { AppOwnership } from 'expo-constants';
 import { useGhostStore } from '../../lib/store';
 import { GhostConfig, saveConfig, checkHealth, connectWebSocket } from '../../lib/ghostApi';
+
+const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
 const C = {
   bg: '#080C0F',
@@ -33,12 +36,18 @@ export default function SettingsScreen() {
   const [notifEnabled, setNotifEnabled] = useState(false);
 
   useEffect(() => {
-    Notifications.getPermissionsAsync().then(({ status }) => {
-      setNotifEnabled(status === 'granted');
-    });
+    if (!isExpoGo) {
+      Notifications.getPermissionsAsync().then(({ status }) => {
+        setNotifEnabled(status === 'granted');
+      });
+    }
   }, []);
 
   const requestNotifications = async () => {
+    if (isExpoGo) {
+      alert('Push notifications are not supported in Expo Go. Use a development build to enable them.');
+      return;
+    }
     const { status } = await Notifications.requestPermissionsAsync();
     setNotifEnabled(status === 'granted');
   };
