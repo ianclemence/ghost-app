@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   checkHealth,
+  checkHealthDebug,
   connectWebSocket,
   GhostConfig,
   saveConfig,
@@ -75,7 +76,14 @@ export default function SettingsScreen() {
       piPort: port.trim(),
       secret: secret.trim(),
     };
-    const ok = await checkHealth(cfg);
+    const result = await checkHealthDebug(cfg);
+    const ok = result.ok;
+    console.log("[ghost-bridge:test]", {
+      inputHost: host,
+      inputPort: port,
+      hasSecret: secret.trim().length > 0,
+      ...result,
+    });
     setTestResult(ok ? "ok" : "fail");
     setConnected(ok);
     setTesting(false);

@@ -34,6 +34,15 @@ export interface ExecResult {
   duration_ms: number;
 }
 
+export interface ConnectionDebugResult {
+  ok: boolean;
+  url: string;
+  status?: number;
+  statusText?: string;
+  body?: string;
+  error?: string;
+}
+
 const CONFIG_KEY = 'ghost_config';
 
 export async function loadConfig(): Promise<GhostConfig | null> {
@@ -88,6 +97,30 @@ export async function checkHealth(cfg: GhostConfig): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+export async function checkHealthDebug(cfg: GhostConfig): Promise<ConnectionDebugResult> {
+  const url = `${baseURL(cfg)}/health`;
+  try {
+    const res = await fetch(url, {
+      headers: headers(cfg),
+      signal: AbortSignal.timeout(5000),
+    });
+    const body = await res.text().catch(() => '');
+    return {
+      ok: res.ok,
+      url,
+      status: res.status,
+      statusText: res.statusText,
+      body: body.slice(0, 300),
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      url,
+      error: err?.message ?? String(err),
+    };
   }
 }
 
