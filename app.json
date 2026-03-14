@@ -51,7 +51,8 @@
         {
           "photosPermission": "Ghost needs access to your photos to send images"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
