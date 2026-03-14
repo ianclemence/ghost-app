@@ -86,14 +86,27 @@ function headers(cfg: GhostConfig): HeadersInit {
   };
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  if (typeof AbortController === 'undefined') {
+    return fetch(url, init);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Health ────────────────────────────────────────────────────────────────
 
 export async function checkHealth(cfg: GhostConfig): Promise<boolean> {
   try {
-    const res = await fetch(`${baseURL(cfg)}/health`, {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/health`, {
       headers: headers(cfg),
-      signal: AbortSignal.timeout(5000),
-    });
+    }, 5000);
     return res.ok;
   } catch {
     return false;
@@ -103,10 +116,9 @@ export async function checkHealth(cfg: GhostConfig): Promise<boolean> {
 export async function checkHealthDebug(cfg: GhostConfig): Promise<ConnectionDebugResult> {
   const url = `${baseURL(cfg)}/health`;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: headers(cfg),
-      signal: AbortSignal.timeout(5000),
-    });
+    }, 5000);
     const body = await res.text().catch(() => '');
     return {
       ok: res.ok,
