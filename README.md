@@ -50,21 +50,7 @@ ghost-app/
 
 ## Part 1 — Pi Setup (ghost-bridge)
 
-### 1. Copy bridge to your Pi
-
-```bash
-# From your dev machine:
-scp -r ../ghost/bridge/ pi@192.168.1.42:~/ghost-bridge/
-```
-
-Or use the Makefile to cross-compile and deploy in one step:
-
-```bash
-cd ../ghost/bridge
-make deploy PI_HOST=pi@192.168.1.42
-```
-
-### 2. Add to Ghost's .env
+### 1. Add to Ghost's .env
 
 ```env
 # ── ghost-bridge settings (add to existing Ghost .env) ──────────────────
@@ -86,7 +72,7 @@ GHOST_SYSTEM_PROMPT=You are Ghost, a sovereign AI on a Raspberry Pi. Be concise.
 # SCREENSHOT_CMD=scrot /tmp/ghost-bridge-screen.png
 ```
 
-### 3. Build and run manually (first test)
+### 2. Build and run manually (first test)
 
 ```bash
 cd ~/ghost-bridge
@@ -96,7 +82,7 @@ go build -o ghost-bridge .
 # 👻 Ghost Bridge running on 0.0.0.0:8765
 ```
 
-### 4. Install as a systemd service
+### 3. Install as a systemd service
 
 ```bash
 # Edit the service file if your username isn't 'pi'
@@ -111,7 +97,7 @@ sudo systemctl start ghost-bridge
 sudo journalctl -u ghost-bridge -f
 ```
 
-### 5. Firewall (local network only)
+### 4. Firewall (local network only)
 
 ```bash
 # Allow only your home network range
@@ -119,7 +105,7 @@ sudo ufw allow from 192.168.0.0/16 to any port 8765
 sudo ufw reload
 ```
 
-### 6. Install scrot for screenshots (optional)
+### 5. Install scrot for screenshots (optional)
 
 ```bash
 sudo apt install scrot
