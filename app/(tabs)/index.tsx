@@ -480,9 +480,17 @@ export default function ChatScreen() {
         if (Date.now() - lastSendAtRef.current > 120000) return;
         if (
           state._lastCommitTime &&
-          Date.now() - state._lastCommitTime < 3000
+          Date.now() - state._lastCommitTime < 10000
         ) {
-          if (normalizeAssistantContent(state._lastCommitContent) === incoming)
+          // Robust comparison: check if the new message is just a subset or exact match of the last one
+          const lastNormalized = normalizeAssistantContent(
+            state._lastCommitContent,
+          );
+          if (
+            lastNormalized === incoming ||
+            lastNormalized.includes(incoming) ||
+            incoming.includes(lastNormalized)
+          )
             return;
         }
         const last = state.messages[state.messages.length - 1];
@@ -560,6 +568,7 @@ export default function ChatScreen() {
         content: text || "📎 Attachment",
         timestamp: Date.now() / 1000,
         media_url: mediaUri,
+        media_type: mediaType,
         status: "sending",
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
