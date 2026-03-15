@@ -155,6 +155,28 @@ function sanitize(text: string): string {
   }).join("\n").trim();
 }
 
+// ─── User text with highlighted slash commands ────────────────────────────
+function UserText({ content }: { content: string }) {
+  // Split on slash-commands so e.g. "/status check this" renders as
+  // [accent "/status"] [normal " check this"]
+  const parts = content.split(/(\/\w+)/g);
+  if (parts.length === 1) {
+    // No slash command — plain render, no extra Views
+    return <Text style={s.userText}>{content}</Text>;
+  }
+  return (
+    <Text style={s.userText}>
+      {parts.map((part, i) =>
+        /^\/\w+/.test(part) ? (
+          <Text key={i} style={s.userTextCmd}>{part}</Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        ),
+      )}
+    </Text>
+  );
+}
+
 // ─── Code block ───────────────────────────────────────────────────────────
 function CodeBlock({ node }: { node: ASTNode }) {
   const lang = (node.sourceInfo || "").toLowerCase();
@@ -363,7 +385,7 @@ function MessageRow({ msg }: { msg: ExtendedMessage }) {
               )}
             </View>
           )}
-          <Text style={s.userText}>{content}</Text>
+          <UserText content={content} />
           <View style={s.tsRow}>
             <Text style={s.ts}>{timeStr}</Text>
             <StatusIcon status={msg.status} />
@@ -984,6 +1006,12 @@ const s = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     fontFamily: FONT_SANS,
+  },
+  userTextCmd: {
+    color: C.accent,
+    fontFamily: FONT_MONO,
+    fontWeight: "700",
+    fontSize: 15,
   },
   tsRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 5 },
   ts:    { color: C.textTertiary, fontSize: 10, fontFamily: FONT_SANS },
