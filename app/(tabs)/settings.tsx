@@ -39,10 +39,17 @@ const C = {
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { config, setConfig, connectionState, setConnectionState, setConnected } = useGhostStore();
+  const {
+    config,
+    setConfig,
+    connectionState,
+    setConnectionState,
+    setConnected,
+  } = useGhostStore();
 
   const [host, setHost] = useState(config?.piHost ?? "");
   const [port, setPort] = useState(config?.piPort ?? "8765");
+  const [remotePort, setRemotePort] = useState(config?.remotePort ?? "8766");
   const [secret, setSecret] = useState(config?.secret ?? "");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"idle" | "ok" | "fail">("idle");
@@ -50,9 +57,11 @@ export default function SettingsScreen() {
 
   // Diagnostics state
   const [diagLatency, setDiagLatency] = useState<number | null>(null);
-  const [diagBridgeVersion, setDiagBridgeVersion] = useState<string | null>(null);
+  const [diagBridgeVersion, setDiagBridgeVersion] = useState<string | null>(
+    null,
+  );
   const [diagBridgeUptime, setDiagBridgeUptime] = useState<number | null>(null);
-  const [diagWSState, setDiagWSState] = useState<string>('unknown');
+  const [diagWSState, setDiagWSState] = useState<string>("unknown");
   const [diagLastRequest, setDiagLastRequest] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,6 +91,7 @@ export default function SettingsScreen() {
     const cfg: GhostConfig = {
       piHost: host.trim(),
       piPort: port.trim(),
+      remotePort: remotePort.trim(),
       secret: secret.trim(),
     };
     const result = await checkHealthDebug(cfg);
@@ -127,7 +137,7 @@ export default function SettingsScreen() {
 
   const resetConnection = async () => {
     if (!config) return;
-    setConnectionState('syncing');
+    setConnectionState("syncing");
     connectWebSocket(config);
     const ok = await checkHealth(config);
     setConnected(ok);
@@ -179,10 +189,17 @@ export default function SettingsScreen() {
           keyboardType="numbers-and-punctuation"
         />
         <Field
-          label="Bridge Port"
+          label="Internal API Port"
           value={port}
           onChangeText={setPort}
           placeholder="8765"
+          keyboardType="numeric"
+        />
+        <Field
+          label="Remote Port (optional)"
+          value={remotePort}
+          onChangeText={setRemotePort}
+          placeholder="8766"
           keyboardType="numeric"
         />
         <Field
@@ -233,23 +250,19 @@ export default function SettingsScreen() {
             value={diagLatency !== null ? `${diagLatency}ms` : "—"}
             accent={diagLatency !== null && diagLatency < 200}
           />
-          <DiagItem
-            label="BRIDGE VER."
-            value={diagBridgeVersion ?? "—"}
-          />
+          <DiagItem label="BRIDGE VER." value={diagBridgeVersion ?? "—"} />
           <DiagItem
             label="BRIDGE UPTIME"
-            value={diagBridgeUptime !== null ? formatUptime(diagBridgeUptime) : "—"}
+            value={
+              diagBridgeUptime !== null ? formatUptime(diagBridgeUptime) : "—"
+            }
           />
           <DiagItem
             label="WEBSOCKET"
             value={diagWSState}
-            accent={diagWSState === 'connected'}
+            accent={diagWSState === "connected"}
           />
-          <DiagItem
-            label="LAST CHECK"
-            value={diagLastRequest ?? "—"}
-          />
+          <DiagItem label="LAST CHECK" value={diagLastRequest ?? "—"} />
         </View>
         <View style={styles.btnRow}>
           <TouchableOpacity
@@ -264,7 +277,9 @@ export default function SettingsScreen() {
             onPress={resetConnection}
             disabled={!config}
           >
-            <Text style={[styles.btnOutlineText, { color: C.warn }]}>RESET</Text>
+            <Text style={[styles.btnOutlineText, { color: C.warn }]}>
+              RESET
+            </Text>
           </TouchableOpacity>
         </View>
       </Section>
@@ -305,8 +320,14 @@ export default function SettingsScreen() {
           <StatusItem label="PORT" value={config?.piPort ?? "—"} />
           <StatusItem
             label="CONNECTION"
-            value={connectionState === 'online' ? "Online" : connectionState === 'syncing' ? "Syncing" : "Offline"}
-            accent={connectionState === 'online'}
+            value={
+              connectionState === "online"
+                ? "Online"
+                : connectionState === "syncing"
+                  ? "Syncing"
+                  : "Offline"
+            }
+            accent={connectionState === "online"}
           />
           <StatusItem label="APP VERSION" value="1.1.0" />
         </View>
@@ -379,7 +400,9 @@ function DiagItem({
   return (
     <View style={styles.diagItem}>
       <Text style={styles.diagLabel}>{label}</Text>
-      <Text style={[styles.diagValue, accent && { color: C.accent }]}>{value}</Text>
+      <Text style={[styles.diagValue, accent && { color: C.accent }]}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -484,19 +507,19 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   diagGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
-  diagItem: { width: '50%', padding: 14, gap: 4 },
+  diagItem: { width: "50%", padding: 14, gap: 4 },
   diagLabel: {
     color: C.textMuted,
     fontSize: 9,
     letterSpacing: 1.5,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
   diagValue: {
     color: C.text,
     fontSize: 13,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
 });

@@ -9,17 +9,16 @@ A React Native Expo app + Go HTTP bridge that gives your Ghost Pi a fully native
 ```
 ┌──────────────────────────────┐         HTTP / WebSocket
 │      Ghost Mobile            │ ◄──────────────────────────► Raspberry Pi
-│      React Native (Expo)     │         Local Wi-Fi           ghost-bridge :8765
-│                              │                               ghost (original)
-│  👻 Chat    — streaming AI   │                               ghost.db (SQLite)
-│  🖥️ Remote  — Pi control     │                               workspace/memory/
-│  📜 Log     — history        │
+│      React Native (Expo)     │         Local Wi-Fi           internal-api :8765 (Chat)
+│                              │                               ghost-bridge :8766 (Remote)
+│  👻 Chat    — streaming AI   │                               ghost (original)
+│  🖥️ Remote  — Pi control     │                               ghost.db (SQLite)
+│  📜 Log     — history        │                               workspace/memory/
 │  🧠 Mem     — memory files   │
 │  ⚙️ Config  — connection     │
 └──────────────────────────────┘
-```
 
-`ghost-bridge` is a lightweight Go HTTP server that runs alongside your existing Ghost process. It never interferes with Ghost's core logic — it reads the same SQLite database and proxies to the same Kimi API.
+`ghost-bridge` is now a lightweight remote control server. The Ghost agent itself (`internal-api`) handles all chat and memory operations directly.
 
 ---
 
