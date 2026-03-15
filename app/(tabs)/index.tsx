@@ -122,19 +122,24 @@ const SLASH_COMMANDS = [
 ];
 
 // ─── Content sanitizer ────────────────────────────────────────────────────
-const HIDE_PATTERNS = [
-  "thinking", "reasoning", "thought", "using tool", "tool:", "tool call",
-  "calling tool", "working...", "processing...", "searching...", "fetching...",
-  "reading...", "writing...", "executing...",
-];
-
+// Only hide lines that are clearly internal tool-status noise.
+// These patterns must match the WHOLE line (or be very specific prefixes)
+// so we never accidentally drop real response content.
 function sanitize(text: string): string {
-  return text.split("\n").map(l => l.trim()).filter(line => {
-    const t = line.toLowerCase();
+  return text.split("\n").filter(line => {
+    const t = line.trim().toLowerCase();
     if (!t) return false;
-    if (HIDE_PATTERNS.some(p => t.includes(p))) return false;
-    if (/^\[.*\]$/.test(t) && /(thinking|tool|reasoning)/i.test(t)) return false;
+    // XML thinking tags — internal chain-of-thought
     if (/<\/?thinking>|<\/?thought>/.test(t)) return false;
+    // Lines that are ONLY a bracketed status: [thinking...], [using tool: x]
+    if (/^\[.*(thinking|tool call|using tool|reasoning).*\]$/i.test(t)) return false;
+    // Explicit tool call prefixes from the agent runtime
+    if (/^tool call:/i.test(t)) return false;
+    if (/^calling tool:/i.test(t)) return false;
+    if (/^tool execution (started|failed|completed)/i.test(t)) return false;
+    if (/^ghost is (thinking|reasoning|processing)/i.test(t)) return false;
+    if (/^fetched \d+ bytes/i.test(t)) return false;
+    if (/command blocked by safety guard/i.test(t)) return false;
     return true;
   }).join("\n").trim();
 }
@@ -524,18 +529,24 @@ export default function ChatScreen() {
     await sendMessage(config, {
       content: text, mediaB64, mediaType,
       onChunk: chunk => {
-        const c = sanitize(chunk); if (!c) return;
+        // Don't sanitize chunks — they're token fragments, not complete lines.
+        // Sanitizing here drops partial words matching hide patterns mid-sentence.
+        if (!chunk) return;
         if (!firstChunk.got) { firstChunk.got = true; updateMessageStatus(msgId, "completed"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
-        appendStream(c);
+        appendStream(chunk);
       },
       onDone: full => {
         if (streamTimeout.current) clearTimeout(streamTimeout.current);
-        const clean = sanitize(full);
         commitStream();
-        if (clean.trim()) { updateMessageStatus(msgId, "completed"); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
-        else {
-          const last = [...useGhostStore.getState().messages].reverse().find(m => m.role === "assistant");
-          if (last?.content?.trim()) { updateMessageStatus(msgId, "completed"); return; }
+        // Check the already-streamed buffer for content, not the raw full string.
+        // The buffer was appended chunk-by-chunk without sanitization.
+        const state = useGhostStore.getState();
+        const buffered = state.messages.slice().reverse().find(m => m.role === "assistant");
+        const hasContent = buffered?.content?.trim().length ?? 0 > 0;
+        if (hasContent) {
+          updateMessageStatus(msgId, "completed");
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
           updateMessageStatus(msgId, "failed");
           setActiveError({ error: { kind: "empty_stream", message: "Ghost returned no response.", retryable: true } });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
