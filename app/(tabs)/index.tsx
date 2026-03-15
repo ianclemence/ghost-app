@@ -766,9 +766,7 @@ export default function ChatScreen() {
     fetchHistory(config, 60, 0)
       .then((d) => {
         setMessages(
-          [...d.messages]
-            .reverse()
-            .map((m) => ({ ...m, status: "completed" as const })),
+          d.messages.map((m) => ({ ...m, status: "completed" as const })),
         );
         setTotalMessages(d.total);
       })
@@ -835,9 +833,7 @@ export default function ChatScreen() {
     try {
       const d = await fetchHistory(config, 30, messages.length);
       setMessages([
-        ...[...d.messages]
-          .reverse()
-          .map((m) => ({ ...m, status: "completed" as const })),
+        ...d.messages.map((m) => ({ ...m, status: "completed" as const })),
         ...messages,
       ]);
       setTotalMessages(d.total);
