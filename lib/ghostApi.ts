@@ -306,7 +306,7 @@ export interface SendOptions {
   onError: (err: GhostError) => void;
 }
 
-const STREAM_TIMEOUT_MS = 120_000; // 120 second global timeout
+const STREAM_TIMEOUT_MS = 300_000; // Increased to 300 seconds (5 mins) for complex agent tasks
 
 export async function sendMessage(
   cfg: GhostConfig,
