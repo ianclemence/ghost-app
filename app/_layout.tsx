@@ -37,7 +37,12 @@ export default function RootLayout() {
 
       // Listen for WS push and send local notification
       const unsub = onWSMessage((msg) => {
-        if (msg.type === 'assistant_message' && notifications) {
+        const msgType = typeof msg.type === 'string'
+          ? msg.type
+          : typeof msg.metadata?.type === 'string'
+            ? msg.metadata.type
+            : '';
+        if (msgType === 'assistant_message' && notifications && msg.content) {
           notifications.scheduleNotificationAsync({
             content: {
               title: '👻 Ghost',

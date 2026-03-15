@@ -29,6 +29,7 @@ import {
   connectWebSocket,
   fetchHistory,
   GhostError,
+  Message,
   onWSMessage,
   onWSStateChange,
   sendMessage,
@@ -704,8 +705,9 @@ export default function ChatScreen() {
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const localIdSeq = useRef(0);
-  const streamTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSendAt = useRef(0);
+  const lastReconnectAt = useRef(0);
+  const previousConnectionState = useRef<ConnectionState>("offline");
   // Ref to always hold the latest doSend so the offline-queue effect
   // never captures a stale closure even when doSend is recreated.
   const doSendRef = useRef<
@@ -733,6 +735,22 @@ export default function ChatScreen() {
 
   const uid = () => `local-${Date.now()}-${++localIdSeq.current}`;
   const normalize = (t: string) => t.replace(/\s+/g, " ").trim();
+  const trace = (event: string, data?: Record<string, unknown>) => {
+    console.log(`[ghost-chat] ${event}`, data ?? {});
+  };
+  const sortChronological = <T extends { timestamp: number; role: string }>(
+    items: T[],
+  ) =>
+    [...items].sort((a, b) => {
+      if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
+      if (a.role === "user" && b.role !== "user") return -1;
+      if (b.role === "user" && a.role !== "user") return 1;
+      return 0;
+    });
+  const normalizeHistory = (items: Message[]) =>
+    sortChronological(
+      items.map((m) => ({ ...m, status: "completed" as const })),
+    );
 
   // ── Health poll ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -754,8 +772,13 @@ export default function ChatScreen() {
   useEffect(
     () =>
       onWSStateChange((st) => {
-        if (st === "connected") setConnectionState("online");
+        trace("ws_state", { state: st });
+        if (st === "connected") {
+          lastReconnectAt.current = Date.now();
+          setConnectionState("online");
+        }
         if (st === "reconnecting") setConnectionState("syncing");
+        if (st === "disconnected") setConnectionState("offline");
       }),
     [],
   );
@@ -763,30 +786,36 @@ export default function ChatScreen() {
   // ── Load history + WS messages ────────────────────────────────────────
   useEffect(() => {
     if (!config) return;
+    trace("history_initial_fetch_start");
     fetchHistory(config, 60, 0)
       .then((d) => {
-        setMessages(
-          d.messages
-            .map((m) => ({ ...m, status: "completed" as const }))
-            .sort((a, b) => {
-              if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
-              if (a.role === "user" && b.role !== "user") return -1;
-              if (b.role === "user" && a.role !== "user") return 1;
-              return 0;
-            }),
-        );
+        setMessages(normalizeHistory(d.messages));
         setTotalMessages(d.total);
+        trace("history_initial_fetch_done", {
+          count: d.messages.length,
+          total: d.total,
+        });
       })
       .catch(() => {});
     connectWebSocket(config);
     return onWSMessage((msg) => {
-      if (msg.type !== "assistant_message") return;
+      const metadataType =
+        typeof msg?.metadata?.type === "string" ? msg.metadata.type : "";
+      const messageType =
+        typeof msg?.type === "string" ? msg.type : metadataType;
+      if (messageType !== "assistant_message") return;
       if (msg.channel && msg.channel !== "mobile") return;
       const st = useGhostStore.getState();
       const incoming = sanitize(msg.content ?? "");
-      if (!incoming || st.isStreaming) return;
-      if (Date.now() - lastSendAt.current > 120_000) return;
-      if (st._lastCommitTime && Date.now() - st._lastCommitTime < 10_000) {
+      const reconnectGrace = Date.now() - lastReconnectAt.current < 60_000;
+      if (!incoming) return;
+      if (st.isStreaming && !reconnectGrace) return;
+      if (!reconnectGrace && Date.now() - lastSendAt.current > 120_000) return;
+      if (
+        !reconnectGrace &&
+        st._lastCommitTime &&
+        Date.now() - st._lastCommitTime < 10_000
+      ) {
         const ln = normalize(st._lastCommitContent);
         if (ln === incoming || ln.includes(incoming) || incoming.includes(ln))
           return;
@@ -801,8 +830,43 @@ export default function ChatScreen() {
         timestamp: Date.now() / 1000,
         status: "completed",
       });
+      trace("ws_message_appended", {
+        len: incoming.length,
+        reconnectGrace,
+      });
     });
   }, [config]);
+
+  useEffect(() => {
+    const prev = previousConnectionState.current;
+    if (prev === "syncing" && connectionState === "online" && config) {
+      trace("history_catchup_start");
+      fetchHistory(config, 80, 0)
+        .then((d) => {
+          const server = normalizeHistory(d.messages);
+          const state = useGhostStore.getState();
+          const pending = state.messages.filter(
+            (m) =>
+              m.status === "sending" ||
+              m.status === "streaming" ||
+              m.status === "retrying",
+          );
+          const merged = sortChronological([...server, ...pending]);
+          const deduped = merged.filter(
+            (m, i, arr) => arr.findIndex((x) => x.id === m.id) === i,
+          );
+          setMessages(deduped);
+          setTotalMessages(d.total);
+          trace("history_catchup_done", {
+            server: server.length,
+            pending: pending.length,
+            merged: deduped.length,
+          });
+        })
+        .catch(() => {});
+    }
+    previousConnectionState.current = connectionState;
+  }, [connectionState, config, setMessages]);
 
   // ── Flush offline queue ───────────────────────────────────────────────
   useEffect(() => {
@@ -813,6 +877,7 @@ export default function ChatScreen() {
       dequeueMessages().forEach((m) =>
         send(m.content, m.mediaB64, m.mediaType),
       );
+      trace("offline_queue_flushed");
     }
   }, [connectionState]);
 
@@ -839,19 +904,16 @@ export default function ChatScreen() {
     setLoadingOlder(true);
     try {
       const d = await fetchHistory(config, 30, messages.length);
-      const older = d.messages
-        .map((m) => ({ ...m, status: "completed" as const }))
-        .sort((a, b) => {
-          if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
-          if (a.role === "user" && b.role !== "user") return -1;
-          if (b.role === "user" && a.role !== "user") return 1;
-          return 0;
-        });
+      const older = normalizeHistory(d.messages);
       setMessages([...older, ...messages]);
       setTotalMessages(d.total);
+      trace("history_load_older_done", {
+        older: older.length,
+        total: d.total,
+      });
     } catch {}
     setLoadingOlder(false);
-  }, [config, messages, loadingOlder, totalMessages]);
+  }, [config, messages, loadingOlder, totalMessages, normalizeHistory]);
 
   // ── Core send ─────────────────────────────────────────────────────────
   const doSend = useCallback(
@@ -862,6 +924,11 @@ export default function ChatScreen() {
       mediaUri?: string,
     ) => {
       if (!config) return;
+      trace("send_start", {
+        textLength: text.length,
+        hasMedia: Boolean(mediaB64),
+        connectionState: useGhostStore.getState().connectionState,
+      });
       lastSendAt.current = Date.now();
       const msgId = uid();
       appendMessage({
@@ -878,9 +945,6 @@ export default function ChatScreen() {
       setStreaming(true);
       setActiveError(null);
       setLastSentMessage({ content: text, mediaB64, mediaType });
-      streamTimeout.current = setTimeout(() => {
-        if (useGhostStore.getState().isStreaming) commitStream();
-      }, 30_000);
       const firstChunk = { got: false };
       await sendMessage(config, {
         content: text,
@@ -894,6 +958,7 @@ export default function ChatScreen() {
             firstChunk.got = true;
             updateMessageStatus(msgId, "completed");
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            trace("send_first_chunk", { msgId });
           }
           appendStream(chunk);
         },
@@ -901,9 +966,9 @@ export default function ChatScreen() {
           setToolStatus(label);
         },
         onDone: (full) => {
-          if (streamTimeout.current) clearTimeout(streamTimeout.current);
           setToolStatus(null);
           commitStream();
+          trace("send_done", { msgId, fullLength: full.length });
           // Check the already-streamed buffer for content, not the raw full string.
           // The buffer was appended chunk-by-chunk without sanitization.
           const state = useGhostStore.getState();
@@ -928,10 +993,14 @@ export default function ChatScreen() {
           }
         },
         onError: (err) => {
-          if (streamTimeout.current) clearTimeout(streamTimeout.current);
           setToolStatus(null);
           const partial = useGhostStore.getState().streamBuffer;
           commitStream();
+          trace("send_error", {
+            msgId,
+            kind: err.kind,
+            partialLength: partial?.length ?? 0,
+          });
           updateMessageStatus(msgId, "failed");
           const last = useGhostStore.getState().messages.slice(-1)[0];
           if (last?.role === "assistant" && !last.content.trim())
@@ -968,12 +1037,13 @@ export default function ChatScreen() {
       media = pendingMedia;
     setInput("");
     setPendingMedia(null);
-    if (connectionState === "offline") {
+    if (connectionState !== "online") {
       enqueueMessage({
         content: text,
         mediaB64: media?.b64,
         mediaType: media?.mimeType,
       });
+      trace("send_queued", { reason: connectionState });
       appendMessage({
         id: uid(),
         role: "user",
@@ -1084,7 +1154,6 @@ export default function ChatScreen() {
   const handleClear = useCallback(() => {
     if (!config) return;
     if (isStreaming) {
-      if (streamTimeout.current) clearTimeout(streamTimeout.current);
       commitStream();
     }
     Alert.alert(

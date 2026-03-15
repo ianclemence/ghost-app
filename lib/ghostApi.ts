@@ -45,6 +45,11 @@ export interface ConnectionDebugResult {
   latencyMs?: number;
 }
 
+type DebugMeta = Record<string, unknown>;
+function trace(event: string, meta?: DebugMeta): void {
+  console.log(`[ghost-api] ${event}`, meta ?? {});
+}
+
 // ─── Error Classification ──────────────────────────────────────────────────
 
 export type GhostErrorKind =
@@ -281,6 +286,11 @@ export async function sendMessage(cfg: GhostConfig, opts: SendOptions): Promise<
   if (mediaItems.length > 0) body.media_items = mediaItems;
 
   const url = `${baseURL(cfg)}/v1/chat`;
+  trace("send_start", {
+    session: normalizeSession(cfg.session),
+    hasMedia: mediaItems.length > 0,
+    contentLength: opts.content.length,
+  });
 
   const abortController = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timeoutTimer = abortController
@@ -322,6 +332,7 @@ export async function sendMessage(cfg: GhostConfig, opts: SendOptions): Promise<
           const data = line.slice(6).trim();
 
           if (data === "[DONE]") {
+            trace("stream_done_marker");
             opts.onDone(fullText);
             return;
           }
@@ -333,21 +344,25 @@ export async function sendMessage(cfg: GhostConfig, opts: SendOptions): Promise<
               if (parsed.type === "tool_status" && opts.onToolStatus) {
                 opts.onToolStatus(parsed.tool, parsed.label);
               }
+              trace("stream_object", { type: parsed.type ?? "unknown" });
               continue; // Never append objects to message content
             }
             // Plain string chunk
             const text = parsed as string;
             fullText += text;
             opts.onChunk(text);
+            trace("stream_chunk", { length: text.length });
           } catch {
             fullText += data;
             opts.onChunk(data);
+            trace("stream_raw_chunk", { length: data.length });
           }
         }
       }
 
       // Stream ended without [DONE]
       if (fullText.length > 0) {
+        trace("stream_done_no_marker", { fullLength: fullText.length });
         opts.onDone(fullText);
       } else {
         opts.onError({ kind: "empty_stream", message: "Ghost started thinking but didn't respond. Try rephrasing.", retryable: true });
@@ -379,9 +394,11 @@ export async function sendMessage(cfg: GhostConfig, opts: SendOptions): Promise<
         opts.onChunk(data);
       }
     }
+    trace("fallback_done", { fullLength: fullText.length });
     opts.onDone(fullText);
 
   } catch (err: any) {
+    trace("send_error", { message: err?.message ?? String(err) });
     opts.onError(networkError(err));
   } finally {
     if (timeoutTimer) clearTimeout(timeoutTimer);
@@ -471,7 +488,14 @@ export async function takeScreenshot(cfg: GhostConfig): Promise<{ image: string;
 
 // ─── WebSocket ─────────────────────────────────────────────────────────────
 
-type WSHandler      = (msg: { type: string; content: string }) => void;
+export type WSMessage = {
+  type?: string;
+  content?: string;
+  channel?: string;
+  chat_id?: string;
+  metadata?: Record<string, unknown>;
+};
+type WSHandler      = (msg: WSMessage) => void;
 type WSStateHandler = (state: "connected" | "disconnected" | "reconnecting") => void;
 
 let wsInstance:      WebSocket | null = null;
@@ -488,14 +512,17 @@ export function connectWebSocket(cfg: GhostConfig): void {
 
   notifyWSState("reconnecting");
   const url = `${wsURL(cfg)}/v1/ws?secret=${encodeURIComponent(cfg.secret)}&session=${encodeURIComponent(normalizeSession(cfg.session))}`;
+  trace("ws_connecting", { url });
   wsInstance = new WebSocket(url);
 
   wsInstance.onopen = () => {
     wsLastPong = Date.now();
+    trace("ws_open");
     notifyWSState("connected");
     // Health check: reconnect if no message received in 60s
     wsPingInterval = setInterval(() => {
       if (Date.now() - wsLastPong > 60_000) {
+        trace("ws_stale_reconnect");
         notifyWSState("reconnecting");
         try { wsInstance?.close(); } catch {}
       }
@@ -504,16 +531,27 @@ export function connectWebSocket(cfg: GhostConfig): void {
 
   wsInstance.onmessage = (e) => {
     wsLastPong = Date.now();
-    try { const msg = JSON.parse(e.data); wsHandlers.forEach((h) => h(msg)); } catch {}
+    try {
+      const msg = JSON.parse(e.data);
+      trace("ws_message", {
+        type: msg?.type ?? msg?.metadata?.type ?? "unknown",
+        channel: msg?.channel ?? "unknown",
+      });
+      wsHandlers.forEach((h) => h(msg));
+    } catch {}
   };
 
   wsInstance.onclose = () => {
     if (wsPingInterval) clearInterval(wsPingInterval);
+    trace("ws_close");
     notifyWSState("disconnected");
     wsReconnectTimer = setTimeout(() => connectWebSocket(cfg), 5000);
   };
 
-  wsInstance.onerror = () => { try { wsInstance?.close(); } catch {} };
+  wsInstance.onerror = () => {
+    trace("ws_error");
+    try { wsInstance?.close(); } catch {}
+  };
 }
 
 function notifyWSState(state: "connected" | "disconnected" | "reconnecting") {
