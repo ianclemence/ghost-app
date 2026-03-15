@@ -176,6 +176,21 @@ const SLASH_COMMANDS = [
 // These patterns must match the WHOLE line (or be very specific prefixes)
 // so we never accidentally drop real response content.
 function sanitize(text: string): string {
+  // If the entire message is a raw JSON object or array, suppress it.
+  // These are tool results that were incorrectly stored as assistant messages.
+  const trimmed = text.trim();
+  if (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  ) {
+    try {
+      JSON.parse(trimmed);
+      return ""; // Valid JSON object/array — suppress entirely
+    } catch {
+      // Not valid JSON — render normally
+    }
+  }
+
   return text
     .split("\n")
     .filter((line) => {
