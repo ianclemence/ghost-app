@@ -14,6 +14,7 @@ export interface GhostConfig {
   piPort: string;
   remotePort?: string;
   secret: string;
+  session?: string;
 }
 
 export interface PiStats {
@@ -175,6 +176,7 @@ export async function saveConfig(cfg: GhostConfig): Promise<void> {
       piPort: normalizePort(cfg.piPort),
       remotePort: normalizePort(cfg.remotePort ?? "8766"),
       secret: cfg.secret.trim(),
+      session: normalizeSession(cfg.session),
     }),
   );
 }
@@ -183,7 +185,7 @@ function baseURL(cfg: GhostConfig): string {
   return `http://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
 }
 
-function remoteBASE(cfg: GhostConfig): string {
+function remoteURL(cfg: GhostConfig): string {
   return `http://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.remotePort ?? "8766")}`;
 }
 
@@ -215,10 +217,16 @@ function normalizePort(port: string): string {
   return numeric === "" ? "8765" : numeric;
 }
 
+function normalizeSession(session?: string): string {
+  const value = (session ?? "").trim();
+  return value === "" ? "mobile:default" : value;
+}
+
 function headers(cfg: GhostConfig): HeadersInit {
   return {
     "Content-Type": "application/json",
     "X-Ghost-Secret": cfg.secret,
+    "X-Ghost-Session": normalizeSession(cfg.session),
   };
 }
 
@@ -298,8 +306,9 @@ export async function fetchHistory(
   limit = 50,
   offset = 0,
 ): Promise<{ messages: Message[]; total: number }> {
+  const session = normalizeSession(cfg.session);
   const res = await fetch(
-    `${baseURL(cfg)}/v1/history?limit=${limit}&offset=${offset}`,
+    `${baseURL(cfg)}/v1/history?limit=${limit}&offset=${offset}&session=${encodeURIComponent(session)}`,
     { headers: headers(cfg) },
   );
   if (!res.ok) throw new Error(`Failed to fetch history (HTTP ${res.status})`);
@@ -310,12 +319,16 @@ export async function searchMessages(
   cfg: GhostConfig,
   q: string,
 ): Promise<Message[]> {
+  const session = normalizeSession(cfg.session);
   const res = await fetch(
-    `${baseURL(cfg)}/v1/search?q=${encodeURIComponent(q)}&limit=30`,
+    `${baseURL(cfg)}/v1/search?q=${encodeURIComponent(q)}&limit=30&session=${encodeURIComponent(session)}`,
     { headers: headers(cfg) },
   );
   if (!res.ok) return [];
-  return res.json();
+  const data = await res.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.messages)) return data.messages;
+  return [];
 }
 
 export async function deleteMessage(
@@ -353,10 +366,20 @@ export async function sendMessage(
   cfg: GhostConfig,
   opts: SendOptions,
 ): Promise<void> {
-  const body: Record<string, string> = { content: opts.content };
-  if (opts.mediaB64) body.media_b64 = opts.mediaB64;
-  if (opts.mediaType) body.media_type = opts.mediaType;
-  const url = `${baseURL(cfg)}/send`;
+  const mediaItems =
+    opts.mediaB64 && opts.mediaType
+      ? [{ base64: opts.mediaB64, mime_type: opts.mediaType }]
+      : opts.mediaB64
+        ? [{ base64: opts.mediaB64 }]
+        : [];
+  const body: Record<string, unknown> = {
+    content: opts.content,
+    session_key: normalizeSession(cfg.session),
+    channel: "mobile",
+    chat_id: "default",
+  };
+  if (mediaItems.length > 0) body.media_items = mediaItems;
+  const url = `${baseURL(cfg)}/v1/chat`;
   console.log("[ghost-bridge:send:start]", {
     url,
     contentLength: opts.content.length,
@@ -512,7 +535,7 @@ export async function uploadFile(
   const form = new FormData();
   form.append("file", { uri, type: mimeType, name: filename } as any);
 
-  const res = await fetch(`${baseURL(cfg)}/upload`, {
+  const res = await fetch(`${baseURL(cfg)}/v1/upload`, {
     method: "POST",
     headers: { "X-Ghost-Secret": cfg.secret },
     body: form,
@@ -536,7 +559,7 @@ export async function transcribeAudio(
   } as any);
 
   try {
-    const res = await fetch(`${baseURL(cfg)}/transcribe`, {
+    const res = await fetch(`${baseURL(cfg)}/v1/transcribe`, {
       method: "POST",
       headers: { "X-Ghost-Secret": cfg.secret },
       body: form,
@@ -554,7 +577,7 @@ export async function transcribeAudio(
 export async function fetchMemoryFiles(
   cfg: GhostConfig,
 ): Promise<{ name: string; modified: number; size: number }[]> {
-  const res = await fetch(`${baseURL(cfg)}/memory/files`, {
+  const res = await fetch(`${baseURL(cfg)}/v1/memory/files`, {
     headers: headers(cfg),
   });
   if (!res.ok) return [];
@@ -566,7 +589,7 @@ export async function fetchMemoryFile(
   name: string,
 ): Promise<string> {
   const res = await fetch(
-    `${baseURL(cfg)}/memory/file?name=${encodeURIComponent(name)}`,
+    `${baseURL(cfg)}/v1/memory/file?name=${encodeURIComponent(name)}`,
     { headers: headers(cfg) },
   );
   if (!res.ok) throw new Error("Not found");
@@ -577,7 +600,9 @@ export async function fetchMemoryFile(
 // ─── Pi System ────────────────────────────────────────────────────────────
 
 export async function fetchStats(cfg: GhostConfig): Promise<PiStats> {
-  const res = await fetch(`${baseURL(cfg)}/stats`, { headers: headers(cfg) });
+  const res = await fetch(`${remoteURL(cfg)}/v1/stats`, {
+    headers: headers(cfg),
+  });
   if (!res.ok) throw new Error("Failed to fetch stats");
   return res.json();
 }
@@ -587,7 +612,7 @@ export async function runExec(
   command: string,
   timeout = 10,
 ): Promise<ExecResult> {
-  const res = await fetch(`${baseURL(cfg)}/exec`, {
+  const res = await fetch(`${remoteURL(cfg)}/v1/exec`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ command, timeout }),
@@ -603,7 +628,7 @@ export async function openOnPi(
   cfg: GhostConfig,
   target: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch(`${baseURL(cfg)}/open`, {
+  const res = await fetch(`${remoteURL(cfg)}/v1/open`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ target }),
@@ -618,7 +643,7 @@ export async function openOnPi(
 export async function takeScreenshot(
   cfg: GhostConfig,
 ): Promise<{ image: string; mime_type: string }> {
-  const res = await fetch(`${baseURL(cfg)}/screenshot`, {
+  const res = await fetch(`${remoteURL(cfg)}/v1/screenshot`, {
     headers: headers(cfg),
   });
   if (!res.ok) {
@@ -650,7 +675,7 @@ export function connectWebSocket(cfg: GhostConfig): void {
   } catch {}
 
   notifyWSState("reconnecting");
-  const url = `${wsURL(cfg)}/ws?secret=${encodeURIComponent(cfg.secret)}`;
+  const url = `${wsURL(cfg)}/v1/ws?secret=${encodeURIComponent(cfg.secret)}&session=${encodeURIComponent(normalizeSession(cfg.session))}`;
   wsInstance = new WebSocket(url);
 
   wsInstance.onopen = () => {

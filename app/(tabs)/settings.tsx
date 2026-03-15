@@ -123,6 +123,7 @@ export default function SettingsScreen() {
     const cfg: GhostConfig = {
       piHost: host.trim(),
       piPort: port.trim(),
+      remotePort: remotePort.trim(),
       secret: secret.trim(),
     };
     await saveConfig(cfg);
@@ -242,8 +243,16 @@ export default function SettingsScreen() {
       <Section title="CONNECTION DIAGNOSTICS">
         <View style={styles.diagGrid}>
           <DiagItem
-            label="BRIDGE URL"
+            label="INTERNAL API URL"
             value={config ? `${config.piHost}:${config.piPort}` : "Not set"}
+          />
+          <DiagItem
+            label="REMOTE BRIDGE URL"
+            value={
+              config
+                ? `${config.piHost}:${config.remotePort ?? "8766"}`
+                : "Not set"
+            }
           />
           <DiagItem
             label="LATENCY"
@@ -307,9 +316,7 @@ export default function SettingsScreen() {
       {/* Bridge Setup Instructions */}
       <Section title="PI SETUP INSTRUCTIONS">
         <View style={styles.infoBox}>
-          <Text style={styles.infoText}>
-            {`1. Copy ghost-bridge/ folder to your Pi\n\n2. Add to your Ghost .env:\n   BRIDGE_PORT=8765\n   BRIDGE_SECRET=your_secret_here\n\n3. Build and run:\n   cd ghost-bridge\n   go build -o ghost-bridge .\n   ./ghost-bridge\n\n4. Or add to ghost.service as an ExecStartPost\n\n5. Open port 8765 in your firewall:\n   sudo ufw allow 8765`}
-          </Text>
+          <Text style={styles.infoText}>{`1. Set Ghost Internal API in .env:\n   GHOST_API_PORT=8765\n\n2. Set ghost-bridge in .env:\n   BRIDGE_PORT=8766\n   BRIDGE_SECRET=your_secret_here\n\n3. Build and run bridge:\n   cd ghost-bridge\n   go build -o ghost-bridge .\n   ./ghost-bridge\n\n4. Open both ports in your firewall:\n   sudo ufw allow 8765\n   sudo ufw allow 8766`}</Text>
         </View>
       </Section>
 
@@ -317,7 +324,11 @@ export default function SettingsScreen() {
       <Section title="STATUS">
         <View style={styles.statusGrid}>
           <StatusItem label="PI HOST" value={config?.piHost ?? "Not set"} />
-          <StatusItem label="PORT" value={config?.piPort ?? "—"} />
+          <StatusItem label="API PORT" value={config?.piPort ?? "—"} />
+          <StatusItem
+            label="REMOTE PORT"
+            value={config?.remotePort ?? "8766"}
+          />
           <StatusItem
             label="CONNECTION"
             value={
