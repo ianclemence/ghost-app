@@ -1059,9 +1059,10 @@ export default function ChatScreen() {
       // Show all commands when just "/" is typed
       setShowSlash(true);
     } else if (t.startsWith("/") && !t.includes(" ")) {
-      // Show only if at least one command starts with what's typed
+      // Show if any command contains what's typed as a substring
+      const q = t.toLowerCase();
       const hasMatch = SLASH_COMMANDS.some((sc) =>
-        sc.command.startsWith(t.toLowerCase()),
+        sc.command.toLowerCase().includes(q),
       );
       setShowSlash(hasMatch);
     } else {
@@ -1236,42 +1237,61 @@ export default function ChatScreen() {
             showsVerticalScrollIndicator={false}
             style={s.slashScroll}
           >
-            {SLASH_COMMANDS.map((sc, i) => (
-              <TouchableOpacity
-                key={sc.command}
-                style={[
-                  s.slashRow,
-                  i === SLASH_COMMANDS.length - 1 && { borderBottomWidth: 0 },
-                ]}
-                onPress={() => {
-                  if (
-                    [
-                      "/help",
-                      "/clear",
-                      "/reset",
-                      "/status",
-                      "/skills",
-                      "/tools",
-                    ].includes(sc.command)
-                  ) {
-                    setInput("");
-                    setShowSlash(false);
-                    doSend(sc.command);
-                  } else if (sc.command === "/install") {
-                    setInput("/install ");
-                    setShowSlash(false);
-                    setTimeout(() => inputRef.current?.focus(), 50);
-                  } else {
-                    setInput(sc.command + " ");
-                    setShowSlash(false);
-                    setTimeout(() => inputRef.current?.focus(), 50);
-                  }
-                }}
-              >
-                <Text style={s.slashCmd}>{sc.command}</Text>
-                <Text style={s.slashDesc}>{sc.description}</Text>
-              </TouchableOpacity>
-            ))}
+            {SLASH_COMMANDS.filter((sc) => {
+              const q = input.toLowerCase();
+              return sc.command.toLowerCase().includes(q);
+            })
+              .sort((a, b) => {
+                const q = input.toLowerCase();
+                const aLow = a.command.toLowerCase();
+                const bLow = b.command.toLowerCase();
+                // Exact matches first
+                if (aLow === q) return -1;
+                if (bLow === q) return 1;
+                // Prefix matches second
+                const aStarts = aLow.startsWith(q);
+                const bStarts = bLow.startsWith(q);
+                if (aStarts && !bStarts) return -1;
+                if (bStarts && !aStarts) return 1;
+                // Substring/Alphabetical the rest
+                return aLow.localeCompare(bLow);
+              })
+              .map((sc, i, arr) => (
+                <TouchableOpacity
+                  key={sc.command}
+                  style={[
+                    s.slashRow,
+                    i === arr.length - 1 && { borderBottomWidth: 0 },
+                  ]}
+                  onPress={() => {
+                    if (
+                      [
+                        "/help",
+                        "/clear",
+                        "/reset",
+                        "/status",
+                        "/skills",
+                        "/tools",
+                      ].includes(sc.command)
+                    ) {
+                      setInput("");
+                      setShowSlash(false);
+                      doSend(sc.command);
+                    } else if (sc.command === "/install") {
+                      setInput("/install ");
+                      setShowSlash(false);
+                      setTimeout(() => inputRef.current?.focus(), 50);
+                    } else {
+                      setInput(sc.command + " ");
+                      setShowSlash(false);
+                      setTimeout(() => inputRef.current?.focus(), 50);
+                    }
+                  }}
+                >
+                  <Text style={s.slashCmd}>{sc.command}</Text>
+                  <Text style={s.slashDesc}>{sc.description}</Text>
+                </TouchableOpacity>
+              ))}
           </ScrollView>
         </View>
       )}
