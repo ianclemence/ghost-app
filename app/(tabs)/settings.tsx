@@ -177,7 +177,41 @@ export default function SettingsScreen() {
       }}
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>SETTINGS</Text>
+        <View>
+          <Text style={styles.headerTitle}>SETTINGS</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor:
+                  connectionState === "online"
+                    ? C.accent
+                    : connectionState === "syncing"
+                    ? C.warn
+                    : C.danger,
+              }}
+            />
+            <Text
+              style={{
+                color:
+                  connectionState === "online"
+                    ? C.accent
+                    : connectionState === "syncing"
+                    ? C.warn
+                    : C.danger,
+                fontSize: 9,
+                fontWeight: "700",
+                letterSpacing: 1.5,
+                fontFamily:
+                  Platform.OS === "ios" ? "Courier New" : "monospace",
+              }}
+            >
+              {connectionState.toUpperCase()}
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* Connection */}

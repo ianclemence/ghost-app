@@ -54,7 +54,7 @@ function formatSize(bytes: number): string {
 
 export default function MemoryScreen() {
   const insets = useSafeAreaInsets();
-  const { config } = useGhostStore();
+  const { config, connectionState } = useGhostStore();
   const [files, setFiles] = useState<MemFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -92,7 +92,9 @@ export default function MemoryScreen() {
 
   if (!config) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
+      <View
+        style={[styles.container, styles.centered, { paddingTop: insets.top }]}
+      >
         <Text style={{ color: C.textDim, fontSize: 14 }}>
           Configure connection in Settings
         </Text>
@@ -133,11 +135,39 @@ export default function MemoryScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>MEMORY</Text>
-          <Text style={styles.headerSub}>
-            Ghost's long-term memory files — written during conversations
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor:
+                  connectionState === "online"
+                    ? C.accent
+                    : connectionState === "syncing"
+                      ? C.warn
+                      : C.danger,
+              }}
+            />
+            <Text
+              style={{
+                color:
+                  connectionState === "online"
+                    ? C.accent
+                    : connectionState === "syncing"
+                      ? C.warn
+                      : C.danger,
+                fontSize: 9,
+                fontWeight: "700",
+                letterSpacing: 1.5,
+                fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+              }}
+            >
+              {connectionState.toUpperCase()}
+            </Text>
+          </View>
         </View>
         <TouchableOpacity onPress={loadFiles} disabled={loading}>
           <Text style={styles.refreshBtn}>↻</Text>
@@ -224,7 +254,7 @@ const styles = StyleSheet.create({
     color: C.textDim,
     fontSize: 11,
     marginTop: 4,
-    maxWidth: '80%',
+    maxWidth: "80%",
   },
   headerFile: {
     color: C.text,
@@ -312,9 +342,24 @@ const mdStyles = {
     lineHeight: 22,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   } as any,
-  heading1: { color: "#FFF", fontWeight: "800" as const, fontSize: 18, marginBottom: 8 },
-  heading2: { color: "#FFF", fontWeight: "700" as const, fontSize: 16, marginBottom: 6 },
-  heading3: { color: "#FFF", fontWeight: "600" as const, fontSize: 14, marginBottom: 4 },
+  heading1: {
+    color: "#FFF",
+    fontWeight: "800" as const,
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  heading2: {
+    color: "#FFF",
+    fontWeight: "700" as const,
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  heading3: {
+    color: "#FFF",
+    fontWeight: "600" as const,
+    fontSize: 14,
+    marginBottom: 4,
+  },
   code_inline: {
     backgroundColor: "#00FF8814",
     color: C.accent,

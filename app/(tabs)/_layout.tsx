@@ -1,24 +1,32 @@
-import { Tabs } from 'expo-router';
-import { Platform, Text, View } from 'react-native';
+import { Tabs } from "expo-router";
+import { Platform, Text, View } from "react-native";
 
 const C = {
-  bg: '#0D1117',
-  border: '#1A2332',
-  accent: '#00FF88',
-  inactive: '#2A3A4A',
+  bg: "#0D1117",
+  border: "#1A2332",
+  accent: "#00FF88",
+  inactive: "#2A3A4A",
 };
 
-function TabIcon({ icon, label, focused }: { icon: string; label: string; focused: boolean }) {
+function TabIcon({
+  icon,
+  label,
+  focused,
+}: {
+  icon: string;
+  label: string;
+  focused: boolean;
+}) {
   return (
-    <View style={{ alignItems: 'center', gap: 3, paddingTop: 4 }}>
+    <View style={{ alignItems: "center", gap: 3, paddingTop: 4 }}>
       <Text style={{ fontSize: 19, opacity: focused ? 1 : 0.35 }}>{icon}</Text>
       <Text
         style={{
           fontSize: 8,
-          fontWeight: focused ? '800' : '500',
+          fontWeight: focused ? "800" : "500",
           color: focused ? C.accent : C.inactive,
           letterSpacing: 1.2,
-          fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+          fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
         }}
       >
         {label}
@@ -46,19 +54,35 @@ export default function TabLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="👻" label="CHAT" focused={focused} /> }}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="👻" label="CHAT" focused={focused} />
+          ),
+        }}
       />
       <Tabs.Screen
         name="remote"
-        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="🖥️" label="REMOTE" focused={focused} /> }}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="🖥️" label="REMOTE" focused={focused} />
+          ),
+        }}
       />
       <Tabs.Screen
         name="memory"
-        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="🧠" label="MEMORY" focused={focused} /> }}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="🧠" label="MEMORY" focused={focused} />
+          ),
+        }}
       />
       <Tabs.Screen
         name="settings"
-        options={{ tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" label="CFG" focused={focused} /> }}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="⚙️" label="CTRL" focused={focused} />
+          ),
+        }}
       />
     </Tabs>
   );
