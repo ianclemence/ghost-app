@@ -1,8 +1,13 @@
-import { create } from 'zustand';
-import { Message, GhostConfig } from './ghostApi';
+import { create } from "zustand";
+import { GhostConfig, Message } from "./ghostApi";
 
-export type ConnectionState = 'online' | 'syncing' | 'offline';
-export type MessageStatus = 'sending' | 'streaming' | 'completed' | 'failed' | 'retrying';
+export type ConnectionState = "online" | "syncing" | "offline";
+export type MessageStatus =
+  | "sending"
+  | "streaming"
+  | "completed"
+  | "failed"
+  | "retrying";
 
 export interface ExtendedMessage extends Message {
   status?: MessageStatus;
@@ -41,8 +46,12 @@ interface GhostStore {
   _lastCommitContent: string;
 
   // Retry
-  lastSentMessage: { content: string; mediaB64?: string; mediaType?: string } | null;
-  setLastSentMessage: (msg: GhostStore['lastSentMessage']) => void;
+  lastSentMessage: {
+    content: string;
+    mediaB64?: string;
+    mediaType?: string;
+  } | null;
+  setLastSentMessage: (msg: GhostStore["lastSentMessage"]) => void;
 
   // Health
   lastHealthCheck: number;
@@ -50,12 +59,24 @@ interface GhostStore {
 
   // Offline queue
   messageQueue: { content: string; mediaB64?: string; mediaType?: string }[];
-  enqueueMessage: (msg: { content: string; mediaB64?: string; mediaType?: string }) => void;
-  dequeueMessages: () => { content: string; mediaB64?: string; mediaType?: string }[];
+  enqueueMessage: (msg: {
+    content: string;
+    mediaB64?: string;
+    mediaType?: string;
+  }) => void;
+  dequeueMessages: () => {
+    content: string;
+    mediaB64?: string;
+    mediaType?: string;
+  }[];
 
   // UI state
-  activeTab: 'chat' | 'remote' | 'memory' | 'settings';
-  setActiveTab: (tab: GhostStore['activeTab']) => void;
+  activeTab: "chat" | "remote" | "memory" | "settings";
+  setActiveTab: (tab: GhostStore["activeTab"]) => void;
+
+  // Canvas state
+  canvasHtml: string | null;
+  setCanvasHtml: (html: string | null) => void;
 }
 
 let nextTempId = -1;
@@ -68,24 +89,25 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   config: null,
   setConfig: (cfg) => set({ config: cfg }),
 
-  connectionState: 'offline',
-  setConnectionState: (v) => set({ connectionState: v, isConnected: v === 'online' }),
+  connectionState: "offline",
+  setConnectionState: (v) =>
+    set({ connectionState: v, isConnected: v === "online" }),
 
   isConnected: false,
-  setConnected: (v) => set({
-    isConnected: v,
-    connectionState: v ? 'online' : 'offline',
-  }),
+  setConnected: (v) =>
+    set({
+      isConnected: v,
+      connectionState: v ? "online" : "offline",
+    }),
 
   messages: [],
   setMessages: (msgs) => set({ messages: msgs }),
-  appendMessage: (msg) =>
-    set((s) => ({ messages: [...s.messages, msg] })),
+  appendMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
   updateLastAssistant: (text) =>
     set((s) => {
       const msgs = [...s.messages];
       for (let i = msgs.length - 1; i >= 0; i--) {
-        if (msgs[i].role === 'assistant') {
+        if (msgs[i].role === "assistant") {
           msgs[i] = { ...msgs[i], content: text };
           break;
         }
@@ -94,9 +116,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
     }),
   updateMessageStatus: (id, status) =>
     set((s) => ({
-      messages: s.messages.map((m) =>
-        m.id === id ? { ...m, status } : m
-      ),
+      messages: s.messages.map((m) => (m.id === id ? { ...m, status } : m)),
     })),
   removeMessage: (id) =>
     set((s) => ({
@@ -104,15 +124,23 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
     })),
 
   isStreaming: false,
-  streamBuffer: '',
+  streamBuffer: "",
   setStreaming: (v) => set({ isStreaming: v }),
   appendStream: (chunk) =>
     set((s) => {
       const newBuffer = s.streamBuffer + chunk;
       const msgs = [...s.messages];
       const lastIdx = msgs.length - 1;
-      if (lastIdx >= 0 && msgs[lastIdx].role === 'assistant' && isTempId(msgs[lastIdx].id)) {
-        msgs[lastIdx] = { ...msgs[lastIdx], content: newBuffer, status: 'streaming' };
+      if (
+        lastIdx >= 0 &&
+        msgs[lastIdx].role === "assistant" &&
+        isTempId(msgs[lastIdx].id)
+      ) {
+        msgs[lastIdx] = {
+          ...msgs[lastIdx],
+          content: newBuffer,
+          status: "streaming",
+        };
       }
       return { streamBuffer: newBuffer, messages: msgs };
     }),
@@ -120,10 +148,18 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
     set((s) => {
       const content = s.streamBuffer;
       const msgs = s.messages
-        .map((m) => (isTempId(m.id) ? { ...m, id: makeMessageId(), status: 'completed' as MessageStatus } : m))
+        .map((m) =>
+          isTempId(m.id)
+            ? {
+                ...m,
+                id: makeMessageId(),
+                status: "completed" as MessageStatus,
+              }
+            : m,
+        )
         .filter((m) => !(m.role === "assistant" && m.content.trim() === ""));
       return {
-        streamBuffer: '',
+        streamBuffer: "",
         isStreaming: false,
         messages: msgs,
         _lastCommitTime: Date.now(),
@@ -133,7 +169,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
 
   // Dedup fields
   _lastCommitTime: 0,
-  _lastCommitContent: '',
+  _lastCommitContent: "",
 
   // Retry
   lastSentMessage: null,
@@ -153,16 +189,19 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
     return msgs;
   },
 
-  activeTab: 'chat',
+  activeTab: "chat",
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  canvasHtml: null,
+  setCanvasHtml: (html) => set({ canvasHtml: html }),
 }));
 
 export function createStreamingPlaceholder(): ExtendedMessage {
   return {
     id: `temp-${nextTempId--}`,
-    role: 'assistant',
-    content: '',
+    role: "assistant",
+    content: "",
     timestamp: Date.now() / 1000,
-    status: 'streaming',
+    status: "streaming",
   };
 }
