@@ -887,6 +887,11 @@ export default function ChatScreen() {
 
   // ── Send ─────────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
+    // Debounce to prevent rapid double-taps
+    const now = Date.now();
+    if (now - lastSendAt.current < 1000) return; // 1 second debounce
+    lastSendAt.current = now;
+
     if (!config || (!input.trim() && !pendingMedia) || isStreaming) return;
     const text = input.trim(),
       media = pendingMedia;
