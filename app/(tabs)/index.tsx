@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import Markdown, { ASTNode } from "react-native-markdown-display";
+import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ErrorCard from "../../components/ErrorCard";
@@ -74,7 +75,12 @@ const FONT_MONO = Platform.OS === "ios" ? "Courier" : "monospace";
 
 // ─── Typing dots ──────────────────────────────────────────────────────────
 function TypingDots() {
-  const anims = [0, 1, 2].map(() => useRef(new Animated.Value(0)));
+  // Declare refs individually — calling useRef inside .map() violates Rules of Hooks
+  const a0 = useRef(new Animated.Value(0));
+  const a1 = useRef(new Animated.Value(0));
+  const a2 = useRef(new Animated.Value(0));
+  const anims = [a0, a1, a2];
+
   useEffect(() => {
     anims.forEach((a, i) =>
       Animated.loop(
@@ -86,15 +92,19 @@ function TypingDots() {
       ).start(),
     );
   }, []);
+
   return (
     <View style={{ flexDirection: "row", gap: 5, paddingVertical: 6 }}>
       {anims.map((a, i) => (
-        <Animated.View key={i} style={{
-          width: 6, height: 6, borderRadius: 3,
-          backgroundColor: C.accent,
-          opacity: a.current,
-          transform: [{ translateY: a.current.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
-        }} />
+        <Animated.View
+          key={i}
+          style={{
+            width: 6, height: 6, borderRadius: 3,
+            backgroundColor: C.accent,
+            opacity: a.current,
+            transform: [{ translateY: a.current.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
+          }}
+        />
       ))}
     </View>
   );
@@ -427,6 +437,9 @@ export default function ChatScreen() {
   const localIdSeq       = useRef(0);
   const streamTimeout    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSendAt       = useRef(0);
+  // Ref to always hold the latest doSend so the offline-queue effect
+  // never captures a stale closure even when doSend is recreated.
+  const doSendRef = useRef<((text: string, mediaB64?: string, mediaType?: string, mediaUri?: string) => void) | null>(null);
   const [activeError, setActiveError]             = useState<{ error: GhostError; partialContent?: string } | null>(null);
   const [searchVisible, setSearchVisible]         = useState(false);
   const [searchQuery, setSearchQuery]             = useState("");
@@ -485,8 +498,11 @@ export default function ChatScreen() {
 
   // ── Flush offline queue ───────────────────────────────────────────────
   useEffect(() => {
-    if (connectionState === "online" && config) {
-      dequeueMessages().forEach(m => doSend(m.content, m.mediaB64, m.mediaType));
+    if (connectionState === "online" && config && doSendRef.current) {
+      // Use doSendRef.current so we always call the latest version of doSend,
+      // not a stale closure from when this effect was first registered.
+      const send = doSendRef.current;
+      dequeueMessages().forEach(m => send(m.content, m.mediaB64, m.mediaType));
     }
   }, [connectionState]);
 
@@ -543,7 +559,7 @@ export default function ChatScreen() {
         // The buffer was appended chunk-by-chunk without sanitization.
         const state = useGhostStore.getState();
         const buffered = state.messages.slice().reverse().find(m => m.role === "assistant");
-        const hasContent = buffered?.content?.trim().length ?? 0 > 0;
+        const hasContent = (buffered?.content?.trim().length ?? 0) > 0;
         if (hasContent) {
           updateMessageStatus(msgId, "completed");
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -565,6 +581,9 @@ export default function ChatScreen() {
       },
     });
   }, [config, appendMessage, appendStream, commitStream, setStreaming, setLastSentMessage, updateMessageStatus, removeMessage]);
+
+  // Keep ref in sync with latest doSend (fixes stale closure in offline queue)
+  useEffect(() => { doSendRef.current = doSend; }, [doSend]);
 
   // ── Send ─────────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
@@ -717,7 +736,12 @@ export default function ChatScreen() {
         keyExtractor={m => String(m.id)}
         renderItem={({ item }) => <MessageRow msg={item} />}
         contentContainerStyle={s.msgList}
-        ItemSeparatorComponent={() => <View style={{ height: 2 }} />}
+        ItemSeparatorComponent={({ leadingItem, trailingItem }: { leadingItem: ExtendedMessage; trailingItem: ExtendedMessage }) => {
+          // More breathing room between consecutive Ghost messages so they
+          // don't run together visually. Tight gap for user↔ghost alternation.
+          const sameRole = leadingItem?.role === trailingItem?.role && leadingItem?.role === "assistant";
+          return <View style={{ height: sameRole ? 16 : 4 }} />;
+        }}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         showsVerticalScrollIndicator={false}
         onStartReached={loadOlder}
