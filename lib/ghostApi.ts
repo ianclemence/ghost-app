@@ -98,46 +98,17 @@ function classifyError(status: number, body: string): GhostError {
 
 function classifyStreamError(errorText: string): GhostError {
   const lower = errorText.toLowerCase();
-  if (
-    lower.includes("429") ||
-    lower.includes("rate") ||
-    lower.includes("too many")
-  ) {
-    return {
-      kind: "rate_limit",
-      message: "Ghost is temporarily busy. Try again in a moment.",
-      retryable: true,
-    };
+  if (lower.includes("429") || lower.includes("rate") || lower.includes("too many")) {
+    return { kind: "rate_limit", message: "Ghost is temporarily busy. Try again in a moment.", retryable: true };
   }
-  if (
-    lower.includes("401") ||
-    lower.includes("unauthorized") ||
-    lower.includes("auth")
-  ) {
-    return {
-      kind: "auth",
-      message: "AI provider authentication failed.",
-      retryable: false,
-    };
+  if (lower.includes("401") || lower.includes("unauthorized") || lower.includes("auth")) {
+    return { kind: "auth", message: "AI provider authentication failed.", retryable: false };
   }
   if (lower.includes("no text chunks") || lower.includes("empty")) {
-    return {
-      kind: "empty_stream",
-      message: "Ghost started thinking but didn't respond. Try rephrasing.",
-      retryable: true,
-    };
+    return { kind: "empty_stream", message: "Ghost started thinking but didn't respond. Try rephrasing.", retryable: true };
   }
-  if (
-    lower.includes("upstream http 5") ||
-    lower.includes("500") ||
-    lower.includes("502") ||
-    lower.includes("503")
-  ) {
-    return {
-      kind: "provider",
-      message: "Ghost couldn't generate a response. This is a temporary issue.",
-      retryable: true,
-    };
+  if (lower.includes("upstream http 5") || lower.includes("500") || lower.includes("502") || lower.includes("503")) {
+    return { kind: "provider", message: "Ghost couldn't generate a response. This is a temporary issue.", retryable: true };
   }
   return { kind: "provider", message: errorText, retryable: true };
 }
@@ -145,17 +116,9 @@ function classifyStreamError(errorText: string): GhostError {
 function networkError(err: any): GhostError {
   const msg = err?.message ?? String(err);
   if (msg.includes("abort") || msg.includes("Abort")) {
-    return {
-      kind: "timeout",
-      message: "Response timed out. Ghost may be processing a complex request.",
-      retryable: true,
-    };
+    return { kind: "timeout", message: "Response timed out. Ghost may be processing a complex request.", retryable: true };
   }
-  return {
-    kind: "network",
-    message: "Can't reach Ghost — check your Wi-Fi and Pi connection",
-    retryable: true,
-  };
+  return { kind: "network", message: "Can't reach Ghost — check your Wi-Fi and Pi connection", retryable: true };
 }
 
 // ─── Config ────────────────────────────────────────────────────────────────
@@ -168,15 +131,12 @@ export async function loadConfig(): Promise<GhostConfig | null> {
 }
 
 export async function saveConfig(cfg: GhostConfig): Promise<void> {
-  await AsyncStorage.setItem(
-    CONFIG_KEY,
-    JSON.stringify({
-      piHost: normalizeHost(cfg.piHost),
-      piPort: normalizePort(cfg.piPort),
-      secret: cfg.secret.trim(),
-      session: normalizeSession(cfg.session),
-    }),
-  );
+  await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify({
+    piHost:  normalizeHost(cfg.piHost),
+    piPort:  normalizePort(cfg.piPort),
+    secret:  cfg.secret.trim(),
+    session: normalizeSession(cfg.session),
+  }));
 }
 
 function baseURL(cfg: GhostConfig): string {
@@ -188,20 +148,11 @@ function wsURL(cfg: GhostConfig): string {
 }
 
 function normalizeHost(host: string): string {
-  let value = host.trim();
-  value = value.replace(/^['"`\s]+|['"`\s]+$/g, "");
-
+  let value = host.trim().replace(/^['"`\s]+|['"`\s]+$/g, "");
   if (/^https?:\/\//i.test(value)) {
-    try {
-      const parsed = new URL(value);
-      return parsed.hostname;
-    } catch {}
+    try { return new URL(value).hostname; } catch {}
   }
-
-  return value
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/+$/, "")
-    .replace(/:\d+$/, "");
+  return value.replace(/^https?:\/\//i, "").replace(/\/+$/, "").replace(/:\d+$/, "");
 }
 
 function normalizePort(port: string): string {
@@ -217,32 +168,18 @@ function normalizeSession(session?: string): string {
 }
 
 function headers(cfg: GhostConfig): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    "X-Ghost-Secret": cfg.secret,
-  };
+  return { "Content-Type": "application/json", "X-Ghost-Secret": cfg.secret };
 }
 
 function messageHeaders(cfg: GhostConfig): HeadersInit {
-  return {
-    ...headers(cfg),
-    "X-Ghost-Session": normalizeSession(cfg.session),
-  };
+  return { ...headers(cfg), "X-Ghost-Session": normalizeSession(cfg.session) };
 }
 
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  if (typeof AbortController === "undefined") {
-    return fetch(url, init);
-  }
-
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  if (typeof AbortController === "undefined") return fetch(url, init);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    // Merge signals: if init already has a signal, prefer the outer one for timeout
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timer);
@@ -253,59 +190,29 @@ async function fetchWithTimeout(
 
 export async function checkHealth(cfg: GhostConfig): Promise<boolean> {
   try {
-    const res = await fetchWithTimeout(
-      `${baseURL(cfg)}/v1/health`,
-      {
-        headers: headers(cfg),
-      },
-      5000,
-    );
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/health`, { headers: headers(cfg) }, 5000);
     return res.ok;
   } catch {
     return false;
   }
 }
 
-export async function checkHealthDebug(
-  cfg: GhostConfig,
-): Promise<ConnectionDebugResult> {
+export async function checkHealthDebug(cfg: GhostConfig): Promise<ConnectionDebugResult> {
   const url = `${baseURL(cfg)}/v1/health`;
   const start = Date.now();
   try {
-    const res = await fetchWithTimeout(
-      url,
-      {
-        headers: headers(cfg),
-      },
-      5000,
-    );
+    const res = await fetchWithTimeout(url, { headers: headers(cfg) }, 5000);
     const latencyMs = Date.now() - start;
     const body = await res.text().catch(() => "");
-    return {
-      ok: res.ok,
-      url,
-      status: res.status,
-      statusText: res.statusText,
-      body: body.slice(0, 300),
-      latencyMs,
-    };
+    return { ok: res.ok, url, status: res.status, statusText: res.statusText, body: body.slice(0, 300), latencyMs };
   } catch (err: any) {
-    return {
-      ok: false,
-      url,
-      error: err?.message ?? String(err),
-      latencyMs: Date.now() - start,
-    };
+    return { ok: false, url, error: err?.message ?? String(err), latencyMs: Date.now() - start };
   }
 }
 
 // ─── History ───────────────────────────────────────────────────────────────
 
-export async function fetchHistory(
-  cfg: GhostConfig,
-  limit = 50,
-  offset = 0,
-): Promise<{ messages: Message[]; total: number }> {
+export async function fetchHistory(cfg: GhostConfig, limit = 50, offset = 0): Promise<{ messages: Message[]; total: number }> {
   const session = normalizeSession(cfg.session);
   const res = await fetch(
     `${baseURL(cfg)}/v1/history?limit=${limit}&offset=${offset}&session=${encodeURIComponent(session)}`,
@@ -315,10 +222,7 @@ export async function fetchHistory(
   return res.json();
 }
 
-export async function searchMessages(
-  cfg: GhostConfig,
-  q: string,
-): Promise<Message[]> {
+export async function searchMessages(cfg: GhostConfig, q: string): Promise<Message[]> {
   const session = normalizeSession(cfg.session);
   const res = await fetch(
     `${baseURL(cfg)}/v1/search?q=${encodeURIComponent(q)}&limit=30&session=${encodeURIComponent(session)}`,
@@ -331,10 +235,7 @@ export async function searchMessages(
   return [];
 }
 
-export async function deleteMessage(
-  cfg: GhostConfig,
-  id: string,
-): Promise<void> {
+export async function deleteMessage(cfg: GhostConfig, id: string): Promise<void> {
   await fetch(`${baseURL(cfg)}/v1/message?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: messageHeaders(cfg),
@@ -352,172 +253,135 @@ export async function clearChat(cfg: GhostConfig): Promise<void> {
 // ─── Send (streaming SSE) ─────────────────────────────────────────────────
 
 export interface SendOptions {
-  content: string;
-  mediaB64?: string;
-  mediaType?: string;
-  onChunk: (chunk: string) => void;
-  onDone: (fullText: string) => void;
-  onError: (err: GhostError) => void;
+  content:        string;
+  mediaB64?:      string;
+  mediaType?:     string;
+  onChunk:        (chunk: string) => void;
+  onToolStatus?:  (tool: string, label: string) => void;
+  onDone:         (fullText: string) => void;
+  onError:        (err: GhostError) => void;
 }
 
-const STREAM_TIMEOUT_MS = 300_000; // Increased to 300 seconds (5 mins) for complex agent tasks
+// 300 seconds — handles complex multi-step agent tasks (web search + fetches + tool chains)
+// Keep-alive pings from the server prevent the connection dying before this fires
+const STREAM_TIMEOUT_MS = 300_000;
 
-export async function sendMessage(
-  cfg: GhostConfig,
-  opts: SendOptions,
-): Promise<void> {
+export async function sendMessage(cfg: GhostConfig, opts: SendOptions): Promise<void> {
   const mediaItems =
-    opts.mediaB64 && opts.mediaType
-      ? [{ base64: opts.mediaB64, mime_type: opts.mediaType }]
-      : opts.mediaB64
-        ? [{ base64: opts.mediaB64 }]
-        : [];
+    opts.mediaB64 && opts.mediaType ? [{ base64: opts.mediaB64, mime_type: opts.mediaType }]
+    : opts.mediaB64                 ? [{ base64: opts.mediaB64 }]
+    : [];
+
   const body: Record<string, unknown> = {
-    content: opts.content,
+    content:     opts.content,
     session_key: normalizeSession(cfg.session),
-    channel: "mobile",
-    chat_id: "default",
+    channel:     "mobile",
+    chat_id:     "default",
   };
   if (mediaItems.length > 0) body.media_items = mediaItems;
-  const url = `${baseURL(cfg)}/v1/chat`;
-  console.log("[ghost-bridge:send:start]", {
-    url,
-    contentLength: opts.content.length,
-    hasMedia: Boolean(opts.mediaB64),
-  });
 
-  // Global stream timeout via AbortController
-  const abortController =
-    typeof AbortController !== "undefined" ? new AbortController() : null;
+  const url = `${baseURL(cfg)}/v1/chat`;
+
+  const abortController = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timeoutTimer = abortController
     ? setTimeout(() => abortController.abort(), STREAM_TIMEOUT_MS)
     : null;
 
   try {
     const res = await fetch(url, {
-      method: "POST",
+      method:  "POST",
       headers: messageHeaders(cfg),
-      body: JSON.stringify(body),
-      signal: abortController?.signal,
+      body:    JSON.stringify(body),
+      signal:  abortController?.signal,
     });
 
     if (!res.ok) {
       const errorBody = await res.text().catch(() => "");
-      console.log("[ghost-bridge:send:response-error]", {
-        status: res.status,
-        body: errorBody.slice(0, 300),
-      });
       opts.onError(classifyError(res.status, errorBody));
       return;
     }
 
-    if (!res.body) {
-      const fallbackBody = await res.text().catch(() => "");
-      console.log("[ghost-bridge:send:stream-fallback]", {
-        status: res.status,
-        bodyLength: fallbackBody.length,
-      });
+    // ── Streaming path ──────────────────────────────────────────────────
+    if (res.body) {
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText  = "";
+      let buffer    = "";
 
-      let fullText = "";
-      const lines = fallbackBody.split(/\r?\n/);
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") {
-          opts.onDone(fullText);
-          return;
-        }
-        // Check for upstream error messages in the stream data
-        if (
-          data.startsWith('"') &&
-          (data.includes("Upstream HTTP") || data.includes("No text chunks"))
-        ) {
-          try {
-            const errorText = JSON.parse(data) as string;
-            opts.onError(classifyStreamError(errorText));
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (line.startsWith(":")) continue;    // SSE comment / keep-alive ping
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6).trim();
+
+          if (data === "[DONE]") {
+            opts.onDone(fullText);
             return;
-          } catch {}
-        }
-        try {
-          const text = JSON.parse(data) as string;
-          fullText += text;
-          opts.onChunk(text);
-        } catch {
-          fullText += data;
-          opts.onChunk(data);
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            // tool_status event — route to badge, NOT to message content
+            if (typeof parsed === "object" && parsed !== null) {
+              if (parsed.type === "tool_status" && opts.onToolStatus) {
+                opts.onToolStatus(parsed.tool, parsed.label);
+              }
+              continue; // Never append objects to message content
+            }
+            // Plain string chunk
+            const text = parsed as string;
+            fullText += text;
+            opts.onChunk(text);
+          } catch {
+            fullText += data;
+            opts.onChunk(data);
+          }
         }
       }
-      opts.onDone(fullText);
+
+      // Stream ended without [DONE]
+      if (fullText.length > 0) {
+        opts.onDone(fullText);
+      } else {
+        opts.onError({ kind: "empty_stream", message: "Ghost started thinking but didn't respond. Try rephrasing.", retryable: true });
+      }
       return;
     }
 
-    console.log("[ghost-bridge:send:stream-open]", {
-      status: res.status,
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
+    // ── Fallback: no streaming body ─────────────────────────────────────
+    const fallbackBody = await res.text().catch(() => "");
     let fullText = "";
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") {
-          console.log("[ghost-bridge:send:done]", {
-            responseLength: fullText.length,
-          });
-          opts.onDone(fullText);
-          return;
-        }
-        // Check for upstream error messages in the stream data
-        try {
-          const parsed = JSON.parse(data);
-          if (typeof parsed === "string") {
-            // Check if this looks like an error message from bridge
-            if (
-              parsed.startsWith("Upstream HTTP") ||
-              parsed.startsWith("No text chunks") ||
-              parsed.includes("API key is missing")
-            ) {
-              opts.onError(classifyStreamError(parsed));
-              return;
-            }
-            fullText += parsed;
-            opts.onChunk(parsed);
+    for (const line of fallbackBody.split(/\r?\n/)) {
+      if (line.startsWith(":")) continue;
+      if (!line.startsWith("data: ")) continue;
+      const data = line.slice(6).trim();
+      if (data === "[DONE]") { opts.onDone(fullText); return; }
+      try {
+        const parsed = JSON.parse(data);
+        if (typeof parsed === "object" && parsed !== null) {
+          if (parsed.type === "tool_status" && opts.onToolStatus) {
+            opts.onToolStatus(parsed.tool, parsed.label);
           }
-        } catch {
-          console.log("[ghost-bridge:send:chunk-parse-error]", {
-            rawChunk: data.slice(0, 200),
-          });
+          continue;
         }
+        const text = parsed as string;
+        fullText += text;
+        opts.onChunk(text);
+      } catch {
+        fullText += data;
+        opts.onChunk(data);
       }
     }
-    console.log("[ghost-bridge:send:end-without-done]", {
-      responseLength: fullText.length,
-    });
-    if (fullText.length > 0) {
-      opts.onDone(fullText);
-    } else {
-      opts.onError({
-        kind: "empty_stream",
-        message: "Ghost started thinking but didn't respond. Try rephrasing.",
-        retryable: true,
-      });
-    }
+    opts.onDone(fullText);
+
   } catch (err: any) {
-    console.log("[ghost-bridge:send:fetch-error]", {
-      name: err?.name ?? "UnknownError",
-      message: err?.message ?? String(err),
-    });
     opts.onError(networkError(err));
   } finally {
     if (timeoutTimer) clearTimeout(timeoutTimer);
@@ -526,19 +390,11 @@ export async function sendMessage(
 
 // ─── File Upload ───────────────────────────────────────────────────────────
 
-export async function uploadFile(
-  cfg: GhostConfig,
-  uri: string,
-  mimeType: string,
-  filename: string,
-): Promise<{ b64: string; mime_type: string }> {
+export async function uploadFile(cfg: GhostConfig, uri: string, mimeType: string, filename: string): Promise<{ b64: string; mime_type: string }> {
   const form = new FormData();
   form.append("file", { uri, type: mimeType, name: filename } as any);
-
   const res = await fetch(`${baseURL(cfg)}/v1/upload`, {
-    method: "POST",
-    headers: { "X-Ghost-Secret": cfg.secret },
-    body: form,
+    method: "POST", headers: { "X-Ghost-Secret": cfg.secret }, body: form,
   });
   if (!res.ok) throw new Error("Upload failed");
   return res.json();
@@ -546,52 +402,29 @@ export async function uploadFile(
 
 // ─── Voice Transcription ───────────────────────────────────────────────────
 
-export async function transcribeAudio(
-  cfg: GhostConfig,
-  audioUri: string,
-  filename = "recording.m4a",
-): Promise<string> {
+export async function transcribeAudio(cfg: GhostConfig, audioUri: string, filename = "recording.m4a"): Promise<string> {
   const form = new FormData();
-  form.append("audio", {
-    uri: audioUri,
-    type: "audio/m4a",
-    name: filename,
-  } as any);
-
+  form.append("audio", { uri: audioUri, type: "audio/m4a", name: filename } as any);
   try {
     const res = await fetch(`${baseURL(cfg)}/v1/transcribe`, {
-      method: "POST",
-      headers: { "X-Ghost-Secret": cfg.secret },
-      body: form,
+      method: "POST", headers: { "X-Ghost-Secret": cfg.secret }, body: form,
     });
     if (!res.ok) return "";
     const data: { text: string; error?: string } = await res.json();
     return data.text ?? "";
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
 }
 
 // ─── Memory Files ──────────────────────────────────────────────────────────
 
-export async function fetchMemoryFiles(
-  cfg: GhostConfig,
-): Promise<{ name: string; modified: number; size: number }[]> {
-  const res = await fetch(`${baseURL(cfg)}/v1/memory/files`, {
-    headers: headers(cfg),
-  });
+export async function fetchMemoryFiles(cfg: GhostConfig): Promise<{ name: string; modified: number; size: number }[]> {
+  const res = await fetch(`${baseURL(cfg)}/v1/memory/files`, { headers: headers(cfg) });
   if (!res.ok) return [];
   return res.json();
 }
 
-export async function fetchMemoryFile(
-  cfg: GhostConfig,
-  name: string,
-): Promise<string> {
-  const res = await fetch(
-    `${baseURL(cfg)}/v1/memory/file?name=${encodeURIComponent(name)}`,
-    { headers: headers(cfg) },
-  );
+export async function fetchMemoryFile(cfg: GhostConfig, name: string): Promise<string> {
+  const res = await fetch(`${baseURL(cfg)}/v1/memory/file?name=${encodeURIComponent(name)}`, { headers: headers(cfg) });
   if (!res.ok) throw new Error("Not found");
   const data = await res.json();
   return data.content;
@@ -600,22 +433,14 @@ export async function fetchMemoryFile(
 // ─── Pi System ────────────────────────────────────────────────────────────
 
 export async function fetchStats(cfg: GhostConfig): Promise<PiStats> {
-  const res = await fetch(`${baseURL(cfg)}/v1/stats`, {
-    headers: headers(cfg),
-  });
+  const res = await fetch(`${baseURL(cfg)}/v1/stats`, { headers: headers(cfg) });
   if (!res.ok) throw new Error("Failed to fetch stats");
   return res.json();
 }
 
-export async function runExec(
-  cfg: GhostConfig,
-  command: string,
-  timeout = 10,
-): Promise<ExecResult> {
+export async function runExec(cfg: GhostConfig, command: string, timeout = 10): Promise<ExecResult> {
   const res = await fetch(`${baseURL(cfg)}/v1/exec`, {
-    method: "POST",
-    headers: headers(cfg),
-    body: JSON.stringify({ command, timeout }),
+    method: "POST", headers: headers(cfg), body: JSON.stringify({ command, timeout }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -624,14 +449,9 @@ export async function runExec(
   return res.json();
 }
 
-export async function openOnPi(
-  cfg: GhostConfig,
-  target: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function openOnPi(cfg: GhostConfig, target: string): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch(`${baseURL(cfg)}/v1/open`, {
-    method: "POST",
-    headers: headers(cfg),
-    body: JSON.stringify({ target }),
+    method: "POST", headers: headers(cfg), body: JSON.stringify({ target }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -640,12 +460,8 @@ export async function openOnPi(
   return res.json();
 }
 
-export async function takeScreenshot(
-  cfg: GhostConfig,
-): Promise<{ image: string; mime_type: string }> {
-  const res = await fetch(`${baseURL(cfg)}/v1/screenshot`, {
-    headers: headers(cfg),
-  });
+export async function takeScreenshot(cfg: GhostConfig): Promise<{ image: string; mime_type: string }> {
+  const res = await fetch(`${baseURL(cfg)}/v1/screenshot`, { headers: headers(cfg) });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(err.error ?? "screenshot failed");
@@ -655,24 +471,20 @@ export async function takeScreenshot(
 
 // ─── WebSocket ─────────────────────────────────────────────────────────────
 
-type WSHandler = (msg: { type: string; content: string }) => void;
-type WSStateHandler = (
-  state: "connected" | "disconnected" | "reconnecting",
-) => void;
+type WSHandler      = (msg: { type: string; content: string }) => void;
+type WSStateHandler = (state: "connected" | "disconnected" | "reconnecting") => void;
 
-let wsInstance: WebSocket | null = null;
-let wsHandlers: WSHandler[] = [];
+let wsInstance:      WebSocket | null = null;
+let wsHandlers:      WSHandler[]      = [];
 let wsStateHandlers: WSStateHandler[] = [];
-let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let wsLastPong: number = 0;
-let wsPingInterval: ReturnType<typeof setInterval> | null = null;
+let wsReconnectTimer: ReturnType<typeof setTimeout>  | null = null;
+let wsLastPong:      number = 0;
+let wsPingInterval:  ReturnType<typeof setInterval> | null = null;
 
 export function connectWebSocket(cfg: GhostConfig): void {
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
   if (wsPingInterval) clearInterval(wsPingInterval);
-  try {
-    wsInstance?.close();
-  } catch {}
+  try { wsInstance?.close(); } catch {}
 
   notifyWSState("reconnecting");
   const url = `${wsURL(cfg)}/v1/ws?secret=${encodeURIComponent(cfg.secret)}&session=${encodeURIComponent(normalizeSession(cfg.session))}`;
@@ -681,26 +493,18 @@ export function connectWebSocket(cfg: GhostConfig): void {
   wsInstance.onopen = () => {
     wsLastPong = Date.now();
     notifyWSState("connected");
-
-    // Client-side ping/pong health check every 25s
+    // Health check: reconnect if no message received in 60s
     wsPingInterval = setInterval(() => {
       if (Date.now() - wsLastPong > 60_000) {
-        // No pong in 60s, reconnect
-        console.log("[ghost-ws] No pong in 60s, reconnecting");
         notifyWSState("reconnecting");
-        try {
-          wsInstance?.close();
-        } catch {}
+        try { wsInstance?.close(); } catch {}
       }
     }, 25_000);
   };
 
   wsInstance.onmessage = (e) => {
-    wsLastPong = Date.now(); // Any message counts as a "pong"
-    try {
-      const msg = JSON.parse(e.data);
-      wsHandlers.forEach((h) => h(msg));
-    } catch {}
+    wsLastPong = Date.now();
+    try { const msg = JSON.parse(e.data); wsHandlers.forEach((h) => h(msg)); } catch {}
   };
 
   wsInstance.onclose = () => {
@@ -709,11 +513,7 @@ export function connectWebSocket(cfg: GhostConfig): void {
     wsReconnectTimer = setTimeout(() => connectWebSocket(cfg), 5000);
   };
 
-  wsInstance.onerror = () => {
-    try {
-      wsInstance?.close();
-    } catch {}
-  };
+  wsInstance.onerror = () => { try { wsInstance?.close(); } catch {} };
 }
 
 function notifyWSState(state: "connected" | "disconnected" | "reconnecting") {
@@ -722,16 +522,12 @@ function notifyWSState(state: "connected" | "disconnected" | "reconnecting") {
 
 export function onWSMessage(handler: WSHandler): () => void {
   wsHandlers.push(handler);
-  return () => {
-    wsHandlers = wsHandlers.filter((h) => h !== handler);
-  };
+  return () => { wsHandlers = wsHandlers.filter((h) => h !== handler); };
 }
 
 export function onWSStateChange(handler: WSStateHandler): () => void {
   wsStateHandlers.push(handler);
-  return () => {
-    wsStateHandlers = wsStateHandlers.filter((h) => h !== handler);
-  };
+  return () => { wsStateHandlers = wsStateHandlers.filter((h) => h !== handler); };
 }
 
 export function getWSState(): "connected" | "disconnected" | "reconnecting" {
@@ -744,8 +540,6 @@ export function getWSState(): "connected" | "disconnected" | "reconnecting" {
 export function disconnectWebSocket(): void {
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
   if (wsPingInterval) clearInterval(wsPingInterval);
-  try {
-    wsInstance?.close();
-  } catch {}
+  try { wsInstance?.close(); } catch {}
   wsInstance = null;
 }
