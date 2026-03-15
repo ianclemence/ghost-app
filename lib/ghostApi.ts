@@ -12,7 +12,6 @@ export interface Message {
 export interface GhostConfig {
   piHost: string;
   piPort: string;
-  remotePort?: string;
   secret: string;
   session?: string;
 }
@@ -174,7 +173,6 @@ export async function saveConfig(cfg: GhostConfig): Promise<void> {
     JSON.stringify({
       piHost: normalizeHost(cfg.piHost),
       piPort: normalizePort(cfg.piPort),
-      remotePort: normalizePort(cfg.remotePort ?? "8766"),
       secret: cfg.secret.trim(),
       session: normalizeSession(cfg.session),
     }),
@@ -183,10 +181,6 @@ export async function saveConfig(cfg: GhostConfig): Promise<void> {
 
 function baseURL(cfg: GhostConfig): string {
   return `http://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
-}
-
-function remoteURL(cfg: GhostConfig): string {
-  return `http://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.remotePort ?? "8766")}`;
 }
 
 function wsURL(cfg: GhostConfig): string {
@@ -212,9 +206,9 @@ function normalizeHost(host: string): string {
 
 function normalizePort(port: string): string {
   const p = port.trim().replace(/^['"`\s]+|['"`\s]+$/g, "");
-  if (p === "") return "8765";
+  if (p === "") return "8766";
   const numeric = p.match(/\d+/)?.[0] ?? "";
-  return numeric === "" ? "8765" : numeric;
+  return numeric === "" ? "8766" : numeric;
 }
 
 function normalizeSession(session?: string): string {
@@ -226,6 +220,12 @@ function headers(cfg: GhostConfig): HeadersInit {
   return {
     "Content-Type": "application/json",
     "X-Ghost-Secret": cfg.secret,
+  };
+}
+
+function messageHeaders(cfg: GhostConfig): HeadersInit {
+  return {
+    ...headers(cfg),
     "X-Ghost-Session": normalizeSession(cfg.session),
   };
 }
@@ -309,7 +309,7 @@ export async function fetchHistory(
   const session = normalizeSession(cfg.session);
   const res = await fetch(
     `${baseURL(cfg)}/v1/history?limit=${limit}&offset=${offset}&session=${encodeURIComponent(session)}`,
-    { headers: headers(cfg) },
+    { headers: messageHeaders(cfg) },
   );
   if (!res.ok) throw new Error(`Failed to fetch history (HTTP ${res.status})`);
   return res.json();
@@ -322,7 +322,7 @@ export async function searchMessages(
   const session = normalizeSession(cfg.session);
   const res = await fetch(
     `${baseURL(cfg)}/v1/search?q=${encodeURIComponent(q)}&limit=30&session=${encodeURIComponent(session)}`,
-    { headers: headers(cfg) },
+    { headers: messageHeaders(cfg) },
   );
   if (!res.ok) return [];
   const data = await res.json();
@@ -337,14 +337,14 @@ export async function deleteMessage(
 ): Promise<void> {
   await fetch(`${baseURL(cfg)}/v1/message?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: headers(cfg),
+    headers: messageHeaders(cfg),
   });
 }
 
 export async function clearChat(cfg: GhostConfig): Promise<void> {
   const res = await fetch(`${baseURL(cfg)}/v1/messages`, {
     method: "DELETE",
-    headers: headers(cfg),
+    headers: messageHeaders(cfg),
   });
   if (!res.ok) throw new Error(`Failed to clear chat (HTTP ${res.status})`);
 }
@@ -396,7 +396,7 @@ export async function sendMessage(
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: headers(cfg),
+      headers: messageHeaders(cfg),
       body: JSON.stringify(body),
       signal: abortController?.signal,
     });
@@ -600,7 +600,7 @@ export async function fetchMemoryFile(
 // ─── Pi System ────────────────────────────────────────────────────────────
 
 export async function fetchStats(cfg: GhostConfig): Promise<PiStats> {
-  const res = await fetch(`${remoteURL(cfg)}/v1/stats`, {
+  const res = await fetch(`${baseURL(cfg)}/v1/stats`, {
     headers: headers(cfg),
   });
   if (!res.ok) throw new Error("Failed to fetch stats");
@@ -612,7 +612,7 @@ export async function runExec(
   command: string,
   timeout = 10,
 ): Promise<ExecResult> {
-  const res = await fetch(`${remoteURL(cfg)}/v1/exec`, {
+  const res = await fetch(`${baseURL(cfg)}/v1/exec`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ command, timeout }),
@@ -628,7 +628,7 @@ export async function openOnPi(
   cfg: GhostConfig,
   target: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch(`${remoteURL(cfg)}/v1/open`, {
+  const res = await fetch(`${baseURL(cfg)}/v1/open`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ target }),
@@ -643,7 +643,7 @@ export async function openOnPi(
 export async function takeScreenshot(
   cfg: GhostConfig,
 ): Promise<{ image: string; mime_type: string }> {
-  const res = await fetch(`${remoteURL(cfg)}/v1/screenshot`, {
+  const res = await fetch(`${baseURL(cfg)}/v1/screenshot`, {
     headers: headers(cfg),
   });
   if (!res.ok) {

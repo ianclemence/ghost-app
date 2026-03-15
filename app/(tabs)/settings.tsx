@@ -48,9 +48,9 @@ export default function SettingsScreen() {
   } = useGhostStore();
 
   const [host, setHost] = useState(config?.piHost ?? "");
-  const [port, setPort] = useState(config?.piPort ?? "8765");
-  const [remotePort, setRemotePort] = useState(config?.remotePort ?? "8766");
+  const [port, setPort] = useState(config?.piPort ?? "8766");
   const [secret, setSecret] = useState(config?.secret ?? "");
+  const [session, setSession] = useState(config?.session ?? "mobile:default");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"idle" | "ok" | "fail">("idle");
   const [notifEnabled, setNotifEnabled] = useState(false);
@@ -91,8 +91,8 @@ export default function SettingsScreen() {
     const cfg: GhostConfig = {
       piHost: host.trim(),
       piPort: port.trim(),
-      remotePort: remotePort.trim(),
       secret: secret.trim(),
+      session: session.trim() === "" ? undefined : session.trim(),
     };
     const result = await checkHealthDebug(cfg);
     const ok = result.ok;
@@ -123,8 +123,8 @@ export default function SettingsScreen() {
     const cfg: GhostConfig = {
       piHost: host.trim(),
       piPort: port.trim(),
-      remotePort: remotePort.trim(),
       secret: secret.trim(),
+      session: session.trim() === "" ? undefined : session.trim(),
     };
     await saveConfig(cfg);
     setConfig(cfg);
@@ -190,16 +190,9 @@ export default function SettingsScreen() {
           keyboardType="numbers-and-punctuation"
         />
         <Field
-          label="Internal API Port"
+          label="Port"
           value={port}
           onChangeText={setPort}
-          placeholder="8765"
-          keyboardType="numeric"
-        />
-        <Field
-          label="Remote Port (optional)"
-          value={remotePort}
-          onChangeText={setRemotePort}
           placeholder="8766"
           keyboardType="numeric"
         />
@@ -209,6 +202,14 @@ export default function SettingsScreen() {
           onChangeText={setSecret}
           placeholder="Optional auth secret"
           secureTextEntry
+        />
+        <Field
+          label="Session (optional)"
+          value={session}
+          onChangeText={setSession}
+          placeholder="mobile:default"
+          autoCapitalize="none"
+          autoCorrect={false}
         />
 
         <View style={styles.btnRow}>
@@ -243,16 +244,8 @@ export default function SettingsScreen() {
       <Section title="CONNECTION DIAGNOSTICS">
         <View style={styles.diagGrid}>
           <DiagItem
-            label="INTERNAL API URL"
+            label="API URL"
             value={config ? `${config.piHost}:${config.piPort}` : "Not set"}
-          />
-          <DiagItem
-            label="REMOTE BRIDGE URL"
-            value={
-              config
-                ? `${config.piHost}:${config.remotePort ?? "8766"}`
-                : "Not set"
-            }
           />
           <DiagItem
             label="LATENCY"
@@ -316,7 +309,9 @@ export default function SettingsScreen() {
       {/* Bridge Setup Instructions */}
       <Section title="PI SETUP INSTRUCTIONS">
         <View style={styles.infoBox}>
-          <Text style={styles.infoText}>{`1. Set Ghost Internal API in .env:\n   GHOST_API_PORT=8765\n\n2. Set ghost-bridge in .env:\n   BRIDGE_PORT=8766\n   BRIDGE_SECRET=your_secret_here\n\n3. Build and run bridge:\n   cd ghost-bridge\n   go build -o ghost-bridge .\n   ./ghost-bridge\n\n4. Open both ports in your firewall:\n   sudo ufw allow 8765\n   sudo ufw allow 8766`}</Text>
+          <Text
+            style={styles.infoText}
+          >{`1. Set Ghost Internal API in .env:\n   GHOST_API_PORT=8765\n\n2. Set ghost-bridge in .env:\n   BRIDGE_PORT=8766\n   BRIDGE_SECRET=your_secret_here\n\n3. Build and run bridge:\n   cd ghost-bridge\n   go build -o ghost-bridge .\n   ./ghost-bridge\n\n4. Open both ports in your firewall:\n   sudo ufw allow 8765\n   sudo ufw allow 8766`}</Text>
         </View>
       </Section>
 
@@ -324,11 +319,7 @@ export default function SettingsScreen() {
       <Section title="STATUS">
         <View style={styles.statusGrid}>
           <StatusItem label="PI HOST" value={config?.piHost ?? "Not set"} />
-          <StatusItem label="API PORT" value={config?.piPort ?? "—"} />
-          <StatusItem
-            label="REMOTE PORT"
-            value={config?.remotePort ?? "8766"}
-          />
+          <StatusItem label="PORT" value={config?.piPort ?? "—"} />
           <StatusItem
             label="CONNECTION"
             value={

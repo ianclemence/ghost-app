@@ -9,8 +9,7 @@ A React Native Expo app + Go HTTP bridge that gives your Ghost Pi a fully native
 ```
 ┌──────────────────────────────┐         HTTP / WebSocket
 │      Ghost Mobile            │ ◄──────────────────────────► Raspberry Pi
-│      React Native (Expo)     │         Local Wi-Fi           internal-api :8765 (Chat)
-│                              │                               ghost-bridge :8766 (Remote)
+│      React Native (Expo)     │         Local Wi-Fi           internal-api :8766 (All)
 │  👻 Chat    — streaming AI   │                               ghost (original)
 │  🖥️ Remote  — Pi control     │                               ghost.db (SQLite)
 │  📜 Log     — history        │                               workspace/memory/
@@ -72,11 +71,10 @@ Scan the QR code with Expo Go. Make sure your phone is on the **same Wi-Fi netwo
 
 1. Tap **⚙️ CFG** tab
 2. Enter Pi's local IP (e.g. `192.168.1.42`)
-3. Port: `8765` (Internal API)
-4. Remote Port: `8766` (Remote Bridge)
-5. Secret: your `BRIDGE_SECRET` value
-6. Tap **TEST** — should show `✓ Connected`
-7. Tap **SAVE & CONNECT**
+3. Port: `8766`
+4. Secret: your `BRIDGE_SECRET` value
+5. Tap **TEST** — should show `✓ Connected`
+6. Tap **SAVE & CONNECT**
 
 ---
 
@@ -133,17 +131,16 @@ All endpoints require header `X-Ghost-Secret: <your_secret>` (unless `BRIDGE_SEC
 
 | Method | Endpoint                             | Description                                                       |
 | ------ | ------------------------------------ | ----------------------------------------------------------------- |
-| GET    | `:8765/v1/health`                    | Internal API connection test                                      |
-| GET    | `:8765/v1/history?limit=50&offset=0` | Paginated messages from SQLite                                    |
-| GET    | `:8765/v1/search?q=text&limit=20`    | Full-text search in messages                                      |
-| POST   | `:8765/v1/chat`                      | `{content, session_key, ...}` → SSE stream                        |
-| POST   | `:8765/v1/upload`                    | Multipart `file` field → `{b64, mime_type, filename}`             |
-| POST   | `:8765/v1/transcribe`                | Multipart `audio` field → `{text}` via Whisper                    |
-| GET    | `:8765/v1/memory/files`              | List episodic memory `.md` files                                  |
-| GET    | `:8765/v1/memory/file?name=x.md`     | Read a memory file                                                |
-| DELETE | `:8765/v1/message?id=123`            | Delete a message from SQLite                                      |
-| WS     | `:8765/v1/ws`                        | WebSocket — Ghost push messages to phone                          |
-| GET    | `:8766/v1/health`                    | Remote Bridge connection test                                     |
+| GET    | `:8766/v1/health`                    | Internal API connection test                                      |
+| GET    | `:8766/v1/history?limit=50&offset=0` | Paginated messages from SQLite                                    |
+| GET    | `:8766/v1/search?q=text&limit=20`    | Full-text search in messages                                      |
+| POST   | `:8766/v1/chat`                      | `{content, session_key, ...}` → SSE stream                        |
+| POST   | `:8766/v1/upload`                    | Multipart `file` field → `{b64, mime_type, filename}`             |
+| POST   | `:8766/v1/transcribe`                | Multipart `audio` field → `{text}` via Whisper                    |
+| GET    | `:8766/v1/memory/files`              | List episodic memory `.md` files                                  |
+| GET    | `:8766/v1/memory/file?name=x.md`     | Read a memory file                                                |
+| DELETE | `:8766/v1/message?id=123`            | Delete a message from SQLite                                      |
+| WS     | `:8766/v1/ws`                        | WebSocket — Ghost push messages to phone                          |
 | GET    | `:8766/v1/stats`                     | System stats (CPU temp, RAM, disk, etc.)                          |
 | POST   | `:8766/v1/exec`                      | `{command, timeout}` → `{stdout, stderr, exit_code, duration_ms}` |
 | POST   | `:8766/v1/open`                      | `{target}` → open URL or app on Pi desktop                        |
@@ -161,7 +158,7 @@ Add more via `ALLOWED_CMDS=python3,ollama,curl` in `.env`.
 
 - `ghost-bridge` binds to `0.0.0.0` — it's designed for local network use only
 - Always set a strong `BRIDGE_SECRET` — it's your only auth layer over HTTP
-- Never port-forward 8765/8766 to the public internet without TLS
+- Never port-forward 8766 to the public internet without TLS
 - **For remote access away from home:** use [Tailscale](https://tailscale.com) (free, zero-config WireGuard) — just install on both Pi and phone, then use the Tailscale IP instead of your LAN IP
 
 ---
