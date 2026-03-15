@@ -766,7 +766,14 @@ export default function ChatScreen() {
     fetchHistory(config, 60, 0)
       .then((d) => {
         setMessages(
-          d.messages.map((m) => ({ ...m, status: "completed" as const })),
+          d.messages
+            .map((m) => ({ ...m, status: "completed" as const }))
+            .sort((a, b) => {
+              if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
+              if (a.role === "user" && b.role !== "user") return -1;
+              if (b.role === "user" && a.role !== "user") return 1;
+              return 0;
+            }),
         );
         setTotalMessages(d.total);
       })
@@ -832,10 +839,15 @@ export default function ChatScreen() {
     setLoadingOlder(true);
     try {
       const d = await fetchHistory(config, 30, messages.length);
-      setMessages([
-        ...d.messages.map((m) => ({ ...m, status: "completed" as const })),
-        ...messages,
-      ]);
+      const older = d.messages
+        .map((m) => ({ ...m, status: "completed" as const }))
+        .sort((a, b) => {
+          if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
+          if (a.role === "user" && b.role !== "user") return -1;
+          if (b.role === "user" && a.role !== "user") return 1;
+          return 0;
+        });
+      setMessages([...older, ...messages]);
       setTotalMessages(d.total);
     } catch {}
     setLoadingOlder(false);
