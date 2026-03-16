@@ -938,6 +938,28 @@ export default function ChatScreen() {
     switchSession(next);
   };
 
+  const renameSession = async (oldName: string, newName: string) => {
+    if (!config || !newName.trim()) return;
+    const nextName = newName.trim();
+    
+    // Update list in AsyncStorage
+    setRecentSessions((prev) => {
+      const next = prev.map(s => s === oldName ? nextName : s);
+      AsyncStorage.setItem('ghost:recentSessions', JSON.stringify(next));
+      return next;
+    });
+
+    // If it's the current session, update config and store
+    if (currentSession === oldName) {
+      const nextCfg: GhostConfig = { ...config, session: nextName };
+      await saveConfig(nextCfg);
+      setConfig(nextCfg);
+      setCurrentSession(nextName);
+    }
+    
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   // ... (Keep existing logic for polling, WS, Send, Voice, Attach, etc. adapted for new UI)
   // Simplified for brevity in this response, but I will include the core logic.
 
@@ -1445,6 +1467,7 @@ export default function ChatScreen() {
         recentSessions={recentSessions}
         onSwitch={switchSession}
         onCreate={createNewSession}
+        onRename={renameSession}
       />
     </KeyboardAvoidingView>
   );
