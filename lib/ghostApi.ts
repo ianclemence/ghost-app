@@ -201,6 +201,7 @@ export async function saveConfig(cfg: GhostConfig): Promise<void> {
       piPort: normalizePort(cfg.piPort),
       secret: cfg.secret.trim(),
       session: normalizeSession(cfg.session),
+      sendLocation: cfg.sendLocation !== false,
     }),
   );
 }
@@ -320,10 +321,9 @@ export async function fetchHistory(
   if (typeof since === "number" && Number.isFinite(since) && since > 0) {
     qs.set("since", String(Math.floor(since)));
   }
-  const res = await fetch(
-    `${baseURL(cfg)}/v1/history?${qs.toString()}`,
-    { headers: messageHeaders(cfg) },
-  );
+  const res = await fetch(`${baseURL(cfg)}/v1/history?${qs.toString()}`, {
+    headers: messageHeaders(cfg),
+  });
   if (!res.ok) throw new Error(`Failed to fetch history (HTTP ${res.status})`);
   return res.json();
 }
@@ -380,6 +380,28 @@ export interface SendOptions {
 // Keep-alive pings from the server prevent the connection dying before this fires
 const STREAM_TIMEOUT_MS = 300_000;
 
+function isLikelyLogOrCorruptChunk(data: string): boolean {
+  const text = data.trim();
+  if (!text) return true;
+  if (text.length > 12000) return true;
+  if (/^\d{4}[-/]\d{2}[-/]\d{2}.*\[(INFO|WARN|ERROR|DEBUG)\]/i.test(text))
+    return true;
+  if (/^Command (successfully )?executed/i.test(text)) return true;
+  if (/^\[ghost(-api|-chat)?\]/i.test(text)) return true;
+  const replacementCount = (text.match(/\uFFFD/g) || []).length;
+  if (
+    replacementCount > 12 ||
+    replacementCount / Math.max(text.length, 1) > 0.04
+  ) {
+    return true;
+  }
+  const controlOnly = text
+    .replace(/[\t\n\r]/g, "")
+    .replace(/[\x20-\x7E\u00A0-\uFFFF]/g, "");
+  if (controlOnly.length > 0) return true;
+  return false;
+}
+
 type WeatherLocationMeta = {
   city?: string;
   region?: string;
@@ -393,7 +415,9 @@ type WeatherLocationMeta = {
 function isWeatherPrompt(text: string): boolean {
   const lc = text.toLowerCase();
   return (
-    lc.includes("weather") || lc.includes("forecast") || lc.includes("temperature")
+    lc.includes("weather") ||
+    lc.includes("forecast") ||
+    lc.includes("temperature")
   );
 }
 
@@ -409,7 +433,8 @@ async function resolveApproxLocationMetadata(): Promise<WeatherLocationMeta | nu
     const data = (await res.json()) as Record<string, unknown>;
     const city = typeof data.city === "string" ? data.city : "";
     const region = typeof data.region === "string" ? data.region : "";
-    const country = typeof data.country_name === "string" ? data.country_name : "";
+    const country =
+      typeof data.country_name === "string" ? data.country_name : "";
     const latitude =
       typeof data.latitude === "number"
         ? String(data.latitude)
@@ -537,6 +562,10 @@ export async function sendMessage(
             opts.onChunk(text);
             trace("stream_chunk", { length: text.length });
           } catch {
+            if (isLikelyLogOrCorruptChunk(data)) {
+              trace("stream_raw_chunk_ignored", { length: data.length });
+              continue;
+            }
             fullText += data;
             opts.onChunk(data);
             trace("stream_raw_chunk", { length: data.length });
@@ -581,6 +610,7 @@ export async function sendMessage(
         fullText += text;
         opts.onChunk(text);
       } catch {
+        if (isLikelyLogOrCorruptChunk(data)) continue;
         fullText += data;
         opts.onChunk(data);
       }
@@ -808,15 +838,24 @@ export async function controlCronJob(
   if (!res.ok) throw new Error(`Failed to ${action} job`);
 }
 
-export async function pauseCronJob(cfg: GhostConfig, id: string): Promise<void> {
+export async function pauseCronJob(
+  cfg: GhostConfig,
+  id: string,
+): Promise<void> {
   return controlCronJob(cfg, id, "pause");
 }
 
-export async function resumeCronJob(cfg: GhostConfig, id: string): Promise<void> {
+export async function resumeCronJob(
+  cfg: GhostConfig,
+  id: string,
+): Promise<void> {
   return controlCronJob(cfg, id, "resume");
 }
 
-export async function runCronJobNow(cfg: GhostConfig, id: string): Promise<void> {
+export async function runCronJobNow(
+  cfg: GhostConfig,
+  id: string,
+): Promise<void> {
   return controlCronJob(cfg, id, "run");
 }
 
@@ -867,7 +906,11 @@ export function connectWebSocket(cfg: GhostConfig): void {
     trace("ws_connect_skip_existing", { url, state: wsInstance.readyState });
     return;
   }
-  if (wsInstance && wsInstance.readyState === WebSocket.CONNECTING && wsIsConnecting) {
+  if (
+    wsInstance &&
+    wsInstance.readyState === WebSocket.CONNECTING &&
+    wsIsConnecting
+  ) {
     trace("ws_connect_skip_inflight", { url });
     return;
   }
@@ -923,7 +966,10 @@ export function connectWebSocket(cfg: GhostConfig): void {
     notifyWSState("disconnected");
     wsInstance = null;
     if (wsShouldReconnect && wsReconnectConfig) {
-      wsReconnectTimer = setTimeout(() => connectWebSocket(wsReconnectConfig as GhostConfig), 5000);
+      wsReconnectTimer = setTimeout(
+        () => connectWebSocket(wsReconnectConfig as GhostConfig),
+        5000,
+      );
     }
   };
 

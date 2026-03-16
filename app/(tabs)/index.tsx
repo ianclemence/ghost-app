@@ -191,6 +191,14 @@ const SLASH_COMMANDS: SlashCommand[] = [
 // These patterns must match the WHOLE line (or be very specific prefixes)
 // so we never accidentally drop real response content.
 function sanitize(text: string): string {
+  const hasCorruptRatio = (line: string): boolean => {
+    const replacementCount = (line.match(/\uFFFD/g) || []).length;
+    if (replacementCount === 0) return false;
+    return (
+      replacementCount > 8 || replacementCount / Math.max(line.length, 1) > 0.04
+    );
+  };
+
   // If the entire message is a raw JSON object or array, suppress it.
   // These are tool results that were incorrectly stored as assistant messages.
   const trimmed = text.trim();
@@ -207,10 +215,18 @@ function sanitize(text: string): string {
   }
 
   return text
+    .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
     .split("\n")
     .filter((line) => {
-      const t = line.trim().toLowerCase();
+      const cleanLine = line.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+      const t = cleanLine.trim().toLowerCase();
       if (!t) return false;
+      if (hasCorruptRatio(cleanLine)) return false;
+      if (/^\d{4}[-/]\d{2}[-/]\d{2}.*\[(info|warn|error|debug)\]/i.test(t))
+        return false;
+      if (/^\[ghost(-api|-chat)?\]/i.test(t)) return false;
+      if (/^command (successfully )?executed/i.test(t)) return false;
+      if (/^latency:\s*\d+ms/i.test(t)) return false;
       // XML thinking tags — internal chain-of-thought
       if (/<\/?thinking>|<\/?thought>/.test(t)) return false;
       // Lines that are ONLY a bracketed status: [thinking...], [using tool: x]
@@ -909,6 +925,12 @@ export default function ChatScreen() {
       const incoming = sanitize(msg.content ?? "");
       const reconnectGrace = Date.now() - lastReconnectAt.current < 60_000;
       if (!incoming) return;
+      const replacementCount = (incoming.match(/\uFFFD/g) || []).length;
+      if (
+        replacementCount > 8 ||
+        replacementCount / Math.max(incoming.length, 1) > 0.04
+      )
+        return;
       if (st.isStreaming && !reconnectGrace) return;
       if (!reconnectGrace && Date.now() - lastSendAt.current > 120_000) return;
       if (
