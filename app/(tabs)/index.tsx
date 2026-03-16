@@ -32,9 +32,10 @@ import {
   Message,
   onWSMessage,
   onWSStateChange,
+  searchMessages,
   sendMessage,
   transcribeAudio,
-  uploadFile
+  uploadFile,
 } from "../../lib/ghostApi";
 import {
   ConnectionState,
@@ -908,16 +909,46 @@ export default function ChatScreen() {
   }, [messages.length]);
 
   // ── Search count ──────────────────────────────────────────────────────
+  const displayed = React.useMemo(() => {
+    if (!searchQuery.trim()) return messages;
+    const q = searchQuery.toLowerCase();
+    const local = messages.filter((m) => m.content.toLowerCase().includes(q));
+    const localIds = new Set(local.map((m) => m.id));
+    const merged = [
+      ...local,
+      ...serverResults.filter((m) => !localIds.has(m.id)),
+    ];
+    return sortChronological(merged);
+  }, [searchQuery, messages, serverResults]);
+
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults(0);
       return;
     }
-    const q = searchQuery.toLowerCase();
-    setSearchResults(
-      messages.filter((m) => m.content.toLowerCase().includes(q)).length,
-    );
-  }, [searchQuery, messages]);
+    setSearchResults(displayed.length);
+  }, [searchQuery, displayed]);
+
+  const handleSearchServer = useCallback(async () => {
+    if (!config || !searchQuery.trim()) return;
+    setIsSearchingServer(true);
+    try {
+      const results = await searchMessages(config, searchQuery);
+      const ext: ExtendedMessage[] = results.map((m) => ({
+        ...m,
+        status: "completed",
+      }));
+      setServerResults(ext);
+    } catch {}
+    setIsSearchingServer(false);
+  }, [config, searchQuery]);
+
+  useEffect(() => {
+    if (!searchVisible) {
+      setSearchQuery("");
+      setServerResults([]);
+    }
+  }, [searchVisible]);
 
   // ── Load older ────────────────────────────────────────────────────────
   const loadOlder = useCallback(async () => {
@@ -1289,11 +1320,10 @@ export default function ChatScreen() {
         <SearchBar
           query={searchQuery}
           onChangeQuery={setSearchQuery}
-          onClose={() => {
-            setSearchVisible(false);
-            setSearchQuery("");
-          }}
+          onClose={() => setSearchVisible(false)}
           results={searchResults}
+          onSearchServer={handleSearchServer}
+          isSearchingServer={isSearchingServer}
         />
       )}
 
