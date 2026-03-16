@@ -878,7 +878,7 @@ export default function ChatScreen() {
         <View style={s.searchBar}>
           <TextInput
             style={s.searchInput}
-            placeholder="grep history..."
+            placeholder="Search history..."
             placeholderTextColor={C.icon}
             value={searchQuery}
             onChangeText={setSearchQuery}
