@@ -19,6 +19,7 @@ import {
   Wifi,
   WifiOff,
   X,
+  Edit3,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -669,6 +670,7 @@ function SessionModal({
   recentSessions,
   onSwitch,
   onCreate,
+  onRename,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -676,7 +678,11 @@ function SessionModal({
   recentSessions: string[];
   onSwitch: (s: string) => void;
   onCreate: () => void;
+  onRename: (oldName: string, newName: string) => void;
 }) {
+  const [editingSession, setEditingSession] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+
   return (
     <Modal
       visible={visible}
@@ -697,38 +703,67 @@ function SessionModal({
           </TouchableOpacity>
         </View>
         <ScrollView style={{ maxHeight: 300 }}>
-          {recentSessions.map((s) => (
-            <TouchableOpacity
-              key={s}
-              style={[
-                s.sessionItem,
-                s === currentSession && s.sessionItemActive,
-              ]}
-              onPress={() => {
-                onSwitch(s);
-                onClose();
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-              >
-                <Terminal
-                  size={16}
-                  color={s === currentSession ? C.terminalGreen : C.icon}
-                />
-                <Text
-                  style={[
-                    s.sessionText,
-                    s === currentSession && { color: C.terminalGreen },
-                  ]}
-                >
-                  {s}
-                </Text>
-              </View>
-              {s === currentSession && (
-                <Check size={16} color={C.terminalGreen} />
+          {recentSessions.map((sess) => (
+            <View key={sess} style={[s.sessionItem, sess === currentSession && s.sessionItemActive]}>
+              {editingSession === sess ? (
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <TextInput
+                    style={[s.sessionText, { flex: 1, borderBottomWidth: 1, borderBottomColor: C.terminalGreen }]}
+                    value={newName}
+                    onChangeText={setNewName}
+                    autoFocus
+                    onSubmitEditing={() => {
+                      if (newName.trim() && newName !== sess) {
+                        onRename(sess, newName.trim());
+                      }
+                      setEditingSession(null);
+                    }}
+                  />
+                  <TouchableOpacity onPress={() => {
+                    if (newName.trim() && newName !== sess) {
+                      onRename(sess, newName.trim());
+                    }
+                    setEditingSession(null);
+                  }}>
+                    <Check size={16} color={C.terminalGreen} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}
+                    onPress={() => {
+                      onSwitch(sess);
+                      onClose();
+                    }}
+                  >
+                    <Terminal
+                      size={16}
+                      color={sess === currentSession ? C.terminalGreen : C.icon}
+                    />
+                    <Text
+                      style={[
+                        s.sessionText,
+                        sess === currentSession && { color: C.terminalGreen },
+                      ]}
+                    >
+                      {sess}
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <TouchableOpacity onPress={() => {
+                      setEditingSession(sess);
+                      setNewName(sess);
+                    }}>
+                      <Edit3 size={14} color={C.icon} />
+                    </TouchableOpacity>
+                    {sess === currentSession && (
+                      <Check size={16} color={C.terminalGreen} />
+                    )}
+                  </View>
+                </>
               )}
-            </TouchableOpacity>
+            </View>
           ))}
         </ScrollView>
         <TouchableOpacity
