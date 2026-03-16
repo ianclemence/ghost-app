@@ -641,7 +641,7 @@ function MessageRow({
     >
       <View style={s.ghostAvatar}>
         {!isGrouped ? (
-          <Image source={GHOST_LOGO} style={{ width: 14, height: 14 }} />
+          <Terminal size={14} color={accent} />
         ) : (
           <View style={{ width: 14 }} />
         )}
