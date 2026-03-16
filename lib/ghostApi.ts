@@ -14,6 +14,7 @@ export interface GhostConfig {
   piPort: string;
   secret: string;
   session?: string;
+  sendLocation?: boolean;
 }
 
 export interface PiStats {
@@ -379,6 +380,64 @@ export interface SendOptions {
 // Keep-alive pings from the server prevent the connection dying before this fires
 const STREAM_TIMEOUT_MS = 300_000;
 
+type WeatherLocationMeta = {
+  city?: string;
+  region?: string;
+  country?: string;
+  latitude?: string;
+  longitude?: string;
+  timezone?: string;
+  location_source?: string;
+};
+
+function isWeatherPrompt(text: string): boolean {
+  const lc = text.toLowerCase();
+  return (
+    lc.includes("weather") || lc.includes("forecast") || lc.includes("temperature")
+  );
+}
+
+function hasExplicitLocation(text: string): boolean {
+  const lc = text.toLowerCase();
+  return lc.includes(" in ") || lc.includes(" at ") || lc.includes(" for ");
+}
+
+async function resolveApproxLocationMetadata(): Promise<WeatherLocationMeta | null> {
+  try {
+    const res = await fetchWithTimeout("https://ipapi.co/json/", {}, 2500);
+    if (!res.ok) return null;
+    const data = (await res.json()) as Record<string, unknown>;
+    const city = typeof data.city === "string" ? data.city : "";
+    const region = typeof data.region === "string" ? data.region : "";
+    const country = typeof data.country_name === "string" ? data.country_name : "";
+    const latitude =
+      typeof data.latitude === "number"
+        ? String(data.latitude)
+        : typeof data.latitude === "string"
+          ? data.latitude
+          : "";
+    const longitude =
+      typeof data.longitude === "number"
+        ? String(data.longitude)
+        : typeof data.longitude === "string"
+          ? data.longitude
+          : "";
+    const timezone = typeof data.timezone === "string" ? data.timezone : "";
+    if (!city && !latitude) return null;
+    return {
+      city,
+      region,
+      country,
+      latitude,
+      longitude,
+      timezone,
+      location_source: "mobile_ip",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function sendMessage(
   cfg: GhostConfig,
   opts: SendOptions,
@@ -397,6 +456,17 @@ export async function sendMessage(
     chat_id: "default",
   };
   if (mediaItems.length > 0) body.media_items = mediaItems;
+  if (cfg.sendLocation !== false && isWeatherPrompt(opts.content)) {
+    const meta = await resolveApproxLocationMetadata();
+    if (meta) {
+      body.metadata = meta;
+    } else if (!hasExplicitLocation(opts.content)) {
+      body.metadata = {
+        location_source: "none",
+        location_hint: "ask_or_label_fallback",
+      };
+    }
+  }
 
   const url = `${baseURL(cfg)}/v1/chat`;
   trace("send_start", {

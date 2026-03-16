@@ -65,6 +65,7 @@ export default function SettingsScreen() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"idle" | "ok" | "fail">("idle");
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const [sendLocation, setSendLocation] = useState(config?.sendLocation ?? true);
   const [recentSessions, setRecentSessions] = useState<string[]>([]);
 
   // Diagnostics state
@@ -112,6 +113,7 @@ export default function SettingsScreen() {
       piPort: port.trim(),
       secret: secret.trim(),
       session: session.trim() === "" ? undefined : session.trim(),
+      sendLocation,
     };
     const result = await checkHealthDebug(cfg);
     const ok = result.ok;
@@ -149,6 +151,7 @@ export default function SettingsScreen() {
       piPort: port.trim(),
       secret: secret.trim(),
       session: session.trim() === "" ? undefined : session.trim(),
+      sendLocation,
     };
     await saveConfig(cfg);
     setConfig(cfg);
@@ -383,6 +386,23 @@ export default function SettingsScreen() {
             {statusText}
           </Text>
         )}
+      </Section>
+
+      <Section title="LOCATION CONTEXT">
+        <View style={styles.toggleRow}>
+          <View>
+            <Text style={styles.toggleLabel}>Weather Location Sharing</Text>
+            <Text style={styles.toggleSub}>
+              Share approximate phone location metadata for weather prompts
+            </Text>
+          </View>
+          <Switch
+            value={sendLocation}
+            onValueChange={(v) => setSendLocation(v)}
+            trackColor={{ false: C.border, true: C.accentDim }}
+            thumbColor={sendLocation ? C.accent : C.textDim}
+          />
+        </View>
       </Section>
 
       {/* Diagnostics */}
