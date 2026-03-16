@@ -38,6 +38,8 @@ import {
 import Markdown, { ASTNode } from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+const GHOST_LOGO = require("../../assets/images/logo.png");
+
 import { Colors, Fonts } from "@/constants/theme";
 import {
   checkHealth,
@@ -438,7 +440,7 @@ function MessageRow({ msg }: { msg: ExtendedMessage }) {
   return (
     <View style={s.ghostRow}>
       <View style={s.ghostAvatar}>
-        <Terminal size={14} color={C.terminalGreen} />
+        <Image source={GHOST_LOGO} style={{ width: 14, height: 14 }} />
       </View>
       <View style={s.ghostContent}>
         {isPlaceholder ? (
@@ -839,7 +841,7 @@ export default function ChatScreen() {
   if (!config)
     return (
       <View style={[s.container, s.centered, { paddingTop: insets.top }]}>
-        <Terminal size={64} color={C.terminalGreen} />
+        <Image source={GHOST_LOGO} style={{ width: 64, height: 64 }} />
         <Text style={s.noConfigTitle}>Offline</Text>
         <Text style={s.noConfigSub}>Configure connection in Settings</Text>
       </View>
@@ -858,7 +860,7 @@ export default function ChatScreen() {
           onPress={() => setSessionMenuOpen(true)}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Terminal size={18} color={C.terminalGreen} />
+            <Image source={GHOST_LOGO} style={{ width: 18, height: 18 }} />
             <Text style={s.headerTitle}>
               {currentSession || "mobile:default"}
             </Text>
