@@ -308,10 +308,19 @@ export async function fetchHistory(
   cfg: GhostConfig,
   limit = 50,
   offset = 0,
+  since?: number,
 ): Promise<{ messages: Message[]; total: number }> {
   const session = normalizeSession(cfg.session);
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    session,
+  });
+  if (typeof since === "number" && Number.isFinite(since) && since > 0) {
+    qs.set("since", String(Math.floor(since)));
+  }
   const res = await fetch(
-    `${baseURL(cfg)}/v1/history?limit=${limit}&offset=${offset}&session=${encodeURIComponent(session)}`,
+    `${baseURL(cfg)}/v1/history?${qs.toString()}`,
     { headers: messageHeaders(cfg) },
   );
   if (!res.ok) throw new Error(`Failed to fetch history (HTTP ${res.status})`);
@@ -744,6 +753,9 @@ export async function runCronJobNow(cfg: GhostConfig, id: string): Promise<void>
 // ─── WebSocket ─────────────────────────────────────────────────────────────
 
 export type WSMessage = {
+  id?: string;
+  timestamp?: number;
+  session_id?: string;
   type?: string;
   content?: string;
   channel?: string;

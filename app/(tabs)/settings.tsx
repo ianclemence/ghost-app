@@ -52,6 +52,7 @@ export default function SettingsScreen() {
     setConnected,
     setAvailableTools,
     setMessages,
+    clearSeenMessageIds,
     currentSession,
     setCurrentSession,
     setProfile,
@@ -200,6 +201,7 @@ export default function SettingsScreen() {
     setConfig(nextCfg);
     setSession(nextSession);
     setCurrentSession(nextSession);
+    clearSeenMessageIds();
     setMessages([]);
     const history = await fetchHistory(nextCfg, 50, 0).catch(() => ({
       messages: [],

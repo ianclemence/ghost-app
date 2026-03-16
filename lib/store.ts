@@ -31,6 +31,9 @@ interface GhostStore {
   setAvailableTools: (tools: string[]) => void;
   currentSession: string;
   setCurrentSession: (session: string) => void;
+  seenMessageIds: Set<string>;
+  addSeenMessageId: (id: string) => void;
+  clearSeenMessageIds: () => void;
 
   // Messages
   messages: ExtendedMessage[];
@@ -44,6 +47,7 @@ interface GhostStore {
   isStreaming: boolean;
   streamBuffer: string;
   setStreaming: (v: boolean) => void;
+  clearStreamBuffer: () => void;
   appendStream: (chunk: string) => void;
   commitStream: () => void;
 
@@ -116,10 +120,49 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   setAvailableTools: (tools: string[]) => set({ availableTools: tools }),
   currentSession: "mobile:default",
   setCurrentSession: (session: string) => set({ currentSession: session }),
+  seenMessageIds: new Set<string>(),
+  addSeenMessageId: (id: string) =>
+    set((s) => {
+      const next = new Set(s.seenMessageIds);
+      next.add(id);
+      return { seenMessageIds: next };
+    }),
+  clearSeenMessageIds: () => set({ seenMessageIds: new Set<string>() }),
 
   messages: [],
-  setMessages: (msgs) => set({ messages: msgs }),
-  appendMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
+  setMessages: (msgs) =>
+    set(() => {
+      const deduped = msgs.filter(
+        (m, i, arr) => arr.findIndex((x) => x.id === m.id) === i,
+      );
+      const seen = new Set<string>();
+      deduped.forEach((m) => {
+        if (m.id) seen.add(m.id);
+      });
+      return { messages: deduped, seenMessageIds: seen };
+    }),
+  appendMessage: (msg) =>
+    set((s) => {
+      if (msg.id && s.seenMessageIds.has(msg.id)) {
+        return { messages: s.messages };
+      }
+      const exists = s.messages.some(
+        (m) =>
+          m.id === msg.id ||
+          (m.content === msg.content &&
+            m.timestamp === msg.timestamp &&
+            m.role === msg.role),
+      );
+      if (exists) {
+        return { messages: s.messages };
+      }
+      const next = new Set(s.seenMessageIds);
+      if (msg.id) next.add(msg.id);
+      return {
+        messages: [...s.messages, msg],
+        seenMessageIds: next,
+      };
+    }),
   updateLastAssistant: (text) =>
     set((s) => {
       const msgs = [...s.messages];
@@ -143,6 +186,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   isStreaming: false,
   streamBuffer: "",
   setStreaming: (v) => set({ isStreaming: v }),
+  clearStreamBuffer: () => set({ streamBuffer: "", isStreaming: false }),
   appendStream: (chunk) =>
     set((s) => {
       const newBuffer = s.streamBuffer + chunk;
@@ -179,6 +223,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
         streamBuffer: "",
         isStreaming: false,
         messages: msgs,
+        seenMessageIds: new Set(msgs.map((m) => m.id)),
         _lastCommitTime: Date.now(),
         _lastCommitContent: content,
       };

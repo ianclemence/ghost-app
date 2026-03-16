@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Constants, { AppOwnership } from 'expo-constants';
 import { useGhostStore } from '../lib/store';
-import { loadConfig, checkHealth, connectWebSocket, onWSMessage } from '../lib/ghostApi';
+import { loadConfig, checkHealth, onWSMessage } from '../lib/ghostApi';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
@@ -32,7 +32,6 @@ export default function RootLayout() {
         setConfig(cfg);
         const ok = await checkHealth(cfg);
         setConnected(ok);
-        if (ok) connectWebSocket(cfg);
       }
 
       // Listen for WS push and send local notification

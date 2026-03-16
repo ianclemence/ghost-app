@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -739,6 +740,7 @@ export default function ChatScreen() {
     profile,
     availableTools,
     setAvailableTools,
+    clearStreamBuffer,
   } = useGhostStore();
 
   const [input, setInput] = useState("");
@@ -787,6 +789,7 @@ export default function ChatScreen() {
   const [attachOpen, setAttachOpen] = useState(false);
   const attachAnim = useRef(new Animated.Value(0)).current;
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [totalMessages, setTotalMessages] = useState(0);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
 
@@ -840,26 +843,45 @@ export default function ChatScreen() {
           lastReconnectAt.current = Date.now();
           setConnectionState("online");
         }
-        if (st === "reconnecting") setConnectionState("syncing");
-        if (st === "disconnected") setConnectionState("offline");
+        if (st === "reconnecting") {
+          clearStreamBuffer();
+          setConnectionState("syncing");
+        }
+        if (st === "disconnected") {
+          clearStreamBuffer();
+          setConnectionState("offline");
+        }
       }),
-    [],
+    [clearStreamBuffer, setConnectionState],
   );
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        clearStreamBuffer();
+      }
+    });
+    return () => sub.remove();
+  }, [clearStreamBuffer]);
 
   // ── Load history + WS messages ────────────────────────────────────────
   useEffect(() => {
     if (!config) return;
     trace("history_initial_fetch_start");
-    fetchHistory(config, 60, 0)
-      .then((d) => {
-        setMessages(normalizeHistory(d.messages));
-        setTotalMessages(d.total);
-        trace("history_initial_fetch_done", {
-          count: d.messages.length,
-          total: d.total,
-        });
-      })
-      .catch(() => {});
+    if (!isLoadingHistory) {
+      setIsLoadingHistory(true);
+      fetchHistory(config, 60, 0)
+        .then((d) => {
+          setMessages(normalizeHistory(d.messages));
+          setTotalMessages(d.total);
+          trace("history_initial_fetch_done", {
+            count: d.messages.length,
+            total: d.total,
+          });
+        })
+        .catch(() => {})
+        .finally(() => setIsLoadingHistory(false));
+    }
     fetchAvailableTools(config)
       .then((tools: string[]) => setAvailableTools(tools))
       .catch(() => {});
@@ -871,6 +893,12 @@ export default function ChatScreen() {
         typeof msg?.type === "string" ? msg.type : metadataType;
       if (messageType !== "assistant_message") return;
       if (msg.channel && msg.channel !== "mobile") return;
+      if (
+        msg.session_id &&
+        msg.session_id !== (config.session ?? "mobile:default")
+      ) {
+        return;
+      }
       const st = useGhostStore.getState();
       const incoming = sanitize(msg.content ?? "");
       const reconnectGrace = Date.now() - lastReconnectAt.current < 60_000;
@@ -889,11 +917,27 @@ export default function ChatScreen() {
       const last = st.messages[st.messages.length - 1];
       if (last?.role === "assistant" && normalize(last.content) === incoming)
         return;
+      const metadata =
+        msg.metadata && typeof msg.metadata === "object"
+          ? (msg.metadata as Record<string, unknown>)
+          : undefined;
+      const serverID =
+        typeof msg.id === "string" && msg.id
+          ? msg.id
+          : typeof metadata?.message_id === "string"
+            ? metadata.message_id
+            : undefined;
+      const serverTimestamp =
+        typeof msg.timestamp === "number"
+          ? msg.timestamp
+          : typeof metadata?.timestamp === "number"
+            ? metadata.timestamp
+            : Date.now() / 1000;
       appendMessage({
-        id: uid(),
+        id: serverID || uid(),
         role: "assistant",
         content: incoming,
-        timestamp: Date.now() / 1000,
+        timestamp: serverTimestamp,
         status: "completed",
       });
       trace("ws_message_appended", {
@@ -901,38 +945,37 @@ export default function ChatScreen() {
         reconnectGrace,
       });
     });
-  }, [config]);
+  }, [config, isLoadingHistory]);
 
   useEffect(() => {
     const prev = previousConnectionState.current;
-    if (prev === "syncing" && connectionState === "online" && config) {
+    if (
+      prev === "syncing" &&
+      connectionState === "online" &&
+      config &&
+      !isLoadingHistory
+    ) {
       trace("history_catchup_start");
-      fetchHistory(config, 80, 0)
+      setIsLoadingHistory(true);
+      const latestTs =
+        useGhostStore
+          .getState()
+          .messages.reduce((max, m) => Math.max(max, m.timestamp ?? 0), 0) || 0;
+      fetchHistory(config, 80, 0, latestTs > 0 ? latestTs : undefined)
         .then((d) => {
           const server = normalizeHistory(d.messages);
-          const state = useGhostStore.getState();
-          const pending = state.messages.filter(
-            (m) =>
-              m.status === "sending" ||
-              m.status === "streaming" ||
-              m.status === "retrying",
-          );
-          const merged = sortChronological([...server, ...pending]);
-          const deduped = merged.filter(
-            (m, i, arr) => arr.findIndex((x) => x.id === m.id) === i,
-          );
-          setMessages(deduped);
+          server.forEach((m) => appendMessage(m));
           setTotalMessages(d.total);
           trace("history_catchup_done", {
             server: server.length,
-            pending: pending.length,
-            merged: deduped.length,
+            latestTs,
           });
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setIsLoadingHistory(false));
     }
     previousConnectionState.current = connectionState;
-  }, [connectionState, config, setMessages]);
+  }, [connectionState, config, isLoadingHistory, appendMessage]);
 
   // ── Flush offline queue ───────────────────────────────────────────────
   useEffect(() => {
@@ -1019,7 +1062,13 @@ export default function ChatScreen() {
 
   // ── Load older ────────────────────────────────────────────────────────
   const loadOlder = useCallback(async () => {
-    if (!config || loadingOlder || messages.length >= totalMessages) return;
+    if (
+      !config ||
+      loadingOlder ||
+      isLoadingHistory ||
+      messages.length >= totalMessages
+    )
+      return;
     setLoadingOlder(true);
     try {
       const d = await fetchHistory(config, 30, messages.length);
@@ -1032,7 +1081,14 @@ export default function ChatScreen() {
       });
     } catch {}
     setLoadingOlder(false);
-  }, [config, messages, loadingOlder, totalMessages, normalizeHistory]);
+  }, [
+    config,
+    messages,
+    loadingOlder,
+    isLoadingHistory,
+    totalMessages,
+    normalizeHistory,
+  ]);
 
   // ── Core send ─────────────────────────────────────────────────────────
   const doSend = useCallback(
