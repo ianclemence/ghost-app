@@ -1416,6 +1416,10 @@ export default function ChatScreen() {
     if (!config || (!input.trim() && !pendingMedia) || isStreaming) return;
     const text = input.trim(),
       media = pendingMedia;
+
+    // Hide slash suggestions if visible
+    setShowSlash(false);
+
     setInput("");
     setPendingMedia(null);
     if (connectionState !== "online") {
@@ -1593,6 +1597,32 @@ export default function ChatScreen() {
       setShowSlash(hasMatch);
     } else {
       setShowSlash(false);
+    }
+  };
+
+  const handleShortcut = (cmd: string) => {
+    if (
+      [
+        "/help",
+        "/clear",
+        "/reset",
+        "/status",
+        "/skills",
+        "/tools",
+        "/doctor",
+      ].includes(cmd)
+    ) {
+      setInput("");
+      setShowSlash(false);
+      doSend(cmd);
+    } else if (cmd === "/install") {
+      setInput("/install ");
+      setShowSlash(false);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    } else {
+      setInput(cmd + " ");
+      setShowSlash(false);
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
 
@@ -1796,30 +1826,7 @@ export default function ChatScreen() {
                     s.slashRow,
                     i === arr.length - 1 && { borderBottomWidth: 0 },
                   ]}
-                  onPress={() => {
-                    if (
-                      [
-                        "/help",
-                        "/clear",
-                        "/reset",
-                        "/status",
-                        "/skills",
-                        "/tools",
-                      ].includes(sc.command)
-                    ) {
-                      setInput("");
-                      setShowSlash(false);
-                      doSend(sc.command);
-                    } else if (sc.command === "/install") {
-                      setInput("/install ");
-                      setShowSlash(false);
-                      setTimeout(() => inputRef.current?.focus(), 50);
-                    } else {
-                      setInput(sc.command + " ");
-                      setShowSlash(false);
-                      setTimeout(() => inputRef.current?.focus(), 50);
-                    }
-                  }}
+                  onPress={() => handleShortcut(sc.command)}
                 >
                   <Text style={s.slashCmd}>{sc.command}</Text>
                   <Text style={s.slashDesc}>{sc.description}</Text>
