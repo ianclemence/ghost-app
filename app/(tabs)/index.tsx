@@ -923,6 +923,29 @@ export default function ChatScreen() {
       }
       const st = useGhostStore.getState();
       const incoming = sanitize(msg.content ?? "");
+
+      // Strict Deduplication:
+      // 1. If we are currently streaming, ignore ALL incoming WS assistant messages.
+      //    The HTTP stream is the source of truth for the current response.
+      if (st.isStreaming) {
+        trace("ws_message_ignored_streaming", { len: incoming.length });
+        return;
+      }
+
+      // 2. Check for recent duplicates (fuzzy match for race conditions)
+      const last = st.messages[st.messages.length - 1];
+      if (last?.role === "assistant") {
+        const lastContent = normalize(last.content);
+        // Exact match or prefix match (if WS is slightly ahead/behind)
+        if (
+          lastContent === incoming ||
+          (incoming.length > 10 && lastContent.includes(incoming))
+        ) {
+          trace("ws_message_deduped", { len: incoming.length });
+          return;
+        }
+      }
+
       const reconnectGrace = Date.now() - lastReconnectAt.current < 60_000;
       if (!incoming) return;
       const replacementCount = (incoming.match(/\uFFFD/g) || []).length;
@@ -931,8 +954,35 @@ export default function ChatScreen() {
         replacementCount / Math.max(incoming.length, 1) > 0.04
       )
         return;
-      if (st.isStreaming && !reconnectGrace) return;
+
+      // Legacy checks (kept for safety)
       if (!reconnectGrace && Date.now() - lastSendAt.current > 120_000) return;
+
+      // ─── Deduplication Logic ───
+      // 1. Check if we are currently streaming a response.
+      // If the incoming WS message matches the content we just streamed (or are streaming), ignore it.
+      if (st.isStreaming || Date.now() - (st._lastCommitTime || 0) < 5000) {
+        const lastMsg = st.messages[st.messages.length - 1];
+        if (lastMsg?.role === "assistant") {
+          // Calculate similarity or exact match
+          const normalizedIncoming = normalize(incoming);
+          const normalizedExisting = normalize(lastMsg.content);
+
+          // If incoming is a subset of existing (or vice versa) or identical, skip it.
+          // This handles the case where WS sends the full message while HTTP stream is finishing.
+          if (
+            normalizedExisting.includes(normalizedIncoming) ||
+            normalizedIncoming.includes(normalizedExisting)
+          ) {
+            trace("ws_dedup_skip", {
+              reason: "streaming_match",
+              len: incoming.length,
+            });
+            return;
+          }
+        }
+      }
+
       if (
         !reconnectGrace &&
         st._lastCommitTime &&
@@ -942,9 +992,7 @@ export default function ChatScreen() {
         if (ln === incoming || ln.includes(incoming) || incoming.includes(ln))
           return;
       }
-      const last = st.messages[st.messages.length - 1];
-      if (last?.role === "assistant" && normalize(last.content) === incoming)
-        return;
+
       const metadata =
         msg.metadata && typeof msg.metadata === "object"
           ? (msg.metadata as Record<string, unknown>)
@@ -1023,13 +1071,12 @@ export default function ChatScreen() {
   }, [connectionState]);
 
   // ── Scroll to bottom ──────────────────────────────────────────────────
-  useEffect(() => {
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
-  }, [messages.length]);
+  // Removed auto-scroll effect to fix jumping bug.
+  // Using inverted FlatList handles this naturally.
 
   // ── Search count ──────────────────────────────────────────────────────
   const displayed = React.useMemo(() => {
-    if (!searchQuery.trim()) return messages;
+    if (!searchQuery.trim()) return [...messages].reverse(); // Reverse for inverted list
     const q = searchQuery.toLowerCase();
     const local = messages.filter((m) => m.content.toLowerCase().includes(q));
     const localIds = new Set(local.map((m) => m.id));
@@ -1037,7 +1084,7 @@ export default function ChatScreen() {
       ...local,
       ...serverResults.filter((m) => !localIds.has(m.id)),
     ];
-    return sortChronological(merged);
+    return sortChronological(merged).reverse(); // Reverse for inverted list
   }, [searchQuery, messages, serverResults]);
 
   useEffect(() => {
@@ -1501,6 +1548,7 @@ export default function ChatScreen() {
       <FlatList
         ref={listRef}
         data={displayed}
+        inverted={true}
         keyExtractor={(m) => String(m.id)}
         renderItem={({ item }) => <MessageRow msg={item} />}
         contentContainerStyle={s.msgList}
@@ -1511,20 +1559,19 @@ export default function ChatScreen() {
           leadingItem: ExtendedMessage;
           trailingItem: ExtendedMessage;
         }) => {
-          // More breathing room between consecutive Ghost messages so they
-          // don't run together visually. Tight gap for user↔ghost alternation.
+          // Inverted list: leadingItem is physically below trailingItem
+          // So we are looking at the gap between them.
           const sameRole =
             leadingItem?.role === trailingItem?.role &&
             leadingItem?.role === "assistant";
           return <View style={{ height: sameRole ? 16 : 4 }} />;
         }}
-        onContentSizeChange={() =>
-          listRef.current?.scrollToEnd({ animated: true })
-        }
+        // Removed onContentSizeChange to prevent auto-scroll jumps
         showsVerticalScrollIndicator={false}
-        onStartReached={loadOlder}
-        onStartReachedThreshold={0.1}
-        ListHeaderComponent={
+        onEndReached={loadOlder} // Inverted: onEndReached triggers when scrolling up (to older messages)
+        onEndReachedThreshold={0.1}
+        ListFooterComponent={
+          // Inverted: Footer is at the TOP visually (older messages)
           loadingOlder ? (
             <View style={{ padding: 16, alignItems: "center" }}>
               <ActivityIndicator color={C.accent} size="small" />
@@ -1542,7 +1589,8 @@ export default function ChatScreen() {
             </TouchableOpacity>
           ) : null
         }
-        ListFooterComponent={
+        ListHeaderComponent={
+          // Inverted: Header is at the BOTTOM visually (newest messages)
           activeError ? (
             <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
               <ErrorCard

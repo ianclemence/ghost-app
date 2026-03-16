@@ -150,10 +150,13 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
         (m) =>
           m.id === msg.id ||
           (m.content === msg.content &&
-            m.timestamp === msg.timestamp &&
-            m.role === msg.role),
+            m.role === msg.role &&
+            Math.abs(m.timestamp - msg.timestamp) < 2.0), // Allow 2s drift
       );
       if (exists) {
+        // If content matches but ID is different (e.g. temp ID vs server ID),
+        // we should ideally update the ID to the server one.
+        // For now, we just return to avoid duplication.
         return { messages: s.messages };
       }
       const next = new Set(s.seenMessageIds);
