@@ -68,40 +68,6 @@ const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
 const FONT_SANS = Fonts.sans;
 
-// ─── Connection Toast ─────────────────────────────────────────────────────
-function ConnectionToast({ state }: { state: ConnectionState }) {
-  const accent = useTerminalColor();
-  const [visible, setVisible] = useState(false);
-  const prev = useRef(state);
-
-  useEffect(() => {
-    if (state !== prev.current) {
-      setVisible(true);
-      const t = setTimeout(() => setVisible(false), 3000);
-      prev.current = state;
-      return () => clearTimeout(t);
-    }
-  }, [state]);
-
-  if (!visible) return null;
-
-  return (
-    <Animated.View
-      style={[s.toast, { borderColor: state === "online" ? accent : C.error }]}
-    >
-      <Text
-        style={[s.toastText, { color: state === "online" ? accent : C.error }]}
-      >
-        {state === "online"
-          ? "BACK ONLINE"
-          : state === "syncing"
-            ? "SYNCING..."
-            : "DISCONNECTED"}
-      </Text>
-    </Animated.View>
-  );
-}
-
 // ─── Action Modal ─────────────────────────────────────────────────────────
 function ActionModal({
   visible,
@@ -1285,8 +1251,6 @@ export default function ChatScreen() {
         showsVerticalScrollIndicator={false}
       />
 
-      <ConnectionToast state={connectionState} />
-
       {/* ── Input Area ── */}
       <View
         style={[s.inputArea, { paddingBottom: Math.max(insets.bottom, 12) }]}
@@ -1733,22 +1697,5 @@ const s = StyleSheet.create({
     fontFamily: FONT_MONO,
     fontWeight: "700",
     fontSize: 14,
-  },
-  toast: {
-    position: "absolute",
-    bottom: 100,
-    left: 20,
-    right: 20,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    padding: 12,
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  toastText: {
-    fontFamily: FONT_MONO,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1,
   },
 });
