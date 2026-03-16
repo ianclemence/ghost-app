@@ -65,7 +65,7 @@ export default function TabLayout() {
         name="remote"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Server} label="Remote" focused={focused} />
+            <TabIcon Icon={Server} label="SSH" focused={focused} />
           ),
         }}
       />
@@ -81,7 +81,7 @@ export default function TabLayout() {
         name="memory"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Brain} label="Memory" focused={focused} />
+            <TabIcon Icon={Brain} label="Data" focused={focused} />
           ),
         }}
       />
@@ -89,7 +89,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Settings} label="Settings" focused={focused} />
+            <TabIcon Icon={Settings} label="Setup" focused={focused} />
           ),
         }}
       />

@@ -601,13 +601,23 @@ export default function ChatScreen() {
 
   // Session Management
   useEffect(() => {
-    const values = [currentSession, config?.session, "mobile:default"].filter(
-      Boolean,
-    ) as string[];
-    setRecentSessions((prev) =>
-      Array.from(new Set([...values, ...prev])).slice(0, 8),
-    );
-  }, [currentSession, config?.session]);
+    AsyncStorage.getItem("ghost:recentSessions").then((data) => {
+      if (data) {
+        setRecentSessions(JSON.parse(data));
+      } else {
+        setRecentSessions(["mobile:default"]);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!currentSession) return;
+    setRecentSessions((prev) => {
+      const next = Array.from(new Set([currentSession, ...prev])).slice(0, 10);
+      AsyncStorage.setItem("ghost:recentSessions", JSON.stringify(next));
+      return next;
+    });
+  }, [currentSession]);
 
   const switchSession = async (newSession: string) => {
     if (!config || !newSession.trim()) return;
@@ -1246,9 +1256,15 @@ const s = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
+    backgroundColor: C.card,
   },
-  sessionItemActive: { backgroundColor: "rgba(74, 222, 128, 0.1)" },
-  sessionText: { color: C.text, fontFamily: FONT_MONO, fontSize: 14 },
+  sessionItemActive: { backgroundColor: "rgba(74, 222, 128, 0.15)" },
+  sessionText: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 14,
+    fontWeight: "500",
+  },
   newSessionBtn: {
     flexDirection: "row",
     alignItems: "center",
