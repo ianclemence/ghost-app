@@ -184,6 +184,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { command: "/tools", description: "Show loaded JSON tool schemas" },
   { command: "/think", description: "Enable deep reasoning mode" },
   { command: "/remind", description: "Set a reminder", requiresTool: "cron" },
+  { command: "/doctor", description: "Run system health check" },
 ];
 
 // ─── Content sanitizer ────────────────────────────────────────────────────
