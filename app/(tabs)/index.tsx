@@ -28,6 +28,7 @@ import {
   checkHealth,
   clearChat,
   connectWebSocket,
+  disconnectWebSocket,
   fetchAvailableTools,
   fetchHistory,
   GhostError,
@@ -761,6 +762,7 @@ export default function ChatScreen() {
   const lastSendAt = useRef(0);
   const lastReconnectAt = useRef(0);
   const previousConnectionState = useRef<ConnectionState>("offline");
+  const initialHistoryKeyRef = useRef<string>("");
   // Ref to always hold the latest doSend so the offline-queue effect
   // never captures a stale closure even when doSend is recreated.
   const doSendRef = useRef<
@@ -867,8 +869,10 @@ export default function ChatScreen() {
   // ── Load history + WS messages ────────────────────────────────────────
   useEffect(() => {
     if (!config) return;
-    trace("history_initial_fetch_start");
-    if (!isLoadingHistory) {
+    const historyKey = `${config.piHost}:${config.piPort}:${config.secret}:${config.session ?? "mobile:default"}`;
+    if (initialHistoryKeyRef.current !== historyKey && !isLoadingHistory) {
+      trace("history_initial_fetch_start");
+      initialHistoryKeyRef.current = historyKey;
       setIsLoadingHistory(true);
       fetchHistory(config, 60, 0)
         .then((d) => {
@@ -879,14 +883,16 @@ export default function ChatScreen() {
             total: d.total,
           });
         })
-        .catch(() => {})
+        .catch(() => {
+          initialHistoryKeyRef.current = "";
+        })
         .finally(() => setIsLoadingHistory(false));
     }
     fetchAvailableTools(config)
       .then((tools: string[]) => setAvailableTools(tools))
       .catch(() => {});
     connectWebSocket(config);
-    return onWSMessage((msg) => {
+    const unsub = onWSMessage((msg) => {
       const metadataType =
         typeof msg?.metadata?.type === "string" ? msg.metadata.type : "";
       const messageType =
@@ -945,7 +951,11 @@ export default function ChatScreen() {
         reconnectGrace,
       });
     });
-  }, [config, isLoadingHistory]);
+    return () => {
+      unsub();
+      disconnectWebSocket();
+    };
+  }, [config?.piHost, config?.piPort, config?.secret, config?.session]);
 
   useEffect(() => {
     const prev = previousConnectionState.current;

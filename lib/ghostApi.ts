@@ -773,20 +773,49 @@ let wsStateHandlers: WSStateHandler[] = [];
 let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let wsLastPong: number = 0;
 let wsPingInterval: ReturnType<typeof setInterval> | null = null;
+let wsIsConnecting = false;
+let wsShouldReconnect = true;
+let wsCurrentURL: string | null = null;
+let wsReconnectConfig: GhostConfig | null = null;
 
 export function connectWebSocket(cfg: GhostConfig): void {
+  const url = `${wsURL(cfg)}/v1/ws?secret=${encodeURIComponent(cfg.secret)}&session=${encodeURIComponent(normalizeSession(cfg.session))}`;
+  wsReconnectConfig = cfg;
+  wsShouldReconnect = true;
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
-  if (wsPingInterval) clearInterval(wsPingInterval);
-  try {
-    wsInstance?.close();
-  } catch {}
+  if (wsPingInterval) {
+    clearInterval(wsPingInterval);
+    wsPingInterval = null;
+  }
+  if (
+    wsInstance &&
+    wsCurrentURL === url &&
+    (wsInstance.readyState === WebSocket.OPEN ||
+      wsInstance.readyState === WebSocket.CONNECTING ||
+      wsIsConnecting)
+  ) {
+    trace("ws_connect_skip_existing", { url, state: wsInstance.readyState });
+    return;
+  }
+  if (wsInstance && wsInstance.readyState === WebSocket.CONNECTING && wsIsConnecting) {
+    trace("ws_connect_skip_inflight", { url });
+    return;
+  }
+  if (wsInstance) {
+    try {
+      wsShouldReconnect = false;
+      wsInstance.close();
+    } catch {}
+  }
 
   notifyWSState("reconnecting");
-  const url = `${wsURL(cfg)}/v1/ws?secret=${encodeURIComponent(cfg.secret)}&session=${encodeURIComponent(normalizeSession(cfg.session))}`;
   trace("ws_connecting", { url });
+  wsCurrentURL = url;
+  wsIsConnecting = true;
   wsInstance = new WebSocket(url);
 
   wsInstance.onopen = () => {
+    wsIsConnecting = false;
     wsLastPong = Date.now();
     trace("ws_open");
     notifyWSState("connected");
@@ -815,10 +844,17 @@ export function connectWebSocket(cfg: GhostConfig): void {
   };
 
   wsInstance.onclose = () => {
-    if (wsPingInterval) clearInterval(wsPingInterval);
+    wsIsConnecting = false;
+    if (wsPingInterval) {
+      clearInterval(wsPingInterval);
+      wsPingInterval = null;
+    }
     trace("ws_close");
     notifyWSState("disconnected");
-    wsReconnectTimer = setTimeout(() => connectWebSocket(cfg), 5000);
+    wsInstance = null;
+    if (wsShouldReconnect && wsReconnectConfig) {
+      wsReconnectTimer = setTimeout(() => connectWebSocket(wsReconnectConfig as GhostConfig), 5000);
+    }
   };
 
   wsInstance.onerror = () => {
@@ -855,8 +891,14 @@ export function getWSState(): "connected" | "disconnected" | "reconnecting" {
 }
 
 export function disconnectWebSocket(): void {
+  wsShouldReconnect = false;
+  wsIsConnecting = false;
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+  wsReconnectTimer = null;
   if (wsPingInterval) clearInterval(wsPingInterval);
+  wsPingInterval = null;
+  wsCurrentURL = null;
+  wsReconnectConfig = null;
   try {
     wsInstance?.close();
   } catch {}
