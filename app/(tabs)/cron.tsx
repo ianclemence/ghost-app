@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,6 +12,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Clock, Play, Pause, RefreshCw, AlertTriangle, RotateCcw, CheckCircle } from "lucide-react-native";
+
 import {
   CronJob,
   fetchCronJobs,
@@ -19,21 +22,10 @@ import {
   runCronJobNow,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
+import { Colors, Fonts } from "@/constants/theme";
 
-const C = {
-  bg: "#080C0F",
-  surface: "#0D1117",
-  surface2: "#101820",
-  border: "#1A2332",
-  accent: "#00FF88",
-  accentDim: "#00FF8818",
-  text: "#C8D8E8",
-  textDim: "#4A6080",
-  textMuted: "#1E2E3E",
-  danger: "#FF4455",
-  warn: "#FFAA00",
-  purple: "#AA88FF",
-};
+const C = Colors.dark;
+const FONT_MONO = Fonts.mono;
 
 function timeAgo(date: number | string | Date): string {
   const seconds = Math.floor(
@@ -61,10 +53,10 @@ function JobCard({
 }) {
   const isPaused = job.lifecycle_state === "paused";
   const statusColor = isPaused
-    ? C.textDim
+    ? C.icon
     : job.state.lastStatus === "error"
-      ? C.danger
-      : C.accent;
+      ? C.error
+      : C.terminalGreen;
 
   return (
     <View style={styles.card}>
@@ -82,7 +74,7 @@ function JobCard({
         <View
           style={[
             styles.statusBadge,
-            { borderColor: statusColor, backgroundColor: statusColor + "20" },
+            { borderColor: statusColor, backgroundColor: isPaused ? 'transparent' : `${statusColor}20` },
           ]}
         >
           <Text style={[styles.statusText, { color: statusColor }]}>
@@ -104,7 +96,7 @@ function JobCard({
             : "Never"}
         </Text>
         {job.state.lastError ? (
-          <Text style={[styles.statText, { color: C.danger }]}>
+          <Text style={[styles.statText, { color: C.error }]}>
             Error: {job.state.lastError}
           </Text>
         ) : null}
@@ -115,7 +107,8 @@ function JobCard({
           style={[styles.actionBtn, styles.runBtn]}
           onPress={() => onAction(job.id, "run")}
         >
-          <Text style={styles.runBtnText}>▶ RUN NOW</Text>
+          <Play size={12} color={C.terminalGreen} style={{ marginRight: 6 }} />
+          <Text style={styles.runBtnText}>RUN NOW</Text>
         </TouchableOpacity>
 
         {isPaused ? (
@@ -123,6 +116,7 @@ function JobCard({
             style={[styles.actionBtn, styles.resumeBtn]}
             onPress={() => onAction(job.id, "resume")}
           >
+            <RotateCcw size={12} color={C.terminalGreen} style={{ marginRight: 6 }} />
             <Text style={styles.resumeBtnText}>RESUME</Text>
           </TouchableOpacity>
         ) : (
@@ -130,6 +124,7 @@ function JobCard({
             style={[styles.actionBtn, styles.pauseBtn]}
             onPress={() => onAction(job.id, "pause")}
           >
+            <Pause size={12} color={C.icon} style={{ marginRight: 6 }} />
             <Text style={styles.pauseBtnText}>PAUSE</Text>
           </TouchableOpacity>
         )}
@@ -209,9 +204,9 @@ export default function CronScreen() {
       <View
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
-        <Text style={{ fontSize: 40, marginBottom: 14 }}>⏰</Text>
-        <Text style={styles.noConfigTitle}>Not connected</Text>
-        <Text style={styles.noConfigSub}>Configure your Pi in ⚙️ Settings</Text>
+        <Clock size={48} color={C.terminalGreen} style={{ marginBottom: 14 }} />
+        <Text style={styles.noConfigTitle}>CRON OFFLINE</Text>
+        <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
       </View>
     );
   }
@@ -219,12 +214,15 @@ export default function CronScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>CRON JOBS</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Clock size={20} color={C.terminalGreen} />
+          <Text style={styles.headerTitle}>CRON_SCHEDULER</Text>
+        </View>
         <TouchableOpacity onPress={loadJobs} disabled={loading}>
           {loading ? (
-            <ActivityIndicator color={C.accent} size="small" />
+            <ActivityIndicator color={C.terminalGreen} size="small" />
           ) : (
-            <Text style={{ color: C.accent, fontSize: 20 }}>↻</Text>
+            <RefreshCw size={18} color={C.terminalGreen} />
           )}
         </TouchableOpacity>
       </View>
@@ -240,12 +238,12 @@ export default function CronScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={C.accent}
+            tintColor={C.terminalGreen}
           />
         }
         ListEmptyComponent={
           !loading ? (
-            <Text style={styles.emptyText}>No cron jobs found.</Text>
+            <Text style={styles.emptyText}>No active schedules found.</Text>
           ) : null
         }
       />
@@ -254,8 +252,8 @@ export default function CronScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  centered: { justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, backgroundColor: C.background },
+  centered: { justifyContent: "center", alignItems: "center", flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -266,18 +264,18 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
   },
   headerTitle: {
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    fontFamily: FONT_MONO,
     fontSize: 16,
     fontWeight: "700",
-    color: C.accent,
-    letterSpacing: 5,
+    color: C.terminalGreen,
+    letterSpacing: 1,
   },
-  noConfigTitle: { color: "#C8D8E8", fontSize: 18, fontWeight: "700" },
-  noConfigSub: { color: "#4A6080", fontSize: 13, marginTop: 8 },
+  noConfigTitle: { color: C.terminalGreen, fontSize: 18, fontWeight: "700", fontFamily: FONT_MONO },
+  noConfigSub: { color: C.icon, fontSize: 13, marginTop: 8, fontFamily: FONT_MONO },
   listContent: { padding: 16, gap: 16 },
   card: {
-    backgroundColor: C.surface,
-    borderRadius: 12,
+    backgroundColor: C.card,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     padding: 16,
@@ -290,19 +288,19 @@ const styles = StyleSheet.create({
   },
   jobName: {
     color: C.text,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     marginBottom: 4,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontFamily: FONT_MONO,
   },
   jobSchedule: {
-    color: C.textDim,
-    fontSize: 12,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    color: C.icon,
+    fontSize: 11,
+    fontFamily: FONT_MONO,
   },
   statusBadge: {
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: 0,
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
@@ -310,23 +308,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.5,
+    fontFamily: FONT_MONO,
   },
   statsRow: {
     flexDirection: "column",
-    gap: 4,
+    gap: 6,
   },
   statText: {
-    color: C.textMuted,
+    color: C.icon,
     fontSize: 11,
+    fontFamily: FONT_MONO,
   },
   commandText: {
     color: C.text,
     fontSize: 11,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontFamily: FONT_MONO,
     backgroundColor: "#ffffff08",
-    borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: C.border,
   },
   actionsRow: {
     flexDirection: "row",
@@ -336,41 +337,46 @@ const styles = StyleSheet.create({
   actionBtn: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 6,
+    borderRadius: 0,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     flex: 1,
+    flexDirection: "row",
   },
   runBtn: {
-    borderColor: C.accent,
-    backgroundColor: C.accentDim,
+    borderColor: C.terminalGreen,
+    backgroundColor: 'rgba(74, 222, 128, 0.1)',
   },
   runBtnText: {
-    color: C.accent,
+    color: C.terminalGreen,
     fontSize: 11,
     fontWeight: "700",
+    fontFamily: FONT_MONO,
   },
   pauseBtn: {
-    borderColor: C.textDim,
+    borderColor: C.icon,
   },
   pauseBtnText: {
-    color: C.textDim,
+    color: C.icon,
     fontSize: 11,
     fontWeight: "700",
+    fontFamily: FONT_MONO,
   },
   resumeBtn: {
-    borderColor: C.accent,
+    borderColor: C.terminalGreen,
   },
   resumeBtnText: {
-    color: C.accent,
+    color: C.terminalGreen,
     fontSize: 11,
     fontWeight: "700",
+    fontFamily: FONT_MONO,
   },
   emptyText: {
-    color: C.textDim,
+    color: C.icon,
     textAlign: "center",
     marginTop: 40,
     fontSize: 14,
+    fontFamily: FONT_MONO,
   },
 });

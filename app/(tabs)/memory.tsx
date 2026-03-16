@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,22 +12,14 @@ import {
 } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FileText, RefreshCw, ArrowLeft, ChevronRight, HardDrive, Database } from "lucide-react-native";
+
 import { fetchMemoryFile, fetchMemoryFiles } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
+import { Colors, Fonts } from "@/constants/theme";
 
-const C = {
-  bg: "#080C0F",
-  surface: "#0D1117",
-  surface2: "#111920",
-  border: "#1A2332",
-  accent: "#00FF88",
-  accentDim: "#00FF8822",
-  text: "#C8D8E8",
-  textDim: "#4A6080",
-  textMuted: "#2A3A4A",
-  warn: "#FFAA00",
-  danger: "#FF4455",
-};
+const C = Colors.dark;
+const FONT_MONO = Fonts.mono;
 
 interface MemFile {
   name: string;
@@ -97,9 +90,9 @@ export default function MemoryScreen() {
       <View
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
-        <Text style={{ color: C.textDim, fontSize: 14 }}>
-          Configure connection in Settings
-        </Text>
+        <Database size={48} color={C.terminalGreen} style={{ marginBottom: 14 }} />
+        <Text style={styles.noConfigTitle}>MEMORY OFFLINE</Text>
+        <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
       </View>
     );
   }
@@ -113,15 +106,17 @@ export default function MemoryScreen() {
               setSelectedFile(null);
               setFileContent(null);
             }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >
-            <Text style={styles.backBtn}>← BACK</Text>
+            <ArrowLeft size={16} color={C.terminalGreen} />
+            <Text style={styles.backBtn}>BACK</Text>
           </TouchableOpacity>
           <Text style={styles.headerFile} numberOfLines={1}>
             {selectedFile}
           </Text>
         </View>
         {loadingFile ? (
-          <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
+          <ActivityIndicator color={C.terminalGreen} style={{ marginTop: 40 }} />
         ) : (
           <ScrollView
             style={styles.fileScroll}
@@ -138,8 +133,11 @@ export default function MemoryScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>MEMORY</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Database size={20} color={C.terminalGreen} />
+            <Text style={styles.headerTitle}>CORE_MEMORY</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 }}>
             <View
               style={{
                 width: 6,
@@ -147,24 +145,24 @@ export default function MemoryScreen() {
                 borderRadius: 3,
                 backgroundColor:
                   connectionState === "online"
-                    ? C.accent
+                    ? C.terminalGreen
                     : connectionState === "syncing"
-                      ? C.warn
-                      : C.danger,
+                      ? C.terminalAmber
+                      : C.error,
               }}
             />
             <Text
               style={{
                 color:
                   connectionState === "online"
-                    ? C.accent
+                    ? C.terminalGreen
                     : connectionState === "syncing"
-                      ? C.warn
-                      : C.danger,
+                      ? C.terminalAmber
+                      : C.error,
                 fontSize: 9,
                 fontWeight: "700",
                 letterSpacing: 1.5,
-                fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+                fontFamily: FONT_MONO,
               }}
             >
               {connectionState.toUpperCase()}
@@ -172,7 +170,11 @@ export default function MemoryScreen() {
           </View>
         </View>
         <TouchableOpacity onPress={loadFiles} disabled={loading}>
-          <Text style={styles.refreshBtn}>↻</Text>
+          {loading ? (
+            <ActivityIndicator color={C.terminalGreen} size="small" />
+          ) : (
+            <RefreshCw size={18} color={C.terminalGreen} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -184,15 +186,15 @@ export default function MemoryScreen() {
         </View>
         <View style={styles.statBox}>
           <Text style={styles.statNum}>{formatSize(totalSize)}</Text>
-          <Text style={styles.statLabel}>TOTAL</Text>
+          <Text style={styles.statLabel}>TOTAL_SIZE</Text>
         </View>
       </View>
 
       {loading ? (
-        <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.terminalGreen} style={{ marginTop: 40 }} />
       ) : files.length === 0 ? (
         <View style={styles.centered}>
-          <Text style={{ color: C.textDim, fontSize: 14 }}>
+          <Text style={{ color: C.icon, fontSize: 14, fontFamily: FONT_MONO }}>
             No memory files found
           </Text>
         </View>
@@ -207,7 +209,7 @@ export default function MemoryScreen() {
               activeOpacity={0.6}
             >
               <View style={styles.fileIcon}>
-                <Text style={{ fontSize: 14 }}>📝</Text>
+                <FileText size={16} color={C.terminalGreen} />
               </View>
               <View style={styles.fileInfo}>
                 <Text style={styles.fileName} numberOfLines={1}>
@@ -223,7 +225,7 @@ export default function MemoryScreen() {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.fileChevron}>›</Text>
+              <ChevronRight size={16} color={C.icon} />
             </TouchableOpacity>
           )}
           contentContainerStyle={{ paddingVertical: 8 }}
@@ -234,7 +236,7 @@ export default function MemoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: C.background },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
@@ -246,33 +248,34 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
   },
   headerTitle: {
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    fontFamily: FONT_MONO,
     fontSize: 16,
     fontWeight: "700",
-    color: C.accent,
-    letterSpacing: 4,
+    color: C.terminalGreen,
+    letterSpacing: 1,
   },
   headerSub: {
-    color: C.textDim,
+    color: C.icon,
     fontSize: 11,
     marginTop: 4,
     maxWidth: "80%",
+    fontFamily: FONT_MONO,
   },
   headerFile: {
     color: C.text,
     fontSize: 14,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontFamily: FONT_MONO,
     flex: 1,
     marginLeft: 12,
   },
   backBtn: {
-    color: C.accent,
+    color: C.terminalGreen,
     fontSize: 13,
     fontWeight: "700",
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    fontFamily: FONT_MONO,
   },
   refreshBtn: {
-    color: C.accent,
+    color: C.terminalGreen,
     fontSize: 22,
     fontWeight: "700",
   },
@@ -284,8 +287,8 @@ const styles = StyleSheet.create({
   },
   statBox: {
     flex: 1,
-    backgroundColor: C.surface,
-    borderRadius: 10,
+    backgroundColor: C.card,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     padding: 14,
@@ -293,16 +296,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statNum: {
-    color: C.accent,
+    color: C.terminalGreen,
     fontSize: 20,
     fontWeight: "800",
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    fontFamily: FONT_MONO,
   },
   statLabel: {
-    color: C.textDim,
+    color: C.icon,
     fontSize: 9,
     letterSpacing: 1.5,
     fontWeight: "600",
+    fontFamily: FONT_MONO,
   },
   fileRow: {
     flexDirection: "row",
@@ -311,13 +315,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#ffffff06",
+    borderBottomColor: C.border,
   },
   fileIcon: {
     width: 34,
     height: 34,
-    borderRadius: 8,
-    backgroundColor: C.surface,
+    borderRadius: 0,
+    backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "center",
@@ -327,14 +331,15 @@ const styles = StyleSheet.create({
   fileName: {
     color: C.text,
     fontSize: 14,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontFamily: FONT_MONO,
   },
   fileMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  fileMetaText: { color: C.textMuted, fontSize: 11 },
-  fileMetaDot: { color: C.textMuted, fontSize: 11 },
-  fileChevron: { color: C.textDim, fontSize: 18 },
+  fileMetaText: { color: C.icon, fontSize: 11, fontFamily: FONT_MONO },
+  fileMetaDot: { color: C.icon, fontSize: 11 },
   fileScroll: { flex: 1 },
   fileContent: { padding: 18 },
+  noConfigTitle: { color: C.terminalGreen, fontSize: 18, fontWeight: "700", fontFamily: FONT_MONO },
+  noConfigSub: { color: C.icon, fontSize: 13, marginTop: 8, fontFamily: FONT_MONO },
 });
 
 const mdStyles = {
@@ -342,54 +347,54 @@ const mdStyles = {
     color: C.text,
     fontSize: 14,
     lineHeight: 22,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontFamily: FONT_MONO,
   } as any,
   heading1: {
-    color: "#FFF",
+    color: C.terminalGreen,
     fontWeight: "800" as const,
     fontSize: 18,
     marginBottom: 8,
   },
   heading2: {
-    color: "#FFF",
+    color: C.terminalGreen,
     fontWeight: "700" as const,
     fontSize: 16,
     marginBottom: 6,
   },
   heading3: {
-    color: "#FFF",
+    color: C.text,
     fontWeight: "600" as const,
     fontSize: 14,
     marginBottom: 4,
   },
   code_inline: {
-    backgroundColor: "#00FF8814",
-    color: C.accent,
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-    borderRadius: 4,
+    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+    color: C.terminalGreen,
+    fontFamily: FONT_MONO,
+    borderRadius: 0,
     paddingHorizontal: 4,
     fontSize: 13,
   } as any,
   fence: {
-    backgroundColor: "#080F18",
-    borderRadius: 8,
+    backgroundColor: C.card,
+    borderRadius: 0,
     padding: 12,
     borderWidth: 1,
     borderColor: C.border,
   } as any,
   code_block: {
-    color: C.accent,
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+    color: C.terminalGreen,
+    fontFamily: FONT_MONO,
     fontSize: 13,
   } as any,
-  link: { color: C.accent } as any,
-  strong: { color: "#FFFFFF", fontWeight: "700" as const },
+  link: { color: C.terminalGreen, textDecorationLine: "underline" } as any,
+  strong: { color: C.text, fontWeight: "700" as const },
   blockquote: {
     borderLeftWidth: 3,
-    borderLeftColor: C.accent,
+    borderLeftColor: C.terminalGreen,
     paddingLeft: 10,
     opacity: 0.8,
   } as any,
   hr: { backgroundColor: C.border, height: 1 } as any,
-  list_item: { color: C.text, fontSize: 14 } as any,
+  list_item: { color: C.text, fontSize: 14, fontFamily: FONT_MONO } as any,
 };

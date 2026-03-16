@@ -1,3 +1,4 @@
+
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -14,6 +15,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { 
+  Globe, Terminal, Folder, Music, Monitor, HardDrive, Cpu, Activity, 
+  LayoutGrid, Image as ImageIcon, Play, Command, RefreshCw, Power
+} from "lucide-react-native";
+
 import {
   ExecResult,
   fetchStats,
@@ -23,30 +29,19 @@ import {
   takeScreenshot,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
+import { Colors, Fonts } from "@/constants/theme";
 
-const C = {
-  bg: "#080C0F",
-  surface: "#0D1117",
-  surface2: "#101820",
-  border: "#1A2332",
-  accent: "#00FF88",
-  accentDim: "#00FF8818",
-  text: "#C8D8E8",
-  textDim: "#4A6080",
-  textMuted: "#1E2E3E",
-  danger: "#FF4455",
-  warn: "#FFAA00",
-  purple: "#AA88FF",
-};
+const C = Colors.dark;
+const FONT_MONO = Fonts.mono;
 
 // ─── Quick-launch app buttons ─────────────────────────────────────────────
 const QUICK_APPS = [
-  { label: "Firefox", icon: "🦊", target: "firefox" },
-  { label: "Chromium", icon: "🌐", target: "chromium" },
-  { label: "Terminal", icon: "⬛", target: "terminal" },
-  { label: "Files", icon: "📁", target: "files" },
-  { label: "Spotify", icon: "🎵", target: "spotify" },
-  { label: "VLC", icon: "📺", target: "vlc" },
+  { label: "Firefox", icon: Globe, target: "firefox" },
+  { label: "Chromium", icon: Globe, target: "chromium" },
+  { label: "Terminal", icon: Terminal, target: "terminal" },
+  { label: "Files", icon: Folder, target: "files" },
+  { label: "Spotify", icon: Music, target: "spotify" },
+  { label: "VLC", icon: Monitor, target: "vlc" },
 ];
 
 // ─── Common shell commands ─────────────────────────────────────────────────
@@ -89,24 +84,24 @@ function StatsGrid({
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>SYSTEM</Text>
+        <Text style={styles.cardTitle}>SYSTEM_STATS</Text>
         <TouchableOpacity onPress={onRefresh} disabled={loading}>
           {loading ? (
-            <ActivityIndicator color={C.accent} size="small" />
+            <ActivityIndicator color={C.terminalGreen} size="small" />
           ) : (
-            <Text style={styles.refreshBtn}>↻</Text>
+            <RefreshCw size={16} color={C.terminalGreen} />
           )}
         </TouchableOpacity>
       </View>
       {!stats && !loading && (
-        <Text style={styles.dimText}>Tap ↻ to fetch stats</Text>
+        <Text style={styles.dimText}>Awaiting telemetry...</Text>
       )}
       <View style={styles.statsGrid}>
         {items.map((item) => (
           <View key={item.label} style={styles.statCell}>
             <Text style={styles.statLabel}>{item.label}</Text>
             <Text
-              style={[styles.statValue, item.accent && { color: C.accent }]}
+              style={[styles.statValue, item.accent && { color: C.terminalGreen }]}
               numberOfLines={1}
             >
               {item.value || "—"}
@@ -123,21 +118,14 @@ export default function RemoteScreen() {
   const insets = useSafeAreaInsets();
   const { config, connectionState } = useGhostStore();
 
-  // Stats
   const [stats, setStats] = useState<PiStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
-
-  // Browser/URL open
   const [urlInput, setUrlInput] = useState("");
   const [openLoading, setOpenLoading] = useState(false);
   const [openResult, setOpenResult] = useState<string | null>(null);
-
-  // Shell exec
   const [cmdInput, setCmdInput] = useState("");
   const [execLoading, setExecLoading] = useState(false);
   const [execResult, setExecResult] = useState<ExecResult | null>(null);
-
-  // Screenshot
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [screenshotLoading, setScreenshotLoading] = useState(false);
 
@@ -169,7 +157,7 @@ export default function RemoteScreen() {
 
     const result = await openOnPi(config, target);
     setOpenResult(
-      result.ok ? `✓ Opened on Pi` : `✗ ${result.error ?? "Failed"}`,
+      result.ok ? `✓ Launched on Pi` : `✗ ${result.error ?? "Failed"}`,
     );
     setOpenLoading(false);
   };
@@ -224,9 +212,9 @@ export default function RemoteScreen() {
       <View
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
-        <Text style={{ fontSize: 40, marginBottom: 14 }}>🖥️</Text>
-        <Text style={styles.noConfigTitle}>Not connected</Text>
-        <Text style={styles.noConfigSub}>Configure your Pi in ⚙️ Settings</Text>
+        <Monitor size={48} color={C.terminalGreen} />
+        <Text style={styles.noConfigTitle}>REMOTE OFFLINE</Text>
+        <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
       </View>
     );
   }
@@ -242,33 +230,13 @@ export default function RemoteScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>REMOTE</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-          <View
-            style={[
-              styles.statusDot,
-              {
-                backgroundColor:
-                  connectionState === "online"
-                    ? C.accent
-                    : connectionState === "syncing"
-                      ? C.warn
-                      : C.danger,
-              },
-            ]}
-          />
-          <Text
-            style={{
-              color:
-                connectionState === "online"
-                  ? C.accent
-                  : connectionState === "syncing"
-                    ? C.warn
-                    : C.danger,
-              fontSize: 10,
-              letterSpacing: 1,
-            }}
-          >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Monitor size={20} color={C.terminalGreen} />
+          <Text style={styles.headerTitle}>REMOTE_ACCESS</Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: connectionState === "online" ? C.terminalGreen : C.error }} />
+          <Text style={{ color: connectionState === "online" ? C.terminalGreen : C.error, fontSize: 10, letterSpacing: 1, fontFamily: FONT_MONO }}>
             {connectionState.toUpperCase()}
           </Text>
         </View>
@@ -280,14 +248,14 @@ export default function RemoteScreen() {
 
         {/* Browser / URL Launcher */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>BROWSER</Text>
+          <Text style={styles.cardTitle}>BROWSER_LAUNCHER</Text>
           <View style={styles.urlRow}>
             <TextInput
               style={styles.urlInput}
               value={urlInput}
               onChangeText={setUrlInput}
               placeholder="https://example.com"
-              placeholderTextColor={C.textMuted}
+              placeholderTextColor={C.icon}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
@@ -299,21 +267,14 @@ export default function RemoteScreen() {
               disabled={openLoading || !urlInput.trim()}
             >
               {openLoading ? (
-                <ActivityIndicator color={C.bg} size="small" />
+                <ActivityIndicator color={C.background} size="small" />
               ) : (
                 <Text style={styles.goBtnTxt}>GO</Text>
               )}
             </TouchableOpacity>
           </View>
           {openResult && (
-            <Text
-              style={[
-                styles.resultText,
-                openResult.startsWith("✓")
-                  ? { color: C.accent }
-                  : { color: C.danger },
-              ]}
-            >
+            <Text style={[styles.resultText, openResult.startsWith("✓") ? { color: C.terminalGreen } : { color: C.error }]}>
               {openResult}
             </Text>
           )}
@@ -321,7 +282,7 @@ export default function RemoteScreen() {
 
         {/* Quick App Launch */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>LAUNCH APP</Text>
+          <Text style={styles.cardTitle}>APP_LAUNCHER</Text>
           <View style={styles.appGrid}>
             {QUICK_APPS.map((app) => (
               <TouchableOpacity
@@ -330,7 +291,7 @@ export default function RemoteScreen() {
                 onPress={() => handleOpenApp(app.target)}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 22 }}>{app.icon}</Text>
+                <app.icon size={24} color={C.text} />
                 <Text style={styles.appLabel}>{app.label}</Text>
               </TouchableOpacity>
             ))}
@@ -340,14 +301,14 @@ export default function RemoteScreen() {
         {/* Screenshot */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>SCREENSHOT</Text>
+            <Text style={styles.cardTitle}>SCREEN_CAPTURE</Text>
             <TouchableOpacity
               style={[styles.smallBtn, screenshotLoading && styles.smallBtnOff]}
               onPress={handleScreenshot}
               disabled={screenshotLoading}
             >
               {screenshotLoading ? (
-                <ActivityIndicator color={C.accent} size="small" />
+                <ActivityIndicator color={C.terminalGreen} size="small" />
               ) : (
                 <Text style={styles.smallBtnTxt}>CAPTURE</Text>
               )}
@@ -361,27 +322,21 @@ export default function RemoteScreen() {
             />
           ) : (
             <Text style={styles.dimText}>
-              Tap CAPTURE to grab the Pi screen
+              Awaiting visual confirmation...
             </Text>
           )}
         </View>
 
         {/* Shell Exec */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>SHELL</Text>
+          <Text style={styles.cardTitle}>SHELL_EXEC</Text>
           <View style={styles.urlRow}>
             <TextInput
-              style={[
-                styles.urlInput,
-                {
-                  fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-                  fontSize: 13,
-                },
-              ]}
+              style={[styles.urlInput, { fontSize: 13 }]}
               value={cmdInput}
               onChangeText={setCmdInput}
               placeholder="systemctl status ghost"
-              placeholderTextColor={C.textMuted}
+              placeholderTextColor={C.icon}
               autoCapitalize="none"
               autoCorrect={false}
               onSubmitEditing={() => handleExec()}
@@ -392,7 +347,7 @@ export default function RemoteScreen() {
               disabled={execLoading || !cmdInput.trim()}
             >
               {execLoading ? (
-                <ActivityIndicator color={C.bg} size="small" />
+                <ActivityIndicator color={C.background} size="small" />
               ) : (
                 <Text style={styles.goBtnTxt}>RUN</Text>
               )}
@@ -419,12 +374,7 @@ export default function RemoteScreen() {
           {execResult && (
             <View style={styles.execOutput}>
               <View style={styles.execOutputHeader}>
-                <Text
-                  style={[
-                    styles.exitBadge,
-                    { color: execResult.exit_code === 0 ? C.accent : C.danger },
-                  ]}
-                >
+                <Text style={[styles.exitBadge, { color: execResult.exit_code === 0 ? C.terminalGreen : C.error }]}>
                   exit {execResult.exit_code}
                 </Text>
                 <Text style={styles.durationTxt}>
@@ -435,7 +385,7 @@ export default function RemoteScreen() {
                 <Text style={styles.execText}>{execResult.stdout.trim()}</Text>
               ) : null}
               {execResult.stderr ? (
-                <Text style={[styles.execText, { color: C.danger }]}>
+                <Text style={[styles.execText, { color: C.error }]}>
                   {execResult.stderr.trim()}
                 </Text>
               ) : null}
@@ -448,168 +398,64 @@ export default function RemoteScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  centered: { justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, backgroundColor: C.background },
+  centered: { justifyContent: "center", alignItems: "center", flex: 1 },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  headerTitle: {
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-    fontSize: 16,
-    fontWeight: "700",
-    color: C.accent,
-    letterSpacing: 5,
-  },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  headerTitle: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", color: C.terminalGreen, letterSpacing: 1 },
   content: { padding: 12, gap: 12 },
   card: {
-    backgroundColor: C.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 14,
-    gap: 12,
+    backgroundColor: C.card, borderRadius: 0, borderWidth: 1, borderColor: C.border, padding: 14, gap: 12,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  cardTitle: {
-    color: C.textDim,
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 2,
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-  },
-  refreshBtn: { color: C.accent, fontSize: 18 },
+  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  cardTitle: { color: C.icon, fontSize: 10, fontWeight: "700", letterSpacing: 2, fontFamily: FONT_MONO },
   statsGrid: { flexDirection: "row", flexWrap: "wrap" },
   statCell: { width: "50%", paddingVertical: 6, paddingRight: 8 },
-  statLabel: {
-    color: C.textMuted,
-    fontSize: 9,
-    letterSpacing: 1.5,
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-    marginBottom: 2,
-  },
-  statValue: {
-    color: C.text,
-    fontSize: 13,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
+  statLabel: { color: C.icon, fontSize: 9, letterSpacing: 1.5, fontFamily: FONT_MONO, marginBottom: 2 },
+  statValue: { color: C.text, fontSize: 13, fontFamily: FONT_MONO },
+  
   urlRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   urlInput: {
-    flex: 1,
-    backgroundColor: "#ffffff08",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    color: C.text,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    flex: 1, backgroundColor: "#ffffff08", paddingHorizontal: 12, paddingVertical: 9,
+    color: C.text, fontSize: 14, borderWidth: 1, borderColor: C.border, fontFamily: FONT_MONO,
   },
   goBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 52,
+    backgroundColor: C.terminalGreen, paddingHorizontal: 14, paddingVertical: 9,
+    alignItems: "center", justifyContent: "center", minWidth: 52, borderRadius: 0,
   },
   goBtnOff: { opacity: 0.35 },
-  goBtnTxt: {
-    color: C.bg,
-    fontWeight: "800",
-    fontSize: 12,
-    letterSpacing: 0.5,
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-  },
-  resultText: { fontSize: 13, fontWeight: "600", letterSpacing: 0.3 },
+  goBtnTxt: { color: C.background, fontWeight: "800", fontSize: 12, letterSpacing: 0.5, fontFamily: FONT_MONO },
+  resultText: { fontSize: 13, fontWeight: "600", letterSpacing: 0.3, fontFamily: FONT_MONO },
+  
   appGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   appBtn: {
-    backgroundColor: C.surface2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    alignItems: "center",
-    gap: 4,
-    minWidth: 70,
+    backgroundColor: C.background, borderWidth: 1, borderColor: C.border,
+    paddingVertical: 10, paddingHorizontal: 14, alignItems: "center", gap: 6, minWidth: 70, borderRadius: 0,
   },
-  appLabel: {
-    color: C.textDim,
-    fontSize: 10,
-    letterSpacing: 0.5,
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-  },
-  screenshotImg: { width: "100%", height: 200, borderRadius: 8 },
-  dimText: { color: C.textDim, fontSize: 12, lineHeight: 18 },
+  appLabel: { color: C.icon, fontSize: 10, letterSpacing: 0.5, fontFamily: FONT_MONO },
+  
+  screenshotImg: { width: "100%", height: 200, borderRadius: 4, borderWidth: 1, borderColor: C.border },
+  dimText: { color: C.icon, fontSize: 12, fontFamily: FONT_MONO },
+  
   quickCmds: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   quickCmdBtn: {
-    backgroundColor: C.accentDim,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#00FF8830",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(74, 222, 128, 0.1)', borderWidth: 1, borderColor: C.terminalGreen,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 0,
   },
-  quickCmdTxt: {
-    color: C.accent,
-    fontSize: 11,
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-  },
-  execOutput: {
-    backgroundColor: "#050A0F",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 12,
-    gap: 8,
-  },
-  execOutputHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  exitBadge: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-  },
-  durationTxt: { color: C.textDim, fontSize: 10 },
-  execText: {
-    color: C.text,
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  smallBtn: {
-    borderWidth: 1,
-    borderColor: C.accent,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
+  quickCmdTxt: { color: C.terminalGreen, fontSize: 11, fontWeight: "600", fontFamily: FONT_MONO },
+  
+  execOutput: { backgroundColor: "#000", borderWidth: 1, borderColor: C.border, padding: 12, gap: 8 },
+  execOutputHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  exitBadge: { fontSize: 11, fontWeight: "700", letterSpacing: 1, fontFamily: FONT_MONO },
+  durationTxt: { color: C.icon, fontSize: 10, fontFamily: FONT_MONO },
+  execText: { color: C.text, fontSize: 12, lineHeight: 18, fontFamily: FONT_MONO },
+  
+  smallBtn: { borderWidth: 1, borderColor: C.terminalGreen, paddingHorizontal: 10, paddingVertical: 5 },
   smallBtnOff: { opacity: 0.4 },
-  smallBtnTxt: {
-    color: C.accent,
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
-    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-  },
-  noConfigTitle: { color: "#C8D8E8", fontSize: 18, fontWeight: "700" },
-  noConfigSub: { color: "#4A6080", fontSize: 13, marginTop: 8 },
+  smallBtnTxt: { color: C.terminalGreen, fontSize: 10, fontWeight: "700", letterSpacing: 1, fontFamily: FONT_MONO },
+  
+  noConfigTitle: { color: C.terminalGreen, fontSize: 18, fontWeight: "700", fontFamily: FONT_MONO },
+  noConfigSub: { color: C.icon, fontSize: 13, marginTop: 8, fontFamily: FONT_MONO },
 });

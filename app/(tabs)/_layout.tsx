@@ -1,32 +1,32 @@
+
 import { Tabs } from "expo-router";
 import { Platform, Text, View } from "react-native";
+import { Terminal, Server, Clock, Brain, Settings } from "lucide-react-native";
+import { Colors, Fonts } from "@/constants/theme";
 
-const C = {
-  bg: "#0D1117",
-  border: "#1A2332",
-  accent: "#00FF88",
-  inactive: "#2A3A4A",
-};
+const C = Colors.dark;
+const FONT_MONO = Fonts.mono;
 
 function TabIcon({
-  icon,
+  Icon,
   label,
   focused,
 }: {
-  icon: string;
+  Icon: React.ElementType;
   label: string;
   focused: boolean;
 }) {
+  const color = focused ? C.terminalGreen : C.icon;
   return (
-    <View style={{ alignItems: "center", gap: 3, paddingTop: 4 }}>
-      <Text style={{ fontSize: 19, opacity: focused ? 1 : 0.35 }}>{icon}</Text>
+    <View style={{ alignItems: "center", gap: 4, paddingTop: 12 }}>
+      <Icon size={20} color={color} strokeWidth={focused ? 2.5 : 2} />
       <Text
         style={{
-          fontSize: 8,
-          fontWeight: focused ? "800" : "500",
-          color: focused ? C.accent : C.inactive,
-          letterSpacing: 1.2,
-          fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+          fontSize: 10,
+          fontWeight: focused ? "700" : "500",
+          color,
+          letterSpacing: 1,
+          fontFamily: FONT_MONO,
         }}
       >
         {label}
@@ -40,13 +40,14 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: C.bg },
+        sceneStyle: { backgroundColor: C.background },
         tabBarStyle: {
-          backgroundColor: C.bg,
+          backgroundColor: C.background,
           borderTopColor: C.border,
           borderTopWidth: 1,
-          height: 68,
-          paddingBottom: 8,
+          height: Platform.OS === "ios" ? 88 : 68,
+          paddingBottom: Platform.OS === "ios" ? 28 : 8,
+          elevation: 0,
         },
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
@@ -56,7 +57,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="👻" label="CHAT" focused={focused} />
+            <TabIcon Icon={Terminal} label="TERM" focused={focused} />
           ),
         }}
       />
@@ -64,7 +65,7 @@ export default function TabLayout() {
         name="remote"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="🖥️" label="REMOTE" focused={focused} />
+            <TabIcon Icon={Server} label="SSH" focused={focused} />
           ),
         }}
       />
@@ -72,7 +73,7 @@ export default function TabLayout() {
         name="cron"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="⏰" label="CRON" focused={focused} />
+            <TabIcon Icon={Clock} label="CRON" focused={focused} />
           ),
         }}
       />
@@ -80,7 +81,7 @@ export default function TabLayout() {
         name="memory"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="🧠" label="MEMORY" focused={focused} />
+            <TabIcon Icon={Brain} label="MEM" focused={focused} />
           ),
         }}
       />
@@ -88,7 +89,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="⚙️" label="CTRL" focused={focused} />
+            <TabIcon Icon={Settings} label="CFG" focused={focused} />
           ),
         }}
       />
