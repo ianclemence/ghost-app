@@ -1,20 +1,29 @@
 {
   "expo": {
     "name": "Ghost",
-    "slug": "ghost-mobile",
+    "slug": "ghost",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/icons/ios-light.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/icons/splash-icon-dark.png",
       "resizeMode": "contain",
-      "backgroundColor": "#080C0F"
+      "backgroundColor": "#ffffff",
+      "dark": {
+        "image": "./assets/icons/splash-icon-light.png",
+        "backgroundColor": "#000000"
+      }
     },
     "scheme": "ghost",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.ghost.mobile",
+      "icon": {
+        "dark": "./assets/icons/ios-dark.png",
+        "light": "./assets/icons/ios-light.png",
+        "tinted": "./assets/icons/ios-tinted.png"
+      },
+      "bundleIdentifier": "com.ianclemence.ghost",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Ghost needs microphone access for voice messages",
         "NSPhotoLibraryUsageDescription": "Ghost needs photo library access to send images",
@@ -24,10 +33,12 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundColor": "#080C0F"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/icons/adaptive-icon.png",
+        "backgroundImage": "./assets/icons/adaptive-icon.png",
+        "monochromeImage": "./assets/icons/adaptive-icon.png"
       },
-      "package": "com.ghost.mobile",
+      "package": "com.ianclemence.ghost",
       "permissions": [
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
@@ -42,7 +53,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/logo.png",
           "color": "#00FF88",
           "sounds": []
         }
