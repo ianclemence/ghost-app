@@ -6,7 +6,6 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   AppState,
   FlatList,
@@ -733,6 +732,132 @@ const toolBadgeStyles = StyleSheet.create({
   },
 });
 
+// ─── Custom Modal Component ────────────────────────────────────────────────
+function ConfirmModal({
+  visible,
+  title,
+  subtitle,
+  onCancel,
+  onConfirm,
+  confirmText = "Confirm",
+  confirmColor = C.accent,
+}: {
+  visible: boolean;
+  title: string;
+  subtitle: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+  confirmText?: string;
+  confirmColor?: string;
+}) {
+  if (!visible) return null;
+
+  return (
+    <View style={StyleSheet.absoluteFillObject}>
+      <TouchableOpacity
+        style={modalStyles.backdrop}
+        activeOpacity={1}
+        onPress={onCancel}
+      />
+      <View style={modalStyles.centered}>
+        <View style={modalStyles.card}>
+          <Text style={modalStyles.title}>{title}</Text>
+          <Text style={modalStyles.subtitle}>{subtitle}</Text>
+          <View style={modalStyles.actions}>
+            <TouchableOpacity style={modalStyles.cancelBtn} onPress={onCancel}>
+              <Text style={modalStyles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                modalStyles.confirmBtn,
+                { backgroundColor: confirmColor },
+              ]}
+              onPress={onConfirm}
+            >
+              <Text style={modalStyles.confirmText}>{confirmText}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    zIndex: 100,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    zIndex: 101,
+    pointerEvents: "box-none",
+  },
+  card: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: C.surface,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  title: {
+    color: C.textPrimary,
+    fontSize: 19,
+    fontWeight: "700",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  subtitle: {
+    color: C.textSecondary,
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: C.surface2,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  cancelText: {
+    color: C.textPrimary,
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  confirmText: {
+    color: "#080C0F", // Dark text on accent/danger bg
+    fontWeight: "700",
+    fontSize: 15,
+  },
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -811,6 +936,7 @@ export default function ChatScreen() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [totalMessages, setTotalMessages] = useState(0);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const [showClearModal, setShowClearModal] = useState(false);
 
   const uid = () => `local-${Date.now()}-${++localIdSeq.current}`;
   const normalize = (t: string) => t.replace(/\s+/g, " ").trim();
@@ -1411,34 +1537,27 @@ export default function ChatScreen() {
     if (isStreaming) {
       commitStream();
     }
-    Alert.alert(
-      "Clear chat?",
-      "Archives mobile history. Ghost's memory is unaffected.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await clearChat(config);
-              setMessages([]);
-              setActiveError(null);
-              setTotalMessages(0);
-            } catch {
-              setActiveError({
-                error: {
-                  kind: "network",
-                  message: "Failed to clear chat",
-                  retryable: false,
-                },
-              });
-            }
-          },
+    setShowClearModal(true);
+  }, [config, isStreaming, commitStream]);
+
+  const performClear = useCallback(async () => {
+    if (!config) return;
+    setShowClearModal(false);
+    try {
+      await clearChat(config);
+      setMessages([]);
+      setActiveError(null);
+      setTotalMessages(0);
+    } catch {
+      setActiveError({
+        error: {
+          kind: "network",
+          message: "Failed to clear chat",
+          retryable: false,
         },
-      ],
-    );
-  }, [config, isStreaming, commitStream, setMessages]);
+      });
+    }
+  }, [config, setMessages]);
 
   // ── Attach tray ───────────────────────────────────────────────────────
   const toggleAttach = () => {
@@ -1860,6 +1979,17 @@ export default function ChatScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* ── Custom Modals ── */}
+      <ConfirmModal
+        visible={showClearModal}
+        title="Clear Chat History?"
+        subtitle="This will archive the current mobile history. Ghost's core memory is unaffected."
+        onCancel={() => setShowClearModal(false)}
+        onConfirm={performClear}
+        confirmText="Clear History"
+        confirmColor={C.danger}
+      />
     </KeyboardAvoidingView>
   );
 }
