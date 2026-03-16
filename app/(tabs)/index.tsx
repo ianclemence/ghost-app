@@ -808,6 +808,7 @@ export default function ChatScreen() {
     currentSession,
     setCurrentSession,
     clearSeenMessageIds,
+    accentColor,
   } = useGhostStore();
 
   const [input, setInput] = useState("");
