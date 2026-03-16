@@ -953,7 +953,6 @@ export default function ChatScreen() {
           </TouchableOpacity>
 
           <View style={s.inputWrap}>
-            <Text style={s.prompt}>$</Text>
             <TextInput
               ref={inputRef}
               style={s.input}
