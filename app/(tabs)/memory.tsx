@@ -91,7 +91,7 @@ export default function MemoryScreen() {
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
         <Database size={48} color={C.terminalGreen} style={{ marginBottom: 14 }} />
-        <Text style={styles.noConfigTitle}>MEMORY OFFLINE</Text>
+        <Text style={styles.noConfigTitle}>Offline</Text>
         <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
       </View>
     );
@@ -109,7 +109,7 @@ export default function MemoryScreen() {
             style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >
             <ArrowLeft size={16} color={C.terminalGreen} />
-            <Text style={styles.backBtn}>BACK</Text>
+            <Text style={styles.backBtn}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerFile} numberOfLines={1}>
             {selectedFile}
@@ -135,7 +135,7 @@ export default function MemoryScreen() {
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Database size={20} color={C.terminalGreen} />
-            <Text style={styles.headerTitle}>CORE_MEMORY</Text>
+            <Text style={styles.headerTitle}>Knowledge Base</Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 }}>
             <View
@@ -182,11 +182,11 @@ export default function MemoryScreen() {
       <View style={styles.statsRow}>
         <View style={styles.statBox}>
           <Text style={styles.statNum}>{files.length}</Text>
-          <Text style={styles.statLabel}>FILES</Text>
+          <Text style={styles.statLabel}>Files</Text>
         </View>
         <View style={styles.statBox}>
           <Text style={styles.statNum}>{formatSize(totalSize)}</Text>
-          <Text style={styles.statLabel}>TOTAL_SIZE</Text>
+          <Text style={styles.statLabel}>Total Size</Text>
         </View>
       </View>
 

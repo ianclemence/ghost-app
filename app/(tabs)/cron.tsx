@@ -108,7 +108,7 @@ function JobCard({
           onPress={() => onAction(job.id, "run")}
         >
           <Play size={12} color={C.terminalGreen} style={{ marginRight: 6 }} />
-          <Text style={styles.runBtnText}>RUN NOW</Text>
+          <Text style={styles.runBtnText}>Run Now</Text>
         </TouchableOpacity>
 
         {isPaused ? (
@@ -117,7 +117,7 @@ function JobCard({
             onPress={() => onAction(job.id, "resume")}
           >
             <RotateCcw size={12} color={C.terminalGreen} style={{ marginRight: 6 }} />
-            <Text style={styles.resumeBtnText}>RESUME</Text>
+            <Text style={styles.resumeBtnText}>Resume</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -125,7 +125,7 @@ function JobCard({
             onPress={() => onAction(job.id, "pause")}
           >
             <Pause size={12} color={C.icon} style={{ marginRight: 6 }} />
-            <Text style={styles.pauseBtnText}>PAUSE</Text>
+            <Text style={styles.pauseBtnText}>Pause</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -205,7 +205,7 @@ export default function CronScreen() {
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
         <Clock size={48} color={C.terminalGreen} style={{ marginBottom: 14 }} />
-        <Text style={styles.noConfigTitle}>CRON OFFLINE</Text>
+        <Text style={styles.noConfigTitle}>Offline</Text>
         <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
       </View>
     );
@@ -216,7 +216,7 @@ export default function CronScreen() {
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Clock size={20} color={C.terminalGreen} />
-          <Text style={styles.headerTitle}>CRON_SCHEDULER</Text>
+          <Text style={styles.headerTitle}>Scheduled Tasks</Text>
         </View>
         <TouchableOpacity onPress={loadJobs} disabled={loading}>
           {loading ? (

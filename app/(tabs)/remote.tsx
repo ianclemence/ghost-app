@@ -66,15 +66,15 @@ function StatsGrid({
 }) {
   const items = stats
     ? [
-        { label: "HOST", value: stats.hostname },
+        { label: "Host", value: stats.hostname },
         { label: "IP", value: stats.ip },
-        { label: "UPTIME", value: stats.uptime.replace("up ", "") },
-        { label: "CPU TEMP", value: stats.cpu_temp },
-        { label: "MEMORY", value: stats.memory },
-        { label: "DISK", value: stats.disk },
-        { label: "LOAD", value: stats.load },
+        { label: "Uptime", value: stats.uptime.replace("up ", "") },
+        { label: "CPU Temp", value: stats.cpu_temp },
+        { label: "Memory", value: stats.memory },
+        { label: "Disk", value: stats.disk },
+        { label: "Load", value: stats.load },
         {
-          label: "GHOST",
+          label: "Ghost Service",
           value: stats.ghost_svc || "—",
           accent: stats.ghost_svc === "active",
         },
@@ -84,7 +84,7 @@ function StatsGrid({
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>SYSTEM_STATS</Text>
+        <Text style={styles.cardTitle}>System Status</Text>
         <TouchableOpacity onPress={onRefresh} disabled={loading}>
           {loading ? (
             <ActivityIndicator color={C.terminalGreen} size="small" />
@@ -213,7 +213,7 @@ export default function RemoteScreen() {
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
         <Monitor size={48} color={C.terminalGreen} />
-        <Text style={styles.noConfigTitle}>REMOTE OFFLINE</Text>
+        <Text style={styles.noConfigTitle}>Offline</Text>
         <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
       </View>
     );
@@ -232,7 +232,7 @@ export default function RemoteScreen() {
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Monitor size={20} color={C.terminalGreen} />
-          <Text style={styles.headerTitle}>REMOTE_ACCESS</Text>
+          <Text style={styles.headerTitle}>Remote Control</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: connectionState === "online" ? C.terminalGreen : C.error }} />
@@ -248,7 +248,7 @@ export default function RemoteScreen() {
 
         {/* Browser / URL Launcher */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>BROWSER_LAUNCHER</Text>
+          <Text style={styles.cardTitle}>Open URL</Text>
           <View style={styles.urlRow}>
             <TextInput
               style={styles.urlInput}
@@ -269,7 +269,7 @@ export default function RemoteScreen() {
               {openLoading ? (
                 <ActivityIndicator color={C.background} size="small" />
               ) : (
-                <Text style={styles.goBtnTxt}>GO</Text>
+                <Text style={styles.goBtnTxt}>Go</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -282,7 +282,7 @@ export default function RemoteScreen() {
 
         {/* Quick App Launch */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>APP_LAUNCHER</Text>
+          <Text style={styles.cardTitle}>Open App</Text>
           <View style={styles.appGrid}>
             {QUICK_APPS.map((app) => (
               <TouchableOpacity
@@ -301,7 +301,7 @@ export default function RemoteScreen() {
         {/* Screenshot */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>SCREEN_CAPTURE</Text>
+            <Text style={styles.cardTitle}>Screenshot</Text>
             <TouchableOpacity
               style={[styles.smallBtn, screenshotLoading && styles.smallBtnOff]}
               onPress={handleScreenshot}
@@ -310,7 +310,7 @@ export default function RemoteScreen() {
               {screenshotLoading ? (
                 <ActivityIndicator color={C.terminalGreen} size="small" />
               ) : (
-                <Text style={styles.smallBtnTxt}>CAPTURE</Text>
+                <Text style={styles.smallBtnTxt}>Capture</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -329,7 +329,7 @@ export default function RemoteScreen() {
 
         {/* Shell Exec */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>SHELL_EXEC</Text>
+          <Text style={styles.cardTitle}>Run Command</Text>
           <View style={styles.urlRow}>
             <TextInput
               style={[styles.urlInput, { fontSize: 13 }]}
@@ -349,7 +349,7 @@ export default function RemoteScreen() {
               {execLoading ? (
                 <ActivityIndicator color={C.background} size="small" />
               ) : (
-                <Text style={styles.goBtnTxt}>RUN</Text>
+                <Text style={styles.goBtnTxt}>Run</Text>
               )}
             </TouchableOpacity>
           </View>

@@ -57,7 +57,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Terminal} label="TERM" focused={focused} />
+            <TabIcon Icon={Terminal} label="Chat" focused={focused} />
           ),
         }}
       />
@@ -65,7 +65,7 @@ export default function TabLayout() {
         name="remote"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Server} label="SSH" focused={focused} />
+            <TabIcon Icon={Server} label="Remote" focused={focused} />
           ),
         }}
       />
@@ -73,7 +73,7 @@ export default function TabLayout() {
         name="cron"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Clock} label="CRON" focused={focused} />
+            <TabIcon Icon={Clock} label="Tasks" focused={focused} />
           ),
         }}
       />
@@ -81,7 +81,7 @@ export default function TabLayout() {
         name="memory"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Brain} label="MEM" focused={focused} />
+            <TabIcon Icon={Brain} label="Memory" focused={focused} />
           ),
         }}
       />
@@ -89,7 +89,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Settings} label="CFG" focused={focused} />
+            <TabIcon Icon={Settings} label="Settings" focused={focused} />
           ),
         }}
       />

@@ -189,7 +189,7 @@ export default function SettingsScreen() {
       <View style={s.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Settings size={20} color={C.terminalGreen} />
-          <Text style={s.headerTitle}>SYSTEM_CONFIG</Text>
+          <Text style={s.headerTitle}>Settings</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           {connectionState === "online" ? <Wifi size={14} color={C.terminalGreen} /> : <WifiOff size={14} color={C.error} />}
@@ -201,23 +201,23 @@ export default function SettingsScreen() {
       </View>
 
       {/* Connection */}
-      <Section title="GHOST_UPLINK">
-        <Field label="HOST_IP" value={host} onChangeText={setHost} placeholder="192.168.1.42" keyboardType="numbers-and-punctuation" />
-        <Field label="PORT" value={port} onChangeText={setPort} placeholder="8766" keyboardType="numeric" />
-        <Field label="SECRET_KEY" value={secret} onChangeText={setSecret} placeholder="Auth secret" secureTextEntry />
+      <Section title="Connection">
+        <Field label="Host IP" value={host} onChangeText={setHost} placeholder="192.168.1.42" keyboardType="numbers-and-punctuation" />
+        <Field label="Port" value={port} onChangeText={setPort} placeholder="8766" keyboardType="numeric" />
+        <Field label="Secret Key" value={secret} onChangeText={setSecret} placeholder="Auth secret" secureTextEntry />
         
         <View style={s.btnRow}>
           <TouchableOpacity style={[s.btn, s.btnOutline]} onPress={testConnection} disabled={testing || !host}>
             {testing ? <ActivityIndicator color={C.terminalGreen} size="small" /> : (
               <>
                 <Activity size={16} color={C.terminalGreen} />
-                <Text style={s.btnOutlineText}>TEST_PING</Text>
+                <Text style={s.btnOutlineText}>Test Connection</Text>
               </>
             )}
           </TouchableOpacity>
           <TouchableOpacity style={[s.btn, s.btnPrimary, !host && s.btnDisabled]} onPress={saveAndConnect} disabled={!host}>
             <Save size={16} color={C.background} />
-            <Text style={s.btnPrimaryText}>SAVE_CONFIG</Text>
+            <Text style={s.btnPrimaryText}>Save</Text>
           </TouchableOpacity>
         </View>
 
@@ -225,18 +225,18 @@ export default function SettingsScreen() {
           <View style={[s.resultBanner, { borderColor: testResult === "ok" ? C.terminalGreen : C.error }]}>
             {testResult === "ok" ? <CheckCircle size={16} color={C.terminalGreen} /> : <XCircle size={16} color={C.error} />}
             <Text style={[s.resultText, { color: testResult === "ok" ? C.terminalGreen : C.error }]}>
-              {testResult === "ok" ? "CONNECTION_ESTABLISHED" : "CONNECTION_FAILED"}
+              {testResult === "ok" ? "Connected" : "Connection Failed"}
             </Text>
           </View>
         )}
       </Section>
 
-      <Section title="CONTEXT_AWARENESS">
+      <Section title="Permissions">
         <View style={s.toggleRow}>
           <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
             <MapPin size={18} color={C.terminalGreen} />
             <View>
-              <Text style={s.toggleLabel}>LOCATION_TELEMETRY</Text>
+              <Text style={s.toggleLabel}>Location</Text>
               <Text style={s.toggleSub}>Share coordinates for weather services</Text>
             </View>
           </View>
@@ -251,7 +251,7 @@ export default function SettingsScreen() {
            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
             <Bell size={18} color={C.terminalGreen} />
             <View>
-              <Text style={s.toggleLabel}>PUSH_NOTIFICATIONS</Text>
+              <Text style={s.toggleLabel}>Notifications</Text>
               <Text style={s.toggleSub}>Alert on proactive messages</Text>
             </View>
           </View>
@@ -265,7 +265,7 @@ export default function SettingsScreen() {
       </Section>
 
       {/* Diagnostics */}
-      <Section title="SYSTEM_DIAGNOSTICS">
+      <Section title="Status">
         {overallStatus && (
           <View style={[s.overallBanner, { borderColor: overallStatus.color, backgroundColor: `${overallStatus.color}11` }]}>
             <Activity size={16} color={overallStatus.color} />
@@ -273,13 +273,13 @@ export default function SettingsScreen() {
           </View>
         )}
         <View style={s.diagGrid}>
-          <DiagItem label="API_ENDPOINT" value={config ? `${config.piHost}:${config.piPort}` : "NULL"} />
-          <DiagItem label="LATENCY" value={diagLatency !== null ? `${diagLatency}ms` : "—"} accent={diagLatency !== null && diagLatency < 200} />
-          <DiagItem label="BRIDGE_VER" value={doctorData?.version ?? "—"} />
-          <DiagItem label="UPTIME" value={doctorData?.uptime !== undefined ? formatUptime(doctorData.uptime) : "—"} />
-          <DiagItem label="WEBSOCKET" value={diagWSState} accent={diagWSState === "connected"} />
-          <DiagItem label="LAST_SYNC" value={diagLastRequest ?? "—"} />
-          <DiagItem label="PROFILE_ID" value={doctorData?.profile?.name ?? "—"} />
+          <DiagItem label="API Endpoint" value={config ? `${config.piHost}:${config.piPort}` : "NULL"} />
+          <DiagItem label="Latency" value={diagLatency !== null ? `${diagLatency}ms` : "—"} accent={diagLatency !== null && diagLatency < 200} />
+          <DiagItem label="Version" value={doctorData?.version ?? "—"} />
+          <DiagItem label="Uptime" value={doctorData?.uptime !== undefined ? formatUptime(doctorData.uptime) : "—"} />
+          <DiagItem label="WebSocket" value={diagWSState} accent={diagWSState === "connected"} />
+          <DiagItem label="Last Sync" value={diagLastRequest ?? "—"} />
+          <DiagItem label="Profile" value={doctorData?.profile?.name ?? "—"} />
         </View>
 
         {doctorData && doctorData.checks.length > 0 && (
@@ -304,16 +304,16 @@ export default function SettingsScreen() {
         <View style={s.btnRow}>
           <TouchableOpacity style={[s.btn, s.btnOutline]} onPress={testConnection} disabled={testing || !config}>
             <Activity size={16} color={C.terminalGreen} />
-            <Text style={s.btnOutlineText}>RUN_DIAGNOSTICS</Text>
+            <Text style={s.btnOutlineText}>Run Diagnostics</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.btn, s.btnOutline, { borderColor: C.terminalAmber }]} onPress={resetConnection} disabled={!config}>
             <RotateCcw size={16} color={C.terminalAmber} />
-            <Text style={[s.btnOutlineText, { color: C.terminalAmber }]}>RESET_LINK</Text>
+            <Text style={[s.btnOutlineText, { color: C.terminalAmber }]}>Reset Link</Text>
           </TouchableOpacity>
         </View>
       </Section>
 
-      <Section title="SETUP_GUIDE">
+      <Section title="Help">
         <View style={s.infoBox}>
           <Info size={16} color={C.icon} style={{ marginBottom: 8 }} />
           <Text style={s.infoText}>

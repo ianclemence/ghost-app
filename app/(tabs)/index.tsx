@@ -1,4 +1,5 @@
 import * as Clipboard from "expo-clipboard";
+import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -160,13 +161,13 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { command: "/reset", description: "Reset session and summary" },
   {
     command: "/status",
-    description: "Show Pi system status",
+    description: "Show system status",
     requiresTool: "exec",
   },
   { command: "/skills", description: "List all installed skills" },
-  { command: "/install", description: "Install a new skill from a URL" },
-  { command: "/tools", description: "Show loaded JSON tool schemas" },
-  { command: "/think", description: "Enable deep reasoning mode" },
+  { command: "/install", description: "Install a new skill" },
+  { command: "/tools", description: "List available tools" },
+  { command: "/think", description: "Enable reasoning" },
   { command: "/remind", description: "Set a reminder", requiresTool: "cron" },
   { command: "/doctor", description: "Run system health check" },
 ];
@@ -484,7 +485,7 @@ function SessionModal({
       />
       <View style={s.modalContent}>
         <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>ACTIVE SESSIONS</Text>
+          <Text style={s.modalTitle}>Sessions</Text>
           <TouchableOpacity onPress={onClose}>
             <X size={20} color={C.text} />
           </TouchableOpacity>
@@ -532,7 +533,7 @@ function SessionModal({
           }}
         >
           <Plus size={16} color={C.background} />
-          <Text style={s.newSessionText}>NEW SESSION</Text>
+          <Text style={s.newSessionText}>New Session</Text>
         </TouchableOpacity>
       </View>
     </Modal>
@@ -798,11 +799,37 @@ export default function ChatScreen() {
       });
   };
 
+  const pickDocument = async () => {
+    const r = await DocumentPicker.getDocumentAsync({
+      type: "*/*",
+      copyToCacheDirectory: true,
+    });
+    if (!r.canceled && r.assets && r.assets[0]) {
+      try {
+        const response = await fetch(r.assets[0].uri);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64data = (reader.result as string).split(",")[1];
+          setPendingMedia({
+            uri: r.assets[0].uri,
+            b64: base64data,
+            mimeType: r.assets[0].mimeType ?? "application/octet-stream",
+            name: r.assets[0].name,
+          });
+        };
+        reader.readAsDataURL(blob);
+      } catch (e) {
+        console.error("Failed to read file", e);
+      }
+    }
+  };
+
   if (!config)
     return (
       <View style={[s.container, s.centered, { paddingTop: insets.top }]}>
         <Terminal size={64} color={C.terminalGreen} />
-        <Text style={s.noConfigTitle}>TERMINAL OFFLINE</Text>
+        <Text style={s.noConfigTitle}>Offline</Text>
         <Text style={s.noConfigSub}>Configure connection in Settings</Text>
       </View>
     );
@@ -878,7 +905,17 @@ export default function ChatScreen() {
               }}
             >
               <ImageIcon size={20} color={C.text} />
-              <Text style={s.attachLabel}>IMG</Text>
+              <Text style={s.attachLabel}>Image</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.attachItem}
+              onPress={() => {
+                pickDocument();
+                setAttachOpen(false);
+              }}
+            >
+              <FileText size={20} color={C.text} />
+              <Text style={s.attachLabel}>File</Text>
             </TouchableOpacity>
             {/* Add more attachment types here if needed */}
           </View>
