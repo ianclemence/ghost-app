@@ -27,6 +27,7 @@ import {
   checkHealth,
   clearChat,
   connectWebSocket,
+  fetchAvailableTools,
   fetchHistory,
   GhostError,
   Message,
@@ -160,17 +161,27 @@ function RecordingDot() {
   );
 }
 
+type SlashCommand = {
+  command: string;
+  description: string;
+  requiresTool?: string;
+};
+
 // ─── Slash commands ───────────────────────────────────────────────────────
-const SLASH_COMMANDS = [
+const SLASH_COMMANDS: SlashCommand[] = [
   { command: "/help", description: "Show help and tool list" },
   { command: "/clear", description: "Archive current session history" },
   { command: "/reset", description: "Reset session and summary" },
-  { command: "/status", description: "Show Pi system status" },
+  {
+    command: "/status",
+    description: "Show Pi system status",
+    requiresTool: "exec",
+  },
   { command: "/skills", description: "List all installed skills" },
   { command: "/install", description: "Install a new skill from a URL" },
   { command: "/tools", description: "Show loaded JSON tool schemas" },
   { command: "/think", description: "Enable deep reasoning mode" },
-  { command: "/remind", description: "Set a reminder" },
+  { command: "/remind", description: "Set a reminder", requiresTool: "cron" },
 ];
 
 // ─── Content sanitizer ────────────────────────────────────────────────────
@@ -242,7 +253,9 @@ function UserText({ content }: { content: string }) {
 
 // ─── Code block ───────────────────────────────────────────────────────────
 function CodeBlock({ node }: { node: ASTNode }) {
-  const lang = (node.sourceInfo || "").toLowerCase();
+  const lang = (
+    (node as unknown as { sourceInfo?: string }).sourceInfo || ""
+  ).toLowerCase();
   const isShell = ["bash", "sh", "shell", "zsh"].includes(lang);
   const [copied, setCopied] = useState(false);
 
@@ -576,6 +589,9 @@ function SearchBar({
   results,
   onSearchServer,
   isSearchingServer,
+  scope,
+  onToggleScope,
+  error,
 }: {
   query: string;
   onChangeQuery: (q: string) => void;
@@ -583,6 +599,9 @@ function SearchBar({
   results: number;
   onSearchServer: () => void;
   isSearchingServer: boolean;
+  scope: "session" | "all";
+  onToggleScope: () => void;
+  error: string | null;
 }) {
   return (
     <View style={s.searchWrap}>
@@ -613,6 +632,11 @@ function SearchBar({
           {results} found
         </Text>
       )}
+      <TouchableOpacity onPress={onToggleScope} style={s.searchScopeBtn}>
+        <Text style={s.searchScopeText}>
+          {scope === "session" ? "CURRENT" : "ALL"}
+        </Text>
+      </TouchableOpacity>
       <TouchableOpacity onPress={onClose}>
         <Text
           style={{
@@ -626,6 +650,11 @@ function SearchBar({
           DONE
         </Text>
       </TouchableOpacity>
+      {error ? (
+        <Text style={s.searchError} numberOfLines={1}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -708,6 +737,8 @@ export default function ChatScreen() {
     _lastCommitTime,
     _lastCommitContent,
     profile,
+    availableTools,
+    setAvailableTools,
   } = useGhostStore();
 
   const [input, setInput] = useState("");
@@ -748,6 +779,10 @@ export default function ChatScreen() {
   const [searchResults, setSearchResults] = useState(0);
   const [serverResults, setServerResults] = useState<ExtendedMessage[]>([]);
   const [isSearchingServer, setIsSearchingServer] = useState(false);
+  const [searchScope, setSearchScope] = useState<"session" | "all">("session");
+  const [serverSearchError, setServerSearchError] = useState<string | null>(
+    null,
+  );
   const [showSlash, setShowSlash] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const attachAnim = useRef(new Animated.Value(0)).current;
@@ -773,6 +808,12 @@ export default function ChatScreen() {
     sortChronological(
       items.map((m) => ({ ...m, status: "completed" as const })),
     );
+  const availableSlashCommands = React.useMemo(() => {
+    if (availableTools.length === 0) return SLASH_COMMANDS;
+    return SLASH_COMMANDS.filter(
+      (cmd) => !cmd.requiresTool || availableTools.includes(cmd.requiresTool),
+    );
+  }, [availableTools]);
 
   // ── Health poll ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -818,6 +859,9 @@ export default function ChatScreen() {
           total: d.total,
         });
       })
+      .catch(() => {});
+    fetchAvailableTools(config)
+      .then((tools: string[]) => setAvailableTools(tools))
       .catch(() => {});
     connectWebSocket(config);
     return onWSMessage((msg) => {
@@ -930,23 +974,46 @@ export default function ChatScreen() {
   }, [searchQuery, displayed]);
 
   const handleSearchServer = useCallback(async () => {
-    if (!config || !searchQuery.trim()) return;
+    if (!config || searchQuery.trim().length < 2) return;
     setIsSearchingServer(true);
+    setServerSearchError(null);
     try {
-      const results = await searchMessages(config, searchQuery);
+      const results = await searchMessages(
+        config,
+        searchQuery,
+        searchScope,
+        30,
+      );
       const ext: ExtendedMessage[] = results.map((m) => ({
         ...m,
         status: "completed",
       }));
       setServerResults(ext);
-    } catch {}
+    } catch {
+      setServerSearchError("Search failed, showing local results");
+      setServerResults([]);
+    }
     setIsSearchingServer(false);
-  }, [config, searchQuery]);
+  }, [config, searchQuery, searchScope]);
+
+  useEffect(() => {
+    if (!searchVisible || searchQuery.trim().length < 2) {
+      if (searchQuery.trim().length < 2) {
+        setServerResults([]);
+      }
+      return;
+    }
+    const timer = setTimeout(() => {
+      handleSearchServer();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchVisible, searchQuery, searchScope, handleSearchServer]);
 
   useEffect(() => {
     if (!searchVisible) {
       setSearchQuery("");
       setServerResults([]);
+      setServerSearchError(null);
     }
   }, [searchVisible]);
 
@@ -1265,7 +1332,7 @@ export default function ChatScreen() {
       setShowSlash(true);
     } else if (t.startsWith("/") && !t.includes(" ")) {
       // Show only if at least one command starts with what's typed
-      const hasMatch = SLASH_COMMANDS.some((sc) =>
+      const hasMatch = availableSlashCommands.some((sc) =>
         sc.command.startsWith(t.toLowerCase()),
       );
       setShowSlash(hasMatch);
@@ -1296,6 +1363,13 @@ export default function ChatScreen() {
       <View style={[s.header, { paddingTop: insets.top + 8 }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <Text style={s.headerTitle}>GHOST</Text>
+          {profile?.name ? (
+            <View style={s.profileBadge}>
+              <Text style={s.profileBadgeText}>
+                {profile.name.toUpperCase()}
+              </Text>
+            </View>
+          ) : null}
           <ConnectionBadge state={connectionState} />
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -1324,6 +1398,11 @@ export default function ChatScreen() {
           results={searchResults}
           onSearchServer={handleSearchServer}
           isSearchingServer={isSearchingServer}
+          scope={searchScope}
+          onToggleScope={() =>
+            setSearchScope((prev) => (prev === "session" ? "all" : "session"))
+          }
+          error={serverSearchError}
         />
       )}
 
@@ -1437,10 +1516,11 @@ export default function ChatScreen() {
             showsVerticalScrollIndicator={false}
             style={s.slashScroll}
           >
-            {SLASH_COMMANDS.filter((sc) => {
-              const q = input.toLowerCase();
-              return sc.command.toLowerCase().includes(q);
-            })
+            {availableSlashCommands
+              .filter((sc) => {
+                const q = input.toLowerCase();
+                return sc.command.toLowerCase().includes(q);
+              })
               .sort((a, b) => {
                 const q = input.toLowerCase();
                 const aLow = a.command.toLowerCase();
@@ -1669,6 +1749,21 @@ const s = StyleSheet.create({
     letterSpacing: 7,
     fontFamily: FONT_MONO,
   },
+  profileBadge: {
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#00FF8840",
+    backgroundColor: "#00FF8812",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  profileBadgeText: {
+    color: C.accent,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    fontFamily: FONT_MONO,
+  },
   headerBtn: {
     width: 32,
     height: 32,
@@ -1710,6 +1805,30 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontFamily: FONT_SANS,
     paddingVertical: 0,
+  },
+  searchScopeBtn: {
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: "#ffffff08",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  searchScopeText: {
+    color: C.textSecondary,
+    fontSize: 10,
+    fontWeight: "700",
+    fontFamily: FONT_MONO,
+    letterSpacing: 0.6,
+  },
+  searchError: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: -18,
+    color: C.warn,
+    fontSize: 10,
+    fontFamily: FONT_SANS,
   },
 
   // Messages

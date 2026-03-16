@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { GhostConfig, Message } from "./ghostApi";
+import { GhostConfig, Message, ProfileInfo } from "./ghostApi";
 
 export type ConnectionState = "online" | "syncing" | "offline";
 export type MessageStatus =
@@ -25,6 +25,12 @@ interface GhostStore {
   // Legacy compat
   isConnected: boolean;
   setConnected: (v: boolean) => void;
+  profile: ProfileInfo | null;
+  setProfile: (p: ProfileInfo | null) => void;
+  availableTools: string[];
+  setAvailableTools: (tools: string[]) => void;
+  currentSession: string;
+  setCurrentSession: (session: string) => void;
 
   // Messages
   messages: ExtendedMessage[];
@@ -87,7 +93,11 @@ const makeMessageId = () => `msg-${Date.now()}-${nextMessageId++}`;
 
 export const useGhostStore = create<GhostStore>((set, get) => ({
   config: null,
-  setConfig: (cfg) => set({ config: cfg }),
+  setConfig: (cfg) =>
+    set({
+      config: cfg,
+      currentSession: cfg?.session ?? "mobile:default",
+    }),
 
   connectionState: "offline",
   setConnectionState: (v) =>
@@ -101,7 +111,11 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
     }),
 
   profile: null,
-  setProfile: (p) => set({ profile: p }),
+  setProfile: (p: ProfileInfo | null) => set({ profile: p }),
+  availableTools: [],
+  setAvailableTools: (tools: string[]) => set({ availableTools: tools }),
+  currentSession: "mobile:default",
+  setCurrentSession: (session: string) => set({ currentSession: session }),
 
   messages: [],
   setMessages: (msgs) => set({ messages: msgs }),

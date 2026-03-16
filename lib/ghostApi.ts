@@ -321,13 +321,15 @@ export async function fetchHistory(
 export async function searchMessages(
   cfg: GhostConfig,
   q: string,
+  scope: "session" | "all" = "session",
+  limit = 30,
 ): Promise<Message[]> {
-  const session = normalizeSession(cfg.session);
+  const session = scope === "session" ? normalizeSession(cfg.session) : "";
   const res = await fetch(
-    `${baseURL(cfg)}/v1/search?q=${encodeURIComponent(q)}&limit=30&session=${encodeURIComponent(session)}`,
+    `${baseURL(cfg)}/v1/search?q=${encodeURIComponent(q)}&limit=${limit}&session=${encodeURIComponent(session)}`,
     { headers: messageHeaders(cfg) },
   );
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Search failed: ${res.status}`);
   const data = await res.json();
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.messages)) return data.messages;
@@ -603,6 +605,18 @@ export async function fetchDoctor(cfg: GhostConfig): Promise<DoctorResponse> {
   return res.json();
 }
 
+export async function fetchAvailableTools(cfg: GhostConfig): Promise<string[]> {
+  const res = await fetch(`${baseURL(cfg)}/v1/tools`, {
+    headers: headers(cfg),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const tools = Array.isArray(data?.tools) ? data.tools : [];
+  return tools
+    .map((t: any) => (typeof t?.name === "string" ? t.name : ""))
+    .filter((name: string) => name.length > 0);
+}
+
 export async function runExec(
   cfg: GhostConfig,
   command: string,
@@ -713,6 +727,18 @@ export async function controlCronJob(
     headers: headers(cfg),
   });
   if (!res.ok) throw new Error(`Failed to ${action} job`);
+}
+
+export async function pauseCronJob(cfg: GhostConfig, id: string): Promise<void> {
+  return controlCronJob(cfg, id, "pause");
+}
+
+export async function resumeCronJob(cfg: GhostConfig, id: string): Promise<void> {
+  return controlCronJob(cfg, id, "resume");
+}
+
+export async function runCronJobNow(cfg: GhostConfig, id: string): Promise<void> {
+  return controlCronJob(cfg, id, "run");
 }
 
 // ─── WebSocket ─────────────────────────────────────────────────────────────

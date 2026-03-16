@@ -1,5 +1,5 @@
 import Constants, { AppOwnership } from "expo-constants";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -16,8 +16,13 @@ import {
   checkHealth,
   checkHealthDebug,
   connectWebSocket,
+  DoctorResponse,
+  fetchAvailableTools,
+  fetchDoctor,
+  fetchHistory,
   getWSState,
   GhostConfig,
+  Message,
   saveConfig,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
@@ -45,6 +50,10 @@ export default function SettingsScreen() {
     connectionState,
     setConnectionState,
     setConnected,
+    setAvailableTools,
+    setMessages,
+    currentSession,
+    setCurrentSession,
     setProfile,
   } = useGhostStore();
 
@@ -55,12 +64,23 @@ export default function SettingsScreen() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"idle" | "ok" | "fail">("idle");
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const [recentSessions, setRecentSessions] = useState<string[]>([]);
 
   // Diagnostics state
   const [diagLatency, setDiagLatency] = useState<number | null>(null);
   const [diagWSState, setDiagWSState] = useState<string>("unknown");
   const [diagLastRequest, setDiagLastRequest] = useState<string | null>(null);
   const [doctorData, setDoctorData] = useState<DoctorResponse | null>(null);
+
+  useEffect(() => {
+    const values = [currentSession, session, "mobile:default"].filter(Boolean);
+    setRecentSessions((prev) =>
+      Array.from(new Set([...values, ...prev])).slice(0, 8),
+    );
+  }, [currentSession, session]);
+
+  const normalizeHistory = (items: Message[]) =>
+    items.map((m) => ({ ...m, status: "completed" as const }));
 
   useEffect(() => {
     if (isExpoGo) return;
@@ -113,6 +133,9 @@ export default function SettingsScreen() {
       try {
         const doc = await fetchDoctor(cfg);
         setDoctorData(doc);
+        if (doc.profile) setProfile(doc.profile);
+        const tools = await fetchAvailableTools(cfg);
+        setAvailableTools(tools);
       } catch (e) {
         console.warn("Doctor fetch failed", e);
       }
@@ -128,11 +151,21 @@ export default function SettingsScreen() {
     };
     await saveConfig(cfg);
     setConfig(cfg);
+    if (cfg.session) {
+      setCurrentSession(cfg.session);
+    }
     const ok = await checkHealth(cfg);
     setConnected(ok);
     setTestResult(ok ? "ok" : "fail");
     if (ok) {
       connectWebSocket(cfg);
+      try {
+        const doc = await fetchDoctor(cfg);
+        setDoctorData(doc);
+        if (doc.profile) setProfile(doc.profile);
+        const tools = await fetchAvailableTools(cfg);
+        setAvailableTools(tools);
+      } catch {}
     }
   };
 
@@ -151,10 +184,37 @@ export default function SettingsScreen() {
         const doc = await fetchDoctor(config);
         setDoctorData(doc);
         if (doc.profile) setProfile(doc.profile);
+        const tools = await fetchAvailableTools(config);
+        setAvailableTools(tools);
       } catch (e) {
         console.warn("Doctor fetch failed", e);
       }
     }
+  };
+
+  const switchSession = async (newSession: string) => {
+    if (!config || !newSession.trim()) return;
+    const nextSession = newSession.trim();
+    const nextCfg: GhostConfig = { ...config, session: nextSession };
+    await saveConfig(nextCfg);
+    setConfig(nextCfg);
+    setSession(nextSession);
+    setCurrentSession(nextSession);
+    setMessages([]);
+    const history = await fetchHistory(nextCfg, 50, 0).catch(() => ({
+      messages: [],
+      total: 0,
+    }));
+    setMessages(normalizeHistory(history.messages));
+    setRecentSessions((prev) =>
+      Array.from(new Set([nextSession, ...prev])).slice(0, 8),
+    );
+    connectWebSocket(nextCfg);
+  };
+
+  const createNewSession = () => {
+    const next = `mobile:${Date.now()}`;
+    switchSession(next);
   };
 
   const formatUptime = (seconds: number) => {
@@ -177,6 +237,14 @@ export default function SettingsScreen() {
       : testResult === "fail"
         ? "✗ Unreachable"
         : "";
+  const overallStatus = useMemo(() => {
+    if (!doctorData?.checks?.length) return null;
+    const hasError = doctorData.checks.some((c) => c.status === "error");
+    const hasWarning = doctorData.checks.some((c) => c.status === "warning");
+    if (hasError) return { text: "UNHEALTHY", color: C.danger };
+    if (hasWarning) return { text: "DEGRADED", color: C.warn };
+    return { text: "HEALTHY", color: C.accent };
+  }, [doctorData]);
 
   return (
     <ScrollView
@@ -254,6 +322,38 @@ export default function SettingsScreen() {
           autoCapitalize="none"
           autoCorrect={false}
         />
+        <View style={styles.btnRow}>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnOutline]}
+            onPress={() => switchSession(session)}
+            disabled={!config || !session.trim()}
+          >
+            <Text style={styles.btnOutlineText}>SWITCH SESSION</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnOutline]}
+            onPress={createNewSession}
+            disabled={!config}
+          >
+            <Text style={styles.btnOutlineText}>NEW SESSION</Text>
+          </TouchableOpacity>
+        </View>
+        {recentSessions.length > 0 && (
+          <View style={styles.sessionChipsWrap}>
+            {recentSessions.map((s) => (
+              <TouchableOpacity
+                key={s}
+                style={styles.sessionChip}
+                onPress={() => {
+                  setSession(s);
+                  switchSession(s);
+                }}
+              >
+                <Text style={styles.sessionChipText}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         <View style={styles.btnRow}>
           <TouchableOpacity
@@ -285,6 +385,21 @@ export default function SettingsScreen() {
 
       {/* Diagnostics */}
       <Section title="CONNECTION DIAGNOSTICS">
+        {overallStatus && (
+          <View
+            style={[
+              styles.overallBanner,
+              {
+                borderColor: overallStatus.color,
+                backgroundColor: `${overallStatus.color}22`,
+              },
+            ]}
+          >
+            <Text style={[styles.overallText, { color: overallStatus.color }]}>
+              {overallStatus.text}
+            </Text>
+          </View>
+        )}
         <View style={styles.diagGrid}>
           <DiagItem
             label="API URL"
@@ -568,6 +683,26 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
   },
+  sessionChipsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+  },
+  sessionChip: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#ffffff08",
+  },
+  sessionChipText: {
+    color: C.textDim,
+    fontSize: 11,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
   statusText: {
     paddingHorizontal: 14,
     paddingBottom: 12,
@@ -615,5 +750,57 @@ const styles = StyleSheet.create({
     color: C.text,
     fontSize: 13,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  overallBanner: {
+    marginHorizontal: 14,
+    marginTop: 14,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  overallText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+  },
+  checksList: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingTop: 12,
+    paddingHorizontal: 14,
+    gap: 10,
+    paddingBottom: 4,
+  },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  checkIcon: {
+    fontSize: 14,
+    fontWeight: "700",
+    width: 14,
+    textAlign: "center",
+    marginTop: 1,
+  },
+  checkName: {
+    color: C.text,
+    fontSize: 12,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    textTransform: "uppercase",
+  },
+  checkLatency: {
+    color: C.textDim,
+    fontSize: 11,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  checkMsg: {
+    color: C.textDim,
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 17,
   },
 });

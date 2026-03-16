@@ -11,7 +11,13 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { controlCronJob, CronJob, fetchCronJobs } from "../../lib/ghostApi";
+import {
+  CronJob,
+  fetchCronJobs,
+  pauseCronJob,
+  resumeCronJob,
+  runCronJobNow,
+} from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
 
 const C = {
@@ -86,10 +92,15 @@ function JobCard({
       </View>
 
       <View style={styles.statsRow}>
+        {job.payload.command ? (
+          <Text style={styles.commandText} numberOfLines={2}>
+            {job.payload.command}
+          </Text>
+        ) : null}
         <Text style={styles.statText}>
           Run: {job.run_count} • Last:{" "}
           {job.state.lastRunAtMs
-            ? formatDistanceToNow(job.state.lastRunAtMs, { addSuffix: true })
+            ? timeAgo(job.state.lastRunAtMs)
             : "Never"}
         </Text>
         {job.state.lastError ? (
@@ -129,7 +140,7 @@ function JobCard({
 
 export default function CronScreen() {
   const insets = useSafeAreaInsets();
-  const { config, connectionState } = useGhostStore();
+  const { config } = useGhostStore();
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -175,7 +186,13 @@ export default function CronScreen() {
     }
 
     try {
-      await controlCronJob(config, id, action);
+      if (action === "pause") {
+        await pauseCronJob(config, id);
+      } else if (action === "resume") {
+        await resumeCronJob(config, id);
+      } else {
+        await runCronJobNow(config, id);
+      }
       if (action === "run") {
         Alert.alert("Success", "Job triggered successfully");
       }
@@ -301,6 +318,15 @@ const styles = StyleSheet.create({
   statText: {
     color: C.textMuted,
     fontSize: 11,
+  },
+  commandText: {
+    color: C.text,
+    fontSize: 11,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    backgroundColor: "#ffffff08",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   actionsRow: {
     flexDirection: "row",

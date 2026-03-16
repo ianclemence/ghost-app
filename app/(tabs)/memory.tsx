@@ -24,6 +24,8 @@ const C = {
   text: "#C8D8E8",
   textDim: "#4A6080",
   textMuted: "#2A3A4A",
+  warn: "#FFAA00",
+  danger: "#FF4455",
 };
 
 interface MemFile {
