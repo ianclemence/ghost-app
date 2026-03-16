@@ -961,7 +961,7 @@ export default function ChatScreen() {
                 setInput(t);
                 setShowSlash(t.startsWith("/"));
               }}
-              placeholder="Execute command..."
+              placeholder="Type a message..."
               placeholderTextColor={C.icon}
               multiline
               maxLength={2000}
