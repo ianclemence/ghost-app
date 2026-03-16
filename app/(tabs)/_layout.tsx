@@ -69,6 +69,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="cron"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="⏰" label="CRON" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="memory"
         options={{
           tabBarIcon: ({ focused }) => (

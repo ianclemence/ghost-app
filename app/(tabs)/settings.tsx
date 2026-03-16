@@ -45,6 +45,7 @@ export default function SettingsScreen() {
     connectionState,
     setConnectionState,
     setConnected,
+    setProfile,
   } = useGhostStore();
 
   const [host, setHost] = useState(config?.piHost ?? "");
@@ -57,12 +58,9 @@ export default function SettingsScreen() {
 
   // Diagnostics state
   const [diagLatency, setDiagLatency] = useState<number | null>(null);
-  const [diagBridgeVersion, setDiagBridgeVersion] = useState<string | null>(
-    null,
-  );
-  const [diagBridgeUptime, setDiagBridgeUptime] = useState<number | null>(null);
   const [diagWSState, setDiagWSState] = useState<string>("unknown");
   const [diagLastRequest, setDiagLastRequest] = useState<string | null>(null);
+  const [doctorData, setDoctorData] = useState<DoctorResponse | null>(null);
 
   useEffect(() => {
     if (isExpoGo) return;
@@ -108,15 +106,17 @@ export default function SettingsScreen() {
 
     // Update diagnostics
     if (result.latencyMs !== undefined) setDiagLatency(result.latencyMs);
-    if (result.body) {
-      try {
-        const parsed = JSON.parse(result.body);
-        if (parsed.version) setDiagBridgeVersion(parsed.version);
-        if (parsed.uptime_s !== undefined) setDiagBridgeUptime(parsed.uptime_s);
-      } catch {}
-    }
     setDiagWSState(getWSState());
     setDiagLastRequest(new Date().toLocaleTimeString());
+
+    if (ok) {
+      try {
+        const doc = await fetchDoctor(cfg);
+        setDoctorData(doc);
+      } catch (e) {
+        console.warn("Doctor fetch failed", e);
+      }
+    }
   };
 
   const saveAndConnect = async () => {
@@ -145,6 +145,16 @@ export default function SettingsScreen() {
     setTestResult(ok ? "ok" : "fail");
     setDiagWSState(getWSState());
     setDiagLastRequest(new Date().toLocaleTimeString());
+
+    if (ok) {
+      try {
+        const doc = await fetchDoctor(config);
+        setDoctorData(doc);
+        if (doc.profile) setProfile(doc.profile);
+      } catch (e) {
+        console.warn("Doctor fetch failed", e);
+      }
+    }
   };
 
   const formatUptime = (seconds: number) => {
@@ -189,8 +199,8 @@ export default function SettingsScreen() {
                   connectionState === "online"
                     ? C.accent
                     : connectionState === "syncing"
-                    ? C.warn
-                    : C.danger,
+                      ? C.warn
+                      : C.danger,
               }}
             />
             <Text
@@ -199,13 +209,12 @@ export default function SettingsScreen() {
                   connectionState === "online"
                     ? C.accent
                     : connectionState === "syncing"
-                    ? C.warn
-                    : C.danger,
+                      ? C.warn
+                      : C.danger,
                 fontSize: 9,
                 fontWeight: "700",
                 letterSpacing: 1.5,
-                fontFamily:
-                  Platform.OS === "ios" ? "Courier New" : "monospace",
+                fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
               }}
             >
               {connectionState.toUpperCase()}
@@ -286,11 +295,13 @@ export default function SettingsScreen() {
             value={diagLatency !== null ? `${diagLatency}ms` : "—"}
             accent={diagLatency !== null && diagLatency < 200}
           />
-          <DiagItem label="BRIDGE VER." value={diagBridgeVersion ?? "—"} />
+          <DiagItem label="BRIDGE VER." value={doctorData?.version ?? "—"} />
           <DiagItem
             label="BRIDGE UPTIME"
             value={
-              diagBridgeUptime !== null ? formatUptime(diagBridgeUptime) : "—"
+              doctorData?.uptime !== undefined
+                ? formatUptime(doctorData.uptime)
+                : "—"
             }
           />
           <DiagItem
@@ -299,7 +310,54 @@ export default function SettingsScreen() {
             accent={diagWSState === "connected"}
           />
           <DiagItem label="LAST CHECK" value={diagLastRequest ?? "—"} />
+          <DiagItem label="PROFILE" value={doctorData?.profile?.name ?? "—"} />
         </View>
+
+        {/* Doctor Checks */}
+        {doctorData && doctorData.checks.length > 0 && (
+          <View style={styles.checksList}>
+            {doctorData.checks.map((check, i) => (
+              <View key={i} style={styles.checkRow}>
+                <Text
+                  style={[
+                    styles.checkIcon,
+                    {
+                      color:
+                        check.status === "ok"
+                          ? C.accent
+                          : check.status === "warning"
+                            ? C.warn
+                            : C.danger,
+                    },
+                  ]}
+                >
+                  {check.status === "ok"
+                    ? "✓"
+                    : check.status === "warning"
+                      ? "⚠"
+                      : "✗"}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text style={styles.checkName}>{check.name}</Text>
+                    <Text style={styles.checkLatency}>
+                      {check.latency_ms}ms
+                    </Text>
+                  </View>
+                  {check.message ? (
+                    <Text style={styles.checkMsg}>{check.message}</Text>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={styles.btnRow}>
           <TouchableOpacity
             style={[styles.btn, styles.btnOutline]}

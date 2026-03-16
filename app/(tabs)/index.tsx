@@ -34,7 +34,7 @@ import {
   onWSStateChange,
   sendMessage,
   transcribeAudio,
-  uploadFile,
+  uploadFile
 } from "../../lib/ghostApi";
 import {
   ConnectionState,
@@ -573,11 +573,15 @@ function SearchBar({
   onChangeQuery,
   onClose,
   results,
+  onSearchServer,
+  isSearchingServer,
 }: {
   query: string;
   onChangeQuery: (q: string) => void;
   onClose: () => void;
   results: number;
+  onSearchServer: () => void;
+  isSearchingServer: boolean;
 }) {
   return (
     <View style={s.searchWrap}>
@@ -589,7 +593,20 @@ function SearchBar({
         placeholder="Search messages…"
         placeholderTextColor={C.textTertiary}
         autoFocus
+        onSubmitEditing={onSearchServer}
+        returnKeyType="search"
       />
+      {query.length > 0 && (
+        <TouchableOpacity
+          onPress={onSearchServer}
+          disabled={isSearchingServer}
+          style={{ marginRight: 10 }}
+        >
+          <Text style={{ color: C.accent, fontSize: 11, fontWeight: "600" }}>
+            {isSearchingServer ? "SEARCHING..." : "SEARCH SERVER"}
+          </Text>
+        </TouchableOpacity>
+      )}
       {query.length > 0 && (
         <Text style={{ color: C.textSecondary, fontSize: 11 }}>
           {results} found
@@ -602,6 +619,7 @@ function SearchBar({
             fontSize: 12,
             fontWeight: "700",
             letterSpacing: 0.5,
+            marginLeft: 8,
           }}
         >
           DONE
@@ -688,6 +706,7 @@ export default function ChatScreen() {
     dequeueMessages,
     _lastCommitTime,
     _lastCommitContent,
+    profile,
   } = useGhostStore();
 
   const [input, setInput] = useState("");
@@ -726,6 +745,8 @@ export default function ChatScreen() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(0);
+  const [serverResults, setServerResults] = useState<ExtendedMessage[]>([]);
+  const [isSearchingServer, setIsSearchingServer] = useState(false);
   const [showSlash, setShowSlash] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const attachAnim = useRef(new Animated.Value(0)).current;
@@ -1221,12 +1242,6 @@ export default function ChatScreen() {
       setShowSlash(false);
     }
   };
-
-  const displayed = searchQuery.trim()
-    ? messages.filter((m) =>
-        m.content.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : messages;
 
   if (!config) {
     return (

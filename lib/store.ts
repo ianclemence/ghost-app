@@ -100,6 +100,9 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
       connectionState: v ? "online" : "offline",
     }),
 
+  profile: null,
+  setProfile: (p) => set({ profile: p }),
+
   messages: [],
   setMessages: (msgs) => set({ messages: msgs }),
   appendMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
