@@ -1,4 +1,5 @@
 
+import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
 import { Platform, Text, View } from "react-native";
 import { Terminal, Server, Clock, Brain, Settings } from "lucide-react-native";
@@ -51,6 +52,11 @@ export default function TabLayout() {
         },
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
+      }}
+      screenListeners={{
+        state: () => {
+          Haptics.selectionAsync();
+        },
       }}
     >
       <Tabs.Screen

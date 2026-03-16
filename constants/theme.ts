@@ -32,8 +32,9 @@ export const Colors = {
     success: '#22C55E', // Green 500
     error: '#EF4444', // Red 500
     warning: '#F59E0B', // Amber 500
-    terminalGreen: '#4ADE80', // Terminal Green
-    terminalAmber: '#FBBF24', // Terminal Amber
+    terminalGreen: '#4ADE80', // Green
+    terminalAmber: '#FBBF24', // Amber
+    terminalCyan: '#22D3EE', // Cyan
   },
 };
 

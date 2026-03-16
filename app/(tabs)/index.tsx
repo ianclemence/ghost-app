@@ -1,3 +1,4 @@
+import { useTerminalColor } from "@/hooks/use-terminal-color";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
@@ -66,88 +67,231 @@ const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
 const FONT_SANS = Fonts.sans;
 
-// ─── Typing dots ──────────────────────────────────────────────────────────
-function TypingDots() {
-  const a0 = useRef(new Animated.Value(0));
-  const a1 = useRef(new Animated.Value(0));
-  const a2 = useRef(new Animated.Value(0));
-  const anims = [a0, a1, a2];
+// ─── Connection Toast ─────────────────────────────────────────────────────
+function ConnectionToast({ state }: { state: ConnectionState }) {
+  const accent = useTerminalColor();
+  const [visible, setVisible] = useState(false);
+  const prev = useRef(state);
 
   useEffect(() => {
-    anims.forEach((a, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 140),
-          Animated.timing(a.current, {
-            toValue: 1,
-            duration: 320,
-            useNativeDriver: true,
-          }),
-          Animated.timing(a.current, {
-            toValue: 0,
-            duration: 320,
-            useNativeDriver: true,
-          }),
-        ]),
-      ).start(),
-    );
-  }, []);
+    if (state !== prev.current) {
+      setVisible(true);
+      const t = setTimeout(() => setVisible(false), 3000);
+      prev.current = state;
+      return () => clearTimeout(t);
+    }
+  }, [state]);
+
+  if (!visible) return null;
 
   return (
-    <View style={{ flexDirection: "row", gap: 5, paddingVertical: 6 }}>
-      {anims.map((a, i) => (
-        <Animated.View
-          key={i}
-          style={{
-            width: 4,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: C.terminalGreen,
-            opacity: a.current,
-            transform: [
-              {
-                translateY: a.current.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -2],
-                }),
-              },
-            ],
-          }}
-        />
-      ))}
-    </View>
+    <Animated.View
+      style={[s.toast, { borderColor: state === "online" ? accent : C.error }]}
+    >
+      <Text
+        style={[s.toastText, { color: state === "online" ? accent : C.error }]}
+      >
+        {state === "online"
+          ? "BACK ONLINE"
+          : state === "syncing"
+            ? "SYNCING..."
+            : "DISCONNECTED"}
+      </Text>
+    </Animated.View>
   );
 }
 
-// ─── Recording pulse ──────────────────────────────────────────────────────
-function RecordingDot() {
-  const pulse = useRef(new Animated.Value(1)).current;
+// ─── Action Modal ─────────────────────────────────────────────────────────
+function ActionModal({
+  visible,
+  onClose,
+  onCopy,
+  onShare,
+  onRetry,
+  role,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onCopy: () => void;
+  onShare: () => void;
+  onRetry?: () => void;
+  role: "user" | "assistant";
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={s.modalBackdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      />
+      <View style={s.modalContent}>
+        <View style={s.modalHeader}>
+          <Text style={s.modalTitle}>MESSAGE ACTIONS</Text>
+          <TouchableOpacity onPress={onClose}>
+            <X size={20} color={C.text} />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={s.sessionItem}
+          onPress={() => {
+            onCopy();
+            onClose();
+          }}
+        >
+          <Text style={s.sessionText}>Copy Text</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.sessionItem}
+          onPress={() => {
+            onShare();
+            onClose();
+          }}
+        >
+          <Text style={s.sessionText}>Share</Text>
+        </TouchableOpacity>
+        {role === "user" && onRetry && (
+          <TouchableOpacity
+            style={s.sessionItem}
+            onPress={() => {
+              onRetry();
+              onClose();
+            }}
+          >
+            <Text style={s.sessionText}>Re-run Command</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Skeleton Loader ──────────────────────────────────────────────────────
+function SkeletonLoader() {
+  const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1.4,
-          duration: 550,
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 800,
           useNativeDriver: true,
         }),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 550,
+        Animated.timing(anim, {
+          toValue: 0,
+          duration: 800,
           useNativeDriver: true,
         }),
       ]),
     ).start();
   }, []);
+
   return (
-    <Animated.View
+    <View style={{ gap: 8, paddingVertical: 10 }}>
+      <Animated.View
+        style={{
+          height: 12,
+          width: "80%",
+          backgroundColor: C.border,
+          opacity: anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.3, 0.7],
+          }),
+        }}
+      />
+      <Animated.View
+        style={{
+          height: 12,
+          width: "60%",
+          backgroundColor: C.border,
+          opacity: anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.3, 0.7],
+          }),
+        }}
+      />
+      <Animated.View
+        style={{
+          height: 12,
+          width: "90%",
+          backgroundColor: C.border,
+          opacity: anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.3, 0.7],
+          }),
+        }}
+      />
+    </View>
+  );
+}
+
+// ─── Voice Waveform ───────────────────────────────────────────────────────
+function VoiceWaveform() {
+  const anims = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+
+  useEffect(() => {
+    anims.forEach((anim, i) => {
+      const duration = 300 + Math.random() * 400;
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 1,
+            duration,
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    });
+  }, []);
+
+  return (
+    <View
       style={{
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: C.error,
-        transform: [{ scale: pulse }],
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 3,
+        height: 24,
+        paddingHorizontal: 10,
       }}
-    />
+    >
+      {anims.map((anim, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            width: 3,
+            borderRadius: 1.5,
+            backgroundColor: C.terminalGreen,
+            height: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [4, 20],
+            }),
+            opacity: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.4, 1],
+            }),
+          }}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -301,6 +445,40 @@ const codeStyles = StyleSheet.create({
 // ─── Markdown rules & styles ──────────────────────────────────────────────
 const markdownRules = {
   fence: (node: ASTNode) => <CodeBlock key={node.key} node={node} />,
+  list_item: (node: ASTNode, children: any) => {
+    const text = node.children[0]?.content || "";
+    const isTask = text.startsWith("[ ] ") || text.startsWith("[x] ");
+    const isChecked = text.startsWith("[x] ");
+
+    if (isTask) {
+      return (
+        <View
+          key={node.key}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            marginVertical: 4,
+          }}
+        >
+          <View
+            style={{
+              width: 16,
+              height: 16,
+              borderWidth: 1,
+              borderColor: isChecked ? C.terminalGreen : C.icon,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {isChecked && <Check size={12} color={C.terminalGreen} />}
+          </View>
+          <View style={{ flex: 1 }}>{children}</View>
+        </View>
+      );
+    }
+    return children;
+  },
 };
 
 const mkStyles: Record<string, any> = {
@@ -367,9 +545,10 @@ const mkStyles: Record<string, any> = {
 
 // ─── Connection badge ─────────────────────────────────────────────────────
 function ConnectionBadge({ state }: { state: ConnectionState }) {
+  const accent = useTerminalColor();
   const color =
     state === "online"
-      ? C.terminalGreen
+      ? accent
       : state === "syncing"
         ? C.terminalAmber
         : C.error;
@@ -390,7 +569,16 @@ function ConnectionBadge({ state }: { state: ConnectionState }) {
 }
 
 // ─── Message row ──────────────────────────────────────────────────────────
-function MessageRow({ msg }: { msg: ExtendedMessage }) {
+function MessageRow({
+  msg,
+  isGrouped,
+  onLongPress,
+}: {
+  msg: ExtendedMessage;
+  isGrouped: boolean;
+  onLongPress: (content: string, role: "user" | "assistant") => void;
+}) {
+  const accent = useTerminalColor();
   const isUser = msg.role === "user";
   const content = isUser ? msg.content : sanitize(msg.content);
   const isPlaceholder = !isUser && msg.status === "streaming" && content === "";
@@ -402,10 +590,19 @@ function MessageRow({ msg }: { msg: ExtendedMessage }) {
     minute: "2-digit",
   });
 
+  const handleLongPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onLongPress(content, msg.role);
+  };
+
   if (isUser) {
     return (
-      <View style={s.userRow}>
-        <View style={s.userBubble}>
+      <TouchableOpacity
+        style={[s.userRow, isGrouped && { marginBottom: 4 }]}
+        onLongPress={handleLongPress}
+        activeOpacity={0.8}
+      >
+        <View style={[s.userBubble, { borderLeftColor: accent }]}>
           {msg.media_url && (
             <View style={{ marginBottom: 8 }}>
               {msg.media_type?.startsWith("image/") ? (
@@ -425,26 +622,32 @@ function MessageRow({ msg }: { msg: ExtendedMessage }) {
           <View style={s.tsRow}>
             <Text style={s.ts}>{timeStr}</Text>
             {msg.status === "sending" && <Activity size={10} color={C.icon} />}
-            {msg.status === "completed" && (
-              <Check size={10} color={C.terminalGreen} />
-            )}
+            {msg.status === "completed" && <Check size={10} color={accent} />}
             {msg.status === "failed" && (
               <AlertCircle size={10} color={C.error} />
             )}
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 
   return (
-    <View style={s.ghostRow}>
+    <TouchableOpacity
+      style={[s.ghostRow, isGrouped && { marginTop: -12 }]}
+      onLongPress={handleLongPress}
+      activeOpacity={0.8}
+    >
       <View style={s.ghostAvatar}>
-        <Image source={GHOST_LOGO} style={{ width: 14, height: 14 }} />
+        {!isGrouped ? (
+          <Image source={GHOST_LOGO} style={{ width: 14, height: 14 }} />
+        ) : (
+          <View style={{ width: 14 }} />
+        )}
       </View>
       <View style={s.ghostContent}>
         {isPlaceholder ? (
-          <TypingDots />
+          <SkeletonLoader />
         ) : (
           <>
             <Markdown style={mkStyles} rules={markdownRules}>
@@ -454,7 +657,7 @@ function MessageRow({ msg }: { msg: ExtendedMessage }) {
           </>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -575,15 +778,9 @@ export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [recentSessions, setRecentSessions] = useState<string[]>([]);
-  const [pendingMedia, setPendingMedia] = useState<{
-    uri: string;
-    b64: string;
-    mimeType: string;
-    name?: string;
-  } | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [recordDuration, setRecordDuration] = useState(0);
+  const [pendingMedia, setPendingMedia] = useState<
+    { uri: string; b64: string; mimeType: string; name?: string }[]
+  >([]);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(0);
@@ -594,6 +791,21 @@ export default function ChatScreen() {
     partialContent?: string;
   } | null>(null);
 
+  const [actionMenu, setActionMenu] = useState<{
+    visible: boolean;
+    content: string;
+    role: "user" | "assistant";
+  }>({
+    visible: false,
+    content: "",
+    role: "user",
+  });
+
+  const recording = useRef<Audio.Recording | null>(null);
+  const [recordDuration, setRecordDuration] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const attachAnim = useRef(new Animated.Value(0)).current;
@@ -601,6 +813,49 @@ export default function ChatScreen() {
   const lastReconnectAt = useRef(0);
   const previousConnectionState = useRef<ConnectionState>("offline");
   const doSendRef = useRef<any>(null);
+
+  // ─── Voice Logic ──────────────────────────────────────────────────────────
+  const startRecording = async () => {
+    try {
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const { recording: rec } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      recording.current = rec;
+      setIsRecording(true);
+      setRecordDuration(0);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (err) {
+      console.error("Failed to start recording", err);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording.current) return;
+    setIsRecording(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await recording.current.stopAndUnloadAsync();
+      const uri = recording.current.getURI();
+      recording.current = null;
+      if (uri && config) {
+        setIsTranscribing(true);
+        const text = await transcribeAudio(config, uri);
+        setIsTranscribing(false);
+        if (text.trim()) {
+          setInput(text);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to stop recording", err);
+      setIsTranscribing(false);
+    }
+  };
 
   // Session Management
   useEffect(() => {
@@ -768,16 +1023,18 @@ export default function ChatScreen() {
   }, [doSend]);
 
   const handleSend = async () => {
-    if (!input.trim() && !pendingMedia) return;
+    if (!input.trim() && pendingMedia.length === 0) return;
     const t = input.trim();
+    const media = [...pendingMedia];
     setInput("");
-    setPendingMedia(null);
+    setPendingMedia([]);
     setShowSlash(false);
     if (connectionState !== "online") {
+      // For now, only send first one in queue if offline, or handle better
       enqueueMessage({
         content: t,
-        mediaB64: pendingMedia?.b64,
-        mediaType: pendingMedia?.mimeType,
+        mediaB64: media[0]?.b64,
+        mediaType: media[0]?.mimeType,
       });
       appendMessage({
         id: `q-${Date.now()}`,
@@ -788,12 +1045,10 @@ export default function ChatScreen() {
       });
       return;
     }
-    await doSend(
-      t,
-      pendingMedia?.b64,
-      pendingMedia?.mimeType,
-      pendingMedia?.uri,
-    );
+    // API currently might only support one media per call based on sendMessage signature
+    // We'll send the first one or loop if needed.
+    // For simplicity, let's send the first one and the text.
+    await doSend(t, media[0]?.b64, media[0]?.mimeType, media[0]?.uri);
   };
 
   // Pickers
@@ -802,39 +1057,56 @@ export default function ChatScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       base64: true,
       quality: 0.8,
+      allowsMultipleSelection: true,
     });
-    if (!r.canceled && r.assets[0].base64)
-      setPendingMedia({
-        uri: r.assets[0].uri,
-        b64: r.assets[0].base64,
-        mimeType: r.assets[0].mimeType ?? "image/jpeg",
-        name: "image.jpg",
-      });
+    if (!r.canceled) {
+      const next = r.assets.map((a) => ({
+        uri: a.uri,
+        b64: a.base64 || "",
+        mimeType: a.mimeType ?? "image/jpeg",
+        name: a.fileName || "image.jpg",
+      }));
+      setPendingMedia((prev) => [...prev, ...next]);
+    }
   };
 
   const pickDocument = async () => {
     const r = await DocumentPicker.getDocumentAsync({
       type: "*/*",
       copyToCacheDirectory: true,
+      multiple: true,
     });
-    if (!r.canceled && r.assets && r.assets[0]) {
-      try {
-        const response = await fetch(r.assets[0].uri);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64data = (reader.result as string).split(",")[1];
-          setPendingMedia({
-            uri: r.assets[0].uri,
-            b64: base64data,
-            mimeType: r.assets[0].mimeType ?? "application/octet-stream",
-            name: r.assets[0].name,
-          });
-        };
-        reader.readAsDataURL(blob);
-      } catch (e) {
-        console.error("Failed to read file", e);
-      }
+    if (!r.canceled && r.assets) {
+      const next = await Promise.all(
+        r.assets.map(async (asset) => {
+          try {
+            const response = await fetch(asset.uri);
+            const blob = await response.blob();
+            return new Promise<{
+              uri: string;
+              b64: string;
+              mimeType: string;
+              name: string;
+            }>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const base64data = (reader.result as string).split(",")[1];
+                resolve({
+                  uri: asset.uri,
+                  b64: base64data,
+                  mimeType: asset.mimeType ?? "application/octet-stream",
+                  name: asset.name,
+                });
+              };
+              reader.readAsDataURL(blob);
+            });
+          } catch (e) {
+            console.error("Failed to read file", e);
+            return null;
+          }
+        }),
+      );
+      setPendingMedia((prev) => [...prev, ...(next.filter(Boolean) as any)]);
     }
   };
 
@@ -854,16 +1126,56 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom : 0}
     >
       {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+      <View
+        style={[
+          s.header,
+          { paddingTop: insets.top + 10 },
+          isStreaming && {
+            borderBottomColor:
+              accentColor === "green"
+                ? "#4ADE80"
+                : accentColor === "amber"
+                  ? "#FBBF24"
+                  : "#22D3EE",
+          },
+        ]}
+      >
         <TouchableOpacity
           style={s.sessionBtn}
-          onPress={() => setSessionMenuOpen(true)}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setSessionMenuOpen(true);
+          }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Image source={GHOST_LOGO} style={{ width: 18, height: 18 }} />
-            <Text style={s.headerTitle}>
-              {currentSession || "mobile:default"}
-            </Text>
+            <View>
+              <Text style={s.headerTitle}>
+                {currentSession || "mobile:default"}
+              </Text>
+              {isStreaming && (
+                <Text
+                  style={[
+                    s.headerSub,
+                    {
+                      color:
+                        accentColor === "green"
+                          ? "#4ADE80"
+                          : accentColor === "amber"
+                            ? "#FBBF24"
+                            : "#22D3EE",
+                    },
+                  ]}
+                >
+                  THINKING...
+                </Text>
+              )}
+              {connectionState === "syncing" && (
+                <Text style={[s.headerSub, { color: C.terminalAmber }]}>
+                  SYNCING...
+                </Text>
+              )}
+            </View>
             <ChevronDown size={14} color={C.icon} />
           </View>
         </TouchableOpacity>
@@ -898,10 +1210,24 @@ export default function ChatScreen() {
         data={[...messages].reverse()}
         inverted
         keyExtractor={(m) => String(m.id)}
-        renderItem={({ item }) => <MessageRow msg={item} />}
+        renderItem={({ item, index }) => {
+          const prevMsg = messages[messages.length - 1 - index - 1];
+          const isGrouped = prevMsg && prevMsg.role === item.role;
+          return (
+            <MessageRow
+              msg={item}
+              isGrouped={!!isGrouped}
+              onLongPress={(content, role) =>
+                setActionMenu({ visible: true, content, role })
+              }
+            />
+          );
+        }}
         contentContainerStyle={s.msgList}
         showsVerticalScrollIndicator={false}
       />
+
+      <ConnectionToast state={connectionState} />
 
       {/* ── Input Area ── */}
       <View
@@ -935,39 +1261,63 @@ export default function ChatScreen() {
         )}
 
         {/* Pending Media */}
-        {pendingMedia && (
-          <View style={s.pendingMedia}>
-            <Text style={s.pendingMediaText} numberOfLines={1}>
-              {pendingMedia.name || "Attachment"}
-            </Text>
-            <TouchableOpacity onPress={() => setPendingMedia(null)}>
-              <X size={16} color={C.text} />
-            </TouchableOpacity>
-          </View>
+        {pendingMedia.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={s.pendingCarousel}
+          >
+            {pendingMedia.map((m, i) => (
+              <View key={i} style={s.pendingMedia}>
+                <Text style={s.pendingMediaText} numberOfLines={1}>
+                  {m.name || "Attachment"}
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    setPendingMedia((prev) =>
+                      prev.filter((_, idx) => idx !== i),
+                    )
+                  }
+                >
+                  <X size={16} color={C.text} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
         )}
 
         <View style={s.inputRow}>
           <TouchableOpacity
             style={s.iconBtn}
-            onPress={() => setAttachOpen(!attachOpen)}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setAttachOpen(!attachOpen);
+            }}
           >
             <Plus size={20} color={attachOpen ? C.terminalGreen : C.icon} />
           </TouchableOpacity>
 
           <View style={s.inputWrap}>
-            <TextInput
-              ref={inputRef}
-              style={s.input}
-              value={input}
-              onChangeText={(t) => {
-                setInput(t);
-                setShowSlash(t.startsWith("/"));
-              }}
-              placeholder="Type a message..."
-              placeholderTextColor={C.icon}
-              multiline
-              maxLength={2000}
-            />
+            {isRecording ? (
+              <VoiceWaveform />
+            ) : (
+              <TextInput
+                ref={inputRef}
+                style={s.input}
+                value={input}
+                onChangeText={(t) => {
+                  setInput(t);
+                  setShowSlash(t.startsWith("/"));
+                }}
+                placeholder={
+                  isTranscribing ? "Transcribing..." : "Type a message..."
+                }
+                placeholderTextColor={C.icon}
+                multiline
+                maxLength={2000}
+                editable={!isTranscribing}
+              />
+            )}
           </View>
 
           {input.trim() || pendingMedia ? (
@@ -984,12 +1334,22 @@ export default function ChatScreen() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={s.iconBtn}
-              onPress={() => {
-                /* Voice logic */
-              }}
+              style={[
+                s.iconBtn,
+                isRecording && {
+                  backgroundColor: "rgba(239, 68, 68, 0.1)",
+                  borderRadius: 22,
+                },
+              ]}
+              onPressIn={startRecording}
+              onPressOut={stopRecording}
+              disabled={isTranscribing}
             >
-              <Mic size={20} color={C.icon} />
+              {isTranscribing ? (
+                <ActivityIndicator size="small" color={C.terminalGreen} />
+              ) : (
+                <Mic size={20} color={isRecording ? C.error : C.icon} />
+              )}
             </TouchableOpacity>
           )}
         </View>
@@ -1017,6 +1377,31 @@ export default function ChatScreen() {
           </View>
         )}
       </View>
+
+      <ActionModal
+        visible={actionMenu.visible}
+        onClose={() => setActionMenu({ ...actionMenu, visible: false })}
+        role={actionMenu.role}
+        onCopy={() => {
+          Clipboard.setStringAsync(actionMenu.content);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }}
+        onShare={async () => {
+          try {
+            await Share.share({ message: actionMenu.content });
+          } catch (err) {
+            console.error("Share failed", err);
+          }
+        }}
+        onRetry={
+          actionMenu.role === "user"
+            ? () => {
+                setInput(actionMenu.content);
+                // Auto-send can be added here if desired
+              }
+            : undefined
+        }
+      />
 
       <SessionModal
         visible={sessionMenuOpen}
@@ -1054,6 +1439,12 @@ const s = StyleSheet.create({
     fontFamily: FONT_MONO,
     fontSize: 14,
     fontWeight: "700",
+  },
+  headerSub: {
+    fontSize: 9,
+    fontFamily: FONT_MONO,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   sessionBtn: { flexDirection: "row", alignItems: "center", padding: 4 },
   noConfigTitle: {
@@ -1160,22 +1551,25 @@ const s = StyleSheet.create({
   attachTray: { flexDirection: "row", gap: 16, paddingBottom: 12 },
   attachItem: { alignItems: "center", gap: 4 },
   attachLabel: { color: C.text, fontFamily: FONT_MONO, fontSize: 10 },
+  pendingCarousel: { marginBottom: 8 },
   pendingMedia: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: C.card,
     padding: 8,
-    marginBottom: 8,
+    marginRight: 8,
     borderRadius: 4,
     borderWidth: 1,
     borderColor: C.border,
+    maxWidth: 150,
   },
   pendingMediaText: {
     color: C.text,
     fontFamily: FONT_MONO,
     fontSize: 12,
     flex: 1,
+    marginRight: 8,
   },
 
   // Slash
@@ -1280,5 +1674,22 @@ const s = StyleSheet.create({
     fontFamily: FONT_MONO,
     fontWeight: "700",
     fontSize: 14,
+  },
+  toast: {
+    position: "absolute",
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    padding: 12,
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  toastText: {
+    fontFamily: FONT_MONO,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
   },
 });
