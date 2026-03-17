@@ -638,6 +638,7 @@ function SessionModal({
   onSwitch,
   onCreate,
   onRename,
+  onDelete,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -646,9 +647,17 @@ function SessionModal({
   onSwitch: (s: string) => void;
   onCreate: () => void;
   onRename: (oldName: string, newName: string) => void;
+  onDelete: (name: string) => void;
 }) {
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+
+  const handleRenameSubmit = (sess: string) => {
+    if (newName.trim() && newName !== sess) {
+      onRename(sess, newName.trim());
+    }
+    setEditingSession(null);
+  };
 
   return (
     <Modal
@@ -669,7 +678,7 @@ function SessionModal({
             <X size={20} color={C.text} />
           </TouchableOpacity>
         </View>
-        <ScrollView style={{ maxHeight: 300 }}>
+        <ScrollView style={{ maxHeight: 400 }}>
           {recentSessions.map((sess) => (
             <View
               key={sess}
@@ -679,53 +688,25 @@ function SessionModal({
               ]}
             >
               {editingSession === sess ? (
-                <View
-                  style={{
-                    flex: 1,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
+                <View style={s.editRow}>
                   <TextInput
-                    style={[
-                      s.sessionText,
-                      {
-                        flex: 1,
-                        borderBottomWidth: 1,
-                        borderBottomColor: C.terminalGreen,
-                      },
-                    ]}
+                    style={s.editInput}
                     value={newName}
                     onChangeText={setNewName}
                     autoFocus
-                    onSubmitEditing={() => {
-                      if (newName.trim() && newName !== sess) {
-                        onRename(sess, newName.trim());
-                      }
-                      setEditingSession(null);
-                    }}
+                    onSubmitEditing={() => handleRenameSubmit(sess)}
                   />
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (newName.trim() && newName !== sess) {
-                        onRename(sess, newName.trim());
-                      }
-                      setEditingSession(null);
-                    }}
-                  >
-                    <Check size={16} color={C.terminalGreen} />
+                  <TouchableOpacity onPress={() => handleRenameSubmit(sess)}>
+                    <Check size={18} color={C.terminalGreen} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setEditingSession(null)}>
+                    <X size={18} color={C.error} />
                   </TouchableOpacity>
                 </View>
               ) : (
                 <>
                   <TouchableOpacity
-                    style={{
-                      flex: 1,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
+                    style={s.sessionMain}
                     onPress={() => {
                       onSwitch(sess);
                       onClose();
@@ -740,24 +721,26 @@ function SessionModal({
                         s.sessionText,
                         sess === currentSession && { color: C.terminalGreen },
                       ]}
+                      numberOfLines={1}
                     >
                       {sess}
                     </Text>
                   </TouchableOpacity>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 12,
-                    }}
-                  >
+                  <View style={s.sessionActions}>
                     <TouchableOpacity
                       onPress={() => {
                         setEditingSession(sess);
                         setNewName(sess);
                       }}
+                      style={s.actionIcon}
                     >
                       <Edit3 size={14} color={C.icon} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => onDelete(sess)}
+                      style={s.actionIcon}
+                    >
+                      <Trash2 size={14} color={C.error} />
                     </TouchableOpacity>
                     {sess === currentSession && (
                       <Check size={16} color={C.terminalGreen} />
@@ -961,6 +944,51 @@ export default function ChatScreen() {
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const deleteSessionHandler = async (name: string) => {
+    if (!config) return;
+
+    const performDelete = async () => {
+      try {
+        // 1. Call API to delete messages from DB
+        await deleteSession(config, name);
+
+        // 2. Update local list
+        const next = recentSessions.filter((s) => s !== name);
+        setRecentSessions(next);
+        await AsyncStorage.setItem(
+          "ghost:recentSessions",
+          JSON.stringify(next),
+        );
+
+        // 3. If it was the current session, switch to default or latest
+        if (currentSession === name) {
+          const fallback = next[0] || "mobile:default";
+          await switchSession(fallback);
+        }
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (err) {
+        console.error("Failed to delete session", err);
+        Alert.alert("Error", "Failed to delete session on the Pi.");
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (confirm(`Delete all messages in "${name}"?`)) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        "Delete Session",
+        `Permanently delete all messages in "${name}"?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: performDelete },
+        ],
+      );
+    }
   };
 
   // ... (Keep existing logic for polling, WS, Send, Voice, Attach, etc. adapted for new UI)
@@ -1190,7 +1218,7 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={s.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom : 0}
     >
       {/* ── Header ── */}

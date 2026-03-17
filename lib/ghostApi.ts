@@ -356,6 +356,20 @@ export async function deleteMessage(
   });
 }
 
+export async function deleteSession(
+  cfg: GhostConfig,
+  id: string,
+): Promise<void> {
+  const res = await fetch(
+    `${baseURL(cfg)}/v1/session?id=${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      headers: headers(cfg),
+    },
+  );
+  if (!res.ok) throw new Error(`Failed to delete session (HTTP ${res.status})`);
+}
+
 export async function clearChat(cfg: GhostConfig): Promise<void> {
   const res = await fetch(`${baseURL(cfg)}/v1/messages`, {
     method: "DELETE",
