@@ -46,7 +46,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const GHOST_LOGO = require("../../assets/images/logo.png");
 
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, UI } from "@/constants/theme";
 import {
   checkHealth,
   connectWebSocket,
@@ -519,10 +519,9 @@ const mkStyles: Record<string, any> = {
 
 // ─── Connection badge ─────────────────────────────────────────────────────
 function ConnectionBadge({ state }: { state: ConnectionState }) {
-  const accent = useTerminalColor();
   const color =
     state === "online"
-      ? accent
+      ? C.terminalGreen
       : state === "syncing"
         ? C.terminalAmber
         : C.error;
@@ -538,6 +537,21 @@ function ConnectionBadge({ state }: { state: ConnectionState }) {
       <View
         style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }}
       />
+      <Text
+        style={{
+          color,
+          fontFamily: FONT_MONO,
+          fontSize: UI.typography.status,
+          letterSpacing: 1,
+          fontWeight: "700",
+        }}
+      >
+        {state === "online"
+          ? "ONLINE"
+          : state === "syncing"
+            ? "SYNCING"
+            : "OFFLINE"}
+      </Text>
     </View>
   );
 }
@@ -1592,8 +1606,8 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: UI.spacing.screenX,
+    paddingBottom: UI.spacing.headerY,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
     backgroundColor: C.background,
@@ -1606,7 +1620,7 @@ const s = StyleSheet.create({
     fontWeight: "700",
   },
   headerSub: {
-    fontSize: 9,
+    fontSize: UI.typography.meta,
     fontFamily: FONT_MONO,
     fontWeight: "700",
     letterSpacing: 0.5,
@@ -1652,7 +1666,7 @@ const s = StyleSheet.create({
     gap: 6,
     marginTop: 4,
   },
-  ts: { color: C.icon, fontSize: 10, fontFamily: FONT_MONO },
+  ts: { color: C.icon, fontSize: UI.typography.meta, fontFamily: FONT_MONO },
   attachedImage: { width: 200, height: 120, borderRadius: 4 },
   fileThumb: {
     width: 40,
@@ -1667,8 +1681,8 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.border,
     backgroundColor: C.background,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: UI.spacing.screenX,
+    paddingTop: UI.spacing.section,
   },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 12 },
   inputWrap: {
@@ -1795,24 +1809,24 @@ const s = StyleSheet.create({
   // Modal
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: UI.modal.backdrop,
   },
   modalContent: {
     position: "absolute",
-    top: 100,
-    left: 20,
-    right: 20,
+    top: UI.modal.top,
+    left: UI.modal.side,
+    right: UI.modal.side,
     backgroundColor: C.background,
     borderWidth: 1,
     borderColor: C.terminalGreen,
-    borderRadius: 0,
+    borderRadius: UI.radius.panel,
     padding: 0,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    padding: UI.modal.headerPadding,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
     backgroundColor: C.card,
@@ -1883,7 +1897,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    padding: 16,
+    padding: UI.modal.bodyPadding,
     backgroundColor: C.terminalGreen,
   },
   newSessionText: {

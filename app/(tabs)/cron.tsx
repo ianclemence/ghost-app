@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, UI } from "@/constants/theme";
 import {
   CronJob,
   fetchCronJobs,
@@ -353,8 +353,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: UI.spacing.screenX,
+    paddingVertical: UI.spacing.headerY,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
@@ -377,13 +377,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontFamily: FONT_MONO,
   },
-  listContent: { padding: 16, gap: 16 },
+  listContent: { padding: UI.spacing.section, gap: UI.spacing.section },
   card: {
     backgroundColor: C.card,
-    borderRadius: 0,
+    borderRadius: UI.radius.panel,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 16,
+    padding: UI.spacing.card,
     gap: 12,
   },
   cardHeader: {
@@ -486,24 +486,24 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: UI.modal.backdrop,
   },
   modalContent: {
     position: "absolute",
-    top: 100,
-    left: 20,
-    right: 20,
+    top: UI.modal.top,
+    left: UI.modal.side,
+    right: UI.modal.side,
     backgroundColor: C.background,
     borderWidth: 1,
     borderColor: C.terminalGreen,
-    borderRadius: 0,
+    borderRadius: UI.radius.panel,
     padding: 0,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    padding: UI.modal.headerPadding,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
     backgroundColor: C.card,
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   modalBody: {
-    padding: 16,
+    padding: UI.modal.bodyPadding,
     backgroundColor: C.card,
     gap: 14,
   },
@@ -529,8 +529,8 @@ const styles = StyleSheet.create({
   modalButton: {
     alignSelf: "flex-end",
     backgroundColor: C.terminalGreen,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingVertical: UI.modal.buttonY,
+    paddingHorizontal: UI.modal.buttonX,
   },
   modalButtonText: {
     color: C.background,

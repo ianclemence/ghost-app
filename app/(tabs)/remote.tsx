@@ -29,7 +29,7 @@ import {
   takeScreenshot,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, UI } from "@/constants/theme";
 
 const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
@@ -219,6 +219,19 @@ export default function RemoteScreen() {
     );
   }
 
+  const statusColor =
+    connectionState === "online"
+      ? C.terminalGreen
+      : connectionState === "syncing"
+        ? C.terminalAmber
+        : C.error;
+  const statusLabel =
+    connectionState === "online"
+      ? "ONLINE"
+      : connectionState === "syncing"
+        ? "SYNCING"
+        : "OFFLINE";
+
   return (
     <ScrollView
       style={styles.container}
@@ -235,101 +248,107 @@ export default function RemoteScreen() {
           <Text style={styles.headerTitle}>Remote Control</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: connectionState === "online" ? C.terminalGreen : C.error }} />
-          <Text style={{ color: connectionState === "online" ? C.terminalGreen : C.error, fontSize: 10, letterSpacing: 1, fontFamily: FONT_MONO }}>
-            {connectionState.toUpperCase()}
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: statusColor }} />
+          <Text style={{ color: statusColor, fontSize: UI.typography.status, letterSpacing: 1, fontFamily: FONT_MONO, fontWeight: "700" }}>
+            {statusLabel}
           </Text>
         </View>
       </View>
 
       <View style={styles.content}>
-        {/* System Stats */}
-        <StatsGrid stats={stats} loading={statsLoading} onRefresh={loadStats} />
-
-        {/* Browser / URL Launcher */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Open URL</Text>
-          <View style={styles.urlRow}>
-            <TextInput
-              style={styles.urlInput}
-              value={urlInput}
-              onChangeText={setUrlInput}
-              placeholder="https://example.com"
-              placeholderTextColor={C.icon}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              onSubmitEditing={handleOpenURL}
-            />
-            <TouchableOpacity
-              style={[styles.goBtn, !urlInput.trim() && styles.goBtnOff]}
-              onPress={handleOpenURL}
-              disabled={openLoading || !urlInput.trim()}
-            >
-              {openLoading ? (
-                <ActivityIndicator color={C.background} size="small" />
-              ) : (
-                <Text style={styles.goBtnTxt}>Go</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-          {openResult && (
-            <Text style={[styles.resultText, openResult.startsWith("✓") ? { color: C.terminalGreen } : { color: C.error }]}>
-              {openResult}
-            </Text>
-          )}
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>MONITOR</Text>
+          <StatsGrid stats={stats} loading={statsLoading} onRefresh={loadStats} />
         </View>
 
-        {/* Quick App Launch */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Open App</Text>
-          <View style={styles.appGrid}>
-            {QUICK_APPS.map((app) => (
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>LAUNCH</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Open URL</Text>
+            <View style={styles.urlRow}>
+              <TextInput
+                style={styles.urlInput}
+                value={urlInput}
+                onChangeText={setUrlInput}
+                placeholder="https://example.com"
+                placeholderTextColor={C.icon}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                onSubmitEditing={handleOpenURL}
+              />
               <TouchableOpacity
-                key={app.target}
-                style={styles.appBtn}
-                onPress={() => handleOpenApp(app.target)}
-                activeOpacity={0.7}
+                style={[styles.goBtn, !urlInput.trim() && styles.goBtnOff]}
+                onPress={handleOpenURL}
+                disabled={openLoading || !urlInput.trim()}
               >
-                <app.icon size={24} color={C.text} />
-                <Text style={styles.appLabel}>{app.label}</Text>
+                {openLoading ? (
+                  <ActivityIndicator color={C.background} size="small" />
+                ) : (
+                  <Text style={styles.goBtnTxt}>Go</Text>
+                )}
               </TouchableOpacity>
-            ))}
+            </View>
+            {openResult && (
+              <Text style={[styles.resultText, openResult.startsWith("✓") ? { color: C.terminalGreen } : { color: C.error }]}>
+                {openResult}
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Open App</Text>
+            <View style={styles.appGrid}>
+              {QUICK_APPS.map((app) => (
+                <TouchableOpacity
+                  key={app.target}
+                  style={styles.appBtn}
+                  onPress={() => handleOpenApp(app.target)}
+                  activeOpacity={0.7}
+                >
+                  <app.icon size={24} color={C.text} />
+                  <Text style={styles.appLabel}>{app.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </View>
 
-        {/* Screenshot */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Screenshot</Text>
-            <TouchableOpacity
-              style={[styles.smallBtn, screenshotLoading && styles.smallBtnOff]}
-              onPress={handleScreenshot}
-              disabled={screenshotLoading}
-            >
-              {screenshotLoading ? (
-                <ActivityIndicator color={C.terminalGreen} size="small" />
-              ) : (
-                <Text style={styles.smallBtnTxt}>Capture</Text>
-              )}
-            </TouchableOpacity>
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>CAPTURE</Text>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Screenshot</Text>
+              <TouchableOpacity
+                style={[styles.smallBtn, screenshotLoading && styles.smallBtnOff]}
+                onPress={handleScreenshot}
+                disabled={screenshotLoading}
+              >
+                {screenshotLoading ? (
+                  <ActivityIndicator color={C.terminalGreen} size="small" />
+                ) : (
+                  <Text style={styles.smallBtnTxt}>Capture</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+            {screenshot ? (
+              <Image
+                source={{ uri: screenshot }}
+                style={styles.screenshotImg}
+                resizeMode="contain"
+              />
+            ) : (
+              <Text style={styles.dimText}>
+                Awaiting visual confirmation...
+              </Text>
+            )}
           </View>
-          {screenshot ? (
-            <Image
-              source={{ uri: screenshot }}
-              style={styles.screenshotImg}
-              resizeMode="contain"
-            />
-          ) : (
-            <Text style={styles.dimText}>
-              Awaiting visual confirmation...
-            </Text>
-          )}
         </View>
 
-        {/* Shell Exec */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Run Command</Text>
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>COMMAND</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Run Command</Text>
           <View style={styles.urlRow}>
             <TextInput
               style={[styles.urlInput, { fontSize: 13 }]}
@@ -391,6 +410,7 @@ export default function RemoteScreen() {
               ) : null}
             </View>
           )}
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -402,18 +422,20 @@ const styles = StyleSheet.create({
   centered: { justifyContent: "center", alignItems: "center", flex: 1 },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border,
+    paddingHorizontal: UI.spacing.screenX, paddingVertical: UI.spacing.headerY, borderBottomWidth: 1, borderBottomColor: C.border,
   },
   headerTitle: { fontFamily: FONT_MONO, fontSize: 16, fontWeight: "700", color: C.terminalGreen, letterSpacing: 1 },
-  content: { padding: 12, gap: 12 },
+  content: { padding: UI.spacing.section, gap: UI.spacing.section },
+  sectionBlock: { gap: 8 },
+  sectionTitle: { color: C.icon, fontSize: UI.typography.meta, fontFamily: FONT_MONO, fontWeight: "700", letterSpacing: 1.4, marginBottom: 2 },
   card: {
-    backgroundColor: C.card, borderRadius: 0, borderWidth: 1, borderColor: C.border, padding: 14, gap: 12,
+    backgroundColor: C.card, borderRadius: UI.radius.panel, borderWidth: 1, borderColor: C.border, padding: UI.spacing.card, gap: 12,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cardTitle: { color: C.icon, fontSize: 10, fontWeight: "700", letterSpacing: 2, fontFamily: FONT_MONO },
+  cardTitle: { color: C.icon, fontSize: UI.typography.meta, fontWeight: "700", letterSpacing: 1.6, fontFamily: FONT_MONO },
   statsGrid: { flexDirection: "row", flexWrap: "wrap" },
   statCell: { width: "50%", paddingVertical: 6, paddingRight: 8 },
-  statLabel: { color: C.icon, fontSize: 9, letterSpacing: 1.5, fontFamily: FONT_MONO, marginBottom: 2 },
+  statLabel: { color: C.icon, fontSize: UI.typography.meta, letterSpacing: 1.2, fontFamily: FONT_MONO, marginBottom: 2 },
   statValue: { color: C.text, fontSize: 13, fontFamily: FONT_MONO },
   
   urlRow: { flexDirection: "row", gap: 8, alignItems: "center" },

@@ -1,66 +1,92 @@
+import { Platform } from "react-native";
 
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+const tintColorLight = "#0a7ea4";
+const tintColorDark = "#fff";
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: "#11181C",
+    background: "#fff",
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: "#687076",
+    tabIconDefault: "#687076",
     tabIconSelected: tintColorLight,
-    border: '#E6E8EB',
-    card: '#F9FAFB',
-    success: '#10B981',
-    error: '#EF4444',
-    warning: '#F59E0B',
-    terminalGreen: '#10B981', // Green 500
-    terminalAmber: '#F59E0B', // Amber 500
+    border: "#E6E8EB",
+    card: "#F9FAFB",
+    success: "#10B981",
+    error: "#EF4444",
+    warning: "#F59E0B",
+    terminalGreen: "#10B981", // Green 500
+    terminalAmber: "#F59E0B", // Amber 500
   },
   dark: {
-    text: '#EDEDED',
-    background: '#09090b', // Deep charcoal/black
+    text: "#EDEDED",
+    background: "#09090b", // Deep charcoal/black
     tint: tintColorDark,
-    icon: '#A1A1AA',
-    tabIconDefault: '#71717A',
+    icon: "#A1A1AA",
+    tabIconDefault: "#71717A",
     tabIconSelected: tintColorDark,
-    border: '#27272A', // Zinc 800
-    card: '#18181B', // Zinc 900
-    success: '#22C55E', // Green 500
-    error: '#EF4444', // Red 500
-    warning: '#F59E0B', // Amber 500
-    terminalGreen: '#4ADE80', // Green
-    terminalAmber: '#FBBF24', // Amber
-    terminalCyan: '#22D3EE', // Cyan
+    border: "#27272A", // Zinc 800
+    card: "#18181B", // Zinc 900
+    success: "#22C55E", // Green 500
+    error: "#EF4444", // Red 500
+    warning: "#F59E0B", // Amber 500
+    terminalGreen: "#4ADE80", // Green
+    terminalAmber: "#FBBF24", // Amber
+    terminalCyan: "#22D3EE", // Cyan
   },
 };
 
 export const Fonts = Platform.select({
   ios: {
-    sans: 'system-ui',
-    serif: 'ui-serif',
-    rounded: 'ui-rounded',
-    mono: 'Menlo', // Better mono for iOS
+    sans: "system-ui",
+    serif: "ui-serif",
+    rounded: "ui-rounded",
+    mono: "Menlo", // Better mono for iOS
   },
   android: {
-    sans: 'sans-serif',
-    serif: 'serif',
-    rounded: 'sans-serif-medium',
-    mono: 'monospace',
+    sans: "sans-serif",
+    serif: "serif",
+    rounded: "sans-serif-medium",
+    mono: "monospace",
   },
   default: {
-    sans: 'system-ui',
-    serif: 'serif',
-    rounded: 'system-ui',
-    mono: 'monospace',
+    sans: "system-ui",
+    serif: "serif",
+    rounded: "system-ui",
+    mono: "monospace",
   },
   web: {
     sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    rounded:
+      "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
     mono: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+export const UI = {
+  spacing: {
+    screenX: 16,
+    headerY: 12,
+    card: 14,
+    section: 12,
+  },
+  radius: {
+    panel: 0,
+    bubble: 8,
+  },
+  typography: {
+    meta: 11,
+    status: 11,
+  },
+  modal: {
+    top: 100,
+    side: 20,
+    backdrop: "rgba(0,0,0,0.8)",
+    headerPadding: 16,
+    bodyPadding: 16,
+    buttonY: 10,
+    buttonX: 18,
+  },
+} as const;

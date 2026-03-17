@@ -21,7 +21,7 @@ import {
 import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, UI } from "@/constants/theme";
 import { fetchMemoryFile, fetchMemoryFiles } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
 
@@ -191,6 +191,7 @@ export default function MemoryScreen() {
     Record<string, boolean>
   >({});
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [lastOpenedFile, setLastOpenedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
 
@@ -222,6 +223,7 @@ export default function MemoryScreen() {
 
   const openFile = async (name: string) => {
     if (!config) return;
+    setLastOpenedFile(name);
     setSelectedFile(name);
     setLoadingFile(true);
     try {
@@ -241,6 +243,10 @@ export default function MemoryScreen() {
   const toggleFolder = (path: string) => {
     setExpandedFolders((prev) => ({ ...prev, [path]: !prev[path] }));
   };
+
+  const breadcrumbParts = lastOpenedFile
+    ? normalizePath(lastOpenedFile).split("/").filter(Boolean)
+    : [];
 
   if (!config) {
     return (
@@ -305,7 +311,7 @@ export default function MemoryScreen() {
             style={{
               flexDirection: "row",
               alignItems: "center",
-              gap: 5,
+              gap: 6,
               marginTop: 4,
             }}
           >
@@ -330,13 +336,17 @@ export default function MemoryScreen() {
                     : connectionState === "syncing"
                       ? C.terminalAmber
                       : C.error,
-                fontSize: 9,
+                fontSize: UI.typography.status,
                 fontWeight: "700",
                 letterSpacing: 1.5,
                 fontFamily: FONT_MONO,
               }}
             >
-              {connectionState.toUpperCase()}
+              {connectionState === "online"
+                ? "ONLINE"
+                : connectionState === "syncing"
+                  ? "SYNCING"
+                  : "OFFLINE"}
             </Text>
           </View>
         </View>
@@ -374,57 +384,86 @@ export default function MemoryScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={visibleNodes}
-          keyExtractor={(item) => item.key}
-          renderItem={({ item }) =>
-            item.node.type === "folder" ? (
-              <TouchableOpacity
-                style={[styles.treeRow, { paddingLeft: 14 + item.level * 18 }]}
-                onPress={() => toggleFolder(item.node.path)}
-                activeOpacity={0.7}
-              >
-                {expandedFolders[item.node.path] ? (
-                  <ChevronDown size={14} color={C.icon} />
-                ) : (
-                  <ChevronRight size={14} color={C.icon} />
-                )}
-                {expandedFolders[item.node.path] ? (
-                  <FolderOpen size={16} color={C.terminalGreen} />
-                ) : (
-                  <Folder size={16} color={C.terminalGreen} />
-                )}
-                <Text style={styles.treeFolderName} numberOfLines={1}>
-                  {item.node.name}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.treeRow, { paddingLeft: 14 + item.level * 18 }]}
-                onPress={() => openFile(item.node.path)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.treeSpacer} />
-                <FileText size={14} color={C.icon} />
-                <View style={styles.fileInfo}>
-                  <Text style={styles.fileName} numberOfLines={1}>
+        <>
+          {breadcrumbParts.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.breadcrumbRow}
+            >
+              {breadcrumbParts.map((part, idx) => (
+                <View key={`${part}-${idx}`} style={styles.breadcrumbChip}>
+                  <Text style={styles.breadcrumbText}>{part}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+          <FlatList
+            data={visibleNodes}
+            keyExtractor={(item) => item.key}
+            renderItem={({ item }) =>
+              item.node.type === "folder" ? (
+                <TouchableOpacity
+                  style={[
+                    styles.treeRow,
+                    { paddingLeft: 14 + item.level * 18 },
+                  ]}
+                  onPress={() => toggleFolder(item.node.path)}
+                  activeOpacity={0.7}
+                >
+                  {expandedFolders[item.node.path] ? (
+                    <ChevronDown size={14} color={C.icon} />
+                  ) : (
+                    <ChevronRight size={14} color={C.icon} />
+                  )}
+                  {expandedFolders[item.node.path] ? (
+                    <FolderOpen size={16} color={C.terminalGreen} />
+                  ) : (
+                    <Folder size={16} color={C.terminalGreen} />
+                  )}
+                  <Text style={styles.treeFolderName} numberOfLines={1}>
                     {item.node.name}
                   </Text>
-                  <View style={styles.fileMeta}>
-                    <Text style={styles.fileMetaText}>
-                      {formatRelativeTime(item.node.file.modified * 1000)}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.treeRow,
+                    { paddingLeft: 14 + item.level * 18 },
+                    item.node.path === lastOpenedFile && styles.treeRowActive,
+                  ]}
+                  onPress={() => openFile(item.node.path)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.treeSpacer} />
+                  <FileText
+                    size={14}
+                    color={
+                      item.node.path === lastOpenedFile
+                        ? C.terminalGreen
+                        : C.icon
+                    }
+                  />
+                  <View style={styles.fileInfo}>
+                    <Text style={styles.fileName} numberOfLines={1}>
+                      {item.node.name}
                     </Text>
-                    <Text style={styles.fileMetaDot}>·</Text>
-                    <Text style={styles.fileMetaText}>
-                      {formatSize(item.node.file.size)}
-                    </Text>
+                    <View style={styles.fileMeta}>
+                      <Text style={styles.fileMetaText}>
+                        {formatRelativeTime(item.node.file.modified * 1000)}
+                      </Text>
+                      <Text style={styles.fileMetaDot}>·</Text>
+                      <Text style={styles.fileMetaText}>
+                        {formatSize(item.node.file.size)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            )
-          }
-          contentContainerStyle={{ paddingVertical: 8 }}
-        />
+                </TouchableOpacity>
+              )
+            }
+            contentContainerStyle={{ paddingVertical: 8 }}
+          />
+        </>
       )}
     </View>
   );
@@ -437,8 +476,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: UI.spacing.screenX,
+    paddingVertical: UI.spacing.headerY,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
@@ -476,17 +515,17 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
-    paddingHorizontal: 16,
+    paddingHorizontal: UI.spacing.screenX,
     gap: 10,
-    paddingVertical: 12,
+    paddingVertical: UI.spacing.section,
   },
   statBox: {
     flex: 1,
     backgroundColor: C.card,
-    borderRadius: 0,
+    borderRadius: UI.radius.panel,
     borderWidth: 1,
     borderColor: C.border,
-    padding: 14,
+    padding: UI.spacing.card,
     alignItems: "center",
     gap: 4,
   },
@@ -498,10 +537,29 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     color: C.icon,
-    fontSize: 9,
+    fontSize: UI.typography.meta,
     letterSpacing: 1.5,
     fontWeight: "600",
     fontFamily: FONT_MONO,
+  },
+  breadcrumbRow: {
+    paddingHorizontal: UI.spacing.screenX,
+    paddingVertical: 8,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  breadcrumbChip: {
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  breadcrumbText: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: UI.typography.meta,
   },
   treeRow: {
     flexDirection: "row",
@@ -512,6 +570,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
     minHeight: 44,
+  },
+  treeRowActive: {
+    backgroundColor: "rgba(74, 222, 128, 0.08)",
   },
   treeSpacer: {
     width: 14,

@@ -27,7 +27,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, UI } from "@/constants/theme";
 import {
   checkHealth,
   checkHealthDebug,
@@ -199,6 +199,19 @@ export default function SettingsScreen() {
     return { text: "HEALTHY", color: C.terminalGreen };
   }, [doctorData]);
 
+  const statusColor =
+    connectionState === "online"
+      ? C.terminalGreen
+      : connectionState === "syncing"
+        ? C.terminalAmber
+        : C.error;
+  const statusLabel =
+    connectionState === "online"
+      ? "ONLINE"
+      : connectionState === "syncing"
+        ? "SYNCING"
+        : "OFFLINE";
+
   return (
     <ScrollView
       style={s.container}
@@ -234,17 +247,10 @@ export default function SettingsScreen() {
           <Text
             style={[
               s.statusText,
-              {
-                color:
-                  connectionState === "online"
-                    ? C.terminalGreen
-                    : connectionState === "syncing"
-                      ? C.terminalAmber
-                      : C.error,
-              },
+              { color: statusColor },
             ]}
           >
-            {connectionState.toUpperCase()}
+            {statusLabel}
           </Text>
         </View>
       </View>
@@ -561,8 +567,8 @@ function DiagItem({
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: UI.spacing.screenX,
+    paddingVertical: UI.spacing.headerY,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
     flexDirection: "row",
@@ -578,15 +584,15 @@ const s = StyleSheet.create({
   },
   statusText: {
     fontFamily: FONT_MONO,
-    fontSize: 10,
+    fontSize: UI.typography.status,
     fontWeight: "700",
     letterSpacing: 1,
   },
 
-  section: { marginTop: 24, paddingHorizontal: 16 },
+  section: { marginTop: 18, paddingHorizontal: UI.spacing.screenX },
   sectionTitle: {
     color: C.icon,
-    fontSize: 10,
+    fontSize: UI.typography.meta,
     fontWeight: "700",
     letterSpacing: 2,
     fontFamily: FONT_MONO,
@@ -602,7 +608,7 @@ const s = StyleSheet.create({
   field: { padding: 14, borderBottomWidth: 1, borderBottomColor: C.border },
   fieldLabel: {
     color: C.icon,
-    fontSize: 10,
+    fontSize: UI.typography.meta,
     letterSpacing: 1,
     fontFamily: FONT_MONO,
     marginBottom: 4,
@@ -670,7 +676,7 @@ const s = StyleSheet.create({
   },
   toggleSub: {
     color: C.icon,
-    fontSize: 10,
+    fontSize: UI.typography.meta,
     marginTop: 2,
     fontFamily: FONT_MONO,
   },
@@ -690,7 +696,7 @@ const s = StyleSheet.create({
   accentDot: { width: 8, height: 8, borderRadius: 4 },
   accentLabel: {
     color: C.text,
-    fontSize: 10,
+    fontSize: UI.typography.meta,
     fontFamily: FONT_MONO,
     fontWeight: "700",
   },
@@ -705,7 +711,7 @@ const s = StyleSheet.create({
   },
   diagLabel: {
     color: C.icon,
-    fontSize: 9,
+    fontSize: UI.typography.meta,
     letterSpacing: 1.5,
     fontFamily: FONT_MONO,
     marginBottom: 4,
@@ -741,10 +747,10 @@ const s = StyleSheet.create({
     fontFamily: FONT_MONO,
     textTransform: "uppercase",
   },
-  checkLatency: { color: C.icon, fontSize: 10, fontFamily: FONT_MONO },
+  checkLatency: { color: C.icon, fontSize: UI.typography.meta, fontFamily: FONT_MONO },
   checkMsg: {
     color: C.icon,
-    fontSize: 10,
+    fontSize: UI.typography.meta,
     marginTop: 2,
     fontFamily: FONT_MONO,
   },
