@@ -1355,7 +1355,10 @@ export default function ChatScreen() {
             onChangeText={setSearchQuery}
             autoFocus
           />
-          <TouchableOpacity onPress={() => setSearchVisible(false)}>
+          <TouchableOpacity
+            style={s.searchCloseBtn}
+            onPress={() => setSearchVisible(false)}
+          >
             <X size={18} color={C.icon} />
           </TouchableOpacity>
         </View>
@@ -1775,6 +1778,13 @@ const s = StyleSheet.create({
     fontSize: 13,
     paddingHorizontal: 10,
     paddingVertical: 4,
+  },
+  searchCloseBtn: {
+    width: 44,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 4,
   },
 
   // Modal
