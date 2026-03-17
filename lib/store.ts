@@ -85,8 +85,6 @@ interface GhostStore {
   setActiveTab: (tab: GhostStore["activeTab"]) => void;
   accentColor: "green" | "amber" | "cyan";
   setAccentColor: (color: GhostStore["accentColor"]) => void;
-  fontScale: number;
-  setFontScale: (v: number) => void;
 
   // Canvas state
   canvasHtml: string | null;
@@ -262,8 +260,6 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   setActiveTab: (tab) => set({ activeTab: tab }),
   accentColor: "green",
   setAccentColor: (color) => set({ accentColor: color }),
-  fontScale: 1.0,
-  setFontScale: (v) => set({ fontScale: v }),
 
   canvasHtml: null,
   setCanvasHtml: (html) => set({ canvasHtml: html }),

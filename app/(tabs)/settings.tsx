@@ -10,7 +10,6 @@ import {
   RotateCcw,
   Save,
   Settings,
-  Type,
   Wifi,
   WifiOff,
   XCircle,
@@ -64,8 +63,6 @@ export default function SettingsScreen() {
     setProfile,
     accentColor,
     setAccentColor,
-    fontScale,
-    setFontScale,
   } = useGhostStore();
 
   const [host, setHost] = useState(config?.piHost ?? "");
@@ -356,46 +353,6 @@ export default function SettingsScreen() {
                 ]}
               >
                 {a.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <View style={s.toggleRow}>
-          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-            <Type size={18} color={C.terminalGreen} />
-            <View>
-              <Text style={s.toggleLabel}>Font Size</Text>
-              <Text style={s.toggleSub}>Adjust text readability</Text>
-            </View>
-          </View>
-        </View>
-        <View style={s.accentRow}>
-          {[0.8, 1.0, 1.2, 1.4].map((scale) => (
-            <TouchableOpacity
-              key={scale}
-              style={[
-                s.accentBtn,
-                fontScale === scale && {
-                  borderColor: C.terminalGreen,
-                  backgroundColor: "rgba(74, 222, 128, 0.1)",
-                },
-              ]}
-              onPress={() => setFontScale(scale)}
-            >
-              <Text
-                style={[
-                  s.accentLabel,
-                  { fontSize: 12 * scale },
-                  fontScale === scale && { color: C.terminalGreen },
-                ]}
-              >
-                {scale === 1.0
-                  ? "NORMAL"
-                  : scale < 1.0
-                    ? "SMALL"
-                    : scale > 1.2
-                      ? "LARGE"
-                      : "MEDIUM"}
               </Text>
             </TouchableOpacity>
           ))}
