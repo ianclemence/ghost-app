@@ -10,6 +10,7 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  Edit3,
   FileText,
   Image as ImageIcon,
   Mic,
@@ -19,7 +20,6 @@ import {
   Wifi,
   WifiOff,
   X,
-  Edit3,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -670,11 +670,31 @@ function SessionModal({
         </View>
         <ScrollView style={{ maxHeight: 300 }}>
           {recentSessions.map((sess) => (
-            <View key={sess} style={[s.sessionItem, sess === currentSession && s.sessionItemActive]}>
+            <View
+              key={sess}
+              style={[
+                s.sessionItem,
+                sess === currentSession && s.sessionItemActive,
+              ]}
+            >
               {editingSession === sess ? (
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
                   <TextInput
-                    style={[s.sessionText, { flex: 1, borderBottomWidth: 1, borderBottomColor: C.terminalGreen }]}
+                    style={[
+                      s.sessionText,
+                      {
+                        flex: 1,
+                        borderBottomWidth: 1,
+                        borderBottomColor: C.terminalGreen,
+                      },
+                    ]}
                     value={newName}
                     onChangeText={setNewName}
                     autoFocus
@@ -685,19 +705,26 @@ function SessionModal({
                       setEditingSession(null);
                     }}
                   />
-                  <TouchableOpacity onPress={() => {
-                    if (newName.trim() && newName !== sess) {
-                      onRename(sess, newName.trim());
-                    }
-                    setEditingSession(null);
-                  }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (newName.trim() && newName !== sess) {
+                        onRename(sess, newName.trim());
+                      }
+                      setEditingSession(null);
+                    }}
+                  >
                     <Check size={16} color={C.terminalGreen} />
                   </TouchableOpacity>
                 </View>
               ) : (
                 <>
                   <TouchableOpacity
-                    style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
                     onPress={() => {
                       onSwitch(sess);
                       onClose();
@@ -716,11 +743,19 @@ function SessionModal({
                       {sess}
                     </Text>
                   </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity onPress={() => {
-                      setEditingSession(sess);
-                      setNewName(sess);
-                    }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingSession(sess);
+                        setNewName(sess);
+                      }}
+                    >
                       <Edit3 size={14} color={C.icon} />
                     </TouchableOpacity>
                     {sess === currentSession && (
@@ -908,11 +943,11 @@ export default function ChatScreen() {
   const renameSession = async (oldName: string, newName: string) => {
     if (!config || !newName.trim()) return;
     const nextName = newName.trim();
-    
+
     // Update list in AsyncStorage
     setRecentSessions((prev) => {
-      const next = prev.map(s => s === oldName ? nextName : s);
-      AsyncStorage.setItem('ghost:recentSessions', JSON.stringify(next));
+      const next = prev.map((s) => (s === oldName ? nextName : s));
+      AsyncStorage.setItem("ghost:recentSessions", JSON.stringify(next));
       return next;
     });
 
@@ -923,7 +958,7 @@ export default function ChatScreen() {
       setConfig(nextCfg);
       setCurrentSession(nextName);
     }
-    
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -1053,6 +1088,14 @@ export default function ChatScreen() {
     setInput("");
     setPendingMedia([]);
     setShowSlash(false);
+
+    // Intercept clear/reset commands to update local state immediately
+    const cmd = t.toLowerCase().trim();
+    if (cmd === "/clear" || cmd === "/reset") {
+      setMessages([]);
+      clearSeenMessageIds();
+    }
+
     if (connectionState !== "online") {
       // For now, only send first one in queue if offline, or handle better
       enqueueMessage({
