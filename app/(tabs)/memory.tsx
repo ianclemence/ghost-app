@@ -43,6 +43,8 @@ const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
 const MAP_MIN_SCALE = 0.65;
 const MAP_MAX_SCALE = 2.7;
+const MAP_CANVAS_MAX_WIDTH = 2200;
+const MAP_CANVAS_MAX_HEIGHT = 1600;
 
 interface MemFile {
   name: string;
@@ -309,11 +311,16 @@ function buildWorkspaceMapGraph(
   const rowGap = 42;
   const padX = 80;
   const padY = 80;
-  const width = Math.max(screen.width + 80, padX * 2 + (maxDepth + 1) * colGap);
-  const height = Math.max(
+  const rawWidth = Math.max(
+    screen.width + 80,
+    padX * 2 + (maxDepth + 1) * colGap,
+  );
+  const rawHeight = Math.max(
     screen.height * 0.78,
     padY * 2 + maxGroupCount * rowGap,
   );
+  const width = Math.min(MAP_CANVAS_MAX_WIDTH, rawWidth);
+  const height = Math.min(MAP_CANVAS_MAX_HEIGHT, rawHeight);
 
   const nodes: MapNode[] = [];
   groups.forEach((ids, depth) => {
@@ -329,7 +336,7 @@ function buildWorkspaceMapGraph(
     });
 
     const groupHeight = Math.max(sorted.length - 1, 0) * rowGap;
-    const startY = (height - groupHeight) / 2;
+    const startY = Math.max(24, (height - groupHeight) / 2);
 
     sorted.forEach((id, idx) => {
       const meta = nodeMeta.get(id);
@@ -365,9 +372,14 @@ export default function MemoryScreen() {
   const [loadingFile, setLoadingFile] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [mapScale, setMapScale] = useState(1);
+  const [mapViewportSize, setMapViewportSize] = useState({
+    width: 0,
+    height: 0,
+  });
   const mapPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const mapScaleAnim = useRef(new Animated.Value(1)).current;
   const mapScaleRef = useRef(1);
+  const hasMapInteractedRef = useRef(false);
 
   const loadFiles = useCallback(async () => {
     if (!config) return;
@@ -442,6 +454,67 @@ export default function MemoryScreen() {
     mapScaleRef.current = mapScale;
   }, [mapScale]);
 
+  const applyMapFit = useCallback(
+    (animated: boolean) => {
+      if (mapViewportSize.width <= 0 || mapViewportSize.height <= 0) return;
+      const viewportPad = 24;
+      const fitW = (mapViewportSize.width - viewportPad) / mapGraph.width;
+      const fitH = (mapViewportSize.height - viewportPad) / mapGraph.height;
+      const nextScale = Math.min(
+        MAP_MAX_SCALE,
+        Math.max(MAP_MIN_SCALE, Math.min(fitW, fitH, 1.18)),
+      );
+      const offsetX = (mapViewportSize.width - mapGraph.width * nextScale) / 2;
+      const offsetY =
+        (mapViewportSize.height - mapGraph.height * nextScale) / 2;
+
+      if (animated) {
+        mapPan.stopAnimation((value: any) => {
+          mapPan.setOffset({ x: value.x, y: value.y });
+          mapPan.setValue({ x: 0, y: 0 });
+          mapPan.flattenOffset();
+          Animated.timing(mapPan, {
+            toValue: { x: offsetX, y: offsetY },
+            duration: 180,
+            useNativeDriver: true,
+          }).start();
+        });
+        Animated.timing(mapScaleAnim, {
+          toValue: nextScale,
+          duration: 180,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        mapPan.stopAnimation();
+        mapPan.setOffset({ x: 0, y: 0 });
+        mapPan.setValue({ x: offsetX, y: offsetY });
+        mapScaleAnim.setValue(nextScale);
+      }
+
+      mapScaleRef.current = nextScale;
+      setMapScale(nextScale);
+    },
+    [
+      mapGraph.height,
+      mapGraph.width,
+      mapPan,
+      mapScaleAnim,
+      mapViewportSize.height,
+      mapViewportSize.width,
+    ],
+  );
+
+  useEffect(() => {
+    if (viewMode !== "map") return;
+    hasMapInteractedRef.current = false;
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== "map") return;
+    if (hasMapInteractedRef.current) return;
+    applyMapFit(false);
+  }, [applyMapFit, mapViewportSize.height, mapViewportSize.width, viewMode]);
+
   const mapPanResponder = useMemo(
     () =>
       PanResponder.create({
@@ -449,6 +522,7 @@ export default function MemoryScreen() {
         onMoveShouldSetPanResponder: (_: any, gesture: any) =>
           Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
         onPanResponderGrant: () => {
+          hasMapInteractedRef.current = true;
           mapPan.stopAnimation((value: any) => {
             mapPan.setOffset({ x: value.x, y: value.y });
             mapPan.setValue({ x: 0, y: 0 });
@@ -468,6 +542,7 @@ export default function MemoryScreen() {
   );
 
   const zoomIn = () => {
+    hasMapInteractedRef.current = true;
     const next = Math.min(MAP_MAX_SCALE, mapScaleRef.current + 0.2);
     setMapScale(next);
     Animated.timing(mapScaleAnim, {
@@ -478,6 +553,7 @@ export default function MemoryScreen() {
   };
 
   const zoomOut = () => {
+    hasMapInteractedRef.current = true;
     const next = Math.max(MAP_MIN_SCALE, mapScaleRef.current - 0.2);
     setMapScale(next);
     Animated.timing(mapScaleAnim, {
@@ -488,21 +564,8 @@ export default function MemoryScreen() {
   };
 
   const resetMapView = () => {
-    setMapScale(1);
-    mapPan.stopAnimation(() => {
-      mapPan.setOffset({ x: 0, y: 0 });
-      mapPan.setValue({ x: 0, y: 0 });
-      Animated.timing(mapPan, {
-        toValue: { x: 0, y: 0 },
-        duration: 170,
-        useNativeDriver: true,
-      }).start();
-    });
-    Animated.timing(mapScaleAnim, {
-      toValue: 1,
-      duration: 170,
-      useNativeDriver: true,
-    }).start();
+    hasMapInteractedRef.current = false;
+    applyMapFit(true);
   };
 
   const toggleFolder = (path: string) => {
@@ -803,6 +866,12 @@ export default function MemoryScreen() {
 
                 <View
                   style={styles.mapViewport}
+                  onLayout={(e) =>
+                    setMapViewportSize({
+                      width: e.nativeEvent.layout.width,
+                      height: e.nativeEvent.layout.height,
+                    })
+                  }
                   {...mapPanResponder.panHandlers}
                 >
                   <Animated.View
