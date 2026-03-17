@@ -576,7 +576,7 @@ function MessageRow({
         onLongPress={handleLongPress}
         activeOpacity={0.8}
       >
-        <View style={[s.userBubble, { borderLeftColor: accent }]}>
+        <View style={s.userBubble}>
           {msg.media_url && (
             <View style={{ marginBottom: 8 }}>
               {msg.media_type?.startsWith("image/") ? (
@@ -1625,11 +1625,11 @@ const s = StyleSheet.create({
   // Message Styles
   userRow: { alignSelf: "flex-end", maxWidth: "85%", marginBottom: 16 },
   userBubble: {
-    backgroundColor: C.border,
-    borderRadius: 4,
+    backgroundColor: C.card,
+    borderRadius: 8,
     padding: 12,
-    borderLeftWidth: 2,
-    borderLeftColor: C.terminalGreen,
+    borderWidth: 1,
+    borderColor: C.border,
   },
   userText: {
     color: C.text,
