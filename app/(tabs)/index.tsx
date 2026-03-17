@@ -1,5 +1,6 @@
 import { useTerminalColor } from "@/hooks/use-terminal-color";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Audio } from "expo-av";
 import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
@@ -60,6 +61,7 @@ import {
   renameSession as renameSessionApi,
   saveConfig,
   sendMessage,
+  transcribeAudio,
 } from "../../lib/ghostApi";
 import {
   ConnectionState,
