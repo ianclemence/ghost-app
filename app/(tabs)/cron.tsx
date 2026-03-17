@@ -1,10 +1,9 @@
-
+import { Clock, Pause, Play, RefreshCw, RotateCcw } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -12,17 +11,17 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Clock, Play, Pause, RefreshCw, AlertTriangle, RotateCcw, CheckCircle } from "lucide-react-native";
 
+import { Colors, Fonts } from "@/constants/theme";
 import {
   CronJob,
   fetchCronJobs,
+  onWSMessage,
   pauseCronJob,
   resumeCronJob,
   runCronJobNow,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
-import { Colors, Fonts } from "@/constants/theme";
 
 const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
@@ -74,7 +73,10 @@ function JobCard({
         <View
           style={[
             styles.statusBadge,
-            { borderColor: statusColor, backgroundColor: isPaused ? 'transparent' : `${statusColor}20` },
+            {
+              borderColor: statusColor,
+              backgroundColor: isPaused ? "transparent" : `${statusColor}20`,
+            },
           ]}
         >
           <Text style={[styles.statusText, { color: statusColor }]}>
@@ -91,9 +93,7 @@ function JobCard({
         ) : null}
         <Text style={styles.statText}>
           Run: {job.run_count} • Last:{" "}
-          {job.state.lastRunAtMs
-            ? timeAgo(job.state.lastRunAtMs)
-            : "Never"}
+          {job.state.lastRunAtMs ? timeAgo(job.state.lastRunAtMs) : "Never"}
         </Text>
         {job.state.lastError ? (
           <Text style={[styles.statText, { color: C.error }]}>
@@ -116,7 +116,11 @@ function JobCard({
             style={[styles.actionBtn, styles.resumeBtn]}
             onPress={() => onAction(job.id, "resume")}
           >
-            <RotateCcw size={12} color={C.terminalGreen} style={{ marginRight: 6 }} />
+            <RotateCcw
+              size={12}
+              color={C.terminalGreen}
+              style={{ marginRight: 6 }}
+            />
             <Text style={styles.resumeBtnText}>Resume</Text>
           </TouchableOpacity>
         ) : (
@@ -153,6 +157,16 @@ export default function CronScreen() {
   useEffect(() => {
     setLoading(true);
     loadJobs().finally(() => setLoading(false));
+
+    // Listen for WebSocket updates for cron jobs
+    const unsub = onWSMessage((msg: any) => {
+      if (msg.type === "cron_update" || msg.metadata?.type === "cron_update") {
+        console.log("Cron update received, refreshing list...");
+        loadJobs();
+      }
+    });
+
+    return () => unsub();
   }, [loadJobs]);
 
   const onRefresh = async () => {
@@ -214,7 +228,7 @@ export default function CronScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <Clock size={20} color={C.terminalGreen} />
           <Text style={styles.headerTitle}>Scheduled Tasks</Text>
         </View>
@@ -270,8 +284,18 @@ const styles = StyleSheet.create({
     color: C.terminalGreen,
     letterSpacing: 1,
   },
-  noConfigTitle: { color: C.terminalGreen, fontSize: 18, fontWeight: "700", fontFamily: FONT_MONO },
-  noConfigSub: { color: C.icon, fontSize: 13, marginTop: 8, fontFamily: FONT_MONO },
+  noConfigTitle: {
+    color: C.terminalGreen,
+    fontSize: 18,
+    fontWeight: "700",
+    fontFamily: FONT_MONO,
+  },
+  noConfigSub: {
+    color: C.icon,
+    fontSize: 13,
+    marginTop: 8,
+    fontFamily: FONT_MONO,
+  },
   listContent: { padding: 16, gap: 16 },
   card: {
     backgroundColor: C.card,
@@ -346,7 +370,7 @@ const styles = StyleSheet.create({
   },
   runBtn: {
     borderColor: C.terminalGreen,
-    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+    backgroundColor: "rgba(74, 222, 128, 0.1)",
   },
   runBtnText: {
     color: C.terminalGreen,
