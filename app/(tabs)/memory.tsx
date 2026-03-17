@@ -22,7 +22,11 @@ import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, UI } from "@/constants/theme";
-import { fetchMemoryFile, fetchMemoryFiles } from "../../lib/ghostApi";
+import {
+  fetchWorkspaceFilePreview,
+  fetchWorkspaceFiles,
+  WorkspaceFilePreview,
+} from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
 
 const C = Colors.dark;
@@ -193,13 +197,15 @@ export default function MemoryScreen() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [lastOpenedFile, setLastOpenedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
+  const [filePreviewMeta, setFilePreviewMeta] =
+    useState<WorkspaceFilePreview | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
 
   const loadFiles = useCallback(async () => {
     if (!config) return;
     setLoading(true);
     try {
-      const data = await fetchMemoryFiles(config);
+      const data = await fetchWorkspaceFiles(config);
       const sorted = data.sort((a, b) =>
         normalizePath(a.name).localeCompare(normalizePath(b.name)),
       );
@@ -226,9 +232,24 @@ export default function MemoryScreen() {
     setLastOpenedFile(name);
     setSelectedFile(name);
     setLoadingFile(true);
+    setFilePreviewMeta(null);
     try {
-      const content = await fetchMemoryFile(config, name);
-      setFileContent(content);
+      const preview = await fetchWorkspaceFilePreview(config, name);
+      setFilePreviewMeta(preview);
+      if (!preview.previewable) {
+        setFileContent(
+          [
+            `Preview unavailable for this file.`,
+            ``,
+            `Reason: ${preview.reason || "unsupported"}`,
+            `Size: ${formatSize(preview.size)}`,
+          ].join("\n"),
+        );
+      } else if (preview.content.trim() === "") {
+        setFileContent("_File is empty._");
+      } else {
+        setFileContent(preview.content);
+      }
     } catch {
       setFileContent("_Error loading file._");
     }
@@ -247,6 +268,18 @@ export default function MemoryScreen() {
   const breadcrumbParts = lastOpenedFile
     ? normalizePath(lastOpenedFile).split("/").filter(Boolean)
     : [];
+  const statusColor =
+    connectionState === "online"
+      ? C.terminalGreen
+      : connectionState === "syncing"
+        ? C.terminalAmber
+        : C.error;
+  const statusLabel =
+    connectionState === "online"
+      ? "ONLINE"
+      : connectionState === "syncing"
+        ? "SYNCING"
+        : "OFFLINE";
 
   if (!config) {
     return (
@@ -272,6 +305,7 @@ export default function MemoryScreen() {
             onPress={() => {
               setSelectedFile(null);
               setFileContent(null);
+              setFilePreviewMeta(null);
             }}
             style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
@@ -282,6 +316,25 @@ export default function MemoryScreen() {
             {selectedFile}
           </Text>
         </View>
+        {filePreviewMeta && (
+          <View style={styles.previewMetaRow}>
+            <View style={styles.metaPill}>
+              <Text style={styles.metaPillText}>
+                {filePreviewMeta.previewable ? "previewable" : "blocked"}
+              </Text>
+            </View>
+            <View style={styles.metaPill}>
+              <Text style={styles.metaPillText}>
+                {formatSize(filePreviewMeta.size)}
+              </Text>
+            </View>
+            {filePreviewMeta.truncated && (
+              <View style={styles.metaPill}>
+                <Text style={styles.metaPillText}>truncated</Text>
+              </View>
+            )}
+          </View>
+        )}
         {loadingFile ? (
           <ActivityIndicator
             color={C.terminalGreen}
@@ -301,77 +354,42 @@ export default function MemoryScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Database size={20} color={C.terminalGreen} />
-            <Text style={styles.headerTitle}>Knowledge Base</Text>
+      <View style={styles.explorerShell}>
+        <View style={styles.panelHead}>
+          <View style={styles.panelHeadLeft}>
+            <Database size={16} color={C.terminalGreen} />
+            <Text style={styles.panelHeadTitle}>workspace</Text>
           </View>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              marginTop: 4,
-            }}
+          <TouchableOpacity
+            onPress={loadFiles}
+            disabled={loading}
+            style={styles.iconBtn}
           >
+            {loading ? (
+              <ActivityIndicator color={C.terminalGreen} size="small" />
+            ) : (
+              <RefreshCw size={16} color={C.terminalGreen} />
+            )}
+          </TouchableOpacity>
+        </View>
+        <View style={styles.panelMeta}>
+          <View style={styles.statusPill}>
             <View
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                backgroundColor:
-                  connectionState === "online"
-                    ? C.terminalGreen
-                    : connectionState === "syncing"
-                      ? C.terminalAmber
-                      : C.error,
-              }}
+              style={[styles.statusDot, { backgroundColor: statusColor }]}
             />
-            <Text
-              style={{
-                color:
-                  connectionState === "online"
-                    ? C.terminalGreen
-                    : connectionState === "syncing"
-                      ? C.terminalAmber
-                      : C.error,
-                fontSize: UI.typography.status,
-                fontWeight: "700",
-                letterSpacing: 1.5,
-                fontFamily: FONT_MONO,
-              }}
-            >
-              {connectionState === "online"
-                ? "ONLINE"
-                : connectionState === "syncing"
-                  ? "SYNCING"
-                  : "OFFLINE"}
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {statusLabel}
             </Text>
           </View>
-        </View>
-        <TouchableOpacity onPress={loadFiles} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color={C.terminalGreen} size="small" />
-          ) : (
-            <RefreshCw size={18} color={C.terminalGreen} />
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Summary stats */}
-      <View style={styles.statsRow}>
-        <View style={styles.statBox}>
-          <Text style={styles.statNum}>{files.length}</Text>
-          <Text style={styles.statLabel}>Files</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statNum}>{folderCount}</Text>
-          <Text style={styles.statLabel}>Folders</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statNum}>{formatSize(totalSize)}</Text>
-          <Text style={styles.statLabel}>Total Size</Text>
+          <View style={styles.metaPill}>
+            <Text style={styles.metaPillText}>{files.length} files</Text>
+          </View>
+          <View style={styles.metaPill}>
+            <Text style={styles.metaPillText}>{folderCount} folders</Text>
+          </View>
+          <View style={styles.metaPill}>
+            <Text style={styles.metaPillText}>{formatSize(totalSize)}</Text>
+          </View>
         </View>
       </View>
 
@@ -380,33 +398,37 @@ export default function MemoryScreen() {
       ) : files.length === 0 ? (
         <View style={styles.centered}>
           <Text style={{ color: C.icon, fontSize: 14, fontFamily: FONT_MONO }}>
-            No memory files found
+            No workspace files found
           </Text>
         </View>
       ) : (
         <>
           {breadcrumbParts.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.breadcrumbRow}
-            >
-              {breadcrumbParts.map((part, idx) => (
-                <View key={`${part}-${idx}`} style={styles.breadcrumbChip}>
-                  <Text style={styles.breadcrumbText}>{part}</Text>
-                </View>
-              ))}
-            </ScrollView>
+            <View style={styles.breadcrumbWrap}>
+              <ScrollView
+                horizontal
+                style={styles.breadcrumbScroll}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.breadcrumbRow}
+              >
+                {breadcrumbParts.map((part, idx) => (
+                  <View key={`${part}-${idx}`} style={styles.breadcrumbChip}>
+                    <Text style={styles.breadcrumbText}>{part}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
           )}
           <FlatList
             data={visibleNodes}
             keyExtractor={(item) => item.key}
+            style={styles.treeList}
             renderItem={({ item }) =>
               item.node.type === "folder" ? (
                 <TouchableOpacity
                   style={[
                     styles.treeRow,
-                    { paddingLeft: 14 + item.level * 18 },
+                    { paddingLeft: 12 + item.level * 16 },
                   ]}
                   onPress={() => toggleFolder(item.node.path)}
                   activeOpacity={0.7}
@@ -429,7 +451,7 @@ export default function MemoryScreen() {
                 <TouchableOpacity
                   style={[
                     styles.treeRow,
-                    { paddingLeft: 14 + item.level * 18 },
+                    { paddingLeft: 12 + item.level * 16 },
                     item.node.path === lastOpenedFile && styles.treeRowActive,
                   ]}
                   onPress={() => openFile(item.node.path)}
@@ -461,7 +483,7 @@ export default function MemoryScreen() {
                 </TouchableOpacity>
               )
             }
-            contentContainerStyle={{ paddingVertical: 8 }}
+            contentContainerStyle={styles.treeContent}
           />
         </>
       )}
@@ -472,6 +494,86 @@ export default function MemoryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  explorerShell: {
+    marginHorizontal: UI.spacing.screenX,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  panelHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minHeight: 36,
+  },
+  panelHeadLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  panelHeadTitle: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    textTransform: "lowercase",
+    fontSize: 13,
+    letterSpacing: 0.8,
+    fontWeight: "700",
+  },
+  iconBtn: {
+    width: 26,
+    height: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.background,
+  },
+  panelMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 6,
+    backgroundColor: C.background,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontFamily: FONT_MONO,
+    fontSize: UI.typography.status,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  metaPill: {
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: C.background,
+  },
+  metaPillText: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -513,85 +615,86 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
   },
-  statsRow: {
-    flexDirection: "row",
-    paddingHorizontal: UI.spacing.screenX,
-    gap: 10,
-    paddingVertical: UI.spacing.section,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderRadius: UI.radius.panel,
+  breadcrumbWrap: {
+    marginHorizontal: UI.spacing.screenX,
+    marginTop: 8,
     borderWidth: 1,
     borderColor: C.border,
-    padding: UI.spacing.card,
-    alignItems: "center",
-    gap: 4,
+    backgroundColor: C.card,
+    minHeight: 36,
+    justifyContent: "center",
   },
-  statNum: {
-    color: C.terminalGreen,
-    fontSize: 20,
-    fontWeight: "800",
-    fontFamily: FONT_MONO,
-  },
-  statLabel: {
-    color: C.icon,
-    fontSize: UI.typography.meta,
-    letterSpacing: 1.5,
-    fontWeight: "600",
-    fontFamily: FONT_MONO,
+  breadcrumbScroll: {
+    maxHeight: 40,
   },
   breadcrumbRow: {
-    paddingHorizontal: UI.spacing.screenX,
-    paddingVertical: 8,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 6,
+    alignItems: "center",
   },
   breadcrumbChip: {
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.card,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   breadcrumbText: {
     color: C.icon,
     fontFamily: FONT_MONO,
-    fontSize: UI.typography.meta,
+    fontSize: 10,
+    letterSpacing: 0.5,
   },
+  treeList: {
+    marginHorizontal: UI.spacing.screenX,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  treeContent: { paddingVertical: 4 },
   treeRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingRight: 14,
-    paddingVertical: 12,
-    gap: 10,
+    paddingRight: 12,
+    paddingVertical: 8,
+    gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-    minHeight: 44,
+    minHeight: 34,
   },
   treeRowActive: {
-    backgroundColor: "rgba(74, 222, 128, 0.08)",
+    backgroundColor: "rgba(74, 222, 128, 0.14)",
+    borderLeftWidth: 2,
+    borderLeftColor: C.terminalGreen,
   },
   treeSpacer: {
-    width: 14,
+    width: 12,
   },
   treeFolderName: {
     color: C.text,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: FONT_MONO,
     flex: 1,
   },
   fileInfo: { flex: 1, gap: 3 },
   fileName: {
     color: C.text,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: FONT_MONO,
   },
   fileMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
   fileMetaText: { color: C.icon, fontSize: 11, fontFamily: FONT_MONO },
   fileMetaDot: { color: C.icon, fontSize: 11 },
+  previewMetaRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: UI.spacing.screenX,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
   fileScroll: { flex: 1 },
   fileContent: { padding: 18 },
   noConfigTitle: {

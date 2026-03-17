@@ -56,6 +56,20 @@ export interface ExecResult {
   duration_ms: number;
 }
 
+export interface WorkspaceFileEntry {
+  name: string;
+  modified: number;
+  size: number;
+}
+
+export interface WorkspaceFilePreview {
+  previewable: boolean;
+  reason: string;
+  size: number;
+  truncated: boolean;
+  content: string;
+}
+
 export interface ConnectionDebugResult {
   ok: boolean;
   url: string;
@@ -721,6 +735,28 @@ export async function fetchMemoryFile(
   if (!res.ok) throw new Error("Not found");
   const data = await res.json();
   return data.content;
+}
+
+export async function fetchWorkspaceFiles(
+  cfg: GhostConfig,
+): Promise<WorkspaceFileEntry[]> {
+  const res = await fetch(`${baseURL(cfg)}/v1/workspace/files`, {
+    headers: headers(cfg),
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function fetchWorkspaceFilePreview(
+  cfg: GhostConfig,
+  name: string,
+): Promise<WorkspaceFilePreview> {
+  const res = await fetch(
+    `${baseURL(cfg)}/v1/workspace/file?name=${encodeURIComponent(name)}`,
+    { headers: headers(cfg) },
+  );
+  if (!res.ok) throw new Error("Not found");
+  return res.json();
 }
 
 // ─── Pi System ────────────────────────────────────────────────────────────
