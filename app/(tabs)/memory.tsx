@@ -1,9 +1,17 @@
-
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  FileText,
+  Folder,
+  FolderOpen,
+  RefreshCw,
+} from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,11 +20,10 @@ import {
 } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { FileText, RefreshCw, ArrowLeft, ChevronRight, HardDrive, Database } from "lucide-react-native";
 
+import { Colors, Fonts } from "@/constants/theme";
 import { fetchMemoryFile, fetchMemoryFiles } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
-import { Colors, Fonts } from "@/constants/theme";
 
 const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
@@ -25,6 +32,28 @@ interface MemFile {
   name: string;
   modified: number;
   size: number;
+}
+
+interface TreeFileNode {
+  type: "file";
+  name: string;
+  path: string;
+  file: MemFile;
+}
+
+interface TreeFolderNode {
+  type: "folder";
+  name: string;
+  path: string;
+  children: TreeNode[];
+}
+
+type TreeNode = TreeFileNode | TreeFolderNode;
+
+interface VisibleNode {
+  key: string;
+  level: number;
+  node: TreeNode;
 }
 
 function formatRelativeTime(unixMs: number): string {
@@ -47,11 +76,120 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/");
+}
+
+function sortTree(nodes: TreeNode[]): TreeNode[] {
+  const folders: TreeFolderNode[] = [];
+  const files: TreeFileNode[] = [];
+  nodes.forEach((node) => {
+    if (node.type === "folder") {
+      node.children = sortTree(node.children);
+      folders.push(node);
+    } else {
+      files.push(node);
+    }
+  });
+  folders.sort((a, b) => a.name.localeCompare(b.name));
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  return [...folders, ...files];
+}
+
+function buildTree(files: MemFile[]): TreeNode[] {
+  const root: TreeFolderNode = {
+    type: "folder",
+    name: "/",
+    path: "",
+    children: [],
+  };
+
+  files.forEach((file) => {
+    const normalized = normalizePath(file.name);
+    const parts = normalized.split("/").filter(Boolean);
+    if (parts.length === 0) return;
+
+    let current = root;
+    let currentPath = "";
+
+    parts.forEach((part, index) => {
+      const isLast = index === parts.length - 1;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+      if (isLast) {
+        current.children.push({
+          type: "file",
+          name: part,
+          path: normalized,
+          file: { ...file, name: normalized },
+        });
+        return;
+      }
+
+      let existing = current.children.find(
+        (child): child is TreeFolderNode =>
+          child.type === "folder" && child.name === part,
+      );
+
+      if (!existing) {
+        existing = {
+          type: "folder",
+          name: part,
+          path: currentPath,
+          children: [],
+        };
+        current.children.push(existing);
+      }
+
+      current = existing;
+    });
+  });
+
+  return sortTree(root.children);
+}
+
+function flattenVisibleNodes(
+  nodes: TreeNode[],
+  expandedFolders: Record<string, boolean>,
+  level = 0,
+): VisibleNode[] {
+  const result: VisibleNode[] = [];
+
+  nodes.forEach((node) => {
+    result.push({
+      key: `${node.type}:${node.path}`,
+      level,
+      node,
+    });
+
+    if (node.type === "folder" && expandedFolders[node.path]) {
+      result.push(
+        ...flattenVisibleNodes(node.children, expandedFolders, level + 1),
+      );
+    }
+  });
+
+  return result;
+}
+
+function countFolderNodes(nodes: TreeNode[]): number {
+  let total = 0;
+  nodes.forEach((node) => {
+    if (node.type === "folder") {
+      total += 1 + countFolderNodes(node.children);
+    }
+  });
+  return total;
+}
+
 export default function MemoryScreen() {
   const insets = useSafeAreaInsets();
   const { config, connectionState } = useGhostStore();
   const [files, setFiles] = useState<MemFile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<
+    Record<string, boolean>
+  >({});
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
@@ -61,7 +199,19 @@ export default function MemoryScreen() {
     setLoading(true);
     try {
       const data = await fetchMemoryFiles(config);
-      setFiles(data.sort((a, b) => b.modified - a.modified));
+      const sorted = data.sort((a, b) =>
+        normalizePath(a.name).localeCompare(normalizePath(b.name)),
+      );
+      setFiles(sorted);
+      setExpandedFolders((prev) => {
+        if (Object.keys(prev).length > 0) return prev;
+        const initial: Record<string, boolean> = {};
+        sorted.forEach((f) => {
+          const parts = normalizePath(f.name).split("/").filter(Boolean);
+          if (parts.length > 1) initial[parts[0]] = true;
+        });
+        return initial;
+      });
     } catch {}
     setLoading(false);
   }, [config]);
@@ -84,13 +234,24 @@ export default function MemoryScreen() {
   };
 
   const totalSize = files.reduce((a, f) => a + f.size, 0);
+  const tree = buildTree(files);
+  const visibleNodes = flattenVisibleNodes(tree, expandedFolders);
+  const folderCount = countFolderNodes(tree);
+
+  const toggleFolder = (path: string) => {
+    setExpandedFolders((prev) => ({ ...prev, [path]: !prev[path] }));
+  };
 
   if (!config) {
     return (
       <View
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
-        <Database size={48} color={C.terminalGreen} style={{ marginBottom: 14 }} />
+        <Database
+          size={48}
+          color={C.terminalGreen}
+          style={{ marginBottom: 14 }}
+        />
         <Text style={styles.noConfigTitle}>Offline</Text>
         <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
       </View>
@@ -106,7 +267,7 @@ export default function MemoryScreen() {
               setSelectedFile(null);
               setFileContent(null);
             }}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
             <ArrowLeft size={16} color={C.terminalGreen} />
             <Text style={styles.backBtn}>Back</Text>
@@ -116,7 +277,10 @@ export default function MemoryScreen() {
           </Text>
         </View>
         {loadingFile ? (
-          <ActivityIndicator color={C.terminalGreen} style={{ marginTop: 40 }} />
+          <ActivityIndicator
+            color={C.terminalGreen}
+            style={{ marginTop: 40 }}
+          />
         ) : (
           <ScrollView
             style={styles.fileScroll}
@@ -133,11 +297,18 @@ export default function MemoryScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <Database size={20} color={C.terminalGreen} />
             <Text style={styles.headerTitle}>Knowledge Base</Text>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+              marginTop: 4,
+            }}
+          >
             <View
               style={{
                 width: 6,
@@ -185,6 +356,10 @@ export default function MemoryScreen() {
           <Text style={styles.statLabel}>Files</Text>
         </View>
         <View style={styles.statBox}>
+          <Text style={styles.statNum}>{folderCount}</Text>
+          <Text style={styles.statLabel}>Folders</Text>
+        </View>
+        <View style={styles.statBox}>
           <Text style={styles.statNum}>{formatSize(totalSize)}</Text>
           <Text style={styles.statLabel}>Total Size</Text>
         </View>
@@ -200,34 +375,54 @@ export default function MemoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={files}
-          keyExtractor={(f) => f.name}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.fileRow}
-              onPress={() => openFile(item.name)}
-              activeOpacity={0.6}
-            >
-              <View style={styles.fileIcon}>
-                <FileText size={16} color={C.terminalGreen} />
-              </View>
-              <View style={styles.fileInfo}>
-                <Text style={styles.fileName} numberOfLines={1}>
-                  {item.name}
+          data={visibleNodes}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) =>
+            item.node.type === "folder" ? (
+              <TouchableOpacity
+                style={[styles.treeRow, { paddingLeft: 14 + item.level * 18 }]}
+                onPress={() => toggleFolder(item.node.path)}
+                activeOpacity={0.7}
+              >
+                {expandedFolders[item.node.path] ? (
+                  <ChevronDown size={14} color={C.icon} />
+                ) : (
+                  <ChevronRight size={14} color={C.icon} />
+                )}
+                {expandedFolders[item.node.path] ? (
+                  <FolderOpen size={16} color={C.terminalGreen} />
+                ) : (
+                  <Folder size={16} color={C.terminalGreen} />
+                )}
+                <Text style={styles.treeFolderName} numberOfLines={1}>
+                  {item.node.name}
                 </Text>
-                <View style={styles.fileMeta}>
-                  <Text style={styles.fileMetaText}>
-                    {formatRelativeTime(item.modified * 1000)}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.treeRow, { paddingLeft: 14 + item.level * 18 }]}
+                onPress={() => openFile(item.node.path)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.treeSpacer} />
+                <FileText size={14} color={C.icon} />
+                <View style={styles.fileInfo}>
+                  <Text style={styles.fileName} numberOfLines={1}>
+                    {item.node.name}
                   </Text>
-                  <Text style={styles.fileMetaDot}>·</Text>
-                  <Text style={styles.fileMetaText}>
-                    {formatSize(item.size)}
-                  </Text>
+                  <View style={styles.fileMeta}>
+                    <Text style={styles.fileMetaText}>
+                      {formatRelativeTime(item.node.file.modified * 1000)}
+                    </Text>
+                    <Text style={styles.fileMetaDot}>·</Text>
+                    <Text style={styles.fileMetaText}>
+                      {formatSize(item.node.file.size)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <ChevronRight size={16} color={C.icon} />
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            )
+          }
           contentContainerStyle={{ paddingVertical: 8 }}
         />
       )}
@@ -308,24 +503,24 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontFamily: FONT_MONO,
   },
-  fileRow: {
+  treeRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingRight: 14,
     paddingVertical: 12,
-    gap: 12,
+    gap: 10,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
+    minHeight: 44,
   },
-  fileIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 0,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: "center",
-    justifyContent: "center",
+  treeSpacer: {
+    width: 14,
+  },
+  treeFolderName: {
+    color: C.text,
+    fontSize: 14,
+    fontFamily: FONT_MONO,
+    flex: 1,
   },
   fileInfo: { flex: 1, gap: 3 },
   fileName: {
@@ -338,8 +533,18 @@ const styles = StyleSheet.create({
   fileMetaDot: { color: C.icon, fontSize: 11 },
   fileScroll: { flex: 1 },
   fileContent: { padding: 18 },
-  noConfigTitle: { color: C.terminalGreen, fontSize: 18, fontWeight: "700", fontFamily: FONT_MONO },
-  noConfigSub: { color: C.icon, fontSize: 13, marginTop: 8, fontFamily: FONT_MONO },
+  noConfigTitle: {
+    color: C.terminalGreen,
+    fontSize: 18,
+    fontWeight: "700",
+    fontFamily: FONT_MONO,
+  },
+  noConfigSub: {
+    color: C.icon,
+    fontSize: 13,
+    marginTop: 8,
+    fontFamily: FONT_MONO,
+  },
 });
 
 const mdStyles = {
@@ -368,7 +573,7 @@ const mdStyles = {
     marginBottom: 4,
   },
   code_inline: {
-    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+    backgroundColor: "rgba(74, 222, 128, 0.1)",
     color: C.terminalGreen,
     fontFamily: FONT_MONO,
     borderRadius: 0,
