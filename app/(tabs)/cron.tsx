@@ -144,25 +144,30 @@ export default function CronScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadJobs = useCallback(async () => {
-    if (!config) return;
-    try {
-      const list = await fetchCronJobs(config);
-      setJobs(list);
-    } catch (e) {
-      console.warn("Failed to load jobs", e);
-    }
-  }, [config]);
+  const loadJobs = useCallback(
+    async (showSilent = false) => {
+      if (!config) return;
+      if (!showSilent) setLoading(true);
+      try {
+        const list = await fetchCronJobs(config);
+        setJobs(list);
+      } catch (e) {
+        console.warn("Failed to load jobs", e);
+      } finally {
+        if (!showSilent) setLoading(false);
+      }
+    },
+    [config],
+  );
 
   useEffect(() => {
-    setLoading(true);
-    loadJobs().finally(() => setLoading(false));
+    loadJobs();
 
     // Listen for WebSocket updates for cron jobs
     const unsub = onWSMessage((msg: any) => {
       if (msg.type === "cron_update" || msg.metadata?.type === "cron_update") {
         console.log("Cron update received, refreshing list...");
-        loadJobs();
+        loadJobs(true); // Silent refresh for background updates
       }
     });
 
@@ -232,7 +237,7 @@ export default function CronScreen() {
           <Clock size={20} color={C.terminalGreen} />
           <Text style={styles.headerTitle}>Scheduled Tasks</Text>
         </View>
-        <TouchableOpacity onPress={loadJobs} disabled={loading}>
+        <TouchableOpacity onPress={() => loadJobs()} disabled={loading}>
           {loading ? (
             <ActivityIndicator color={C.terminalGreen} size="small" />
           ) : (
@@ -256,7 +261,14 @@ export default function CronScreen() {
           />
         }
         ListEmptyComponent={
-          !loading ? (
+          loading && jobs.length === 0 ? (
+            <View style={{ marginTop: 100, alignItems: "center" }}>
+              <ActivityIndicator color={C.terminalGreen} size="large" />
+              <Text style={[styles.emptyText, { marginTop: 20 }]}>
+                Loading tasks...
+              </Text>
+            </View>
+          ) : !loading ? (
             <Text style={styles.emptyText}>No active schedules found.</Text>
           ) : null
         }

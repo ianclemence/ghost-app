@@ -818,9 +818,13 @@ export interface CronJob {
 }
 
 export async function fetchCronJobs(cfg: GhostConfig): Promise<CronJob[]> {
-  const res = await fetch(`${baseURL(cfg)}/v1/cron/jobs`, {
-    headers: headers(cfg),
-  });
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/cron/jobs`,
+    {
+      headers: headers(cfg),
+    },
+    10000,
+  );
   if (!res.ok) throw new Error("Failed to fetch cron jobs");
   const data = await res.json();
   return data.jobs ?? [];
