@@ -17,6 +17,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   PanResponder,
@@ -364,10 +365,9 @@ export default function MemoryScreen() {
   const [loadingFile, setLoadingFile] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [mapScale, setMapScale] = useState(1);
-  const [mapTranslate, setMapTranslate] = useState({ x: 0, y: 0 });
+  const mapPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const mapScaleAnim = useRef(new Animated.Value(1)).current;
   const mapScaleRef = useRef(1);
-  const mapTranslateRef = useRef({ x: 0, y: 0 });
-  const mapPanStartRef = useRef({ x: 0, y: 0 });
 
   const loadFiles = useCallback(async () => {
     if (!config) return;
@@ -442,10 +442,6 @@ export default function MemoryScreen() {
     mapScaleRef.current = mapScale;
   }, [mapScale]);
 
-  useEffect(() => {
-    mapTranslateRef.current = mapTranslate;
-  }, [mapTranslate]);
-
   const mapPanResponder = useMemo(
     () =>
       PanResponder.create({
@@ -453,32 +449,60 @@ export default function MemoryScreen() {
         onMoveShouldSetPanResponder: (_: any, gesture: any) =>
           Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
         onPanResponderGrant: () => {
-          mapPanStartRef.current = {
-            x: mapTranslateRef.current.x,
-            y: mapTranslateRef.current.y,
-          };
-        },
-        onPanResponderMove: (_: any, gesture: any) => {
-          setMapTranslate({
-            x: mapPanStartRef.current.x + gesture.dx,
-            y: mapPanStartRef.current.y + gesture.dy,
+          mapPan.stopAnimation((value: any) => {
+            mapPan.setOffset({ x: value.x, y: value.y });
+            mapPan.setValue({ x: 0, y: 0 });
           });
         },
+        onPanResponderMove: (_: any, gesture: any) => {
+          mapPan.setValue({ x: gesture.dx, y: gesture.dy });
+        },
+        onPanResponderRelease: () => {
+          mapPan.flattenOffset();
+        },
+        onPanResponderTerminate: () => {
+          mapPan.flattenOffset();
+        },
       }),
-    [],
+    [mapPan],
   );
 
   const zoomIn = () => {
-    setMapScale((prev) => Math.min(MAP_MAX_SCALE, prev + 0.2));
+    const next = Math.min(MAP_MAX_SCALE, mapScaleRef.current + 0.2);
+    setMapScale(next);
+    Animated.timing(mapScaleAnim, {
+      toValue: next,
+      duration: 140,
+      useNativeDriver: true,
+    }).start();
   };
 
   const zoomOut = () => {
-    setMapScale((prev) => Math.max(MAP_MIN_SCALE, prev - 0.2));
+    const next = Math.max(MAP_MIN_SCALE, mapScaleRef.current - 0.2);
+    setMapScale(next);
+    Animated.timing(mapScaleAnim, {
+      toValue: next,
+      duration: 140,
+      useNativeDriver: true,
+    }).start();
   };
 
   const resetMapView = () => {
     setMapScale(1);
-    setMapTranslate({ x: 0, y: 0 });
+    mapPan.stopAnimation(() => {
+      mapPan.setOffset({ x: 0, y: 0 });
+      mapPan.setValue({ x: 0, y: 0 });
+      Animated.timing(mapPan, {
+        toValue: { x: 0, y: 0 },
+        duration: 170,
+        useNativeDriver: true,
+      }).start();
+    });
+    Animated.timing(mapScaleAnim, {
+      toValue: 1,
+      duration: 170,
+      useNativeDriver: true,
+    }).start();
   };
 
   const toggleFolder = (path: string) => {
@@ -781,12 +805,11 @@ export default function MemoryScreen() {
                   style={styles.mapViewport}
                   {...mapPanResponder.panHandlers}
                 >
-                  <View
+                  <Animated.View
                     style={{
                       transform: [
-                        { translateX: mapTranslate.x },
-                        { translateY: mapTranslate.y },
-                        { scale: mapScale },
+                        ...mapPan.getTranslateTransform(),
+                        { scale: mapScaleAnim },
                       ],
                     }}
                   >
@@ -849,7 +872,7 @@ export default function MemoryScreen() {
                         );
                       })}
                     </View>
-                  </View>
+                  </Animated.View>
                 </View>
               </View>
             )}
