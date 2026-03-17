@@ -1467,6 +1467,11 @@ export default function ChatScreen() {
                   setInput(t);
                   setShowSlash(t.startsWith("/"));
                 }}
+                onFocus={() => {
+                  if (searchQuery.trim().length === 0) {
+                    setSearchVisible(false);
+                  }
+                }}
                 placeholder={
                   isTranscribing ? "Transcribing..." : "Type a message..."
                 }
