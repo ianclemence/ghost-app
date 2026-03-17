@@ -504,7 +504,7 @@ export default function SettingsScreen() {
         <View style={s.infoBox}>
           <Info size={16} color={C.icon} style={{ marginBottom: 8 }} />
           <Text style={s.infoText}>
-            {`// Ensure Ghost Bridge is running on Pi\n\n1. Check .env configuration\n2. Verify firewall rules (ufw allow 8766)\n3. Run ./ghost-bridge\n4. Connect via LAN IP`}
+            {`Quick Setup\n\n1) Enter Pi Host, Port, and Secret, then tap Save & Connect.\n2) Tap Test Connection to verify /v1/health and capture latency.\n3) Use Run Diagnostics to inspect backend checks and service state.\n\nIf Preview Build Cannot Connect\n\n• Android preview builds require cleartext traffic to be allowed for http:// endpoints.\n• iOS preview builds require ATS exception or HTTPS endpoint.\n• Rebuild the app after native config changes; OTA update alone is not enough.\n\nWorkspace Tips\n\n• Tree mode is precise for file navigation.\n• Map mode is exploratory; use + / − / RESET for framing.\n• Image files now open as image preview, while binary files stay protected.\n\nFast Troubleshooting\n\n• Ensure Ghost gateway is running on the Pi and reachable from your phone network.\n• Confirm Tailscale is connected on both devices when using tailnet IP.\n• If connection drops, tap Reset Link, then Run Diagnostics again.`}
           </Text>
         </View>
       </Section>
