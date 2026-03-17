@@ -17,6 +17,7 @@ import {
   Plus,
   Search,
   Terminal,
+  Trash2,
   Wifi,
   WifiOff,
   X,
@@ -47,6 +48,7 @@ import { Colors, Fonts } from "@/constants/theme";
 import {
   checkHealth,
   connectWebSocket,
+  deleteSession,
   disconnectWebSocket,
   fetchAvailableTools,
   fetchHistory,
@@ -1505,6 +1507,7 @@ export default function ChatScreen() {
         onSwitch={switchSession}
         onCreate={createNewSession}
         onRename={renameSession}
+        onDelete={deleteSessionHandler}
       />
     </KeyboardAvoidingView>
   );
@@ -1750,11 +1753,40 @@ const s = StyleSheet.create({
     backgroundColor: C.card,
   },
   sessionItemActive: { backgroundColor: "rgba(74, 222, 128, 0.15)" },
+  sessionMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   sessionText: {
     color: C.text,
     fontFamily: FONT_MONO,
     fontSize: 14,
     fontWeight: "500",
+  },
+  sessionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  actionIcon: {
+    padding: 4,
+  },
+  editRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  editInput: {
+    flex: 1,
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.terminalGreen,
+    paddingVertical: 4,
   },
   newSessionBtn: {
     flexDirection: "row",
