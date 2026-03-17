@@ -744,9 +744,6 @@ function SessionModal({
                     >
                       <Trash2 size={14} color={C.error} />
                     </TouchableOpacity>
-                    {sess === currentSession && (
-                      <Check size={16} color={C.terminalGreen} />
-                    )}
                   </View>
                 </>
               )}
