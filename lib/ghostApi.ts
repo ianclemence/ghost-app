@@ -64,10 +64,13 @@ export interface WorkspaceFileEntry {
 
 export interface WorkspaceFilePreview {
   previewable: boolean;
+  kind?: "text" | "image" | "binary";
+  mime_type?: string;
   reason: string;
   size: number;
   truncated: boolean;
   content: string;
+  image_base64?: string;
 }
 
 export interface ConnectionDebugResult {

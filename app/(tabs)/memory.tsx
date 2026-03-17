@@ -21,6 +21,7 @@ import {
   Dimensions,
   FlatList,
   PanResponder,
+  Image as RNImage,
   ScrollView,
   StyleSheet,
   Text,
@@ -307,20 +308,15 @@ function buildWorkspaceMapGraph(
   });
 
   const screen = Dimensions.get("window");
-  const colGap = 170;
-  const rowGap = 42;
-  const padX = 80;
-  const padY = 80;
-  const rawWidth = Math.max(
-    screen.width + 80,
-    padX * 2 + (maxDepth + 1) * colGap,
-  );
-  const rawHeight = Math.max(
-    screen.height * 0.78,
-    padY * 2 + maxGroupCount * rowGap,
-  );
+  const baseRadius = 120 + maxDepth * 150;
+  const densityExtra = Math.sqrt(maxGroupCount) * 120;
+  const diameter = baseRadius * 2 + densityExtra + 160;
+  const rawWidth = Math.max(screen.width + 80, diameter);
+  const rawHeight = Math.max(screen.height * 0.78, diameter * 0.92);
   const width = Math.min(MAP_CANVAS_MAX_WIDTH, rawWidth);
   const height = Math.min(MAP_CANVAS_MAX_HEIGHT, rawHeight);
+  const centerX = width / 2;
+  const centerY = height / 2;
 
   const nodes: MapNode[] = [];
   groups.forEach((ids, depth) => {
@@ -335,20 +331,37 @@ function buildWorkspaceMapGraph(
       return am.label.localeCompare(bm.label);
     });
 
-    const groupHeight = Math.max(sorted.length - 1, 0) * rowGap;
-    const startY = Math.max(24, (height - groupHeight) / 2);
-
     sorted.forEach((id, idx) => {
       const meta = nodeMeta.get(id);
       if (!meta) return;
+      if (depth === 0) {
+        nodes.push({
+          id,
+          type: meta.type,
+          path: meta.path,
+          label: meta.label,
+          depth,
+          x: centerX,
+          y: centerY,
+        });
+        return;
+      }
+
+      const count = Math.max(sorted.length, 1);
+      const angleStep = (Math.PI * 2) / count;
+      const angle = -Math.PI / 2 + idx * angleStep;
+      const baseRing = 110 + (depth - 1) * 145;
+      const jitter = ((idx % 3) - 1) * 14;
+      const radius = baseRing + jitter;
+
       nodes.push({
         id,
         type: meta.type,
         path: meta.path,
         label: meta.label,
         depth,
-        x: padX + depth * colGap,
-        y: startY + idx * rowGap,
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius,
       });
     });
   });
@@ -367,6 +380,7 @@ export default function MemoryScreen() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [lastOpenedFile, setLastOpenedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
+  const [fileImageURI, setFileImageURI] = useState<string | null>(null);
   const [filePreviewMeta, setFilePreviewMeta] =
     useState<WorkspaceFilePreview | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
@@ -412,11 +426,21 @@ export default function MemoryScreen() {
     setLastOpenedFile(name);
     setSelectedFile(name);
     setLoadingFile(true);
+    setFileContent(null);
+    setFileImageURI(null);
     setFilePreviewMeta(null);
     try {
       const preview = await fetchWorkspaceFilePreview(config, name);
       setFilePreviewMeta(preview);
-      if (!preview.previewable) {
+      if (
+        preview.kind === "image" &&
+        preview.previewable &&
+        preview.image_base64
+      ) {
+        const mimeType = preview.mime_type || "image/*";
+        setFileImageURI(`data:${mimeType};base64,${preview.image_base64}`);
+        setFileContent("");
+      } else if (!preview.previewable) {
         setFileContent(
           [
             `Preview unavailable for this file.`,
@@ -604,7 +628,10 @@ export default function MemoryScreen() {
     );
   }
 
-  if (selectedFile && fileContent !== null) {
+  if (
+    selectedFile &&
+    (loadingFile || fileContent !== null || fileImageURI !== null)
+  ) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
@@ -612,6 +639,7 @@ export default function MemoryScreen() {
             onPress={() => {
               setSelectedFile(null);
               setFileContent(null);
+              setFileImageURI(null);
               setFilePreviewMeta(null);
             }}
             style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
@@ -647,6 +675,17 @@ export default function MemoryScreen() {
             color={C.terminalGreen}
             style={{ marginTop: 40 }}
           />
+        ) : fileImageURI ? (
+          <ScrollView
+            style={styles.fileScroll}
+            contentContainerStyle={styles.imagePreviewContent}
+          >
+            <RNImage
+              source={{ uri: fileImageURI }}
+              style={styles.imagePreview}
+              resizeMode="contain"
+            />
+          </ScrollView>
         ) : (
           <ScrollView
             style={styles.fileScroll}
@@ -1254,6 +1293,20 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
   },
   fileScroll: { flex: 1 },
+  imagePreviewContent: {
+    padding: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 320,
+  },
+  imagePreview: {
+    width: "100%",
+    height: 420,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    borderRadius: UI.radius.panel,
+  },
   fileContent: { padding: 18 },
   noConfigTitle: {
     color: C.terminalGreen,
