@@ -354,33 +354,31 @@ export default function MemoryScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.explorerShell}>
-        <View style={styles.panelHead}>
-          <View style={styles.panelHeadLeft}>
-            <Database size={16} color={C.terminalGreen} />
-            <Text style={styles.panelHeadTitle}>workspace</Text>
-          </View>
+      <View style={styles.header}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <Database size={20} color={C.terminalGreen} />
+          <Text style={styles.headerTitle}>Workspace</Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[styles.statusText, { color: statusColor }]}>
+            {statusLabel}
+          </Text>
           <TouchableOpacity
             onPress={loadFiles}
             disabled={loading}
-            style={styles.iconBtn}
+            style={styles.refreshBtnWrap}
           >
             {loading ? (
               <ActivityIndicator color={C.terminalGreen} size="small" />
             ) : (
-              <RefreshCw size={16} color={C.terminalGreen} />
+              <RefreshCw size={14} color={C.terminalGreen} />
             )}
           </TouchableOpacity>
         </View>
-        <View style={styles.panelMeta}>
-          <View style={styles.statusPill}>
-            <View
-              style={[styles.statusDot, { backgroundColor: statusColor }]}
-            />
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {statusLabel}
-            </Text>
-          </View>
+      </View>
+      <View style={styles.content}>
+        <View style={styles.statsCard}>
           <View style={styles.metaPill}>
             <Text style={styles.metaPillText}>{files.length} files</Text>
           </View>
@@ -391,102 +389,107 @@ export default function MemoryScreen() {
             <Text style={styles.metaPillText}>{formatSize(totalSize)}</Text>
           </View>
         </View>
-      </View>
 
-      {loading ? (
-        <ActivityIndicator color={C.terminalGreen} style={{ marginTop: 40 }} />
-      ) : files.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={{ color: C.icon, fontSize: 14, fontFamily: FONT_MONO }}>
-            No workspace files found
-          </Text>
-        </View>
-      ) : (
-        <>
-          {breadcrumbParts.length > 0 && (
-            <View style={styles.breadcrumbWrap}>
-              <ScrollView
-                horizontal
-                style={styles.breadcrumbScroll}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.breadcrumbRow}
-              >
-                {breadcrumbParts.map((part, idx) => (
-                  <View key={`${part}-${idx}`} style={styles.breadcrumbChip}>
-                    <Text style={styles.breadcrumbText}>{part}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-          <FlatList
-            data={visibleNodes}
-            keyExtractor={(item) => item.key}
-            style={styles.treeList}
-            renderItem={({ item }) =>
-              item.node.type === "folder" ? (
-                <TouchableOpacity
-                  style={[
-                    styles.treeRow,
-                    { paddingLeft: 12 + item.level * 16 },
-                  ]}
-                  onPress={() => toggleFolder(item.node.path)}
-                  activeOpacity={0.7}
+        {loading ? (
+          <ActivityIndicator
+            color={C.terminalGreen}
+            style={{ marginTop: 40 }}
+          />
+        ) : files.length === 0 ? (
+          <View style={styles.centered}>
+            <Text
+              style={{ color: C.icon, fontSize: 14, fontFamily: FONT_MONO }}
+            >
+              No workspace files found
+            </Text>
+          </View>
+        ) : (
+          <>
+            {breadcrumbParts.length > 0 && (
+              <View style={styles.breadcrumbWrap}>
+                <ScrollView
+                  horizontal
+                  style={styles.breadcrumbScroll}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.breadcrumbRow}
                 >
-                  {expandedFolders[item.node.path] ? (
-                    <ChevronDown size={14} color={C.icon} />
-                  ) : (
-                    <ChevronRight size={14} color={C.icon} />
-                  )}
-                  {expandedFolders[item.node.path] ? (
-                    <FolderOpen size={16} color={C.terminalGreen} />
-                  ) : (
-                    <Folder size={16} color={C.terminalGreen} />
-                  )}
-                  <Text style={styles.treeFolderName} numberOfLines={1}>
-                    {item.node.name}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    styles.treeRow,
-                    { paddingLeft: 12 + item.level * 16 },
-                    item.node.path === lastOpenedFile && styles.treeRowActive,
-                  ]}
-                  onPress={() => openFile(item.node.path)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.treeSpacer} />
-                  <FileText
-                    size={14}
-                    color={
-                      item.node.path === lastOpenedFile
-                        ? C.terminalGreen
-                        : C.icon
-                    }
-                  />
-                  <View style={styles.fileInfo}>
-                    <Text style={styles.fileName} numberOfLines={1}>
+                  {breadcrumbParts.map((part, idx) => (
+                    <View key={`${part}-${idx}`} style={styles.breadcrumbChip}>
+                      <Text style={styles.breadcrumbText}>{part}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+            <FlatList
+              data={visibleNodes}
+              keyExtractor={(item) => item.key}
+              style={styles.treeList}
+              renderItem={({ item }) =>
+                item.node.type === "folder" ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.treeRow,
+                      { paddingLeft: 12 + item.level * 16 },
+                    ]}
+                    onPress={() => toggleFolder(item.node.path)}
+                    activeOpacity={0.7}
+                  >
+                    {expandedFolders[item.node.path] ? (
+                      <ChevronDown size={14} color={C.icon} />
+                    ) : (
+                      <ChevronRight size={14} color={C.icon} />
+                    )}
+                    {expandedFolders[item.node.path] ? (
+                      <FolderOpen size={16} color={C.terminalGreen} />
+                    ) : (
+                      <Folder size={16} color={C.terminalGreen} />
+                    )}
+                    <Text style={styles.treeFolderName} numberOfLines={1}>
                       {item.node.name}
                     </Text>
-                    <View style={styles.fileMeta}>
-                      <Text style={styles.fileMetaText}>
-                        {formatRelativeTime(item.node.file.modified * 1000)}
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[
+                      styles.treeRow,
+                      { paddingLeft: 12 + item.level * 16 },
+                      item.node.path === lastOpenedFile && styles.treeRowActive,
+                    ]}
+                    onPress={() => openFile(item.node.path)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.treeSpacer} />
+                    <FileText
+                      size={14}
+                      color={
+                        item.node.path === lastOpenedFile
+                          ? C.terminalGreen
+                          : C.icon
+                      }
+                    />
+                    <View style={styles.fileInfo}>
+                      <Text style={styles.fileName} numberOfLines={1}>
+                        {item.node.name}
                       </Text>
-                      <Text style={styles.fileMetaDot}>·</Text>
-                      <Text style={styles.fileMetaText}>
-                        {formatSize(item.node.file.size)}
-                      </Text>
+                      <View style={styles.fileMeta}>
+                        <Text style={styles.fileMetaText}>
+                          {formatRelativeTime(item.node.file.modified * 1000)}
+                        </Text>
+                        <Text style={styles.fileMetaDot}>·</Text>
+                        <Text style={styles.fileMetaText}>
+                          {formatSize(item.node.file.size)}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              )
-            }
-            contentContainerStyle={styles.treeContent}
-          />
-        </>
-      )}
+                  </TouchableOpacity>
+                )
+              }
+              contentContainerStyle={styles.treeContent}
+            />
+          </>
+        )}
+      </View>
     </View>
   );
 }
@@ -494,61 +497,27 @@ export default function MemoryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  explorerShell: {
-    marginHorizontal: UI.spacing.screenX,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
-  },
-  panelHead: {
+  content: { padding: UI.spacing.section, gap: UI.spacing.section },
+  statsCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    minHeight: 36,
+    gap: 8,
+    flexWrap: "wrap",
+    backgroundColor: C.card,
+    borderRadius: UI.radius.panel,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: UI.spacing.card,
   },
-  panelHeadLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  panelHeadTitle: {
-    color: C.text,
-    fontFamily: FONT_MONO,
-    textTransform: "lowercase",
-    fontSize: 13,
-    letterSpacing: 0.8,
-    fontWeight: "700",
-  },
-  iconBtn: {
-    width: 26,
-    height: 26,
+  refreshBtnWrap: {
+    width: 24,
+    height: 24,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: C.border,
-    backgroundColor: C.background,
-  },
-  panelMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    backgroundColor: "rgba(255,255,255,0.02)",
-  },
-  statusPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    gap: 6,
-    backgroundColor: C.background,
+    borderRadius: UI.radius.bubble,
+    backgroundColor: C.card,
   },
   statusDot: {
     width: 6,
@@ -566,6 +535,7 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    borderRadius: UI.radius.bubble,
     backgroundColor: C.background,
   },
   metaPillText: {
@@ -616,8 +586,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   breadcrumbWrap: {
-    marginHorizontal: UI.spacing.screenX,
-    marginTop: 8,
+    borderRadius: UI.radius.panel,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.card,
@@ -647,8 +616,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   treeList: {
-    marginHorizontal: UI.spacing.screenX,
-    marginTop: 8,
+    borderRadius: UI.radius.panel,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.card,
