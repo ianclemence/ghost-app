@@ -652,16 +652,34 @@ function SessionModal({
   recentSessions: string[];
   onSwitch: (s: string) => void;
   onCreate: () => void;
-  onRename: (oldName: string, newName: string) => void;
+  onRename: (oldName: string, newName: string) => Promise<string | null>;
   onDelete: (name: string) => void;
 }) {
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [renameErrors, setRenameErrors] = useState<Record<string, string>>({});
 
-  const handleRenameSubmit = (sess: string) => {
-    if (newName.trim() && newName !== sess) {
-      onRename(sess, newName.trim());
+  const handleRenameSubmit = async (sess: string) => {
+    const candidate = newName.trim();
+    if (!candidate || candidate === sess) {
+      setEditingSession(null);
+      setRenameErrors((prev) => {
+        const next = { ...prev };
+        delete next[sess];
+        return next;
+      });
+      return;
     }
+    const error = await onRename(sess, candidate);
+    if (error) {
+      setRenameErrors((prev) => ({ ...prev, [sess]: error }));
+      return;
+    }
+    setRenameErrors((prev) => {
+      const next = { ...prev };
+      delete next[sess];
+      return next;
+    });
     setEditingSession(null);
   };
 
@@ -694,20 +712,41 @@ function SessionModal({
               ]}
             >
               {editingSession === sess ? (
-                <View style={s.editRow}>
-                  <TextInput
-                    style={s.editInput}
-                    value={newName}
-                    onChangeText={setNewName}
-                    autoFocus
-                    onSubmitEditing={() => handleRenameSubmit(sess)}
-                  />
-                  <TouchableOpacity onPress={() => handleRenameSubmit(sess)}>
-                    <Check size={18} color={C.terminalGreen} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setEditingSession(null)}>
-                    <X size={18} color={C.error} />
-                  </TouchableOpacity>
+                <View style={s.editWrap}>
+                  <View style={s.editRow}>
+                    <TextInput
+                      style={s.editInput}
+                      value={newName}
+                      onChangeText={(text) => {
+                        setNewName(text);
+                        setRenameErrors((prev) => {
+                          const next = { ...prev };
+                          delete next[sess];
+                          return next;
+                        });
+                      }}
+                      autoFocus
+                      onSubmitEditing={() => handleRenameSubmit(sess)}
+                    />
+                    <TouchableOpacity onPress={() => handleRenameSubmit(sess)}>
+                      <Check size={18} color={C.terminalGreen} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingSession(null);
+                        setRenameErrors((prev) => {
+                          const next = { ...prev };
+                          delete next[sess];
+                          return next;
+                        });
+                      }}
+                    >
+                      <X size={18} color={C.error} />
+                    </TouchableOpacity>
+                  </View>
+                  {!!renameErrors[sess] && (
+                    <Text style={s.renameErrorText}>{renameErrors[sess]}</Text>
+                  )}
                 </View>
               ) : (
                 <>
@@ -737,6 +776,11 @@ function SessionModal({
                       onPress={() => {
                         setEditingSession(sess);
                         setNewName(sess);
+                        setRenameErrors((prev) => {
+                          const next = { ...prev };
+                          delete next[sess];
+                          return next;
+                        });
                       }}
                       style={s.actionIcon}
                     >
@@ -927,21 +971,21 @@ export default function ChatScreen() {
     switchSession(next);
   };
 
-  const renameSession = async (oldName: string, newName: string) => {
-    if (!config || !newName.trim()) return;
+  const renameSession = async (
+    oldName: string,
+    newName: string,
+  ): Promise<string | null> => {
+    if (!config || !newName.trim()) return "Name is required.";
     const nextName = newName.trim();
-    if (oldName === nextName) return;
+    if (oldName === nextName) return null;
 
     try {
       await renameSessionApi(config, oldName, nextName);
     } catch (err: any) {
       console.error("Failed to rename session", err);
-      const msg =
-        err instanceof Error && err.message.includes("409")
-          ? "A session with this name already exists."
-          : "Failed to rename session on the Pi.";
-      Alert.alert("Rename Failed", msg);
-      return;
+      return err instanceof Error && err.message.includes("409")
+        ? "Already exists."
+        : "Failed to rename on the Pi.";
     }
 
     // Update list in AsyncStorage
@@ -960,6 +1004,7 @@ export default function ChatScreen() {
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    return null;
   };
 
   const deleteSessionHandler = async (name: string) => {
@@ -1793,6 +1838,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
+  editWrap: {
+    flex: 1,
+    gap: 6,
+  },
   editInput: {
     flex: 1,
     color: C.text,
@@ -1801,6 +1850,11 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.terminalGreen,
     paddingVertical: 4,
+  },
+  renameErrorText: {
+    color: C.error,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
   },
   newSessionBtn: {
     flexDirection: "row",

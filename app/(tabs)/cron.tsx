@@ -1,9 +1,16 @@
-import { Clock, Pause, Play, RefreshCw, RotateCcw } from "lucide-react-native";
+import {
+  Clock,
+  Pause,
+  Play,
+  RefreshCw,
+  RotateCcw,
+  X,
+} from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
+  Modal,
   RefreshControl,
   StyleSheet,
   Text,
@@ -25,6 +32,43 @@ import { useGhostStore } from "../../lib/store";
 
 const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
+
+function TaskModal({
+  visible,
+  title,
+  message,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity style={styles.modalBackdrop} onPress={onClose} />
+      <View style={styles.modalContent}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <TouchableOpacity onPress={onClose}>
+            <X size={20} color={C.text} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.modalBody}>
+          <Text style={styles.modalMessage}>{message}</Text>
+          <TouchableOpacity style={styles.modalButton} onPress={onClose}>
+            <Text style={styles.modalButtonText}>OK</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function timeAgo(date: number | string | Date): string {
   const seconds = Math.floor(
@@ -143,6 +187,15 @@ export default function CronScreen() {
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [taskModal, setTaskModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+  });
 
   const loadJobs = useCallback(
     async (showSilent = false) => {
@@ -208,12 +261,20 @@ export default function CronScreen() {
         await runCronJobNow(config, id);
       }
       if (action === "run") {
-        Alert.alert("Success", "Job triggered successfully");
+        setTaskModal({
+          visible: true,
+          title: "Task Triggered",
+          message: "Job triggered successfully.",
+        });
       }
       // Reload to get exact state
       setTimeout(loadJobs, 500);
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      setTaskModal({
+        visible: true,
+        title: "Task Error",
+        message: e?.message || "Failed to perform task action.",
+      });
       setJobs(oldJobs); // Revert
     }
   };
@@ -271,6 +332,14 @@ export default function CronScreen() {
           ) : !loading ? (
             <Text style={styles.emptyText}>No active schedules found.</Text>
           ) : null
+        }
+      />
+      <TaskModal
+        visible={taskModal.visible}
+        title={taskModal.title}
+        message={taskModal.message}
+        onClose={() =>
+          setTaskModal({ visible: false, title: "", message: "" })
         }
       />
     </View>
@@ -414,5 +483,59 @@ const styles = StyleSheet.create({
     marginTop: 40,
     fontSize: 14,
     fontFamily: FONT_MONO,
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.8)",
+  },
+  modalContent: {
+    position: "absolute",
+    top: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: C.background,
+    borderWidth: 1,
+    borderColor: C.terminalGreen,
+    borderRadius: 0,
+    padding: 0,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    backgroundColor: C.card,
+  },
+  modalTitle: {
+    color: C.terminalGreen,
+    fontFamily: FONT_MONO,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  modalBody: {
+    padding: 16,
+    backgroundColor: C.card,
+    gap: 14,
+  },
+  modalMessage: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  modalButton: {
+    alignSelf: "flex-end",
+    backgroundColor: C.terminalGreen,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  modalButtonText: {
+    color: C.background,
+    fontFamily: FONT_MONO,
+    fontWeight: "700",
+    fontSize: 12,
   },
 });
