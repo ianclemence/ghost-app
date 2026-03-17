@@ -1760,15 +1760,22 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: C.card,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 4,
+    paddingHorizontal: 0,
+    paddingVertical: 4,
+    marginHorizontal: 0,
+    marginBottom: 0,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
   },
-  searchInput: { flex: 1, color: C.text, fontFamily: FONT_MONO, fontSize: 14 },
+  searchInput: {
+    flex: 1,
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
 
   // Modal
   modalBackdrop: {
