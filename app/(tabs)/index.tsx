@@ -380,40 +380,73 @@ function CodeBlock({ node }: { node: ASTNode }) {
 
 const codeStyles = StyleSheet.create({
   wrap: {
-    backgroundColor: C.card,
+    backgroundColor: "#0E1116",
     borderWidth: 1,
     borderColor: C.border,
-    marginVertical: 10,
-    borderRadius: 0,
+    marginTop: 12,
+    marginBottom: 14,
+    borderRadius: 8,
+    overflow: "hidden",
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: C.border,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: "#141A22",
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   lang: {
-    color: C.text,
+    color: C.icon,
     fontSize: 10,
     fontFamily: FONT_MONO,
     textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
   copy: {
     color: C.terminalGreen,
     fontSize: 10,
     fontFamily: FONT_MONO,
     fontWeight: "700",
+    letterSpacing: 0.7,
   },
   copyDone: { color: C.text },
-  body: { padding: 10 },
+  body: { paddingHorizontal: 12, paddingVertical: 10 },
   text: {
-    color: C.text,
+    color: "#D6E2F0",
     fontFamily: FONT_MONO,
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 12.5,
+    lineHeight: 20,
   },
+});
+
+const taskStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  box: {
+    width: 17,
+    height: 17,
+    borderWidth: 1.2,
+    borderColor: C.icon,
+    marginTop: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 3,
+    backgroundColor: C.card,
+  },
+  boxChecked: {
+    borderColor: C.terminalGreen,
+    backgroundColor: "rgba(74, 222, 128, 0.12)",
+  },
+  content: { flex: 1 },
+  contentChecked: { opacity: 0.86 },
 });
 
 // ─── Markdown rules & styles ──────────────────────────────────────────────
@@ -426,28 +459,13 @@ const markdownRules = {
 
     if (isTask) {
       return (
-        <View
-          key={node.key}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
-            marginVertical: 4,
-          }}
-        >
-          <View
-            style={{
-              width: 16,
-              height: 16,
-              borderWidth: 1,
-              borderColor: isChecked ? C.terminalGreen : C.icon,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
+        <View key={node.key} style={taskStyles.row}>
+          <View style={[taskStyles.box, isChecked && taskStyles.boxChecked]}>
             {isChecked && <Check size={12} color={C.terminalGreen} />}
           </View>
-          <View style={{ flex: 1 }}>{children}</View>
+          <View style={[taskStyles.content, isChecked && taskStyles.contentChecked]}>
+            {children}
+          </View>
         </View>
       );
     }
@@ -456,65 +474,124 @@ const markdownRules = {
 };
 
 const mkStyles: Record<string, any> = {
-  body: { color: C.text, fontSize: 14, lineHeight: 22, fontFamily: FONT_MONO },
-  paragraph: { marginTop: 0, marginBottom: 10 },
+  body: {
+    color: C.text,
+    fontSize: 15,
+    lineHeight: 24,
+    fontFamily: FONT_SANS,
+    letterSpacing: 0.1,
+  },
+  paragraph: { marginTop: 0, marginBottom: 12 },
   heading1: {
     color: C.terminalGreen,
-    fontWeight: "700",
-    fontSize: 18,
-    marginTop: 16,
-    marginBottom: 8,
+    fontWeight: "800",
+    fontSize: 22,
+    fontFamily: FONT_SANS,
+    marginTop: 20,
+    marginBottom: 10,
+    lineHeight: 29,
   },
   heading2: {
     color: C.terminalGreen,
     fontWeight: "700",
-    fontSize: 16,
-    marginTop: 14,
-    marginBottom: 6,
+    fontSize: 19,
+    fontFamily: FONT_SANS,
+    marginTop: 18,
+    marginBottom: 8,
+    lineHeight: 26,
   },
   heading3: {
     color: C.text,
     fontWeight: "700",
-    fontSize: 14,
-    marginTop: 12,
+    fontSize: 16,
+    fontFamily: FONT_SANS,
+    marginTop: 15,
+    marginBottom: 6,
+    lineHeight: 22,
+  },
+  strong: { color: C.text, fontWeight: "700", fontFamily: FONT_SANS },
+  em: { fontStyle: "italic", color: "#A6B6C8", fontFamily: FONT_SANS },
+  bullet_list: { marginBottom: 8, marginTop: 2 },
+  ordered_list: { marginBottom: 8, marginTop: 2 },
+  bullet_list_icon: { color: C.terminalGreen, marginRight: 6, marginTop: 2 },
+  bullet_list_content: { marginRight: 2 },
+  ordered_list_icon: { color: C.terminalGreen, marginRight: 8, marginTop: 1 },
+  ordered_list_content: { marginRight: 2 },
+  list_item: {
+    color: C.text,
+    fontSize: 15,
+    lineHeight: 24,
+    fontFamily: FONT_SANS,
     marginBottom: 4,
   },
-  strong: { color: C.text, fontWeight: "700" },
-  em: { fontStyle: "italic", color: C.icon },
   code_inline: {
-    backgroundColor: C.border,
-    color: C.terminalAmber,
+    backgroundColor: "#1D252E",
+    color: "#8BE9FD",
     fontFamily: FONT_MONO,
-    fontSize: 12,
-    paddingHorizontal: 4,
-    borderRadius: 2,
+    fontSize: 12.5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "rgba(139,233,253,0.28)",
   },
   blockquote: {
-    borderLeftWidth: 2,
+    borderLeftWidth: 3,
     borderLeftColor: C.terminalGreen,
-    paddingLeft: 10,
-    marginVertical: 6,
-    backgroundColor: C.card,
+    paddingLeft: 12,
+    paddingRight: 8,
+    marginTop: 8,
+    marginBottom: 10,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
   },
-  link: { color: C.terminalGreen, textDecorationLine: "underline" },
-  table: { borderWidth: 1, borderColor: C.border, marginVertical: 8 },
-  thead: { backgroundColor: C.border },
+  blockquote_content: {
+    color: "#B7C6D7",
+    fontSize: 14.5,
+    lineHeight: 23,
+    fontFamily: FONT_SANS,
+  },
+  hr: { backgroundColor: C.border, height: 1, marginVertical: 14 },
+  link: {
+    color: "#7BE3A4",
+    textDecorationLine: "underline",
+    textDecorationColor: "rgba(123,227,164,0.65)",
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: C.border,
+    marginTop: 10,
+    marginBottom: 12,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
+  thead: { backgroundColor: "#151B22" },
   th: {
-    color: C.text,
+    color: "#DCE6F1",
     fontWeight: "700",
     fontSize: 12,
-    padding: 8,
+    fontFamily: FONT_MONO,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRightWidth: 1,
     borderRightColor: C.border,
   },
   td: {
     color: C.text,
-    fontSize: 12,
-    padding: 8,
+    fontSize: 12.5,
+    fontFamily: FONT_SANS,
+    lineHeight: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRightWidth: 1,
     borderRightColor: C.border,
   },
-  tr: { borderBottomWidth: 1, borderBottomColor: C.border },
+  tr: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    backgroundColor: "rgba(255,255,255,0.015)",
+  },
 };
 
 // ─── Connection badge ─────────────────────────────────────────────────────
