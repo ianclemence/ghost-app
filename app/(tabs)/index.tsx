@@ -25,6 +25,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -56,6 +57,7 @@ import {
   GhostError,
   onWSMessage,
   onWSStateChange,
+  renameSession as renameSessionApi,
   saveConfig,
   sendMessage,
 } from "../../lib/ghostApi";
@@ -926,6 +928,19 @@ export default function ChatScreen() {
   const renameSession = async (oldName: string, newName: string) => {
     if (!config || !newName.trim()) return;
     const nextName = newName.trim();
+    if (oldName === nextName) return;
+
+    try {
+      await renameSessionApi(config, oldName, nextName);
+    } catch (err: any) {
+      console.error("Failed to rename session", err);
+      const msg =
+        err instanceof Error && err.message.includes("409")
+          ? "A session with this name already exists."
+          : "Failed to rename session on the Pi.";
+      Alert.alert("Rename Failed", msg);
+      return;
+    }
 
     // Update list in AsyncStorage
     setRecentSessions((prev) => {

@@ -370,6 +370,19 @@ export async function deleteSession(
   if (!res.ok) throw new Error(`Failed to delete session (HTTP ${res.status})`);
 }
 
+export async function renameSession(
+  cfg: GhostConfig,
+  oldId: string,
+  newId: string,
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/session/rename`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ old_id: oldId, new_id: newId }),
+  });
+  if (!res.ok) throw new Error(`Failed to rename session (HTTP ${res.status})`);
+}
+
 export async function clearChat(cfg: GhostConfig): Promise<void> {
   const res = await fetch(`${baseURL(cfg)}/v1/messages`, {
     method: "DELETE",

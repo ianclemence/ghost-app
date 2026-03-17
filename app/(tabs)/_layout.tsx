@@ -50,7 +50,7 @@ export default function TabLayout() {
           paddingBottom: Platform.OS === "ios" ? 28 : 8,
           elevation: 0,
         },
-        tabBarHideOnKeyboard: true,
+        tabBarHideOnKeyboard: Platform.OS === "ios",
         tabBarShowLabel: false,
       }}
       screenListeners={{
