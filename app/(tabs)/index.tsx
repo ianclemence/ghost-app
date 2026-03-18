@@ -65,7 +65,6 @@ import {
 } from "../../lib/ghostApi";
 import {
   ConnectionState,
-  createStreamingPlaceholder,
   ExtendedMessage,
   useGhostStore,
 } from "../../lib/store";
@@ -342,6 +341,52 @@ function sanitize(text: string): string {
     .trim();
 }
 
+type OutboxState = "queued" | "sending" | "retrying";
+type OutboxItem = {
+  id: string;
+  session: string;
+  content: string;
+  mediaB64?: string;
+  mediaType?: string;
+  mediaUri?: string;
+  createdAt: number;
+  attempts: number;
+  state: OutboxState;
+};
+
+const outboxKey = (session: string) =>
+  `ghost:outbox:${session || "mobile:default"}`;
+
+function makeClientMessageId(): string {
+  return `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function makeAssistantPlaceholderId(requestId: string): string {
+  return `temp-${requestId}`;
+}
+
+function normalizeSessionInput(session?: string): string {
+  const s = (session || "").trim();
+  return s.length ? s : "mobile:default";
+}
+
+function hasInternalArtifact(text: string): boolean {
+  const t = text.toLowerCase();
+  if (!t.trim()) return true;
+  if (/\/skills\/|\\skills\\/.test(t)) return true;
+  if (/^name:\s*[a-z0-9_\-]+\s*$/im.test(t) && /description:/im.test(t))
+    return true;
+  if (
+    /tool[_\s-]?call|tool[_\s-]?execution|internal_api|workspace\/memory/i.test(
+      t,
+    )
+  )
+    return true;
+  if (/```json[\s\S]*"(name|description|inputs|homepage)"/i.test(t))
+    return true;
+  return false;
+}
+
 // ─── Code block ───────────────────────────────────────────────────────────
 function CodeBlock({ node }: { node: ASTNode }) {
   const lang = (
@@ -463,7 +508,9 @@ const markdownRules = {
           <View style={[taskStyles.box, isChecked && taskStyles.boxChecked]}>
             {isChecked && <Check size={12} color={C.terminalGreen} />}
           </View>
-          <View style={[taskStyles.content, isChecked && taskStyles.contentChecked]}>
+          <View
+            style={[taskStyles.content, isChecked && taskStyles.contentChecked]}
+          >
             {children}
           </View>
         </View>
@@ -686,7 +733,9 @@ function MessageRow({
           <Text style={s.userText}>{content}</Text>
           <View style={s.tsRow}>
             <Text style={s.ts}>{timeStr}</Text>
-            {msg.status === "sending" && <Activity size={10} color={C.icon} />}
+            {(msg.status === "sending" || msg.status === "retrying") && (
+              <Activity size={10} color={C.icon} />
+            )}
             {msg.status === "completed" && <Check size={10} color={accent} />}
             {msg.status === "failed" && (
               <AlertCircle size={10} color={C.error} />
@@ -919,12 +968,8 @@ export default function ChatScreen() {
     connectionState,
     setConnectionState,
     setMessages,
-    setLastSentMessage,
-    lastSentMessage,
     removeMessage,
     updateMessageStatus,
-    enqueueMessage,
-    dequeueMessages,
     availableTools,
     setAvailableTools,
     clearStreamBuffer,
@@ -945,6 +990,8 @@ export default function ChatScreen() {
   const [searchResults, setSearchResults] = useState(0);
   const [showSlash, setShowSlash] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [outbox, setOutbox] = useState<OutboxItem[]>([]);
+  const [outboxReady, setOutboxReady] = useState(false);
   const [activeError, setActiveError] = useState<{
     error: GhostError;
     partialContent?: string;
@@ -972,6 +1019,7 @@ export default function ChatScreen() {
   const lastReconnectAt = useRef(0);
   const previousConnectionState = useRef<ConnectionState>("offline");
   const doSendRef = useRef<any>(null);
+  const activeRequestRef = useRef<string | null>(null);
 
   // ─── Voice Logic ──────────────────────────────────────────────────────────
   const startRecording = async () => {
@@ -1035,6 +1083,53 @@ export default function ChatScreen() {
       return next;
     });
   }, [currentSession]);
+
+  const persistOutbox = useCallback(
+    async (session: string, items: OutboxItem[]) => {
+      await AsyncStorage.setItem(outboxKey(session), JSON.stringify(items));
+    },
+    [],
+  );
+
+  const loadOutbox = useCallback(
+    async (session: string): Promise<OutboxItem[]> => {
+      const raw = await AsyncStorage.getItem(outboxKey(session));
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((x) => x && typeof x.id === "string");
+      } catch {
+        return [];
+      }
+    },
+    [],
+  );
+
+  const upsertOutboxItem = useCallback(
+    async (item: OutboxItem) => {
+      const session = item.session || "mobile:default";
+      setOutbox((prev) => {
+        const next = prev.some((x) => x.id === item.id)
+          ? prev.map((x) => (x.id === item.id ? item : x))
+          : [...prev, item];
+        persistOutbox(session, next).catch(() => {});
+        return next;
+      });
+    },
+    [persistOutbox],
+  );
+
+  const removeOutboxItem = useCallback(
+    async (session: string, id: string) => {
+      setOutbox((prev) => {
+        const next = prev.filter((x) => x.id !== id);
+        persistOutbox(session, next).catch(() => {});
+        return next;
+      });
+    },
+    [persistOutbox],
+  );
 
   const switchSession = async (newSession: string) => {
     if (!config || !newSession.trim()) return;
@@ -1177,27 +1272,70 @@ export default function ChatScreen() {
   // Load History
   useEffect(() => {
     if (!config) return;
+    setOutboxReady(false);
     fetchHistory(config, 60, 0)
       .then((d) => {
-        setMessages(
-          d.messages
-            .map((m) => ({ ...m, status: "completed" as const }))
-            .sort((a, b) => a.timestamp - b.timestamp),
-        );
+        const serverMessages = d.messages
+          .map((m) => ({ ...m, status: "completed" as const }))
+          .sort((a, b) => a.timestamp - b.timestamp);
+        loadOutbox(currentSession || "mobile:default").then((items) => {
+          setOutbox(items);
+          const pendingUserMessages: ExtendedMessage[] = items
+            .filter((item) => {
+              const match = serverMessages.find(
+                (m) =>
+                  m.role === "user" &&
+                  m.content.trim() === item.content.trim() &&
+                  Math.abs((m.timestamp || 0) * 1000 - item.createdAt) < 120000,
+              );
+              return !match;
+            })
+            .map((item) => ({
+              id: item.id,
+              role: "user",
+              content: item.content || "Attachment",
+              timestamp: item.createdAt / 1000,
+              media_url: item.mediaUri,
+              status: item.state === "queued" ? "sending" : "retrying",
+            }));
+          setMessages(
+            [...serverMessages, ...pendingUserMessages].sort(
+              (a, b) => a.timestamp - b.timestamp,
+            ),
+          );
+          setOutboxReady(true);
+        });
       })
-      .catch(() => {});
+      .catch(async () => {
+        const items = await loadOutbox(currentSession || "mobile:default");
+        setOutbox(items);
+        setMessages(
+          items.map((item) => ({
+            id: item.id,
+            role: "user",
+            content: item.content || "Attachment",
+            timestamp: item.createdAt / 1000,
+            media_url: item.mediaUri,
+            status: item.state === "queued" ? "sending" : "retrying",
+          })),
+        );
+        setOutboxReady(true);
+      });
     fetchAvailableTools(config)
       .then(setAvailableTools)
       .catch(() => {});
     connectWebSocket(config);
     const unsub = onWSMessage((msg) => {
-      // (Simplified logic from original file - strictly keeping core functional parts)
       if (msg.type !== "assistant_message") return;
+      if (msg.channel && msg.channel !== "mobile") return;
+      if (typeof msg.content !== "string") return;
+      const cleaned = sanitize(msg.content || "");
+      if (!cleaned || hasInternalArtifact(cleaned)) return;
       if (useGhostStore.getState().isStreaming) return;
       appendMessage({
         id: msg.id || `ws-${Date.now()}`,
         role: "assistant",
-        content: sanitize(msg.content || ""),
+        content: cleaned,
         timestamp: msg.timestamp || Date.now() / 1000,
         status: "completed",
       });
@@ -1206,45 +1344,92 @@ export default function ChatScreen() {
       unsub();
       disconnectWebSocket();
     };
-  }, [config?.session]); // Reload on session change
+  }, [config?.session, currentSession, loadOutbox]); // Reload on session change
 
   // Send Logic
   const doSend = useCallback(
-    async (
-      text: string,
-      mediaB64?: string,
-      mediaType?: string,
-      mediaUri?: string,
-    ) => {
+    async (item: OutboxItem) => {
       if (!config) return;
-      const msgId = `local-${Date.now()}`;
+      activeRequestRef.current = item.id;
+      const session = item.session || normalizeSessionInput(config.session);
+      const current = {
+        ...item,
+        state: "sending" as OutboxState,
+        attempts: item.attempts + 1,
+      };
+      await upsertOutboxItem(current);
+      updateMessageStatus(item.id, "sending");
       appendMessage({
-        id: msgId,
+        id: item.id,
         role: "user",
-        content: text || "Attachment",
-        timestamp: Date.now() / 1000,
-        media_url: mediaUri,
+        content: item.content || "Attachment",
+        timestamp: item.createdAt / 1000,
+        media_url: item.mediaUri,
         status: "sending",
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      appendMessage(createStreamingPlaceholder());
+      appendMessage({
+        id: makeAssistantPlaceholderId(item.id),
+        role: "assistant",
+        content: "",
+        timestamp: Date.now() / 1000,
+        status: "streaming",
+      });
       setStreaming(true);
 
       await sendMessage(config, {
-        content: text,
-        mediaB64,
-        mediaType,
-        onChunk: (c) => appendStream(c || ""),
-        onDone: () => {
+        content: item.content,
+        mediaB64: item.mediaB64,
+        mediaType: item.mediaType,
+        onChunk: (c) => {
+          if (!c || hasInternalArtifact(c)) return;
+          appendStream(c);
+        },
+        onDone: (fullText) => {
           commitStream();
-          updateMessageStatus(msgId, "completed");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          if (
+            !sanitize(fullText || "").trim() ||
+            hasInternalArtifact(fullText || "")
+          ) {
+            removeMessage(makeAssistantPlaceholderId(item.id));
+            upsertOutboxItem({
+              ...current,
+              state: "retrying",
+            }).catch(() => {});
+            updateMessageStatus(item.id, "retrying");
+            setActiveError({
+              error: {
+                kind: "interrupted",
+                message:
+                  "Response contained internal artifacts and was dropped.",
+                retryable: true,
+              },
+            });
+          } else {
+            updateMessageStatus(item.id, "completed");
+            removeOutboxItem(session, item.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+          activeRequestRef.current = null;
         },
         onError: (e) => {
-          commitStream();
-          updateMessageStatus(msgId, "failed");
-          setActiveError({ error: e });
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          clearStreamBuffer();
+          removeMessage(makeAssistantPlaceholderId(item.id));
+          const shouldRetry = e.retryable || connectionState !== "online";
+          if (shouldRetry) {
+            const retryItem: OutboxItem = {
+              ...current,
+              state: "retrying",
+            };
+            upsertOutboxItem(retryItem).catch(() => {});
+            updateMessageStatus(item.id, "retrying");
+          } else {
+            removeOutboxItem(session, item.id).catch(() => {});
+            updateMessageStatus(item.id, "failed");
+            setActiveError({ error: e });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          }
+          activeRequestRef.current = null;
         },
       });
     },
@@ -1253,14 +1438,36 @@ export default function ChatScreen() {
       appendMessage,
       appendStream,
       commitStream,
+      clearStreamBuffer,
       setStreaming,
+      removeMessage,
+      removeOutboxItem,
+      upsertOutboxItem,
       updateMessageStatus,
+      connectionState,
     ],
   );
 
   useEffect(() => {
     doSendRef.current = doSend;
   }, [doSend]);
+
+  useEffect(() => {
+    if (!outboxReady) return;
+    if (connectionState !== "online") return;
+    if (isStreaming) return;
+    if (activeRequestRef.current) return;
+    const next = [...outbox]
+      .filter(
+        (x) =>
+          x.state === "queued" ||
+          x.state === "retrying" ||
+          x.state === "sending",
+      )
+      .sort((a, b) => a.createdAt - b.createdAt)[0];
+    if (!next) return;
+    doSend(next).catch(() => {});
+  }, [outbox, outboxReady, connectionState, isStreaming, doSend]);
 
   const handleSend = async () => {
     if (!input.trim() && pendingMedia.length === 0) return;
@@ -1277,26 +1484,32 @@ export default function ChatScreen() {
       clearSeenMessageIds();
     }
 
+    const clientMessageId = makeClientMessageId();
+    const session = currentSession || normalizeSessionInput(config?.session);
+    const item: OutboxItem = {
+      id: clientMessageId,
+      session,
+      content: t || "Attachment",
+      mediaB64: media[0]?.b64,
+      mediaType: media[0]?.mimeType,
+      mediaUri: media[0]?.uri,
+      createdAt: Date.now(),
+      attempts: 0,
+      state: connectionState === "online" ? "sending" : "queued",
+    };
+
     if (connectionState !== "online") {
-      // For now, only send first one in queue if offline, or handle better
-      enqueueMessage({
-        content: t,
-        mediaB64: media[0]?.b64,
-        mediaType: media[0]?.mimeType,
-      });
+      await upsertOutboxItem(item);
       appendMessage({
-        id: `q-${Date.now()}`,
+        id: item.id,
         role: "user",
-        content: t,
-        timestamp: Date.now() / 1000,
-        status: "sending",
+        content: item.content,
+        timestamp: item.createdAt / 1000,
+        status: "retrying",
       });
       return;
     }
-    // API currently might only support one media per call based on sendMessage signature
-    // We'll send the first one or loop if needed.
-    // For simplicity, let's send the first one and the text.
-    await doSend(t, media[0]?.b64, media[0]?.mimeType, media[0]?.uri);
+    await doSend(item);
   };
 
   // Pickers
