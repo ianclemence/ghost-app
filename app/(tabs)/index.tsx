@@ -1276,6 +1276,16 @@ export default function ChatScreen() {
     fetchHistory(config, 60, 0)
       .then((d) => {
         const serverMessages = d.messages
+          .filter((m) => {
+            if (m.role !== "assistant") return true;
+            const cleaned = sanitize(m.content || "");
+            return !!cleaned && !hasInternalArtifact(cleaned);
+          })
+          .map((m) => ({
+            ...m,
+            content:
+              m.role === "assistant" ? sanitize(m.content || "") : m.content,
+          }))
           .map((m) => ({ ...m, status: "completed" as const }))
           .sort((a, b) => a.timestamp - b.timestamp);
         loadOutbox(currentSession || "mobile:default").then((items) => {

@@ -426,12 +426,23 @@ const STREAM_TIMEOUT_MS = 300_000;
 
 function isLikelyLogOrCorruptChunk(data: string): boolean {
   const text = data.trim();
+  const lower = text.toLowerCase();
   if (!text) return true;
   if (text.length > 12000) return true;
   if (/^\d{4}[-/]\d{2}[-/]\d{2}.*\[(INFO|WARN|ERROR|DEBUG)\]/i.test(text))
     return true;
   if (/^Command (successfully )?executed/i.test(text)) return true;
   if (/^\[ghost(-api|-chat)?\]/i.test(text)) return true;
+  if (lower.includes("<skills>") || lower.includes("</skills>")) return true;
+  if (lower.includes("skills/{skill-name}/skill.md")) return true;
+  if (/^name:\s*[\w\-]+\s*$/im.test(text) && /\ndescription:/i.test(text))
+    return true;
+  if (
+    lower.includes('"metadata"') &&
+    lower.includes('"homepage"') &&
+    lower.includes('"description"')
+  )
+    return true;
   const replacementCount = (text.match(/\uFFFD/g) || []).length;
   if (
     replacementCount > 12 ||
