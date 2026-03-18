@@ -29,14 +29,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, UI } from "@/constants/theme";
 import {
+  ChannelHealth,
   checkHealth,
   checkHealthDebug,
   connectWebSocket,
   DoctorResponse,
+  DeliveryTraceEvent,
+  fetchChannelStatus,
+  fetchDeliveryTrace,
   fetchAvailableTools,
   fetchDoctor,
   getWSState,
   GhostConfig,
+  inspectSession,
+  reconnectChannel,
   saveConfig,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
@@ -80,6 +86,17 @@ export default function SettingsScreen() {
   const [diagWSState, setDiagWSState] = useState<string>("unknown");
   const [diagLastRequest, setDiagLastRequest] = useState<string | null>(null);
   const [doctorData, setDoctorData] = useState<DoctorResponse | null>(null);
+  const [channelHealth, setChannelHealth] = useState<
+    Record<string, ChannelHealth>
+  >({});
+  const [sessionInspector, setSessionInspector] = useState<{
+    requested_session: string;
+    active_session: { channel: string; chat_id: string };
+    delivery_target: string;
+    last_request_id: string;
+    timestamp: number;
+  } | null>(null);
+  const [lastTraceStates, setLastTraceStates] = useState<string[]>([]);
 
   useEffect(() => {
     if (isExpoGo) return;
@@ -98,6 +115,19 @@ export default function SettingsScreen() {
     const Notifications = await import("expo-notifications");
     const { status } = await Notifications.requestPermissionsAsync();
     setNotifEnabled(status === "granted");
+  };
+
+  const refreshOpsData = async (cfg: GhostConfig) => {
+    const channels = await fetchChannelStatus(cfg);
+    setChannelHealth(channels);
+    const inspect = await inspectSession(cfg, "mobile", "default");
+    setSessionInspector(inspect);
+    if (inspect?.last_request_id) {
+      const trace = await fetchDeliveryTrace(cfg, inspect.last_request_id);
+      setLastTraceStates(trace.map((e: DeliveryTraceEvent) => e.state));
+    } else {
+      setLastTraceStates([]);
+    }
   };
 
   const testConnection = async () => {
@@ -128,6 +158,7 @@ export default function SettingsScreen() {
         if (doc.profile) setProfile(doc.profile);
         const tools = await fetchAvailableTools(cfg);
         setAvailableTools(tools);
+        await refreshOpsData(cfg);
       } catch (e) {
         console.warn("Doctor fetch failed", e);
       }
@@ -155,6 +186,7 @@ export default function SettingsScreen() {
         if (doc.profile) setProfile(doc.profile);
         const tools = await fetchAvailableTools(cfg);
         setAvailableTools(tools);
+        await refreshOpsData(cfg);
       } catch {}
     }
   };
@@ -176,10 +208,19 @@ export default function SettingsScreen() {
         if (doc.profile) setProfile(doc.profile);
         const tools = await fetchAvailableTools(config);
         setAvailableTools(tools);
+        await refreshOpsData(config);
       } catch (e) {
         console.warn("Doctor fetch failed", e);
       }
     }
+  };
+
+  const reconnectSelectedChannel = async (channel: string) => {
+    if (!config) return;
+    setTesting(true);
+    await reconnectChannel(config, channel);
+    await refreshOpsData(config);
+    setTesting(false);
   };
 
   const formatUptime = (seconds: number) => {
@@ -234,12 +275,7 @@ export default function SettingsScreen() {
         <View style={s.headerRight}>
           {statusIcon}
           <View style={[s.statusDot, { backgroundColor: statusColor }]} />
-          <Text
-            style={[
-              s.statusText,
-              { color: statusColor },
-            ]}
-          >
+          <Text style={[s.statusText, { color: statusColor }]}>
             {statusLabel}
           </Text>
         </View>
@@ -487,6 +523,101 @@ export default function SettingsScreen() {
               Reset Link
             </Text>
           </TouchableOpacity>
+        </View>
+      </Section>
+
+      <Section title="Channel Ops">
+        <View style={s.checksList}>
+          {Object.entries(channelHealth).length === 0 ? (
+            <Text style={s.checkMsg}>
+              Run diagnostics to load channel health.
+            </Text>
+          ) : (
+            Object.entries(channelHealth).map(([name, ch]) => (
+              <View key={name} style={s.checkRow}>
+                {ch.running ? (
+                  <CheckCircle size={14} color={C.terminalGreen} />
+                ) : ch.enabled ? (
+                  <AlertTriangle size={14} color={C.terminalAmber} />
+                ) : (
+                  <XCircle size={14} color={C.icon} />
+                )}
+                <View style={{ flex: 1 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={s.checkName}>{name.toUpperCase()}</Text>
+                    <TouchableOpacity
+                      style={[
+                        s.btn,
+                        s.btnOutline,
+                        { paddingHorizontal: 10, paddingVertical: 6 },
+                      ]}
+                      disabled={!config || testing}
+                      onPress={() => reconnectSelectedChannel(name)}
+                    >
+                      <RotateCcw size={12} color={C.terminalAmber} />
+                      <Text
+                        style={[
+                          s.btnOutlineText,
+                          { color: C.terminalAmber, fontSize: 10 },
+                        ]}
+                      >
+                        RECONNECT
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={s.checkMsg}>
+                    Enabled: {ch.enabled ? "yes" : "no"} · Running:{" "}
+                    {ch.running ? "yes" : "no"} · Failures: {ch.failure_count}
+                  </Text>
+                  {ch.last_send_error ? (
+                    <Text style={[s.checkMsg, { color: C.terminalAmber }]}>
+                      Last send error: {ch.last_send_error}
+                    </Text>
+                  ) : null}
+                  {ch.fatal_reason ? (
+                    <Text style={[s.checkMsg, { color: C.error }]}>
+                      Fatal reason: {ch.fatal_reason}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+      </Section>
+
+      <Section title="Session Inspector">
+        <View style={s.diagGrid}>
+          <DiagItem
+            label="Requested Session"
+            value={sessionInspector?.requested_session ?? "—"}
+          />
+          <DiagItem
+            label="Active Channel"
+            value={sessionInspector?.active_session?.channel ?? "—"}
+          />
+          <DiagItem
+            label="Active Chat ID"
+            value={sessionInspector?.active_session?.chat_id ?? "—"}
+          />
+          <DiagItem
+            label="Routing Target"
+            value={sessionInspector?.delivery_target ?? "—"}
+          />
+          <DiagItem
+            label="Last Request ID"
+            value={sessionInspector?.last_request_id ?? "—"}
+          />
+          <DiagItem
+            label="Delivery Trace"
+            value={lastTraceStates.length ? lastTraceStates.join(" → ") : "—"}
+          />
         </View>
       </Section>
 
@@ -744,7 +875,11 @@ const s = StyleSheet.create({
     fontFamily: FONT_MONO,
     textTransform: "uppercase",
   },
-  checkLatency: { color: C.icon, fontSize: UI.typography.meta, fontFamily: FONT_MONO },
+  checkLatency: {
+    color: C.icon,
+    fontSize: UI.typography.meta,
+    fontFamily: FONT_MONO,
+  },
   checkMsg: {
     color: C.icon,
     fontSize: UI.typography.meta,

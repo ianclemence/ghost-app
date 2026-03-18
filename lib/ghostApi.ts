@@ -47,6 +47,35 @@ export interface DoctorResponse {
   checks: DoctorCheckResult[];
   profile: ProfileInfo;
   timestamp: number;
+  channels?: Record<string, ChannelHealth>;
+}
+
+export interface ChannelHealth {
+  enabled: boolean;
+  running: boolean;
+  fatal: boolean;
+  fatal_reason: string;
+  failure_count: number;
+  last_send_error: string;
+  last_failure_at: number;
+  last_success_at: number;
+}
+
+export interface SessionInspector {
+  requested_session: string;
+  active_session: { channel: string; chat_id: string };
+  delivery_target: string;
+  last_request_id: string;
+  timestamp: number;
+}
+
+export interface DeliveryTraceEvent {
+  request_id: string;
+  state: string;
+  at: number;
+  channel?: string;
+  chat_id?: string;
+  detail?: string;
 }
 
 export interface ExecResult {
@@ -412,9 +441,12 @@ export async function clearChat(cfg: GhostConfig): Promise<void> {
 
 export interface SendOptions {
   content: string;
+  requestId?: string;
   mediaB64?: string;
   mediaType?: string;
   onChunk: (chunk: string) => void;
+  onLifecycle?: (requestId: string, state: string) => void;
+  onSanitized?: (reason: string) => void;
   onToolStatus?: (tool: string, label: string) => void;
   onDone: (fullText: string) => void;
   onError: (err: GhostError) => void;
@@ -530,6 +562,7 @@ export async function sendMessage(
         : [];
 
   const body: Record<string, unknown> = {
+    request_id: opts.requestId,
     content: opts.content,
     session_key: normalizeSession(cfg.session),
     channel: "mobile",
@@ -605,6 +638,12 @@ export async function sendMessage(
             const parsed = JSON.parse(data);
             // tool_status event — route to badge, NOT to message content
             if (typeof parsed === "object" && parsed !== null) {
+              if (parsed.type === "lifecycle" && opts.onLifecycle) {
+                opts.onLifecycle(
+                  String(parsed.request_id || opts.requestId || ""),
+                  String(parsed.state || ""),
+                );
+              }
               if (parsed.type === "tool_status" && opts.onToolStatus) {
                 opts.onToolStatus(parsed.tool, parsed.label);
               }
@@ -619,6 +658,7 @@ export async function sendMessage(
           } catch {
             if (isLikelyLogOrCorruptChunk(data)) {
               trace("stream_raw_chunk_ignored", { length: data.length });
+              if (opts.onSanitized) opts.onSanitized("raw_chunk_quarantined");
               continue;
             }
             fullText += data;
@@ -656,6 +696,12 @@ export async function sendMessage(
       try {
         const parsed = JSON.parse(data);
         if (typeof parsed === "object" && parsed !== null) {
+          if (parsed.type === "lifecycle" && opts.onLifecycle) {
+            opts.onLifecycle(
+              String(parsed.request_id || opts.requestId || ""),
+              String(parsed.state || ""),
+            );
+          }
           if (parsed.type === "tool_status" && opts.onToolStatus) {
             opts.onToolStatus(parsed.tool, parsed.label);
           }
@@ -665,7 +711,10 @@ export async function sendMessage(
         fullText += text;
         opts.onChunk(text);
       } catch {
-        if (isLikelyLogOrCorruptChunk(data)) continue;
+        if (isLikelyLogOrCorruptChunk(data)) {
+          if (opts.onSanitized) opts.onSanitized("fallback_chunk_quarantined");
+          continue;
+        }
         fullText += data;
         opts.onChunk(data);
       }
@@ -789,6 +838,54 @@ export async function fetchDoctor(cfg: GhostConfig): Promise<DoctorResponse> {
   });
   if (!res.ok) throw new Error("Failed to fetch doctor stats");
   return res.json();
+}
+
+export async function fetchChannelStatus(
+  cfg: GhostConfig,
+): Promise<Record<string, ChannelHealth>> {
+  const res = await fetch(`${baseURL(cfg)}/v1/channels/status`, {
+    headers: headers(cfg),
+  });
+  if (!res.ok) return {};
+  const data = await res.json();
+  return (data?.channels ?? {}) as Record<string, ChannelHealth>;
+}
+
+export async function reconnectChannel(
+  cfg: GhostConfig,
+  channel: string,
+): Promise<{ ok: boolean }> {
+  const res = await fetch(`${baseURL(cfg)}/v1/channels/reconnect`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ channel }),
+  });
+  return { ok: res.ok };
+}
+
+export async function inspectSession(
+  cfg: GhostConfig,
+  channel = "mobile",
+  chatID = "default",
+): Promise<SessionInspector | null> {
+  const session = encodeURIComponent(normalizeSession(cfg.session));
+  const url = `${baseURL(cfg)}/v1/session/inspect?session=${session}&channel=${encodeURIComponent(
+    channel,
+  )}&chat_id=${encodeURIComponent(chatID)}`;
+  const res = await fetch(url, { headers: headers(cfg) });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchDeliveryTrace(
+  cfg: GhostConfig,
+  requestID: string,
+): Promise<DeliveryTraceEvent[]> {
+  const url = `${baseURL(cfg)}/v1/traces?request_id=${encodeURIComponent(requestID)}`;
+  const res = await fetch(url, { headers: headers(cfg) });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data?.events) ? data.events : [];
 }
 
 export async function fetchAvailableTools(cfg: GhostConfig): Promise<string[]> {

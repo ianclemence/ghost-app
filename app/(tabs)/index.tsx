@@ -685,10 +685,12 @@ function MessageRow({
   msg,
   isGrouped,
   onLongPress,
+  traceLabel,
 }: {
   msg: ExtendedMessage;
   isGrouped: boolean;
   onLongPress: (content: string, role: "user" | "assistant") => void;
+  traceLabel?: string;
 }) {
   const accent = useTerminalColor();
   const isUser = msg.role === "user";
@@ -741,6 +743,7 @@ function MessageRow({
               <AlertCircle size={10} color={C.error} />
             )}
           </View>
+          {traceLabel ? <Text style={s.traceText}>{traceLabel}</Text> : null}
         </View>
       </TouchableOpacity>
     );
@@ -992,6 +995,10 @@ export default function ChatScreen() {
   const [attachOpen, setAttachOpen] = useState(false);
   const [outbox, setOutbox] = useState<OutboxItem[]>([]);
   const [outboxReady, setOutboxReady] = useState(false);
+  const [traceByRequest, setTraceByRequest] = useState<
+    Record<string, string[]>
+  >({});
+  const [lastSanitizedAt, setLastSanitizedAt] = useState<number | null>(null);
   const [activeError, setActiveError] = useState<{
     error: GhostError;
     partialContent?: string;
@@ -1130,6 +1137,15 @@ export default function ChatScreen() {
     },
     [persistOutbox],
   );
+
+  const appendLifecycle = useCallback((requestID: string, state: string) => {
+    if (!requestID || !state) return;
+    setTraceByRequest((prev) => {
+      const existing = prev[requestID] ?? [];
+      if (existing[existing.length - 1] === state) return prev;
+      return { ...prev, [requestID]: [...existing, state] };
+    });
+  }, []);
 
   const switchSession = async (newSession: string) => {
     if (!config || !newSession.trim()) return;
@@ -1275,11 +1291,14 @@ export default function ChatScreen() {
     setOutboxReady(false);
     fetchHistory(config, 60, 0)
       .then((d) => {
+        let quarantinedCount = 0;
         const serverMessages = d.messages
           .filter((m) => {
             if (m.role !== "assistant") return true;
             const cleaned = sanitize(m.content || "");
-            return !!cleaned && !hasInternalArtifact(cleaned);
+            const keep = !!cleaned && !hasInternalArtifact(cleaned);
+            if (!keep) quarantinedCount += 1;
+            return keep;
           })
           .map((m) => ({
             ...m,
@@ -1313,6 +1332,7 @@ export default function ChatScreen() {
               (a, b) => a.timestamp - b.timestamp,
             ),
           );
+          if (quarantinedCount > 0) setLastSanitizedAt(Date.now());
           setOutboxReady(true);
         });
       })
@@ -1340,7 +1360,10 @@ export default function ChatScreen() {
       if (msg.channel && msg.channel !== "mobile") return;
       if (typeof msg.content !== "string") return;
       const cleaned = sanitize(msg.content || "");
-      if (!cleaned || hasInternalArtifact(cleaned)) return;
+      if (!cleaned || hasInternalArtifact(cleaned)) {
+        setLastSanitizedAt(Date.now());
+        return;
+      }
       if (useGhostStore.getState().isStreaming) return;
       appendMessage({
         id: msg.id || `ws-${Date.now()}`,
@@ -1386,13 +1409,20 @@ export default function ChatScreen() {
         status: "streaming",
       });
       setStreaming(true);
+      appendLifecycle(item.id, "sent_to_gateway");
 
       await sendMessage(config, {
+        requestId: item.id,
         content: item.content,
         mediaB64: item.mediaB64,
         mediaType: item.mediaType,
+        onLifecycle: (requestID, state) => appendLifecycle(requestID, state),
+        onSanitized: () => setLastSanitizedAt(Date.now()),
         onChunk: (c) => {
-          if (!c || hasInternalArtifact(c)) return;
+          if (!c || hasInternalArtifact(c)) {
+            setLastSanitizedAt(Date.now());
+            return;
+          }
           appendStream(c);
         },
         onDone: (fullText) => {
@@ -1415,6 +1445,7 @@ export default function ChatScreen() {
                 retryable: true,
               },
             });
+            setLastSanitizedAt(Date.now());
           } else {
             updateMessageStatus(item.id, "completed");
             removeOutboxItem(session, item.id);
@@ -1454,6 +1485,7 @@ export default function ChatScreen() {
       removeOutboxItem,
       upsertOutboxItem,
       updateMessageStatus,
+      appendLifecycle,
       connectionState,
     ],
   );
@@ -1510,6 +1542,7 @@ export default function ChatScreen() {
 
     if (connectionState !== "online") {
       await upsertOutboxItem(item);
+      appendLifecycle(item.id, "queued");
       appendMessage({
         id: item.id,
         role: "user",
@@ -1677,6 +1710,14 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       )}
+      {lastSanitizedAt && Date.now() - lastSanitizedAt < 180000 && (
+        <View style={s.quarantineBanner}>
+          <AlertCircle size={12} color={C.terminalAmber} />
+          <Text style={s.quarantineText}>
+            Response sanitized to protect chat from internal artifacts.
+          </Text>
+        </View>
+      )}
 
       {/* ── Messages ── */}
       <FlatList
@@ -1691,6 +1732,11 @@ export default function ChatScreen() {
             <MessageRow
               msg={item}
               isGrouped={!!isGrouped}
+              traceLabel={
+                item.role === "user"
+                  ? traceByRequest[item.id]?.join(" → ")
+                  : undefined
+              }
               onLongPress={(content, role) =>
                 setActionMenu({ visible: true, content, role })
               }
@@ -1967,6 +2013,13 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   ts: { color: C.icon, fontSize: UI.typography.meta, fontFamily: FONT_MONO },
+  traceText: {
+    color: C.terminalAmber,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: "right",
+  },
   attachedImage: { width: 200, height: 120, borderRadius: 4 },
   fileThumb: {
     width: 40,
@@ -2089,6 +2142,22 @@ const s = StyleSheet.create({
     borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
+  },
+  quarantineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(251,191,36,0.12)",
+    borderColor: C.terminalAmber,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  quarantineText: {
+    color: C.terminalAmber,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
+    flex: 1,
   },
   searchInput: {
     flex: 1,
