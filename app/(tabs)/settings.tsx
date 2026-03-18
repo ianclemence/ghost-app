@@ -211,6 +211,12 @@ export default function SettingsScreen() {
       : connectionState === "syncing"
         ? "SYNCING"
         : "OFFLINE";
+  const statusIcon =
+    connectionState === "online" ? (
+      <Wifi size={14} color={statusColor} />
+    ) : (
+      <WifiOff size={14} color={statusColor} />
+    );
 
   return (
     <ScrollView
@@ -221,29 +227,13 @@ export default function SettingsScreen() {
       }}
     >
       <View style={s.header}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View style={s.headerLeft}>
           <Settings size={20} color={C.terminalGreen} />
           <Text style={s.headerTitle}>Settings</Text>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {connectionState === "online" ? (
-            <Wifi size={14} color={C.terminalGreen} />
-          ) : (
-            <WifiOff size={14} color={C.error} />
-          )}
-          <View
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor:
-                connectionState === "online"
-                  ? C.terminalGreen
-                  : connectionState === "syncing"
-                    ? C.terminalAmber
-                    : C.error,
-            }}
-          />
+        <View style={s.headerRight}>
+          {statusIcon}
+          <View style={[s.statusDot, { backgroundColor: statusColor }]} />
           <Text
             style={[
               s.statusText,
@@ -575,12 +565,19 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   headerTitle: {
     fontFamily: FONT_MONO,
     fontSize: 16,
     fontWeight: "700",
     color: C.terminalGreen,
     letterSpacing: 1,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusText: {
     fontFamily: FONT_MONO,
