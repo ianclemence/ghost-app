@@ -139,7 +139,7 @@ export default function RemoteScreen() {
 
   useEffect(() => {
     loadStats();
-  }, [config]);
+  }, [loadStats]);
 
   const handleOpenURL = async () => {
     if (!config || !urlInput.trim()) return;

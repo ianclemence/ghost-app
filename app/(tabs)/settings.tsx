@@ -1,4 +1,5 @@
 import Constants, { AppOwnership } from "expo-constants";
+import * as Haptics from "expo-haptics";
 import {
   Activity,
   AlertTriangle,
@@ -7,6 +8,7 @@ import {
   Info,
   MapPin,
   Palette,
+  Plus,
   RotateCcw,
   Save,
   Settings,
@@ -14,9 +16,11 @@ import {
   WifiOff,
   XCircle,
 } from "lucide-react-native";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Switch,
@@ -35,15 +39,21 @@ import {
   connectWebSocket,
   DoctorResponse,
   DeliveryTraceEvent,
+  fetchAvailableTools,
   fetchChannelStatus,
   fetchDeliveryTrace,
-  fetchAvailableTools,
   fetchDoctor,
+  fetchSkillDetail,
+  fetchSkills,
   getWSState,
   GhostConfig,
+  GhostSkill,
+  GhostSkillDetail,
   inspectSession,
+  installSkill,
   reconnectChannel,
   saveConfig,
+  toggleSkill,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
 
@@ -97,6 +107,76 @@ export default function SettingsScreen() {
     timestamp: number;
   } | null>(null);
   const [lastTraceStates, setLastTraceStates] = useState<string[]>([]);
+
+  // Skills state
+  const [skills, setSkills] = useState<GhostSkill[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [detailSkill, setDetailSkill] = useState<GhostSkillDetail | null>(null);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [installVisible, setInstallVisible] = useState(false);
+  const [installOwner, setInstallOwner] = useState("");
+  const [installRepo, setInstallRepo] = useState("");
+  const [installPath, setInstallPath] = useState("");
+  const [installBusy, setInstallBusy] = useState(false);
+
+  const loadSkills = useCallback(async (cfg: GhostConfig) => {
+    setSkillsLoading(true);
+    try {
+      setSkills(await fetchSkills(cfg));
+    } catch {}
+    setSkillsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (config) loadSkills(config);
+  }, [config, loadSkills]);
+
+  const handleToggleSkill = async (name: string, enabled: boolean) => {
+    if (!config) return;
+    setSkills((prev) =>
+      prev.map((sk) => (sk.name === name ? { ...sk, enabled } : sk)),
+    );
+    try {
+      await toggleSkill(config, name, enabled);
+    } catch (e: any) {
+      setSkills((prev) =>
+        prev.map((sk) =>
+          sk.name === name ? { ...sk, enabled: !enabled } : sk,
+        ),
+      );
+      Alert.alert("Error", e?.message || "Failed to toggle skill");
+    }
+  };
+
+  const openSkillDetail = async (name: string) => {
+    if (!config) return;
+    const detail = await fetchSkillDetail(config, name);
+    if (detail) {
+      setDetailSkill(detail);
+      setDetailVisible(true);
+    }
+  };
+
+  const handleInstallSkill = async () => {
+    if (!config || installBusy) return;
+    setInstallBusy(true);
+    try {
+      await installSkill(config, {
+        owner: installOwner.trim(),
+        repo: installRepo.trim(),
+        path: installPath.trim(),
+      });
+      setInstallVisible(false);
+      setInstallOwner("");
+      setInstallRepo("");
+      setInstallPath("");
+      await loadSkills(config);
+      Alert.alert("Installed", "Skill installed successfully.");
+    } catch (e: any) {
+      Alert.alert("Install Failed", e?.message || "Could not install skill");
+    }
+    setInstallBusy(false);
+  };
 
   useEffect(() => {
     if (isExpoGo) return;
@@ -290,6 +370,17 @@ export default function SettingsScreen() {
           placeholder="192.168.1.42"
           keyboardType="numbers-and-punctuation"
         />
+        <TouchableOpacity
+          style={s.ghostLocalRow}
+          onPress={() => {
+            setHost("ghost.local");
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+        >
+          <Text style={s.ghostLocalText}>
+            Use ghost.local (mDNS hostname on this network)
+          </Text>
+        </TouchableOpacity>
         <Field
           label="Port"
           value={port}
@@ -425,6 +516,65 @@ export default function SettingsScreen() {
             trackColor={{ false: C.border, true: "rgba(74, 222, 128, 0.3)" }}
             thumbColor={notifEnabled ? C.terminalGreen : C.icon}
           />
+        </View>
+      </Section>
+
+      {/* Skills */}
+      <Section title="Skills">
+        <View style={s.checksList}>
+          {skillsLoading && skills.length === 0 ? (
+            <ActivityIndicator color={C.terminalGreen} />
+          ) : skills.length === 0 ? (
+            <Text style={s.checkMsg}>No skills found on this Ghost.</Text>
+          ) : (
+            skills.map((sk) => (
+              <View key={sk.name} style={s.skillRow}>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  onPress={() => openSkillDetail(sk.name)}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Text style={[s.checkName, { textTransform: "none" }]}>
+                      {sk.name}
+                    </Text>
+                    {sk.bundled && (
+                      <Text style={s.skillTag}>BUNDLED</Text>
+                    )}
+                    {sk.user_modified && (
+                      <Text style={[s.skillTag, { color: C.terminalAmber }]}>
+                        EDITED
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={s.checkMsg} numberOfLines={2}>
+                    {sk.description || "No description"}
+                  </Text>
+                </TouchableOpacity>
+                <Switch
+                  value={sk.enabled}
+                  onValueChange={(v) => handleToggleSkill(sk.name, v)}
+                  trackColor={{
+                    false: C.border,
+                    true: "rgba(74, 222, 128, 0.3)",
+                  }}
+                  thumbColor={sk.enabled ? C.terminalGreen : C.icon}
+                />
+              </View>
+            ))
+          )}
+          <TouchableOpacity
+            style={[s.btn, s.btnOutline, { marginTop: 12 }]}
+            onPress={() => setInstallVisible(true)}
+          >
+            <Plus size={16} color={C.terminalGreen} />
+            <Text style={s.btnOutlineText}>Install from GitHub</Text>
+          </TouchableOpacity>
         </View>
       </Section>
 
@@ -629,6 +779,123 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </Section>
+
+      {/* Skill detail modal */}
+      <Modal
+        visible={detailVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetailVisible(false)}
+      >
+        <TouchableOpacity
+          style={s.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setDetailVisible(false)}
+        />
+        <View style={s.modalContent}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>{detailSkill?.name ?? "Skill"}</Text>
+            <TouchableOpacity onPress={() => setDetailVisible(false)}>
+              <Text style={[s.btnOutlineText, { fontSize: 14 }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 480 }}>
+            {detailSkill && (
+              <View style={s.infoBox}>
+                <View style={s.skillMetaRow}>
+                  <Text style={s.skillTag}>{detailSkill.enabled ? "ENABLED" : "DISABLED"}</Text>
+                  {detailSkill.bundled && <Text style={s.skillTag}>BUNDLED</Text>}
+                  {detailSkill.user_modified && (
+                    <Text style={[s.skillTag, { color: C.terminalAmber }]}>EDITED</Text>
+                  )}
+                </View>
+                {detailSkill.description ? (
+                  <Text style={s.checkMsg}>{detailSkill.description}</Text>
+                ) : null}
+                {detailSkill.files.map((f) => (
+                  <View key={f.path} style={s.skillFileBlock}>
+                    <Text style={[s.checkName, { textTransform: "none" }]}>{f.path}</Text>
+                    <Text style={s.skillFileText} numberOfLines={8}>
+                      {f.content}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Install skill modal */}
+      <Modal
+        visible={installVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInstallVisible(false)}
+      >
+        <TouchableOpacity
+          style={s.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setInstallVisible(false)}
+        />
+        <View style={s.modalContent}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>Install Skill</Text>
+            <TouchableOpacity onPress={() => setInstallVisible(false)}>
+              <Text style={[s.btnOutlineText, { fontSize: 14 }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={s.infoBox}>
+            <Text style={s.checkMsg}>
+              Paste a public GitHub repo and path containing a SKILL.md.
+            </Text>
+            <Field
+              label="Owner"
+              value={installOwner}
+              onChangeText={setInstallOwner}
+              placeholder="sipeed"
+            />
+            <Field
+              label="Repo"
+              value={installRepo}
+              onChangeText={setInstallRepo}
+              placeholder="ghost-skills"
+            />
+            <Field
+              label="Path"
+              value={installPath}
+              onChangeText={setInstallPath}
+              placeholder="weather"
+            />
+            <TouchableOpacity
+              style={[
+                s.btn,
+                s.btnPrimary,
+                (installBusy ||
+                  !installOwner.trim() ||
+                  !installRepo.trim() ||
+                  !installPath.trim()) && s.btnDisabled,
+              ]}
+              disabled={
+                installBusy ||
+                !installOwner.trim() ||
+                !installRepo.trim() ||
+                !installPath.trim()
+              }
+              onPress={handleInstallSkill}
+            >
+              {installBusy ? (
+                <ActivityIndicator color={C.background} size="small" />
+              ) : (
+                <>
+                  <Plus size={16} color={C.background} />
+                  <Text style={s.btnPrimaryText}>Install</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -746,6 +1013,16 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: FONT_MONO,
     paddingVertical: 4,
+  },
+  ghostLocalRow: {
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+  },
+  ghostLocalText: {
+    color: C.terminalGreen,
+    fontSize: 11,
+    fontFamily: FONT_MONO,
+    textDecorationLine: "underline",
   },
 
   btnRow: { flexDirection: "row", gap: 10, padding: 14 },
@@ -893,5 +1170,77 @@ const s = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontFamily: FONT_MONO,
+  },
+
+  // Skills
+  skillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  skillTag: {
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    color: C.icon,
+    fontSize: 8,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    fontFamily: FONT_MONO,
+  },
+  skillMetaRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 8,
+  },
+  skillFileBlock: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingTop: 8,
+  },
+  skillFileText: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+
+  // Modals
+  modalBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.8)",
+  },
+  modalContent: {
+    position: "absolute",
+    top: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: C.background,
+    borderWidth: 1,
+    borderColor: C.terminalGreen,
+    borderRadius: UI.radius.panel,
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    backgroundColor: C.card,
+  },
+  modalTitle: {
+    color: C.terminalGreen,
+    fontFamily: FONT_MONO,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 1,
   },
 });

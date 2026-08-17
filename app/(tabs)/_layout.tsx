@@ -4,6 +4,7 @@ import { Tabs } from "expo-router";
 import { Platform, Text, View } from "react-native";
 import { Terminal, Server, Clock, Brain, Settings } from "lucide-react-native";
 import { Colors, Fonts } from "@/constants/theme";
+import { useGhostStore } from "@/lib/store";
 
 const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
@@ -12,12 +13,14 @@ function TabIcon({
   Icon,
   label,
   focused,
+  accent,
 }: {
   Icon: React.ElementType;
   label: string;
   focused: boolean;
+  accent: string;
 }) {
-  const color = focused ? C.terminalGreen : C.icon;
+  const color = focused ? accent : C.icon;
   return (
     <View style={{ alignItems: "center", gap: 4, paddingTop: 12 }}>
       <Icon size={20} color={color} strokeWidth={focused ? 2.5 : 2} />
@@ -37,6 +40,14 @@ function TabIcon({
 }
 
 export default function TabLayout() {
+  const accentColor = useGhostStore((s) => s.accentColor);
+  const accent =
+    accentColor === "amber"
+      ? C.terminalAmber
+      : accentColor === "cyan"
+        ? C.terminalCyan
+        : C.terminalGreen;
+
   return (
     <Tabs
       screenOptions={{
@@ -63,7 +74,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Terminal} label="Chat" focused={focused} />
+            <TabIcon Icon={Terminal} label="Chat" focused={focused} accent={accent} />
           ),
         }}
       />
@@ -71,7 +82,7 @@ export default function TabLayout() {
         name="remote"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Server} label="SSH" focused={focused} />
+            <TabIcon Icon={Server} label="Remote" focused={focused} accent={accent} />
           ),
         }}
       />
@@ -79,7 +90,7 @@ export default function TabLayout() {
         name="cron"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Clock} label="Tasks" focused={focused} />
+            <TabIcon Icon={Clock} label="Tasks" focused={focused} accent={accent} />
           ),
         }}
       />
@@ -87,7 +98,7 @@ export default function TabLayout() {
         name="memory"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Brain} label="Data" focused={focused} />
+            <TabIcon Icon={Brain} label="Data" focused={focused} accent={accent} />
           ),
         }}
       />
@@ -95,7 +106,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Settings} label="Setup" focused={focused} />
+            <TabIcon Icon={Settings} label="Settings" focused={focused} accent={accent} />
           ),
         }}
       />

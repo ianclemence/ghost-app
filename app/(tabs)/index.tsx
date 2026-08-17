@@ -21,6 +21,7 @@ import {
   Mic,
   Plus,
   Search,
+  Square,
   Terminal,
   Trash2,
   Wifi,
@@ -48,12 +49,14 @@ import {
 import Markdown, { ASTNode } from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const GHOST_LOGO = require("../../assets/images/logo.png");
+import GHOST_LOGO from "../../assets/images/logo.png";
 
 import { Colors, Fonts, UI } from "@/constants/theme";
+import ErrorCard from "../../components/ErrorCard";
 import {
   checkHealth,
   connectWebSocket,
+  deleteMessage,
   deleteSession,
   disconnectWebSocket,
   fetchAvailableTools,
@@ -64,6 +67,8 @@ import {
   onWSStateChange,
   renameSession as renameSessionApi,
   saveConfig,
+  SearchResult,
+  searchMessages,
   sendMessage,
   transcribeAudio,
 } from "../../lib/ghostApi";
@@ -85,6 +90,7 @@ function ActionModal({
   onCopy,
   onShare,
   onRetry,
+  onDelete,
   role,
 }: {
   visible: boolean;
@@ -92,6 +98,7 @@ function ActionModal({
   onCopy: () => void;
   onShare: () => void;
   onRetry?: () => void;
+  onDelete?: () => void;
   role: "user" | "assistant";
 }) {
   return (
@@ -142,6 +149,17 @@ function ActionModal({
             <Text style={s.sessionText}>Re-run Command</Text>
           </TouchableOpacity>
         )}
+        {onDelete && (
+          <TouchableOpacity
+            style={s.sessionItem}
+            onPress={() => {
+              onDelete();
+              onClose();
+            }}
+          >
+            <Text style={[s.sessionText, { color: C.error }]}>Delete Message</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Modal>
   );
@@ -165,7 +183,7 @@ function SkeletonLoader() {
         }),
       ]),
     ).start();
-  }, []);
+  }, [anim]);
 
   return (
     <View style={{ gap: 8, paddingVertical: 10 }}>
@@ -238,7 +256,7 @@ function VoiceWaveform() {
         ]),
       ).start();
     });
-  }, []);
+  }, [anims]);
 
   return (
     <View
@@ -977,8 +995,9 @@ export default function ChatScreen() {
     setMessages,
     removeMessage,
     updateMessageStatus,
-    availableTools: _availableTools,
     setAvailableTools,
+    setToolActivity,
+    toolActivity,
     clearStreamBuffer,
     currentSession,
     setCurrentSession,
@@ -994,7 +1013,9 @@ export default function ChatScreen() {
   >([]);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [_searchResults, setSearchResults] = useState(0);
+  const [searchScope, setSearchScope] = useState<"session" | "all">("session");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [showSlash, setShowSlash] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [outbox, setOutbox] = useState<OutboxItem[]>([]);
@@ -1012,6 +1033,7 @@ export default function ChatScreen() {
     visible: boolean;
     content: string;
     role: "user" | "assistant";
+    messageId?: string;
   }>({
     visible: false,
     content: "",
@@ -1019,18 +1041,16 @@ export default function ChatScreen() {
   });
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const [_recordDuration, setRecordDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
-  const [_attachAnim] = useState(() => new Animated.Value(0));
-  const lastSendAt = useRef(0);
   const lastReconnectAt = useRef(0);
-  const [_previousConnectionState] = useState<ConnectionState>("offline");
   const doSendRef = useRef<any>(null);
   const activeRequestRef = useRef<string | null>(null);
+  const activeStreamAbortRef = useRef<AbortController | null>(null);
+  const lastFailedItemRef = useRef<OutboxItem | null>(null);
 
   // ─── Voice Logic ──────────────────────────────────────────────────────────
   const startRecording = async () => {
@@ -1039,7 +1059,6 @@ export default function ChatScreen() {
       await recorder.prepareToRecordAsync();
       recorder.record();
       setIsRecording(true);
-      setRecordDuration(0);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (err) {
       console.error("Failed to start recording", err);
@@ -1261,7 +1280,7 @@ export default function ChatScreen() {
     poll();
     const t = setInterval(poll, 30_000);
     return () => clearInterval(t);
-  }, [config]);
+  }, [config, setConnectionState]);
 
   // WS State
   useEffect(
@@ -1354,6 +1373,8 @@ export default function ChatScreen() {
     const unsub = onWSMessage((msg) => {
       if (msg.type !== "assistant_message") return;
       if (msg.channel && msg.channel !== "mobile") return;
+      // Never surface responses that belong to another session.
+      if (msg.session_id && msg.session_id !== currentSession) return;
       if (typeof msg.content !== "string") return;
       const cleaned = sanitize(msg.content || "");
       if (!cleaned || hasInternalArtifact(cleaned)) {
@@ -1361,11 +1382,26 @@ export default function ChatScreen() {
         return;
       }
       if (useGhostStore.getState().isStreaming) return;
+      const st = useGhostStore.getState();
+      const now = Date.now() / 1000;
+      const matchingIndex = st.messages.findIndex(
+        (m) =>
+          m.id !== msg.id &&
+          m.role === "assistant" &&
+          m.content === cleaned &&
+          Math.abs((m.timestamp || 0) - (msg.timestamp || now)) < 120,
+      );
+      if (matchingIndex >= 0 && msg.id) {
+        // The streamed message just came through SSE; adopt its real server id
+        // so subsequent deletes target the correct DB row.
+        st.adoptServerId(matchingIndex, msg.id);
+        return;
+      }
       appendMessage({
         id: msg.id || `ws-${Date.now()}`,
         role: "assistant",
         content: cleaned,
-        timestamp: msg.timestamp || Date.now() / 1000,
+        timestamp: msg.timestamp || now,
         status: "completed",
       });
     });
@@ -1373,7 +1409,7 @@ export default function ChatScreen() {
       unsub();
       disconnectWebSocket();
     };
-  }, [config?.session, currentSession, loadOutbox]); // Reload on session change
+  }, [config, config?.session, currentSession, loadOutbox, appendMessage, setAvailableTools, setMessages]);
 
   // Send Logic
   const doSend = useCallback(
@@ -1405,42 +1441,70 @@ export default function ChatScreen() {
         status: "streaming",
       });
       setStreaming(true);
+      setToolActivity(null);
       appendLifecycle(item.id, "sent_to_gateway");
+
+      const abortController =
+        typeof AbortController !== "undefined" ? new AbortController() : null;
+      activeStreamAbortRef.current = abortController;
 
       await sendMessage(config, {
         requestId: item.id,
         content: item.content,
         mediaB64: item.mediaB64,
         mediaType: item.mediaType,
+        signal: abortController?.signal,
         onLifecycle: (requestID, state) => appendLifecycle(requestID, state),
         onSanitized: () => setLastSanitizedAt(Date.now()),
+        onToolStatus: (_tool, label) => setToolActivity(label),
         onChunk: (c) => {
           if (!c || hasInternalArtifact(c)) {
             setLastSanitizedAt(Date.now());
             return;
           }
+          setToolActivity(null);
           appendStream(c);
         },
+        onCancelled: () => {
+          activeStreamAbortRef.current = null;
+          clearStreamBuffer();
+          removeMessage(makeAssistantPlaceholderId(item.id));
+          removeOutboxItem(session, item.id).catch(() => {});
+          updateMessageStatus(item.id, "failed");
+          lastFailedItemRef.current = { ...current, state: "retrying" };
+          setToolActivity(null);
+          setActiveError({
+            error: {
+              kind: "interrupted",
+              message: "Response stopped. Re-run the message to try again.",
+              retryable: true,
+            },
+          });
+          activeRequestRef.current = null;
+        },
         onDone: (fullText) => {
+          activeStreamAbortRef.current = null;
+          setToolActivity(null);
           commitStream();
           if (
             !sanitize(fullText || "").trim() ||
             hasInternalArtifact(fullText || "")
           ) {
-            removeMessage(makeAssistantPlaceholderId(item.id));
-            upsertOutboxItem({
-              ...current,
-              state: "retrying",
-            }).catch(() => {});
-            updateMessageStatus(item.id, "retrying");
-            setActiveError({
-              error: {
-                kind: "interrupted",
-                message:
-                  "Response contained internal artifacts and was dropped.",
-                retryable: true,
-              },
-            });
+removeMessage(makeAssistantPlaceholderId(item.id));
+          upsertOutboxItem({
+            ...current,
+            state: "retrying",
+          }).catch(() => {});
+          updateMessageStatus(item.id, "retrying");
+          lastFailedItemRef.current = { ...current, state: "retrying" };
+          setActiveError({
+            error: {
+              kind: "interrupted",
+              message:
+                "Response contained internal artifacts and was dropped.",
+              retryable: true,
+            },
+          });
             setLastSanitizedAt(Date.now());
           } else {
             updateMessageStatus(item.id, "completed");
@@ -1450,9 +1514,12 @@ export default function ChatScreen() {
           activeRequestRef.current = null;
         },
         onError: (e) => {
+          activeStreamAbortRef.current = null;
+          setToolActivity(null);
           clearStreamBuffer();
           removeMessage(makeAssistantPlaceholderId(item.id));
           const shouldRetry = e.retryable || connectionState !== "online";
+          lastFailedItemRef.current = { ...current, state: "retrying" };
           if (shouldRetry) {
             const retryItem: OutboxItem = {
               ...current,
@@ -1477,6 +1544,7 @@ export default function ChatScreen() {
       commitStream,
       clearStreamBuffer,
       setStreaming,
+      setToolActivity,
       removeMessage,
       removeOutboxItem,
       upsertOutboxItem,
@@ -1489,6 +1557,13 @@ export default function ChatScreen() {
   useEffect(() => {
     doSendRef.current = doSend;
   }, [doSend]);
+
+  const cancelStream = () => {
+    if (!isStreaming && !activeStreamAbortRef.current) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    activeStreamAbortRef.current?.abort();
+    activeStreamAbortRef.current = null;
+  };
 
   useEffect(() => {
     if (!outboxReady) return;
@@ -1550,6 +1625,43 @@ export default function ChatScreen() {
     }
     await doSend(item);
   };
+
+  // Debounced history search
+  useEffect(() => {
+    if (!searchVisible || !config) return;
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const results = await searchMessages(config, q, searchScope, 30);
+        setSearchResults(results);
+      } catch {
+        setSearchResults([]);
+      }
+      setSearchLoading(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchVisible, searchQuery, searchScope, config]);
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!config || !messageId) return;
+    try {
+      await deleteMessage(config, messageId);
+      removeMessage(messageId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.error("Failed to delete message", err);
+      Alert.alert("Error", "Failed to delete message on the Pi.");
+    }
+  };
+
+  const canDeleteMessage = (id: string) =>
+    !!id && !/^(client-|temp-|msg-)/.test(id);
 
   // Pickers
   const pickImage = async () => {
@@ -1687,23 +1799,116 @@ export default function ChatScreen() {
         </View>
       </View>
 
-      {/* ── Search Bar ── */}
+      {/* ── Search Panel ── */}
       {searchVisible && (
-        <View style={s.searchBar}>
-          <TextInput
-            style={s.searchInput}
-            placeholder="Search history..."
-            placeholderTextColor={C.icon}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoFocus
-          />
-          <TouchableOpacity
-            style={s.searchCloseBtn}
-            onPress={() => setSearchVisible(false)}
-          >
-            <X size={18} color={C.icon} />
-          </TouchableOpacity>
+        <View style={s.searchPanel}>
+          <View style={s.searchBar}>
+            <TextInput
+              style={s.searchInput}
+              placeholder="Search conversation history..."
+              placeholderTextColor={C.icon}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+            />
+            <TouchableOpacity
+              style={s.searchCloseBtn}
+              onPress={() => setSearchVisible(false)}
+            >
+              <X size={18} color={C.icon} />
+            </TouchableOpacity>
+          </View>
+          <View style={s.searchScopeRow}>
+            <TouchableOpacity
+              style={[
+                s.searchScopeBtn,
+                searchScope === "session" && s.searchScopeBtnActive,
+              ]}
+              onPress={() => setSearchScope("session")}
+            >
+              <Text
+                style={[
+                  s.searchScopeText,
+                  searchScope === "session" && { color: C.terminalGreen },
+                ]}
+              >
+                THIS SESSION
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                s.searchScopeBtn,
+                searchScope === "all" && s.searchScopeBtnActive,
+              ]}
+              onPress={() => setSearchScope("all")}
+            >
+              <Text
+                style={[
+                  s.searchScopeText,
+                  searchScope === "all" && { color: C.terminalGreen },
+                ]}
+              >
+                ALL SESSIONS
+              </Text>
+            </TouchableOpacity>
+            {searchLoading && (
+              <ActivityIndicator size="small" color={C.terminalGreen} />
+            )}
+          </View>
+          {searchQuery.trim() !== "" && (
+            <View style={s.searchResultsWrap}>
+              {searchLoading && searchResults.length === 0 ? (
+                <Text style={s.searchEmpty}>Searching…</Text>
+              ) : searchResults.length === 0 ? (
+                <Text style={s.searchEmpty}>No matches found.</Text>
+              ) : (
+                searchResults.map((r) => (
+                  <TouchableOpacity
+                    key={r.id}
+                    style={s.searchResultRow}
+                    onPress={async () => {
+                      await Clipboard.setStringAsync(r.content);
+                      Haptics.notificationAsync(
+                        Haptics.NotificationFeedbackType.Success,
+                      );
+                    }}
+                  >
+                    <View
+                      style={[
+                        s.searchRoleBadge,
+                        {
+                          borderColor:
+                            r.role === "user" ? C.icon : C.terminalGreen,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          s.searchRoleText,
+                          { color: r.role === "user" ? C.icon : C.terminalGreen },
+                        ]}
+                      >
+                        {r.role === "user" ? "YOU" : "GHOST"}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={s.searchSnippet} numberOfLines={3}>
+                        {r.content}
+                      </Text>
+                      <Text style={s.searchMeta}>
+                        {r.session_id ? r.session_id : ""}
+                        {r.session_id ? " · " : ""}
+                        {new Date(r.timestamp * 1000).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          )}
         </View>
       )}
       {lastSanitizedAt && Date.now() - lastSanitizedAt < 180000 && (
@@ -1734,7 +1939,7 @@ export default function ChatScreen() {
                   : undefined
               }
               onLongPress={(content, role) =>
-                setActionMenu({ visible: true, content, role })
+                setActionMenu({ visible: true, content, role, messageId: item.id })
               }
             />
           );
@@ -1742,6 +1947,49 @@ export default function ChatScreen() {
         contentContainerStyle={s.msgList}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* ── Active tool progress ── */}
+      {isStreaming && toolActivity ? (
+        <View style={s.activityStrip}>
+          <ActivityIndicator size="small" color={C.terminalGreen} />
+          <Text style={s.activityText} numberOfLines={1}>
+            {toolActivity}
+          </Text>
+          <TouchableOpacity onPress={cancelStream} hitSlop={8}>
+            <Square size={12} color={C.icon} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* ── Inline error card ── */}
+      {activeError && (
+        <View style={s.errorWrap}>
+          <ErrorCard
+            error={activeError.error}
+            partialContent={activeError.partialContent}
+            onRetry={
+              activeError.error.retryable
+                ? () => {
+                    const item = lastFailedItemRef.current;
+                    setActiveError(null);
+                    if (item) {
+                      const session =
+                        item.session || currentSession || normalizeSessionInput(config?.session);
+                      void doSend({
+                        ...item,
+                        id: makeClientMessageId(),
+                        session,
+                        state: "sending",
+                        attempts: 0,
+                      }).catch(() => {});
+                    }
+                  }
+                : undefined
+            }
+            onDismiss={() => setActiveError(null)}
+          />
+        </View>
+      )}
 
       {/* ── Input Area ── */}
       <View
@@ -1839,13 +2087,20 @@ export default function ChatScreen() {
             )}
           </View>
 
-          {input.trim() || pendingMedia ? (
+          {isStreaming ? (
+            <TouchableOpacity
+              style={[s.sendBtn, { backgroundColor: C.card }]}
+              onPress={cancelStream}
+              accessibilityLabel="Stop generating"
+            >
+              <Square size={18} color={C.error} fill={C.error} />
+            </TouchableOpacity>
+          ) : input.trim() || pendingMedia ? (
             <TouchableOpacity
               style={s.sendBtn}
               onPress={handleSend}
-              disabled={isStreaming}
             >
-              {isStreaming ? (
+              {isTranscribing ? (
                 <ActivityIndicator color={C.background} size="small" />
               ) : (
                 <ArrowUp size={20} color={C.background} />
@@ -1916,8 +2171,12 @@ export default function ChatScreen() {
           actionMenu.role === "user"
             ? () => {
                 setInput(actionMenu.content);
-                // Auto-send can be added here if desired
               }
+            : undefined
+        }
+        onDelete={
+          actionMenu.messageId && canDeleteMessage(actionMenu.messageId)
+            ? () => handleDeleteMessage(actionMenu.messageId!)
             : undefined
         }
       />
@@ -2171,9 +2430,108 @@ const s = StyleSheet.create({
     marginRight: 4,
   },
 
+  // Search panel
+  searchPanel: {
+    borderTopWidth: 0,
+    borderBottomWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.background,
+    maxHeight: "55%",
+  },
+  searchScopeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingBottom: 8,
+    paddingTop: 2,
+  },
+  searchScopeBtn: {
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  searchScopeBtnActive: {
+    borderColor: C.terminalGreen,
+    backgroundColor: "rgba(74, 222, 128, 0.08)",
+  },
+  searchScopeText: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  searchResultsWrap: {
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+  searchEmpty: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 12,
+    textAlign: "center",
+    paddingVertical: 16,
+  },
+  searchResultRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  searchRoleBadge: {
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 2,
+  },
+  searchRoleText: {
+    fontFamily: FONT_MONO,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  searchSnippet: {
+    color: C.text,
+    fontFamily: FONT_SANS,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  searchMeta: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
+  },
+
+  // Active tool progress / errors
+  activityStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: UI.spacing.screenX,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    backgroundColor: "rgba(74, 222, 128, 0.06)",
+  },
+  activityText: {
+    flex: 1,
+    color: C.terminalGreen,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    letterSpacing: 0.3,
+  },
+  errorWrap: {
+    paddingHorizontal: UI.spacing.screenX,
+    paddingTop: 8,
+  },
+
   // Modal
   modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: UI.modal.backdrop,
   },
   modalContent: {

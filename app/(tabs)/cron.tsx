@@ -1,19 +1,28 @@
 import {
   Clock,
   Pause,
+  Pencil,
   Play,
+  Plus,
   RefreshCw,
   RotateCcw,
+  Trash2,
   X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
+  ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -21,12 +30,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, UI } from "@/constants/theme";
 import {
+  createCronJob,
   CronJob,
+  CronJobCreateInput,
+  CronSchedule,
+  deleteCronJob,
   fetchCronJobs,
   onWSMessage,
   pauseCronJob,
   resumeCronJob,
   runCronJobNow,
+  updateCronJob,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
 
@@ -70,6 +84,216 @@ function TaskModal({
   );
 }
 
+function TaskFormModal({
+  visible,
+  initial,
+  onClose,
+  onSave,
+  saving,
+}: {
+  visible: boolean;
+  initial: CronJob | null;
+  onClose: () => void;
+  onSave: (input: CronJobCreateInput) => Promise<void>;
+  saving: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<"every" | "cron">("every");
+  const [everySec, setEverySec] = useState("3600");
+  const [cronExpr, setCronExpr] = useState("0 9 * * *");
+  const [message, setMessage] = useState("");
+  const [command, setCommand] = useState("");
+  const [deliver, setDeliver] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    if (initial) {
+      setName(initial.name);
+      setKind(initial.schedule.kind === "cron" ? "cron" : "every");
+      setEverySec(
+        String(Math.round((initial.schedule.everyMs ?? 3600000) / 1000)),
+      );
+      setCronExpr(initial.schedule.expr || "0 9 * * *");
+      setMessage(initial.payload.message ?? "");
+      setCommand(initial.payload.command ?? "");
+      setDeliver(initial.payload.deliver ?? false);
+    } else {
+      setName("");
+      setKind("every");
+      setEverySec("3600");
+      setCronExpr("0 9 * * *");
+      setMessage("");
+      setCommand("");
+      setDeliver(false);
+    }
+  }, [visible, initial]);
+
+  const submit = () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    const schedule: CronSchedule =
+      kind === "every"
+        ? {
+            kind: "every",
+            everyMs: Math.max(5, parseInt(everySec, 10) || 3600) * 1000,
+          }
+        : { kind: "cron", expr: cronExpr.trim() };
+    const input: CronJobCreateInput = {
+      name: trimmedName,
+      schedule,
+      message: message.trim(),
+      command: command.trim() || undefined,
+      deliver,
+      channel: deliver ? "mobile" : undefined,
+    };
+    void onSave(input);
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity style={styles.modalBackdrop} onPress={onClose} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.formModal}
+      >
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>
+            {initial ? "Edit Task" : "New Task"}
+          </Text>
+          <TouchableOpacity onPress={onClose}>
+            <X size={20} color={C.text} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView
+          style={styles.formBody}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.fieldLabel}>NAME</Text>
+          <TextInput
+            style={styles.fieldInput}
+            value={name}
+            onChangeText={setName}
+            placeholder="Morning briefing"
+            placeholderTextColor={C.icon}
+          />
+
+          <Text style={styles.fieldLabel}>SCHEDULE</Text>
+          <View style={styles.kindRow}>
+            {(["every", "cron"] as const).map((k) => (
+              <TouchableOpacity
+                key={k}
+                style={[
+                  styles.kindBtn,
+                  kind === k && styles.kindBtnActive,
+                ]}
+                onPress={() => setKind(k)}
+              >
+                <Text
+                  style={[
+                    styles.kindBtnText,
+                    kind === k && { color: C.terminalGreen },
+                  ]}
+                >
+                  {k.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {kind === "every" ? (
+            <>
+              <Text style={styles.fieldLabel}>EVERY (SECONDS)</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={everySec}
+                onChangeText={setEverySec}
+                keyboardType="numeric"
+                placeholder="3600"
+                placeholderTextColor={C.icon}
+              />
+              <Text style={styles.fieldHint}>
+                e.g. 3600 = hourly, 86400 = daily
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.fieldLabel}>CRON EXPRESSION</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={cronExpr}
+                onChangeText={setCronExpr}
+                placeholder="0 9 * * *"
+                placeholderTextColor={C.icon}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text style={styles.fieldHint}>
+                e.g. 0 9 * * * = every day at 09:00
+              </Text>
+            </>
+          )}
+
+          <Text style={styles.fieldLabel}>MESSAGE (what Ghost should do)</Text>
+          <TextInput
+            style={[styles.fieldInput, styles.fieldMultiline]}
+            value={message}
+            onChangeText={setMessage}
+            placeholder="Summarize my notes for today"
+            placeholderTextColor={C.icon}
+            multiline
+          />
+
+          <Text style={styles.fieldLabel}>COMMAND (optional, runs directly)</Text>
+          <TextInput
+            style={styles.fieldInput}
+            value={command}
+            onChangeText={setCommand}
+            placeholder="df -h"
+            placeholderTextColor={C.icon}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleLabel}>DELIVER RESPONSE</Text>
+              <Text style={styles.fieldHint}>Push the result to this app</Text>
+            </View>
+            <Switch
+              value={deliver}
+              onValueChange={setDeliver}
+              trackColor={{
+                false: C.border,
+                true: "rgba(74, 222, 128, 0.3)",
+              }}
+              thumbColor={deliver ? C.terminalGreen : C.icon}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.saveBtn, (saving || !name.trim()) && { opacity: 0.6 }]}
+            onPress={submit}
+            disabled={saving || !name.trim()}
+          >
+            {saving ? (
+              <ActivityIndicator color={C.background} size="small" />
+            ) : (
+              <Text style={styles.saveBtnText}>
+                {initial ? "Save Changes" : "Create Task"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 function timeAgo(date: number | string | Date): string {
   const seconds = Math.floor(
     (new Date().getTime() - new Date(date).getTime()) / 1000,
@@ -90,9 +314,13 @@ function timeAgo(date: number | string | Date): string {
 function JobCard({
   job,
   onAction,
+  onEdit,
+  onDelete,
 }: {
   job: CronJob;
   onAction: (id: string, action: "pause" | "resume" | "run") => void;
+  onEdit: (job: CronJob) => void;
+  onDelete: (job: CronJob) => void;
 }) {
   const isPaused = job.lifecycle_state === "paused";
   const statusColor = isPaused
@@ -155,6 +383,22 @@ function JobCard({
           <Text style={styles.runBtnText}>Run Now</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.editBtn]}
+          onPress={() => onEdit(job)}
+        >
+          <Pencil size={12} color={C.text} style={{ marginRight: 6 }} />
+          <Text style={styles.editBtnText}>Edit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.deleteBtn]}
+          onPress={() => onDelete(job)}
+        >
+          <Trash2 size={12} color={C.error} style={{ marginRight: 6 }} />
+          <Text style={styles.deleteBtnText}>Delete</Text>
+        </TouchableOpacity>
+
         {isPaused ? (
           <TouchableOpacity
             style={[styles.actionBtn, styles.resumeBtn]}
@@ -187,6 +431,9 @@ export default function CronScreen() {
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [formVisible, setFormVisible] = useState(false);
+  const [editingJob, setEditingJob] = useState<CronJob | null>(null);
+  const [saving, setSaving] = useState(false);
   const [taskModal, setTaskModal] = useState<{
     visible: boolean;
     title: string;
@@ -279,6 +526,72 @@ export default function CronScreen() {
     }
   };
 
+  const openCreate = () => {
+    setEditingJob(null);
+    setFormVisible(true);
+  };
+
+  const openEdit = (job: CronJob) => {
+    setEditingJob(job);
+    setFormVisible(true);
+  };
+
+  const handleSave = async (input: CronJobCreateInput) => {
+    if (!config || saving) return;
+    setSaving(true);
+    try {
+      if (editingJob) {
+        await updateCronJob(config, editingJob.id, {
+          name: input.name,
+          schedule: input.schedule,
+          message: input.message,
+          command: input.command,
+          deliver: input.deliver,
+          channel: input.channel,
+        });
+      } else {
+        await createCronJob(config, input);
+      }
+      setFormVisible(false);
+      loadJobs(true);
+    } catch (e: any) {
+      setTaskModal({
+        visible: true,
+        title: editingJob ? "Edit Failed" : "Create Failed",
+        message: e?.message || "Failed to save task.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = (job: CronJob) => {
+    if (!config) return;
+    Alert.alert(
+      "Delete Task",
+      `Permanently delete "${job.name}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteCronJob(config, job.id);
+              loadJobs(true);
+            } catch (e: any) {
+              setTaskModal({
+                visible: true,
+                title: "Delete Failed",
+                message: e?.message || "Failed to delete task.",
+              });
+            }
+          },
+        },
+      ],
+    );
+  };
+
   if (!config) {
     return (
       <View
@@ -298,20 +611,31 @@ export default function CronScreen() {
           <Clock size={20} color={C.terminalGreen} />
           <Text style={styles.headerTitle}>Scheduled Tasks</Text>
         </View>
-        <TouchableOpacity onPress={() => loadJobs()} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color={C.terminalGreen} size="small" />
-          ) : (
-            <RefreshCw size={18} color={C.terminalGreen} />
-          )}
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <TouchableOpacity onPress={openCreate} style={styles.newTaskBtn}>
+            <Plus size={16} color={C.background} />
+            <Text style={styles.newTaskBtnText}>New</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => loadJobs()} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color={C.terminalGreen} size="small" />
+            ) : (
+              <RefreshCw size={18} color={C.terminalGreen} />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
         data={jobs}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <JobCard job={item} onAction={handleAction} />
+          <JobCard
+            job={item}
+            onAction={handleAction}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+          />
         )}
         contentContainerStyle={styles.listContent}
         refreshControl={
@@ -341,6 +665,13 @@ export default function CronScreen() {
         onClose={() =>
           setTaskModal({ visible: false, title: "", message: "" })
         }
+      />
+      <TaskFormModal
+        visible={formVisible}
+        initial={editingJob}
+        onClose={() => setFormVisible(false)}
+        onSave={handleSave}
+        saving={saving}
       />
     </View>
   );
@@ -436,17 +767,19 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: "row",
-    gap: 10,
+    flexWrap: "wrap",
+    gap: 8,
     marginTop: 4,
   },
   actionBtn: {
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderRadius: 0,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: "46%",
     flexDirection: "row",
   },
   runBtn: {
@@ -477,6 +810,132 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontFamily: FONT_MONO,
   },
+  editBtn: {
+    borderColor: C.icon,
+  },
+  editBtnText: {
+    color: C.text,
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: FONT_MONO,
+  },
+  deleteBtn: {
+    borderColor: C.error,
+  },
+  deleteBtnText: {
+    color: C.error,
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: FONT_MONO,
+  },
+  newTaskBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.terminalGreen,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  newTaskBtnText: {
+    color: C.background,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  formModal: {
+    position: "absolute",
+    top: 60,
+    left: 20,
+    right: 20,
+    maxHeight: "80%",
+    backgroundColor: C.background,
+    borderWidth: 1,
+    borderColor: C.terminalGreen,
+    borderRadius: UI.radius.panel,
+  },
+  formBody: {
+    padding: UI.modal.bodyPadding,
+    backgroundColor: C.card,
+  },
+  fieldLabel: {
+    color: C.icon,
+    fontSize: UI.typography.meta,
+    letterSpacing: 1.2,
+    fontFamily: FONT_MONO,
+    fontWeight: "700",
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  fieldInput: {
+    backgroundColor: "#ffffff08",
+    borderWidth: 1,
+    borderColor: C.border,
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  fieldMultiline: {
+    minHeight: 64,
+    textAlignVertical: "top",
+  },
+  fieldHint: {
+    color: C.icon,
+    fontSize: 10,
+    fontFamily: FONT_MONO,
+    marginTop: 4,
+  },
+  kindRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  kindBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  kindBtnActive: {
+    borderColor: C.terminalGreen,
+    backgroundColor: "rgba(74, 222, 128, 0.1)",
+  },
+  kindBtnText: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 14,
+    paddingVertical: 6,
+  },
+  toggleLabel: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  saveBtn: {
+    marginTop: 16,
+    backgroundColor: C.terminalGreen,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  saveBtnText: {
+    color: C.background,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
   emptyText: {
     color: C.icon,
     textAlign: "center",
@@ -485,7 +944,7 @@ const styles = StyleSheet.create({
     fontFamily: FONT_MONO,
   },
   modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: UI.modal.backdrop,
   },
   modalContent: {

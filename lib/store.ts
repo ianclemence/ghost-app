@@ -42,6 +42,7 @@ interface GhostStore {
   updateLastAssistant: (text: string) => void;
   updateMessageStatus: (id: string, status: MessageStatus) => void;
   removeMessage: (id: string) => void;
+  adoptServerId: (index: number, serverId: string) => void;
 
   // Streaming state
   isStreaming: boolean;
@@ -50,6 +51,10 @@ interface GhostStore {
   clearStreamBuffer: () => void;
   appendStream: (chunk: string) => void;
   commitStream: () => void;
+
+  // Live tool activity ("Searching: …", "Running: …" from tool_status events)
+  toolActivity: string | null;
+  setToolActivity: (label: string | null) => void;
 
   // Dedup
   _lastCommitTime: number;
@@ -81,7 +86,7 @@ interface GhostStore {
   }[];
 
   // UI state
-  activeTab: "chat" | "remote" | "memory" | "settings";
+  activeTab: "chat" | "remote" | "cron" | "memory" | "settings";
   setActiveTab: (tab: GhostStore["activeTab"]) => void;
   accentColor: "green" | "amber" | "cyan";
   setAccentColor: (color: GhostStore["accentColor"]) => void;
@@ -91,7 +96,6 @@ interface GhostStore {
   setCanvasHtml: (html: string | null) => void;
 }
 
-let nextTempId = -1;
 let nextMessageId = 1;
 
 const isTempId = (id: string) => id.startsWith("temp-");
@@ -187,6 +191,20 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
     set((s) => ({
       messages: s.messages.filter((m) => m.id !== id),
     })),
+  adoptServerId: (index, serverId) =>
+    set((s) => {
+      if (index < 0 || index >= s.messages.length) return s;
+      const existing = s.messages[index];
+      if (!existing || existing.id === serverId) {
+        return { messages: s.messages };
+      }
+      const msgs = [...s.messages];
+      msgs[index] = { ...existing, id: serverId };
+      const seen = new Set(s.seenMessageIds);
+      seen.delete(existing.id);
+      seen.add(serverId);
+      return { messages: msgs, seenMessageIds: seen };
+    }),
 
   isStreaming: false,
   streamBuffer: "",
@@ -210,6 +228,8 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
       }
       return { streamBuffer: newBuffer, messages: msgs };
     }),
+  toolActivity: null,
+  setToolActivity: (label) => set({ toolActivity: label }),
   commitStream: () =>
     set((s) => {
       const content = s.streamBuffer;
@@ -264,13 +284,3 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   canvasHtml: null,
   setCanvasHtml: (html) => set({ canvasHtml: html }),
 }));
-
-export function createStreamingPlaceholder(): ExtendedMessage {
-  return {
-    id: `temp-${nextTempId--}`,
-    role: "assistant",
-    content: "",
-    timestamp: Date.now() / 1000,
-    status: "streaming",
-  };
-}

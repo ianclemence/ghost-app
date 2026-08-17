@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 export interface Message {
   id: string;
@@ -168,52 +170,6 @@ function classifyError(status: number, body: string): GhostError {
   };
 }
 
-function classifyStreamError(errorText: string): GhostError {
-  const lower = errorText.toLowerCase();
-  if (
-    lower.includes("429") ||
-    lower.includes("rate") ||
-    lower.includes("too many")
-  ) {
-    return {
-      kind: "rate_limit",
-      message: "Ghost is temporarily busy. Try again in a moment.",
-      retryable: true,
-    };
-  }
-  if (
-    lower.includes("401") ||
-    lower.includes("unauthorized") ||
-    lower.includes("auth")
-  ) {
-    return {
-      kind: "auth",
-      message: "AI provider authentication failed.",
-      retryable: false,
-    };
-  }
-  if (lower.includes("no text chunks") || lower.includes("empty")) {
-    return {
-      kind: "empty_stream",
-      message: "Ghost started thinking but didn't respond. Try rephrasing.",
-      retryable: true,
-    };
-  }
-  if (
-    lower.includes("upstream http 5") ||
-    lower.includes("500") ||
-    lower.includes("502") ||
-    lower.includes("503")
-  ) {
-    return {
-      kind: "provider",
-      message: "Ghost couldn't generate a response. This is a temporary issue.",
-      retryable: true,
-    };
-  }
-  return { kind: "provider", message: errorText, retryable: true };
-}
-
 function networkError(err: any): GhostError {
   const msg = err?.message ?? String(err);
   if (msg.includes("abort") || msg.includes("Abort")) {
@@ -233,19 +189,70 @@ function networkError(err: any): GhostError {
 // ─── Config ────────────────────────────────────────────────────────────────
 
 const CONFIG_KEY = "ghost_config";
+const SECRET_KEY = "ghost_secret";
+
+type StoredConfig = {
+  piHost: string;
+  piPort?: string;
+  session?: string;
+  sendLocation?: boolean;
+  secret?: string; // legacy: pre-SecureStore installs stored the secret inline
+};
+
+async function readSecret(): Promise<string> {
+  if (Platform.OS === "web") return "";
+  try {
+    return (await SecureStore.getItemAsync(SECRET_KEY)) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function writeSecret(secret: string): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    if (secret) {
+      await SecureStore.setItemAsync(SECRET_KEY, secret);
+    } else {
+      await SecureStore.deleteItemAsync(SECRET_KEY);
+    }
+  } catch {}
+}
 
 export async function loadConfig(): Promise<GhostConfig | null> {
   const raw = await AsyncStorage.getItem(CONFIG_KEY);
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+  let stored: StoredConfig;
+  try {
+    stored = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  let secret = await readSecret();
+  if (!secret && typeof stored.secret === "string") secret = stored.secret;
+  // Migrate legacy inline secret out of AsyncStorage into SecureStore.
+  if (secret && typeof stored.secret === "string") {
+    await writeSecret(secret);
+    const migrated: StoredConfig = { ...stored };
+    delete migrated.secret;
+    await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(migrated)).catch(() => {});
+  }
+  return {
+    piHost: stored.piHost,
+    piPort: stored.piPort ?? "8766",
+    secret,
+    session: stored.session,
+    sendLocation: stored.sendLocation !== false,
+  };
 }
 
 export async function saveConfig(cfg: GhostConfig): Promise<void> {
+  await writeSecret(cfg.secret.trim());
   await AsyncStorage.setItem(
     CONFIG_KEY,
     JSON.stringify({
       piHost: normalizeHost(cfg.piHost),
       piPort: normalizePort(cfg.piPort),
-      secret: cfg.secret.trim(),
       session: normalizeSession(cfg.session),
       sendLocation: cfg.sendLocation !== false,
     }),
@@ -374,12 +381,21 @@ export async function fetchHistory(
   return res.json();
 }
 
+export interface SearchResult {
+  id: string;
+  session_id: string;
+  role: string;
+  content: string;
+  timestamp: number;
+  rank: number;
+}
+
 export async function searchMessages(
   cfg: GhostConfig,
   q: string,
   scope: "session" | "all" = "session",
   limit = 30,
-): Promise<Message[]> {
+): Promise<SearchResult[]> {
   const session = scope === "session" ? normalizeSession(cfg.session) : "";
   const res = await fetch(
     `${baseURL(cfg)}/v1/search?q=${encodeURIComponent(q)}&limit=${limit}&session=${encodeURIComponent(session)}`,
@@ -444,10 +460,12 @@ export interface SendOptions {
   requestId?: string;
   mediaB64?: string;
   mediaType?: string;
+  signal?: AbortSignal;
   onChunk: (chunk: string) => void;
   onLifecycle?: (requestId: string, state: string) => void;
   onSanitized?: (reason: string) => void;
   onToolStatus?: (tool: string, label: string) => void;
+  onCancelled?: () => void;
   onDone: (fullText: string) => void;
   onError: (err: GhostError) => void;
 }
@@ -593,6 +611,18 @@ export async function sendMessage(
   const timeoutTimer = abortController
     ? setTimeout(() => abortController.abort(), STREAM_TIMEOUT_MS)
     : null;
+  const handleExternalAbort = () => abortController?.abort();
+  if (opts.signal) {
+    if (opts.signal.aborted) {
+      abortController?.abort();
+    } else {
+      opts.signal.addEventListener("abort", handleExternalAbort, {
+        once: true,
+      });
+    }
+  }
+
+  const isCancelled = () => !!opts.signal?.aborted;
 
   try {
     const res = await fetch(url, {
@@ -722,10 +752,26 @@ export async function sendMessage(
     trace("fallback_done", { fullLength: fullText.length });
     opts.onDone(fullText);
   } catch (err: any) {
-    trace("send_error", { message: err?.message ?? String(err) });
-    opts.onError(networkError(err));
+    if (isCancelled()) {
+      trace("send_cancelled");
+      if (opts.onCancelled) {
+        opts.onCancelled();
+      } else {
+        opts.onError({
+          kind: "interrupted",
+          message: "Request cancelled.",
+          retryable: false,
+        });
+      }
+    } else {
+      trace("send_error", { message: err?.message ?? String(err) });
+      opts.onError(networkError(err));
+    }
   } finally {
     if (timeoutTimer) clearTimeout(timeoutTimer);
+    if (opts.signal) {
+      opts.signal.removeEventListener("abort", handleExternalAbort);
+    }
   }
 }
 
@@ -1035,6 +1081,172 @@ export async function runCronJobNow(
   id: string,
 ): Promise<void> {
   return controlCronJob(cfg, id, "run");
+}
+
+export interface CronJobCreateInput {
+  name: string;
+  schedule: CronSchedule;
+  message?: string;
+  command?: string;
+  deliver?: boolean;
+  channel?: string;
+  to?: string;
+  skills?: string[];
+  no_agent?: boolean;
+}
+
+export type CronJobUpdate = Partial<{
+  name: string;
+  schedule: CronSchedule;
+  message: string;
+  command: string;
+  deliver: boolean;
+  channel: string;
+  to: string;
+  target: string;
+  enabled: boolean;
+  skills: string[];
+  no_agent: boolean;
+}>;
+
+export async function createCronJob(
+  cfg: GhostConfig,
+  input: CronJobCreateInput,
+): Promise<CronJob> {
+  const res = await fetch(`${baseURL(cfg)}/v1/cron/jobs`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(
+      err?.error?.message ?? err?.error ?? `Failed to create job (HTTP ${res.status})`,
+    );
+  }
+  const data = await res.json();
+  if (!data?.job) throw new Error("Create job returned no job");
+  return data.job;
+}
+
+export async function updateCronJob(
+  cfg: GhostConfig,
+  id: string,
+  updates: CronJobUpdate,
+): Promise<CronJob> {
+  const res = await fetch(`${baseURL(cfg)}/v1/cron/jobs`, {
+    method: "PATCH",
+    headers: headers(cfg),
+    body: JSON.stringify({ id, updates }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(
+      err?.error?.message ?? err?.error ?? `Failed to update job (HTTP ${res.status})`,
+    );
+  }
+  const data = await res.json();
+  if (!data?.job) throw new Error("Update job returned no job");
+  return data.job;
+}
+
+export async function deleteCronJob(
+  cfg: GhostConfig,
+  id: string,
+): Promise<void> {
+  const res = await fetch(
+    `${baseURL(cfg)}/v1/cron/jobs/${encodeURIComponent(id)}`,
+    { method: "DELETE", headers: headers(cfg) },
+  );
+  if (!res.ok) throw new Error(`Failed to delete job (HTTP ${res.status})`);
+}
+
+// ─── Skills ─────────────────────────────────────────────────────────────────
+
+export interface GhostSkill {
+  name: string;
+  description: string;
+  bundled: boolean;
+  user_modified: boolean;
+  enabled: boolean;
+}
+
+export interface GhostSkillFile {
+  path: string;
+  content: string;
+}
+
+export interface GhostSkillDetail extends GhostSkill {
+  files: GhostSkillFile[];
+}
+
+export async function fetchSkills(cfg: GhostConfig): Promise<GhostSkill[]> {
+  const res = await fetch(`${baseURL(cfg)}/v1/skills`, {
+    headers: headers(cfg),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const skills = Array.isArray(data?.skills) ? data.skills : [];
+  return skills.map((s: Record<string, unknown>) => ({
+    name: String(s.name ?? ""),
+    description: String(s.description ?? ""),
+    bundled: s.bundled === true || s.bundled === "true",
+    user_modified: s.user_modified === true || s.user_modified === "true",
+    enabled: s.enabled === true || s.enabled === "true",
+  }));
+}
+
+export async function toggleSkill(
+  cfg: GhostConfig,
+  name: string,
+  enabled: boolean,
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/skills/toggle`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ name, enabled }),
+  });
+  if (!res.ok) throw new Error(`Failed to toggle skill (HTTP ${res.status})`);
+}
+
+export async function fetchSkillDetail(
+  cfg: GhostConfig,
+  name: string,
+): Promise<GhostSkillDetail | null> {
+  const res = await fetch(
+    `${baseURL(cfg)}/v1/skills/read?name=${encodeURIComponent(name)}`,
+    { headers: headers(cfg) },
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return {
+    name: String(data.name ?? name),
+    description: String(data.description ?? ""),
+    bundled: data.bundled === true,
+    user_modified: data.user_modified === true,
+    enabled: data.enabled !== false,
+    files: Array.isArray(data.files)
+      ? data.files.map((f: Record<string, unknown>) => ({
+          path: String(f.path ?? ""),
+          content: String(f.content ?? ""),
+        }))
+      : [],
+  };
+}
+
+export async function installSkill(
+  cfg: GhostConfig,
+  install: { owner: string; repo: string; path: string; name?: string; branch?: string },
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/skills/install`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify(install),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err?.error?.message ?? err?.error ?? "Failed to install skill");
+  }
 }
 
 // ─── WebSocket ─────────────────────────────────────────────────────────────
