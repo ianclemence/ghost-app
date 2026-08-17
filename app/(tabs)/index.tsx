@@ -1,6 +1,10 @@
 import { useTerminalColor } from "@/hooks/use-terminal-color";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio } from "expo-av";
+import {
+  AudioModule,
+  RecordingPresets,
+  useAudioRecorder,
+} from "expo-audio";
 import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
@@ -145,7 +149,7 @@ function ActionModal({
 
 // ─── Skeleton Loader ──────────────────────────────────────────────────────
 function SkeletonLoader() {
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -204,7 +208,7 @@ function SkeletonLoader() {
 
 // ─── Voice Waveform ───────────────────────────────────────────────────────
 function VoiceWaveform() {
-  const anims = useRef([
+  const [anims] = useState(() => [
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
@@ -214,7 +218,7 @@ function VoiceWaveform() {
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
-  ]).current;
+  ]);
 
   useEffect(() => {
     anims.forEach((anim, i) => {
@@ -973,7 +977,7 @@ export default function ChatScreen() {
     setMessages,
     removeMessage,
     updateMessageStatus,
-    availableTools,
+    availableTools: _availableTools,
     setAvailableTools,
     clearStreamBuffer,
     currentSession,
@@ -990,7 +994,7 @@ export default function ChatScreen() {
   >([]);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState(0);
+  const [_searchResults, setSearchResults] = useState(0);
   const [showSlash, setShowSlash] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [outbox, setOutbox] = useState<OutboxItem[]>([]);
@@ -1014,32 +1018,26 @@ export default function ChatScreen() {
     role: "user",
   });
 
-  const recording = useRef<Audio.Recording | null>(null);
-  const [recordDuration, setRecordDuration] = useState(0);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [_recordDuration, setRecordDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
-  const attachAnim = useRef(new Animated.Value(0)).current;
+  const [_attachAnim] = useState(() => new Animated.Value(0));
   const lastSendAt = useRef(0);
   const lastReconnectAt = useRef(0);
-  const previousConnectionState = useRef<ConnectionState>("offline");
+  const [_previousConnectionState] = useState<ConnectionState>("offline");
   const doSendRef = useRef<any>(null);
   const activeRequestRef = useRef<string | null>(null);
 
   // ─── Voice Logic ──────────────────────────────────────────────────────────
   const startRecording = async () => {
     try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-      const { recording: rec } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      );
-      recording.current = rec;
+      await AudioModule.requestRecordingPermissionsAsync();
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
       setRecordDuration(0);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1049,13 +1047,11 @@ export default function ChatScreen() {
   };
 
   const stopRecording = async () => {
-    if (!recording.current) return;
     setIsRecording(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await recording.current.stopAndUnloadAsync();
-      const uri = recording.current.getURI();
-      recording.current = null;
+      await recorder.stop();
+      const uri = recorder.uri;
       if (uri && config) {
         setIsTranscribing(true);
         const text = await transcribeAudio(config, uri);

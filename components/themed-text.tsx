@@ -1,9 +1,8 @@
 
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import { Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Fonts } from '@/constants/theme';
-import { useGhostStore } from '@/lib/store';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
@@ -35,7 +34,3 @@ export function ThemedText({
     />
   );
 }
-
-const styles = StyleSheet.create({
-  // Static styles are mostly overridden by dynamic ones above
-});

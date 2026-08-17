@@ -6,7 +6,6 @@ import {
   Alert,
   Image,
   Keyboard,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,8 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { 
-  Globe, Terminal, Folder, Music, Monitor, HardDrive, Cpu, Activity, 
-  LayoutGrid, Image as ImageIcon, Play, Command, RefreshCw, Power
+  Globe, Terminal, Folder, Music, Monitor, RefreshCw
 } from "lucide-react-native";
 
 import {

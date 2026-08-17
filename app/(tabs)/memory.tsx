@@ -390,8 +390,8 @@ export default function MemoryScreen() {
     width: 0,
     height: 0,
   });
-  const mapPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const mapScaleAnim = useRef(new Animated.Value(1)).current;
+  const [mapPan] = useState(() => new Animated.ValueXY({ x: 0, y: 0 }));
+  const [mapScaleAnim] = useState(() => new Animated.Value(1));
   const mapScaleRef = useRef(1);
   const hasMapInteractedRef = useRef(false);
 

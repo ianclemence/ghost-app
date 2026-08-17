@@ -1,4 +1,4 @@
-import { Link, router } from "expo-router";
+import { router } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -25,7 +25,7 @@ export default function ModalScreen() {
         </View>
         <Text style={styles.title}>Clear Chat History?</Text>
         <Text style={styles.subtitle}>
-          This will remove all messages from your device. Ghost's memory is unaffected.
+          This will remove all messages from your device. Ghost&apos;s memory is unaffected.
         </Text>
 
         <View style={styles.actions}>
