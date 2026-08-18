@@ -1,5 +1,4 @@
 import Constants, { AppOwnership } from "expo-constants";
-import * as Haptics from "expo-haptics";
 import {
   Activity,
   AlertTriangle,
@@ -370,17 +369,6 @@ export default function SettingsScreen() {
           placeholder="192.168.1.42"
           keyboardType="numbers-and-punctuation"
         />
-        <TouchableOpacity
-          style={s.ghostLocalRow}
-          onPress={() => {
-            setHost("ghost.local");
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-        >
-          <Text style={s.ghostLocalText}>
-            Use ghost.local (mDNS hostname on this network)
-          </Text>
-        </TouchableOpacity>
         <Field
           label="Port"
           value={port}
@@ -1013,16 +1001,6 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: FONT_MONO,
     paddingVertical: 4,
-  },
-  ghostLocalRow: {
-    paddingHorizontal: 14,
-    paddingBottom: 12,
-  },
-  ghostLocalText: {
-    color: C.terminalGreen,
-    fontSize: 11,
-    fontFamily: FONT_MONO,
-    textDecorationLine: "underline",
   },
 
   btnRow: { flexDirection: "row", gap: 10, padding: 14 },
