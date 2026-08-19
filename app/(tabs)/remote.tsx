@@ -243,7 +243,7 @@ export default function RemoteScreen() {
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Monitor size={20} color={C.terminalGreen} />
-          <Text style={styles.headerTitle}>Remote Control</Text>
+          <Text style={styles.headerTitle}>Device</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: statusColor }} />

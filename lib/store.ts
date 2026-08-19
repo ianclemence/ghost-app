@@ -94,6 +94,38 @@ interface GhostStore {
   // Canvas state
   canvasHtml: string | null;
   setCanvasHtml: (html: string | null) => void;
+
+  // Inbox — proactive pushes (heartbeat briefings, cron deliveries, device
+  // events) that belong to other sessions, surfaced behind a bell icon.
+  inbox: InboxItem[];
+  addInboxItem: (item: InboxItem) => void;
+  removeInboxItem: (id: string) => void;
+  clearInbox: () => void;
+
+  // Pending interactive tool requests rendered as cards in the chat.
+  clarifyRequest: ClarifyRequest | null;
+  setClarifyRequest: (req: ClarifyRequest | null) => void;
+  approvalRequest: ApprovalRequest | null;
+  setApprovalRequest: (req: ApprovalRequest | null) => void;
+}
+
+export interface InboxItem {
+  id: string;
+  kind: "message";
+  content: string;
+  timestamp: number;
+  session_id?: string;
+}
+
+export interface ClarifyRequest {
+  questionId: string;
+  question: string;
+  choices: string[];
+}
+
+export interface ApprovalRequest {
+  id: string;
+  description: string;
 }
 
 let nextMessageId = 1;
@@ -283,4 +315,23 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
 
   canvasHtml: null,
   setCanvasHtml: (html) => set({ canvasHtml: html }),
+
+  inbox: [],
+  addInboxItem: (item) =>
+    set((s) => {
+      if (item.id && s.inbox.some((x) => x.id === item.id)) {
+        return { inbox: s.inbox };
+      }
+      // Cap the inbox so heartbeat deliveries cannot grow it unbounded.
+      const next = [...s.inbox, item];
+      return { inbox: next.slice(-100) };
+    }),
+  removeInboxItem: (id) =>
+    set((s) => ({ inbox: s.inbox.filter((x) => x.id !== id) })),
+  clearInbox: () => set({ inbox: [] }),
+
+  clarifyRequest: null,
+  setClarifyRequest: (req) => set({ clarifyRequest: req }),
+  approvalRequest: null,
+  setApprovalRequest: (req) => set({ approvalRequest: req }),
 }));

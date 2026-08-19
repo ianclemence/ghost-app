@@ -992,6 +992,167 @@ export async function takeScreenshot(
   return res.json();
 }
 
+// ─── Mid-turn steering ──────────────────────────────────────────────────────
+
+export interface SteeringInput {
+  sessionKey: string;
+  content?: string;
+  action: "redirect" | "interrupt" | "abort";
+}
+
+export async function sendSteering(
+  cfg: GhostConfig,
+  input: SteeringInput,
+): Promise<boolean> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/steering`,
+      {
+        method: "POST",
+        headers: headers(cfg),
+        body: JSON.stringify({
+          session_key: input.sessionKey,
+          content: input.content ?? "",
+          action: input.action,
+        }),
+      },
+      8000,
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Clarify responses ──────────────────────────────────────────────────────
+
+export async function respondClarify(
+  cfg: GhostConfig,
+  questionId: string,
+  response: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/clarify/respond`,
+      {
+        method: "POST",
+        headers: headers(cfg),
+        body: JSON.stringify({ question_id: questionId, response }),
+      },
+      8000,
+    );
+    if (res.ok) return { ok: true };
+    const err = await res.json().catch(() => ({}));
+    return {
+      ok: false,
+      error:
+        (err as { error?: string }).error ??
+        `Clarify failed (HTTP ${res.status})`,
+    };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "Network error" };
+  }
+}
+
+// ─── Model presets ──────────────────────────────────────────────────────────
+
+export interface ModelPresetInfo {
+  name: string;
+  provider: string;
+  model: string;
+}
+
+export interface ModelInfo {
+  active: string;
+  provider: string;
+  presets: ModelPresetInfo[];
+}
+
+export async function fetchModelInfo(
+  cfg: GhostConfig,
+): Promise<ModelInfo | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/model`,
+      { headers: headers(cfg) },
+      8000,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      active: String(data?.active ?? ""),
+      provider: String(data?.provider ?? ""),
+      presets: Array.isArray(data?.presets)
+        ? data.presets.map((p: Record<string, unknown>) => ({
+            name: String(p.name ?? ""),
+            provider: String(p.provider ?? ""),
+            model: String(p.model ?? ""),
+          }))
+        : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function setActiveModel(
+  cfg: GhostConfig,
+  model: string,
+): Promise<{ ok: boolean; active?: string; error?: string }> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/model`,
+      {
+        method: "POST",
+        headers: headers(cfg),
+        body: JSON.stringify({ model }),
+      },
+      8000,
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        ok: false,
+        error:
+          (data as { error?: { message?: string } })?.error?.message ??
+          (data as { error?: string })?.error ??
+          `Switch failed (HTTP ${res.status})`,
+      };
+    }
+    return { ok: true, active: String(data?.active ?? model) };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "Network error" };
+  }
+}
+
+// ─── Sessions ───────────────────────────────────────────────────────────────
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  message_count: number;
+  last_activity: number;
+}
+
+export async function fetchSessions(
+  cfg: GhostConfig,
+): Promise<SessionSummary[]> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/sessions`,
+    { headers: headers(cfg) },
+    10000,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch sessions (HTTP ${res.status})`);
+  const data = await res.json();
+  if (!Array.isArray(data?.sessions)) return [];
+  return data.sessions.map((s: Record<string, unknown>) => ({
+    id: String(s.id ?? ""),
+    title: String(s.title ?? ""),
+    message_count: Number(s.message_count ?? 0),
+    last_activity: Number(s.last_activity ?? 0),
+  }));
+}
+
 // ─── Cron ──────────────────────────────────────────────────────────────────
 
 export interface CronSchedule {

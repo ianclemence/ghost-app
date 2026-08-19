@@ -8,6 +8,7 @@ import {
   MapPin,
   Palette,
   Plus,
+  QrCode,
   RotateCcw,
   Save,
   Settings,
@@ -31,6 +32,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Fonts, UI } from "@/constants/theme";
+import QrPairingScanner from "../../components/QrPairingScanner";
 import {
   ChannelHealth,
   checkHealth,
@@ -42,6 +44,7 @@ import {
   fetchChannelStatus,
   fetchDeliveryTrace,
   fetchDoctor,
+  fetchModelInfo,
   fetchSkillDetail,
   fetchSkills,
   getWSState,
@@ -50,8 +53,10 @@ import {
   GhostSkillDetail,
   inspectSession,
   installSkill,
+  ModelInfo,
   reconnectChannel,
   saveConfig,
+  setActiveModel,
   toggleSkill,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
@@ -117,6 +122,12 @@ export default function SettingsScreen() {
   const [installRepo, setInstallRepo] = useState("");
   const [installPath, setInstallPath] = useState("");
   const [installBusy, setInstallBusy] = useState(false);
+
+  // Pairing QR + model state
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelBusyName, setModelBusyName] = useState<string | null>(null);
 
   const loadSkills = useCallback(async (cfg: GhostConfig) => {
     setSkillsLoading(true);
@@ -302,6 +313,28 @@ export default function SettingsScreen() {
     setTesting(false);
   };
 
+  const openModelSheet = async () => {
+    if (!config) return;
+    setModelLoading(true);
+    try {
+      setModelInfo(await fetchModelInfo(config));
+    } catch {}
+    setModelLoading(false);
+  };
+
+  const handleSelectModel = async (target: string) => {
+    if (!config || modelBusyName) return;
+    setModelBusyName(target);
+    const result = await setActiveModel(config, target);
+    setModelBusyName(null);
+    if (result.ok) {
+      const info = await fetchModelInfo(config);
+      setModelInfo(info);
+    } else {
+      Alert.alert("Switch Failed", result.error ?? "Could not switch model.");
+    }
+  };
+
   const formatUptime = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
@@ -387,6 +420,24 @@ export default function SettingsScreen() {
         <View style={s.btnRow}>
           <TouchableOpacity
             style={[s.btn, s.btnOutline]}
+            onPress={() => setScannerOpen(true)}
+          >
+            <QrCode size={16} color={C.terminalGreen} />
+            <Text style={s.btnOutlineText}>Scan Pairing QR</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.btn, s.btnOutline]}
+            onPress={openModelSheet}
+            disabled={!config}
+          >
+            <Activity size={16} color={C.terminalGreen} />
+            <Text style={s.btnOutlineText}>Model</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.btnRow}>
+          <TouchableOpacity
+            style={[s.btn, s.btnOutline]}
             onPress={testConnection}
             disabled={testing || !host}
           >
@@ -467,6 +518,67 @@ export default function SettingsScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
+      </Section>
+
+      <Section title="Model">
+        <View style={s.diagGrid}>
+          <DiagItem
+            label="Active"
+            value={
+              modelLoading && !modelInfo
+                ? "…"
+                : modelInfo
+                  ? modelInfo.active + (modelInfo.provider ? ` (${modelInfo.provider})` : "")
+                  : "—"
+            }
+            accent={!!modelInfo}
+          />
+        </View>
+        <View style={s.checksList}>
+          {modelLoading && !modelInfo ? (
+            <ActivityIndicator color={C.terminalGreen} />
+          ) : (modelInfo?.presets ?? []).length === 0 ? (
+            <Text style={s.checkMsg}>No model presets found on this Ghost.</Text>
+          ) : (
+            (modelInfo?.presets ?? []).map((p) => {
+              const isActive =
+                !!modelInfo &&
+                (modelInfo.active === p.model || modelInfo.active === p.name);
+              return (
+                <View key={p.name} style={s.skillRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        s.checkName,
+                        isActive && { color: C.terminalGreen },
+                      ]}
+                    >
+                      {p.name}
+                    </Text>
+                    <Text style={s.checkMsg}>
+                      {p.provider}:{p.model}
+                    </Text>
+                  </View>
+                  {modelBusyName === p.name ? (
+                    <ActivityIndicator size="small" color={C.terminalGreen} />
+                  ) : isActive ? (
+                    <CheckCircle size={16} color={C.terminalGreen} />
+                  ) : (
+                    <TouchableOpacity
+                      style={[s.btn, s.btnOutline, { paddingHorizontal: 10, paddingVertical: 6 }]}
+                      disabled={!!modelBusyName}
+                      onPress={() => handleSelectModel(p.name)}
+                    >
+                      <Text style={[s.btnOutlineText, { fontSize: 10 }]}>
+                        SWITCH
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })
+          )}
         </View>
       </Section>
 
@@ -767,6 +879,37 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </Section>
+
+      <QrPairingScanner
+        visible={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onPaired={async (cfg) => {
+          setScannerOpen(false);
+          setHost(cfg.piHost);
+          setPort(cfg.piPort);
+          setSecret(cfg.secret);
+          const next: GhostConfig = {
+            piHost: cfg.piHost.trim(),
+            piPort: cfg.piPort.trim(),
+            secret: cfg.secret.trim(),
+            session: config?.session,
+            sendLocation,
+          };
+          await saveConfig(next);
+          setConfig(next);
+          const ok = await checkHealth(next);
+          setConnected(ok);
+          setTestResult(ok ? "ok" : "fail");
+          if (ok) {
+            connectWebSocket(next);
+            try {
+              setDoctorData(await fetchDoctor(next));
+              setAvailableTools(await fetchAvailableTools(next));
+              await refreshOpsData(next);
+            } catch {}
+          }
+        }}
+      />
 
       {/* Skill detail modal */}
       <Modal

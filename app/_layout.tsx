@@ -13,27 +13,9 @@ import {
   GhostConfig,
   onWSMessage,
 } from '../lib/ghostApi';
+import { parseConnectURL } from '../lib/pairing';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
-
-function parseConnectURL(url: string): GhostConfig | null {
-  const { hostname, queryParams } = Linking.parse(url);
-  const qp = (key: string): string | undefined => {
-    const v = queryParams?.[key];
-    return Array.isArray(v) ? v[0] : (v as string | undefined);
-  };
-  const host = qp("host") || (hostname && hostname !== "connect" ? hostname : undefined);
-  const secret = qp("secret");
-  if (!host || !secret) return null;
-  const parsedPort = qp("port") ?? "8766";
-  return {
-    piHost: host,
-    piPort: parsedPort,
-    secret,
-    session: "mobile:default",
-    sendLocation: true,
-  };
-}
 
 export default function RootLayout() {
   const { setConfig, setConnected } = useGhostStore();
@@ -70,7 +52,7 @@ export default function RootLayout() {
         setConnected(ok);
       }
 
-      // Deep-link pairing: ghost://connect?host=...&port=8766&secret=...
+      // Deep-link / QR pairing: ghost://connect?host=...&port=8766&secret=...
       const initial = await Linking.getInitialURL();
       if (initial) {
         await applyConnectParams(parseConnectURL(initial));
@@ -86,10 +68,19 @@ export default function RootLayout() {
           : typeof msg.metadata?.type === 'string'
             ? msg.metadata.type
             : '';
-        if (msgType === 'assistant_message' && notifications && msg.content) {
+        if (!notifications) return;
+        if (msgType === 'assistant_message' && msg.content) {
           notifications.scheduleNotificationAsync({
             content: {
               title: '👻 Ghost',
+              body: msg.content.slice(0, 100),
+            },
+            trigger: null,
+          });
+        } else if (msgType === 'clarify_request' && msg.content) {
+          notifications.scheduleNotificationAsync({
+            content: {
+              title: '👻 Ghost has a question',
               body: msg.content.slice(0, 100),
             },
             trigger: null,

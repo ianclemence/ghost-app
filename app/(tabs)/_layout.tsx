@@ -82,7 +82,7 @@ export default function TabLayout() {
         name="remote"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Server} label="Remote" focused={focused} accent={accent} />
+            <TabIcon Icon={Server} label="Device" focused={focused} accent={accent} />
           ),
         }}
       />

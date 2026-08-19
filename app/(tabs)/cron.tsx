@@ -27,6 +27,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { Colors, Fonts, UI } from "@/constants/theme";
 import {
@@ -98,9 +99,11 @@ function TaskFormModal({
   saving: boolean;
 }) {
   const [name, setName] = useState("");
-  const [kind, setKind] = useState<"every" | "cron">("every");
+  const [kind, setKind] = useState<"every" | "cron" | "at">("every");
   const [everySec, setEverySec] = useState("3600");
   const [cronExpr, setCronExpr] = useState("0 9 * * *");
+  const [atDate, setAtDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [message, setMessage] = useState("");
   const [command, setCommand] = useState("");
   const [deliver, setDeliver] = useState(false);
@@ -109,11 +112,18 @@ function TaskFormModal({
     if (!visible) return;
     if (initial) {
       setName(initial.name);
-      setKind(initial.schedule.kind === "cron" ? "cron" : "every");
+      setKind(
+        initial.schedule.kind === "cron"
+          ? "cron"
+          : initial.schedule.kind === "at"
+            ? "at"
+            : "every",
+      );
       setEverySec(
         String(Math.round((initial.schedule.everyMs ?? 3600000) / 1000)),
       );
       setCronExpr(initial.schedule.expr || "0 9 * * *");
+      setAtDate(initial.schedule.atMs ? new Date(initial.schedule.atMs) : null);
       setMessage(initial.payload.message ?? "");
       setCommand(initial.payload.command ?? "");
       setDeliver(initial.payload.deliver ?? false);
@@ -122,6 +132,7 @@ function TaskFormModal({
       setKind("every");
       setEverySec("3600");
       setCronExpr("0 9 * * *");
+      setAtDate(null);
       setMessage("");
       setCommand("");
       setDeliver(false);
@@ -137,7 +148,9 @@ function TaskFormModal({
             kind: "every",
             everyMs: Math.max(5, parseInt(everySec, 10) || 3600) * 1000,
           }
-        : { kind: "cron", expr: cronExpr.trim() };
+        : kind === "at"
+          ? { kind: "at", atMs: atDate?.getTime() ?? 0 }
+          : { kind: "cron", expr: cronExpr.trim() };
     const input: CronJobCreateInput = {
       name: trimmedName,
       schedule,
@@ -184,7 +197,7 @@ function TaskFormModal({
 
           <Text style={styles.fieldLabel}>SCHEDULE</Text>
           <View style={styles.kindRow}>
-            {(["every", "cron"] as const).map((k) => (
+            {(["every", "at", "cron"] as const).map((k) => (
               <TouchableOpacity
                 key={k}
                 style={[
@@ -216,8 +229,71 @@ function TaskFormModal({
                 placeholder="3600"
                 placeholderTextColor={C.icon}
               />
+              <View style={styles.chipRow}>
+                {[
+                  { label: "5 min", v: 300 },
+                  { label: "30 min", v: 1800 },
+                  { label: "1 hour", v: 3600 },
+                  { label: "6 hours", v: 21600 },
+                  { label: "1 day", v: 86400 },
+                ].map((c) => (
+                  <TouchableOpacity
+                    key={c.v}
+                    style={[
+                      styles.chip,
+                      Number(everySec) === c.v && styles.chipActive,
+                    ]}
+                    onPress={() => setEverySec(String(c.v))}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        Number(everySec) === c.v && { color: C.terminalGreen },
+                      ]}
+                    >
+                      {c.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
               <Text style={styles.fieldHint}>
                 e.g. 3600 = hourly, 86400 = daily
+              </Text>
+            </>
+          ) : kind === "at" ? (
+            <>
+              <Text style={styles.fieldLabel}>FIRE ONCE AT</Text>
+              <TouchableOpacity
+                style={styles.dateBtn}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Clock size={14} color={C.terminalGreen} />
+                <Text style={styles.dateBtnText}>
+                  {atDate
+                    ? atDate.toLocaleString([], {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Pick a date & time"}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={atDate ?? new Date(Date.now() + 3600_000)}
+                  mode="datetime"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  minimumDate={new Date(Date.now() - 60_000)}
+                  onChange={(event, date) => {
+                    if (Platform.OS === "android") setShowDatePicker(false);
+                    if (event.type === "set" && date) setAtDate(date);
+                  }}
+                />
+              )}
+              <Text style={styles.fieldHint}>
+                Runs one time at the selected moment, then completes.
               </Text>
             </>
           ) : (
@@ -907,6 +983,44 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  chipActive: {
+    borderColor: C.terminalGreen,
+    backgroundColor: "rgba(74, 222, 128, 0.1)",
+  },
+  chipText: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  dateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#ffffff08",
+    borderWidth: 1,
+    borderColor: C.border,
+    color: C.text,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  dateBtnText: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
   },
   toggleRow: {
     flexDirection: "row",

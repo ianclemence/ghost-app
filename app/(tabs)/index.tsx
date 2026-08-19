@@ -13,14 +13,20 @@ import {
   Activity,
   AlertCircle,
   ArrowUp,
+  Bell,
   Check,
   ChevronDown,
+  CornerUpLeft,
   Edit3,
   FileText,
+  HelpCircle,
   Image as ImageIcon,
+  LayoutTemplate,
   Mic,
   Plus,
+  QrCode,
   Search,
+  ShieldCheck,
   Square,
   Terminal,
   Trash2,
@@ -28,7 +34,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -48,11 +54,13 @@ import {
 } from "react-native";
 import Markdown, { ASTNode } from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
 
 import GHOST_LOGO from "../../assets/images/logo.png";
 
 import { Colors, Fonts, UI } from "@/constants/theme";
 import ErrorCard from "../../components/ErrorCard";
+import QrPairingScanner from "../../components/QrPairingScanner";
 import {
   checkHealth,
   connectWebSocket,
@@ -61,20 +69,30 @@ import {
   disconnectWebSocket,
   fetchAvailableTools,
   fetchHistory,
+  fetchModelInfo,
+  fetchSessions,
   GhostConfig,
   GhostError,
+  ModelInfo,
   onWSMessage,
   onWSStateChange,
   renameSession as renameSessionApi,
+  respondClarify,
   saveConfig,
   SearchResult,
   searchMessages,
   sendMessage,
+  sendSteering,
+  SessionSummary,
+  setActiveModel,
   transcribeAudio,
 } from "../../lib/ghostApi";
 import {
+  ApprovalRequest,
+  ClarifyRequest,
   ConnectionState,
   ExtendedMessage,
+  InboxItem,
   useGhostStore,
 } from "../../lib/store";
 
@@ -312,6 +330,24 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { command: "/think", description: "Enable reasoning" },
   { command: "/remind", description: "Set a reminder", requiresTool: "cron" },
   { command: "/doctor", description: "Run system health check" },
+  {
+    command: "/loop",
+    description: "Re-run a prompt on an interval (e.g. /loop 5m …)",
+    requiresTool: "cron",
+  },
+  { command: "/loops", description: "List active loops", requiresTool: "cron" },
+  {
+    command: "/stoploop",
+    description: "Stop a loop by job id",
+    requiresTool: "cron",
+  },
+  {
+    command: "/personality",
+    description: "Switch or list AI personalities",
+  },
+  { command: "/model", description: "Switch AI model (opens picker)" },
+  { command: "/usage", description: "Show session token usage" },
+  { command: "/compress", description: "Compress conversation context" },
 ];
 
 // ─── Content sanitizer ────────────────────────────────────────────────────
@@ -407,6 +443,20 @@ function hasInternalArtifact(text: string): boolean {
   if (/```json[\s\S]*"(name|description|inputs|homepage)"/i.test(t))
     return true;
   return false;
+}
+
+// Matches the approval tool's ForUser output:
+//   Approval required:\n<description>\n\nRequest ID: approval-<ts>
+function extractApproval(
+  text: string,
+): { id: string; description: string } | null {
+  const match = text.match(
+    /Approval required:\n([\s\S]*?)\n\s*\n?\s*Request ID:\s*(approval-\d+)/,
+  );
+  if (!match) return null;
+  const description = match[1].trim();
+  if (!description) return null;
+  return { id: match[2], description };
 }
 
 // ─── Code block ───────────────────────────────────────────────────────────
@@ -702,6 +752,350 @@ function ConnectionBadge({ state }: { state: ConnectionState }) {
   );
 }
 
+// ─── Clarify card (interactive agent question) ─────────────────────────────
+function ClarifyCard({
+  request,
+  onRespond,
+  busy,
+}: {
+  request: ClarifyRequest;
+  onRespond: (answer: string) => void;
+  busy: boolean;
+}) {
+  const [freeform, setFreeform] = useState("");
+  return (
+    <View style={s.interactionCard}>
+      <View style={s.interactionHeader}>
+        <HelpCircle size={16} color={C.terminalAmber} />
+        <Text style={s.interactionTitle}>GHOST HAS A QUESTION</Text>
+      </View>
+      <Text style={s.interactionBody} selectable>
+        {request.question}
+      </Text>
+      {request.choices.length > 0 ? (
+        <View style={s.choiceWrap}>
+          {request.choices.map((choice) => (
+            <TouchableOpacity
+              key={choice}
+              style={s.choiceBtn}
+              disabled={busy}
+              onPress={() => onRespond(choice)}
+            >
+              <Text style={s.choiceBtnText} numberOfLines={2}>
+                {choice}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+      <View style={s.freeformRow}>
+        <TextInput
+          style={s.freeformInput}
+          value={freeform}
+          onChangeText={setFreeform}
+          placeholder="Type an answer…"
+          placeholderTextColor={C.icon}
+          onSubmitEditing={() => {
+            const t = freeform.trim();
+            if (t) onRespond(t);
+          }}
+          returnKeyType="send"
+        />
+        <TouchableOpacity
+          style={[s.freeformSend, (!freeform.trim() || busy) && { opacity: 0.5 }]}
+          disabled={!freeform.trim() || busy}
+          onPress={() => {
+            const t = freeform.trim();
+            if (t) onRespond(t);
+          }}
+        >
+          <ArrowUp size={16} color={C.background} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ─── Approval card (human-in-the-loop gating) ──────────────────────────────
+function ApprovalCard({
+  request,
+  onRespond,
+  busy,
+}: {
+  request: ApprovalRequest;
+  onRespond: (approve: boolean) => void;
+  busy: boolean;
+}) {
+  return (
+    <View style={s.interactionCard}>
+      <View style={s.interactionHeader}>
+        <ShieldCheck size={16} color={C.terminalAmber} />
+        <Text style={s.interactionTitle}>APPROVAL REQUIRED</Text>
+      </View>
+      <Text style={s.interactionBody} selectable>
+        {request.description}
+      </Text>
+      <View style={s.choiceWrap}>
+        <TouchableOpacity
+          style={[s.choiceBtn, s.approveBtn]}
+          disabled={busy}
+          onPress={() => onRespond(true)}
+        >
+          <Check size={14} color={C.terminalGreen} />
+          <Text style={[s.choiceBtnText, { color: C.terminalGreen }]}>
+            Approve
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.choiceBtn, s.denyBtn]}
+          disabled={busy}
+          onPress={() => onRespond(false)}
+        >
+          <X size={14} color={C.error} />
+          <Text style={[s.choiceBtnText, { color: C.error }]}>Deny</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ─── Canvas viewer (rendered HTML output) ──────────────────────────────────
+function CanvasSheet({
+  visible,
+  html,
+  onClose,
+  onClear,
+}: {
+  visible: boolean;
+  html: string | null;
+  onClose: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={s.canvasBackdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      />
+      <View style={s.canvasSheet}>
+        <View style={s.canvasHeader}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <LayoutTemplate size={16} color={C.terminalGreen} />
+            <Text style={s.canvasTitle}>CANVAS</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <TouchableOpacity onPress={onClear} hitSlop={8}>
+              <Trash2 size={18} color={C.icon} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <X size={20} color={C.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        {html ? (
+          <WebView
+            source={{ html }}
+            style={s.canvasWebview}
+            originWhitelist={["*"]}
+            javaScriptEnabled
+            domStorageEnabled={false}
+            backgroundColor="#09090b"
+          />
+        ) : null}
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Briefings inbox ───────────────────────────────────────────────────────
+function InboxSheet({
+  visible,
+  items,
+  onClose,
+  onOpenItem,
+  onClear,
+}: {
+  visible: boolean;
+  items: InboxItem[];
+  onClose: () => void;
+  onOpenItem: (item: InboxItem) => void;
+  onClear: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={s.canvasBackdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      />
+      <View style={s.inboxSheet}>
+        <View style={s.canvasHeader}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Bell size={16} color={C.terminalGreen} />
+            <Text style={s.canvasTitle}>BRIEFINGS</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            {items.length > 0 && (
+              <TouchableOpacity onPress={onClear} hitSlop={8}>
+                <Trash2 size={18} color={C.icon} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <X size={20} color={C.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <FlatList
+          data={items}
+          keyExtractor={(x) => x.id}
+          style={{ maxHeight: 420 }}
+          contentContainerStyle={{ padding: 12, gap: 8 }}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={s.inboxRow}
+              onPress={() => onOpenItem(item)}
+            >
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <Terminal size={12} color={C.terminalGreen} />
+                <Text style={s.inboxTime}>
+                  {new Date(item.timestamp * 1000).toLocaleString([], {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  {item.session_id ? ` · ${item.session_id}` : ""}
+                </Text>
+              </View>
+              <Text style={s.inboxContent} numberOfLines={4} selectable>
+                {item.content}
+              </Text>
+              {item.session_id ? (
+                <Text style={s.inboxGo}>TAP TO OPEN SESSION →</Text>
+              ) : null}
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={
+            <Text style={s.inboxEmpty}>No briefings yet.</Text>
+          }
+        />
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Model picker ──────────────────────────────────────────────────────────
+function ModelSheet({
+  visible,
+  info,
+  loading,
+  busyName,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  info: ModelInfo | null;
+  loading: boolean;
+  busyName: string | null;
+  onSelect: (target: string) => void;
+  onClose: () => void;
+}) {
+  const [custom, setCustom] = useState("");
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity
+        style={s.canvasBackdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      />
+      <View style={s.modelSheet}>
+        <View style={s.canvasHeader}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Terminal size={16} color={C.terminalGreen} />
+            <Text style={s.canvasTitle}>AI MODEL</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} hitSlop={8}>
+            <X size={20} color={C.text} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={{ maxHeight: 440 }} contentContainerStyle={{ padding: 12, gap: 8 }}>
+          {info ? (
+            <View style={s.modelActiveRow}>
+              <Text style={s.modelActiveLabel}>ACTIVE</Text>
+              <Text style={s.modelActiveValue} selectable>
+                {info.active}
+                {info.provider ? ` (${info.provider})` : ""}
+              </Text>
+            </View>
+          ) : null}
+          {loading && !info ? (
+            <ActivityIndicator color={C.terminalGreen} />
+          ) : null}
+          {info?.presets.map((p) => {
+            const isActive =
+              info.active === p.model || info.active === p.name;
+            return (
+              <TouchableOpacity
+                key={p.name}
+                style={[s.modelRow, isActive && s.modelRowActive]}
+                disabled={!!busyName}
+                onPress={() => onSelect(p.name)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.modelName, isActive && { color: C.terminalGreen }]}>
+                    {p.name}
+                  </Text>
+                  <Text style={s.modelSub} selectable>
+                    {p.provider}:{p.model}
+                  </Text>
+                </View>
+                {busyName === p.name ? (
+                  <ActivityIndicator size="small" color={C.terminalGreen} />
+                ) : isActive ? (
+                  <Check size={16} color={C.terminalGreen} />
+                ) : null}
+              </TouchableOpacity>
+            );
+          })}
+          <Text style={s.modelCustomLabel}>CUSTOM (provider:model)</Text>
+          <View style={s.freeformRow}>
+            <TextInput
+              style={s.freeformInput}
+              value={custom}
+              onChangeText={setCustom}
+              placeholder="openai:gpt-4o"
+              placeholderTextColor={C.icon}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={[s.freeformSend, (!custom.trim() || !!busyName) && { opacity: 0.5 }]}
+              disabled={!custom.trim() || !!busyName}
+              onPress={() => {
+                const t = custom.trim();
+                if (t) onSelect(t);
+              }}
+            >
+              <ArrowUp size={16} color={C.background} />
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Message row ──────────────────────────────────────────────────────────
 function MessageRow({
   msg,
@@ -801,11 +1195,28 @@ function MessageRow({
 }
 
 // ─── Session Switcher Modal ───────────────────────────────────────────────
+type SessionRow = {
+  id: string;
+  title: string;
+  messageCount?: number;
+  lastActivity?: number;
+};
+
+function formatSessionWhen(unix: number): string {
+  if (!unix) return "";
+  const seconds = Math.floor(Date.now() / 1000 - unix);
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return new Date(unix * 1000).toLocaleDateString();
+}
+
 function SessionModal({
   visible,
   onClose,
   currentSession,
-  recentSessions,
+  sessions,
   onSwitch,
   onCreate,
   onRename,
@@ -814,7 +1225,7 @@ function SessionModal({
   visible: boolean;
   onClose: () => void;
   currentSession: string;
-  recentSessions: string[];
+  sessions: SessionRow[];
   onSwitch: (s: string) => void;
   onCreate: () => void;
   onRename: (oldName: string, newName: string) => Promise<string | null>;
@@ -868,7 +1279,10 @@ function SessionModal({
           </TouchableOpacity>
         </View>
         <ScrollView style={{ maxHeight: 400 }}>
-          {recentSessions.map((sess) => (
+          {sessions.map((row) => {
+            const sess = row.id;
+            const when = formatSessionWhen(row.lastActivity ?? 0);
+            return (
             <View
               key={sess}
               style={[
@@ -926,21 +1340,31 @@ function SessionModal({
                       size={16}
                       color={sess === currentSession ? C.terminalGreen : C.icon}
                     />
-                    <Text
-                      style={[
-                        s.sessionText,
-                        sess === currentSession && { color: C.terminalGreen },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {sess}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          s.sessionText,
+                          sess === currentSession && { color: C.terminalGreen },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {row.title || sess}
+                      </Text>
+                    </View>
+                    {(row.messageCount || when) && (
+                      <Text style={s.sessionMeta}>
+                        {when}
+                        {row.messageCount
+                          ? `${when ? " · " : ""}${row.messageCount} msg`
+                          : ""}
+                      </Text>
+                    )}
                   </TouchableOpacity>
                   <View style={s.sessionActions}>
                     <TouchableOpacity
                       onPress={() => {
                         setEditingSession(sess);
-                        setNewName(sess);
+                        setNewName(row.title || sess);
                         setRenameErrors((prev) => {
                           const next = { ...prev };
                           delete next[sess];
@@ -961,7 +1385,8 @@ function SessionModal({
                 </>
               )}
             </View>
-          ))}
+            );
+          })}
         </ScrollView>
         <TouchableOpacity
           style={s.newSessionBtn}
@@ -1003,11 +1428,21 @@ export default function ChatScreen() {
     setCurrentSession,
     clearSeenMessageIds,
     accentColor,
+    inbox,
+    addInboxItem,
+    clearInbox,
+    canvasHtml,
+    setCanvasHtml,
+    clarifyRequest,
+    setClarifyRequest,
+    approvalRequest,
+    setApprovalRequest,
   } = useGhostStore();
 
   const [input, setInput] = useState("");
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [recentSessions, setRecentSessions] = useState<string[]>([]);
+  const [serverSessions, setServerSessions] = useState<SessionSummary[]>([]);
   const [pendingMedia, setPendingMedia] = useState<
     { uri: string; b64: string; mimeType: string; name?: string }[]
   >([]);
@@ -1039,6 +1474,16 @@ export default function ChatScreen() {
     content: "",
     role: "user",
   });
+
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [canvasOpen, setCanvasOpen] = useState(false);
+  const [modelSheetOpen, setModelSheetOpen] = useState(false);
+  const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelBusyName, setModelBusyName] = useState<string | null>(null);
+  const [clarifyBusy, setClarifyBusy] = useState(false);
+  const [approvalBusy, setApprovalBusy] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
@@ -1371,14 +1816,62 @@ export default function ChatScreen() {
       .catch(() => {});
     connectWebSocket(config);
     const unsub = onWSMessage((msg) => {
-      if (msg.type !== "assistant_message") return;
+      const meta = msg.metadata ?? {};
+      const msgType =
+        typeof msg.type === "string"
+          ? msg.type
+          : typeof meta.type === "string"
+            ? meta.type
+            : "";
+
+      // Canvas updates arrive on the system channel but are app-bound.
+      if (msgType === "canvas_update") {
+        if (typeof msg.content === "string" && msg.content.trim()) {
+          setCanvasHtml(msg.content);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+        return;
+      }
+
+      // Clarify: the agent is blocked waiting for an answer — render a card.
+      if (msgType === "clarify_request") {
+        if (typeof msg.content !== "string") return;
+        const rawChoices = Array.isArray(meta.choices) ? meta.choices : [];
+        setClarifyRequest({
+          questionId: String(meta.question_id ?? ""),
+          question: msg.content,
+          choices: rawChoices.map((c) => String(c)).filter(Boolean).slice(0, 4),
+        });
+        return;
+      }
+
+      if (msgType !== "assistant_message") return;
       if (msg.channel && msg.channel !== "mobile") return;
-      // Never surface responses that belong to another session.
-      if (msg.session_id && msg.session_id !== currentSession) return;
       if (typeof msg.content !== "string") return;
+
+      // Messages that belong to another session become inbox items
+      // (briefings, scheduled deliveries) instead of leaking into this chat.
+      if (msg.session_id && msg.session_id !== currentSession) {
+        const cleaned = sanitize(msg.content || "");
+        if (!cleaned) return;
+        addInboxItem({
+          id: msg.id || `inbox-${Date.now()}`,
+          kind: "message",
+          content: cleaned,
+          timestamp: msg.timestamp || Date.now() / 1000,
+          session_id: msg.session_id,
+        });
+        return;
+      }
       const cleaned = sanitize(msg.content || "");
       if (!cleaned || hasInternalArtifact(cleaned)) {
         setLastSanitizedAt(Date.now());
+        return;
+      }
+      // Approval requests surface as an interactive card.
+      const approval = extractApproval(cleaned);
+      if (approval) {
+        setApprovalRequest(approval);
         return;
       }
       if (useGhostStore.getState().isStreaming) return;
@@ -1409,7 +1902,31 @@ export default function ChatScreen() {
       unsub();
       disconnectWebSocket();
     };
-  }, [config, config?.session, currentSession, loadOutbox, appendMessage, setAvailableTools, setMessages]);
+  }, [config, config?.session, currentSession, loadOutbox, appendMessage, setAvailableTools, setMessages, setCanvasHtml, setClarifyRequest, setApprovalRequest, addInboxItem]);
+
+  // Session modal rows — server metadata wins, local recents as fallback/offline.
+  const sessionRows = useMemo<SessionRow[]>(() => {
+    const rows: SessionRow[] = [];
+    const seen = new Set<string>();
+    for (const sv of serverSessions) {
+      rows.push({
+        id: sv.id,
+        title: sv.title || sv.id,
+        messageCount: sv.message_count,
+        lastActivity: sv.last_activity,
+      });
+      seen.add(sv.id);
+    }
+    for (const local of recentSessions) {
+      if (seen.has(local)) continue;
+      rows.push({ id: local, title: local });
+      seen.add(local);
+    }
+    if (currentSession && !seen.has(currentSession)) {
+      rows.unshift({ id: currentSession, title: currentSession });
+    }
+    return rows;
+  }, [serverSessions, recentSessions, currentSession]);
 
   // Send Logic
   const doSend = useCallback(
@@ -1561,8 +2078,103 @@ removeMessage(makeAssistantPlaceholderId(item.id));
   const cancelStream = () => {
     if (!isStreaming && !activeStreamAbortRef.current) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Tell the agent loop to abort the running turn, then drop the client
+    // stream so the UI stops immediately.
+    if (config) {
+      sendSteering(config, {
+        sessionKey: currentSession,
+        action: "abort",
+      }).catch(() => {});
+    }
     activeStreamAbortRef.current?.abort();
     activeStreamAbortRef.current = null;
+  };
+
+  const handleSteer = async () => {
+    const text = input.trim();
+    if (!text || !config || !isStreaming) return;
+    setInput("");
+    setShowSlash(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setToolActivity(
+      `Steered: ${text.length > 44 ? text.slice(0, 44) + "…" : text}`,
+    );
+    const ok = await sendSteering(config, {
+      sessionKey: currentSession,
+      content: text,
+      action: "redirect",
+    });
+    if (!ok) {
+      setToolActivity(null);
+      setLastSanitizedAt(Date.now());
+    }
+  };
+
+  const handleClarifyRespond = async (answer: string) => {
+    if (!config || !clarifyRequest || clarifyBusy) return;
+    setClarifyBusy(true);
+    const qid = clarifyRequest.questionId;
+    const result = await respondClarify(config, qid, answer);
+    setClarifyBusy(false);
+    if (result.ok) {
+      setClarifyRequest(null);
+      // Echo the answer into the transcript so the conversation reads.
+      appendMessage({
+        id: `clarify-${Date.now()}`,
+        role: "user",
+        content: answer,
+        timestamp: Date.now() / 1000,
+        status: "completed",
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Alert.alert(
+        "Question Expired",
+        result.error ??
+          "This question is no longer waiting for an answer. Continue chatting normally.",
+        [
+          {
+            text: "Dismiss card",
+            onPress: () => setClarifyRequest(null),
+            style: "default",
+          },
+        ],
+      );
+    }
+  };
+
+  const handleApprovalRespond = async (approve: boolean) => {
+    if (!approvalRequest || approvalBusy) return;
+    setApprovalBusy(true);
+    const req = approvalRequest;
+    setApprovalRequest(null);
+    // Conversational fallback: send the approve/deny instruction as a chat
+    // message; the agent resolves it through the approval tool.
+    await submitMessage(`${approve ? "approve" : "deny"} ${req.id}`, []);
+    setApprovalBusy(false);
+  };
+
+  const openModelSheet = async () => {
+    if (!config) return;
+    setModelSheetOpen(true);
+    setModelLoading(true);
+    const info = await fetchModelInfo(config);
+    setModelInfo(info);
+    setModelLoading(false);
+  };
+
+  const handleSelectModel = async (target: string) => {
+    if (!config || modelBusyName) return;
+    setModelBusyName(target);
+    const result = await setActiveModel(config, target);
+    setModelBusyName(null);
+    if (result.ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const info = await fetchModelInfo(config);
+      setModelInfo(info);
+    } else {
+      Alert.alert("Switch Failed", result.error ?? "Could not switch model.");
+    }
   };
 
   useEffect(() => {
@@ -1582,19 +2194,22 @@ removeMessage(makeAssistantPlaceholderId(item.id));
     doSend(next).catch(() => {});
   }, [outbox, outboxReady, connectionState, isStreaming, doSend]);
 
-  const handleSend = async () => {
-    if (!input.trim() && pendingMedia.length === 0) return;
-    const t = input.trim();
-    const media = [...pendingMedia];
-    setInput("");
-    setPendingMedia([]);
-    setShowSlash(false);
+  const submitMessage = async (
+    text: string,
+    media: { uri: string; b64: string; mimeType: string; name?: string }[],
+  ) => {
+    if (!text.trim() && media.length === 0) return;
+    const t = text.trim();
 
-    // Intercept clear/reset commands to update local state immediately
+    // Intercept special commands that have a native UI.
     const cmd = t.toLowerCase().trim();
     if (cmd === "/clear" || cmd === "/reset") {
       setMessages([]);
       clearSeenMessageIds();
+    }
+    if (cmd === "/model") {
+      openModelSheet();
+      return;
     }
 
     const clientMessageId = makeClientMessageId();
@@ -1624,6 +2239,16 @@ removeMessage(makeAssistantPlaceholderId(item.id));
       return;
     }
     await doSend(item);
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() && pendingMedia.length === 0) return;
+    const t = input;
+    const media = [...pendingMedia];
+    setInput("");
+    setPendingMedia([]);
+    setShowSlash(false);
+    await submitMessage(t, media);
   };
 
   // Debounced history search
@@ -1728,6 +2353,26 @@ removeMessage(makeAssistantPlaceholderId(item.id));
         <Image source={GHOST_LOGO} style={{ width: 64, height: 64 }} />
         <Text style={s.noConfigTitle}>Offline</Text>
         <Text style={s.noConfigSub}>Configure connection in Settings</Text>
+        <TouchableOpacity
+          style={s.noConfigBtn}
+          onPress={() => setScannerOpen(true)}
+        >
+          <QrCode size={18} color={C.background} />
+          <Text style={s.noConfigBtnText}>Scan Pairing QR</Text>
+        </TouchableOpacity>
+        <QrPairingScanner
+          visible={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onPaired={(cfg) => {
+            setScannerOpen(false);
+            void saveConfig(cfg).then(() => {
+              setConfig(cfg);
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
+            });
+          }}
+        />
       </View>
     );
 
@@ -1757,13 +2402,20 @@ removeMessage(makeAssistantPlaceholderId(item.id));
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setSessionMenuOpen(true);
+            if (config) {
+              fetchSessions(config)
+                .then(setServerSessions)
+                .catch(() => {});
+            }
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Image source={GHOST_LOGO} style={{ width: 18, height: 18 }} />
             <View>
               <Text style={s.headerTitle}>
-                {currentSession || "mobile:default"}
+                {serverSessions.find((x) => x.id === currentSession)?.title ||
+                  currentSession ||
+                  "mobile:default"}
               </Text>
               {isStreaming && (
                 <Text
@@ -1793,6 +2445,28 @@ removeMessage(makeAssistantPlaceholderId(item.id));
         </TouchableOpacity>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
           <ConnectionBadge state={connectionState} />
+          {canvasHtml ? (
+            <TouchableOpacity onPress={() => setCanvasOpen(true)}>
+              <LayoutTemplate size={18} color={C.icon} />
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setInboxOpen(true);
+            }}
+          >
+            <View>
+              <Bell size={18} color={C.icon} />
+              {inbox.length > 0 && (
+                <View style={s.bellBadge}>
+                  <Text style={s.bellBadgeText}>
+                    {inbox.length > 9 ? "9+" : inbox.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setSearchVisible(!searchVisible)}>
             <Search size={18} color={C.icon} />
           </TouchableOpacity>
@@ -1948,6 +2622,22 @@ removeMessage(makeAssistantPlaceholderId(item.id));
         showsVerticalScrollIndicator={false}
       />
 
+      {/* ── Interactive cards (clarify / approval) ── */}
+      {clarifyRequest ? (
+        <ClarifyCard
+          request={clarifyRequest}
+          busy={clarifyBusy}
+          onRespond={handleClarifyRespond}
+        />
+      ) : null}
+      {approvalRequest ? (
+        <ApprovalCard
+          request={approvalRequest}
+          busy={approvalBusy}
+          onRespond={handleApprovalRespond}
+        />
+      ) : null}
+
       {/* ── Active tool progress ── */}
       {isStreaming && toolActivity ? (
         <View style={s.activityStrip}>
@@ -2088,14 +2778,24 @@ removeMessage(makeAssistantPlaceholderId(item.id));
           </View>
 
           {isStreaming ? (
-            <TouchableOpacity
-              style={[s.sendBtn, { backgroundColor: C.card }]}
-              onPress={cancelStream}
-              accessibilityLabel="Stop generating"
-            >
-              <Square size={18} color={C.error} fill={C.error} />
-            </TouchableOpacity>
-          ) : input.trim() || pendingMedia ? (
+            input.trim() ? (
+              <TouchableOpacity
+                style={[s.sendBtn, { backgroundColor: C.terminalAmber }]}
+                onPress={handleSteer}
+                accessibilityLabel="Send steering instruction"
+              >
+                <CornerUpLeft size={20} color={C.background} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[s.sendBtn, { backgroundColor: C.card }]}
+                onPress={cancelStream}
+                accessibilityLabel="Stop generating"
+              >
+                <Square size={18} color={C.error} fill={C.error} />
+              </TouchableOpacity>
+            )
+          ) : input.trim() || pendingMedia.length ? (
             <TouchableOpacity
               style={s.sendBtn}
               onPress={handleSend}
@@ -2138,6 +2838,11 @@ removeMessage(makeAssistantPlaceholderId(item.id));
                     key={c.command}
                     style={s.slashItem}
                     onPress={() => {
+                      if (c.command === "/model") {
+                        setShowSlash(false);
+                        openModelSheet();
+                        return;
+                      }
                       setInput(c.command + " ");
                       setShowSlash(false);
                     }}
@@ -2181,15 +2886,46 @@ removeMessage(makeAssistantPlaceholderId(item.id));
         }
       />
 
+      <CanvasSheet
+        visible={canvasOpen}
+        html={canvasHtml}
+        onClose={() => setCanvasOpen(false)}
+        onClear={() => {
+          setCanvasHtml(null);
+          setCanvasOpen(false);
+        }}
+      />
+      <InboxSheet
+        visible={inboxOpen}
+        items={inbox}
+        onClose={() => setInboxOpen(false)}
+        onOpenItem={(item) => {
+          setInboxOpen(false);
+          if (item.session_id) {
+            switchSession(item.session_id);
+          }
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }}
+        onClear={clearInbox}
+      />
+
       <SessionModal
         visible={sessionMenuOpen}
         onClose={() => setSessionMenuOpen(false)}
         currentSession={currentSession || "mobile:default"}
-        recentSessions={recentSessions}
+        sessions={sessionRows}
         onSwitch={switchSession}
         onCreate={createNewSession}
         onRename={renameSession}
         onDelete={deleteSessionHandler}
+      />
+      <ModelSheet
+        visible={modelSheetOpen}
+        info={modelInfo}
+        loading={modelLoading}
+        busyName={modelBusyName}
+        onSelect={handleSelectModel}
+        onClose={() => setModelSheetOpen(false)}
       />
     </KeyboardAvoidingView>
   );
@@ -2628,5 +3364,287 @@ const s = StyleSheet.create({
     fontFamily: FONT_MONO,
     fontWeight: "700",
     fontSize: 14,
+  },
+
+  // ── No-config screen ──
+  noConfigBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: C.terminalGreen,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  noConfigBtnText: {
+    color: C.background,
+    fontFamily: FONT_MONO,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+
+  // ── Header badges ──
+  bellBadge: {
+    position: "absolute",
+    top: -6,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: C.error,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    color: "#fff",
+    fontFamily: FONT_MONO,
+    fontSize: 9,
+    fontWeight: "700",
+  },
+
+  // ── Interactive cards (clarify / approval) ──
+  interactionCard: {
+    marginHorizontal: UI.spacing.screenX,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: UI.radius.panel,
+    borderWidth: 1,
+    borderColor: C.terminalAmber,
+    backgroundColor: C.card,
+    gap: 8,
+  },
+  interactionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  interactionTitle: {
+    color: C.terminalAmber,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  interactionBody: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  choiceWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  choiceBtn: {
+    flexGrow: 1,
+    flexBasis: "45%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: UI.radius.bubble,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.background,
+  },
+  choiceBtnText: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    textAlign: "center",
+  },
+  approveBtn: {
+    borderColor: C.terminalGreen,
+  },
+  denyBtn: {
+    borderColor: C.border,
+  },
+  freeformRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  freeformInput: {
+    flex: 1,
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: UI.radius.bubble,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: C.background,
+  },
+  freeformSend: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: C.terminalGreen,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // ── Sheets (canvas / inbox / model) ──
+  canvasBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.85)",
+  },
+  canvasSheet: {
+    position: "absolute",
+    top: 70,
+    left: UI.modal.side,
+    right: UI.modal.side,
+    height: "80%",
+    backgroundColor: C.background,
+    borderWidth: 1,
+    borderColor: C.terminalGreen,
+    borderRadius: UI.radius.panel,
+    overflow: "hidden",
+  },
+  canvasHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: UI.modal.headerPadding,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    backgroundColor: C.card,
+  },
+  canvasTitle: {
+    color: C.terminalGreen,
+    fontFamily: FONT_MONO,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  canvasWebview: {
+    flex: 1,
+    backgroundColor: "#09090b",
+  },
+  inboxSheet: {
+    position: "absolute",
+    top: 70,
+    left: UI.modal.side,
+    right: UI.modal.side,
+    maxHeight: 560,
+    backgroundColor: C.background,
+    borderWidth: 1,
+    borderColor: C.terminalGreen,
+    borderRadius: UI.radius.panel,
+    overflow: "hidden",
+  },
+  inboxRow: {
+    padding: 12,
+    borderRadius: UI.radius.bubble,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    gap: 6,
+  },
+  inboxTime: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
+  },
+  inboxContent: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  inboxGo: {
+    color: C.terminalGreen,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  inboxEmpty: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    textAlign: "center",
+    padding: 24,
+  },
+  modelSheet: {
+    position: "absolute",
+    top: 90,
+    left: UI.modal.side,
+    right: UI.modal.side,
+    maxHeight: 560,
+    backgroundColor: C.background,
+    borderWidth: 1,
+    borderColor: C.terminalGreen,
+    borderRadius: UI.radius.panel,
+    overflow: "hidden",
+  },
+  modelActiveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: UI.radius.bubble,
+    borderWidth: 1,
+    borderColor: C.terminalGreen,
+    backgroundColor: "rgba(74,222,128,0.08)",
+  },
+  modelActiveLabel: {
+    color: C.terminalGreen,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  modelActiveValue: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    flex: 1,
+  },
+  modelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: UI.radius.bubble,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  modelRowActive: {
+    borderColor: C.terminalGreen,
+  },
+  modelName: {
+    color: C.text,
+    fontFamily: FONT_MONO,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  modelSub: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  modelCustomLabel: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+
+  // ── Session modal metadata ──
+  sessionMeta: {
+    color: C.icon,
+    fontFamily: FONT_MONO,
+    fontSize: 10,
+    marginTop: 2,
   },
 });
