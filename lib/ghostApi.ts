@@ -17,6 +17,11 @@ export interface GhostConfig {
   secret: string;
   session?: string;
   sendLocation?: boolean;
+  // Relay transport (optional — absent/undefined = LAN mode)
+  transport?: "lan" | "relay";
+  relayServer?: string; // relay HTTP endpoint, e.g. "https://relay.example.com"
+  ghostId?: string; // device ID for relay client auth
+  clientToken?: string; // raw token for relay auth (stored in SecureStore)
 }
 
 export interface PiStats {
@@ -190,6 +195,7 @@ function networkError(err: any): GhostError {
 
 const CONFIG_KEY = "ghost_config";
 const SECRET_KEY = "ghost_secret";
+const RELAY_TOKEN_KEY = "ghost_relay_token";
 
 type StoredConfig = {
   piHost: string;
@@ -197,6 +203,10 @@ type StoredConfig = {
   session?: string;
   sendLocation?: boolean;
   secret?: string; // legacy: pre-SecureStore installs stored the secret inline
+  // Relay fields (persisted in AsyncStorage — no secrets here)
+  transport?: "lan" | "relay";
+  relayServer?: string;
+  ghostId?: string;
 };
 
 async function readSecret(): Promise<string> {
@@ -219,6 +229,26 @@ async function writeSecret(secret: string): Promise<void> {
   } catch {}
 }
 
+async function readRelayToken(): Promise<string> {
+  if (Platform.OS === "web") return "";
+  try {
+    return (await SecureStore.getItemAsync(RELAY_TOKEN_KEY)) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function writeRelayToken(token: string): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    if (token) {
+      await SecureStore.setItemAsync(RELAY_TOKEN_KEY, token);
+    } else {
+      await SecureStore.deleteItemAsync(RELAY_TOKEN_KEY);
+    }
+  } catch {}
+}
+
 export async function loadConfig(): Promise<GhostConfig | null> {
   const raw = await AsyncStorage.getItem(CONFIG_KEY);
   if (!raw) return null;
@@ -237,17 +267,29 @@ export async function loadConfig(): Promise<GhostConfig | null> {
     delete migrated.secret;
     await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(migrated)).catch(() => {});
   }
+  // Load relay token from SecureStore
+  const clientToken = stored.transport === "relay" ? await readRelayToken() : undefined;
   return {
     piHost: stored.piHost,
     piPort: stored.piPort ?? "8766",
     secret,
     session: stored.session,
     sendLocation: stored.sendLocation !== false,
+    transport: stored.transport,
+    relayServer: stored.relayServer,
+    ghostId: stored.ghostId,
+    clientToken: clientToken || undefined,
   };
 }
 
 export async function saveConfig(cfg: GhostConfig): Promise<void> {
   await writeSecret(cfg.secret.trim());
+  // Store relay token in SecureStore (never in AsyncStorage)
+  if (cfg.transport === "relay" && cfg.clientToken) {
+    await writeRelayToken(cfg.clientToken);
+  } else {
+    await writeRelayToken("");
+  }
   await AsyncStorage.setItem(
     CONFIG_KEY,
     JSON.stringify({
@@ -255,15 +297,25 @@ export async function saveConfig(cfg: GhostConfig): Promise<void> {
       piPort: normalizePort(cfg.piPort),
       session: normalizeSession(cfg.session),
       sendLocation: cfg.sendLocation !== false,
+      // Relay fields (no secrets — token is in SecureStore)
+      transport: cfg.transport,
+      relayServer: cfg.relayServer,
+      ghostId: cfg.ghostId,
     }),
   );
 }
 
 function baseURL(cfg: GhostConfig): string {
+  if (cfg.transport === "relay" && cfg.relayServer) {
+    return cfg.relayServer.replace(/\/+$/, "");
+  }
   return `http://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
 }
 
 function wsURL(cfg: GhostConfig): string {
+  if (cfg.transport === "relay" && cfg.relayServer) {
+    return cfg.relayServer.replace(/^http/i, "ws").replace(/\/+$/, "");
+  }
   return `ws://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
 }
 
@@ -293,10 +345,25 @@ function normalizeSession(session?: string): string {
 }
 
 function headers(cfg: GhostConfig): HeadersInit {
+  if (cfg.transport === "relay" && cfg.ghostId && cfg.clientToken) {
+    return {
+      "Content-Type": "application/json",
+      "X-Ghost-Client-Id": cfg.ghostId,
+      "X-Ghost-Client-Token": cfg.clientToken,
+    };
+  }
   return { "Content-Type": "application/json", "X-Ghost-Secret": cfg.secret };
 }
 
 function messageHeaders(cfg: GhostConfig): HeadersInit {
+  if (cfg.transport === "relay" && cfg.ghostId && cfg.clientToken) {
+    return {
+      "Content-Type": "application/json",
+      "X-Ghost-Client-Id": cfg.ghostId,
+      "X-Ghost-Client-Token": cfg.clientToken,
+      "X-Ghost-Session": normalizeSession(cfg.session),
+    };
+  }
   return { ...headers(cfg), "X-Ghost-Session": normalizeSession(cfg.session) };
 }
 

@@ -9,6 +9,7 @@ import {
   Palette,
   Plus,
   QrCode,
+  Radio,
   RotateCcw,
   Save,
   Settings,
@@ -262,6 +263,11 @@ export default function SettingsScreen() {
       secret: secret.trim(),
       session: config?.session,
       sendLocation,
+      // Preserve relay config if present
+      transport: config?.transport,
+      relayServer: config?.relayServer,
+      ghostId: config?.ghostId,
+      clientToken: config?.clientToken,
     };
     await saveConfig(cfg);
     setConfig(cfg);
@@ -394,7 +400,15 @@ export default function SettingsScreen() {
       </View>
 
       {/* Connection */}
-      <Section title="Connection">
+      <Section title={config?.transport === "relay" ? "Connection (Relay)" : "Connection"}>
+        {config?.transport === "relay" && config.relayServer && (
+          <View style={[s.resultBanner, { borderColor: C.terminalGreen }]}>
+            <Radio size={14} color={C.terminalGreen} />
+            <Text style={[s.resultText, { color: C.terminalGreen, fontSize: 11 }]}>
+              Relay: {config.relayServer} · Device: {config.ghostId ?? "—"}
+            </Text>
+          </View>
+        )}
         <Field
           label="Host IP"
           value={host}

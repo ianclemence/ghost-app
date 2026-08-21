@@ -2,8 +2,13 @@ import * as Linking from "expo-linking";
 import type { GhostConfig } from "./ghostApi";
 
 /**
- * Pairing URL format (shown as a QR code by the web console):
+ * Pairing URL formats:
+ *
+ * LAN (existing):
  *   ghost://connect?host=192.168.1.42&port=8766&secret=...
+ *
+ * Relay (Phase 1):
+ *   ghost://connect?transport=relay&relay=<server_url>&ghost=<device_id>&token=<client_token>
  *
  * The host may also be carried in the URL hostname position
  * (ghost://192.168.1.42:8766?secret=...).
@@ -21,6 +26,28 @@ export function parseConnectURL(url: string): GhostConfig | null {
     const v = queryParams[key];
     return Array.isArray(v) ? v[0] : (v as string | undefined);
   };
+
+  // Relay pairing: ghost://connect?transport=relay&relay=...&ghost=...&token=...
+  const transport = qp("transport");
+  if (transport === "relay") {
+    const relayServer = qp("relay");
+    const ghostId = qp("ghost");
+    const token = qp("token");
+    if (!relayServer || !ghostId || !token) return null;
+    return {
+      piHost: "",
+      piPort: "8766",
+      secret: "",
+      session: "mobile:default",
+      sendLocation: true,
+      transport: "relay",
+      relayServer,
+      ghostId,
+      clientToken: token,
+    };
+  }
+
+  // LAN pairing (existing)
   let host = qp("host");
   let urlPort: string | undefined;
   if (!host && hostname && hostname !== "connect") {
@@ -47,6 +74,12 @@ export function parseConnectURL(url: string): GhostConfig | null {
 }
 
 export function buildConnectURL(cfg: GhostConfig): string {
+  if (cfg.transport === "relay" && cfg.relayServer && cfg.ghostId && cfg.clientToken) {
+    const relay = encodeURIComponent(cfg.relayServer);
+    const ghost = encodeURIComponent(cfg.ghostId);
+    const token = encodeURIComponent(cfg.clientToken);
+    return `ghost://connect?transport=relay&relay=${relay}&ghost=${ghost}&token=${token}`;
+  }
   const host = encodeURIComponent(cfg.piHost);
   const port = encodeURIComponent(cfg.piPort || "8766");
   const secret = encodeURIComponent(cfg.secret);
