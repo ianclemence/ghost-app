@@ -1,5 +1,6 @@
 import {
   Clock,
+  ListChecks,
   Pause,
   Pencil,
   Play,
@@ -29,7 +30,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-import { Colors, Fonts, UI } from "@/constants/theme";
+import { Colors, Fonts, Ghost, Radius, UI } from "@/constants/theme";
 import {
   createCronJob,
   CronJob,
@@ -44,9 +45,11 @@ import {
   updateCronJob,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
+import { ConnectionPill, EmptyState } from "@/components/ghost";
 
 const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
+const FONT_SANS = Fonts.sans;
 
 function TaskModal({
   visible,
@@ -107,6 +110,7 @@ function TaskFormModal({
   const [message, setMessage] = useState("");
   const [command, setCommand] = useState("");
   const [deliver, setDeliver] = useState(false);
+  const [showAdvancedForm, setShowAdvancedForm] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -197,7 +201,10 @@ function TaskFormModal({
 
           <Text style={styles.fieldLabel}>SCHEDULE</Text>
           <View style={styles.kindRow}>
-            {(["every", "at", "cron"] as const).map((k) => (
+            {(showAdvancedForm
+              ? (["every", "at", "cron"] as const)
+              : (["every"] as const)
+            ).map((k) => (
               <TouchableOpacity
                 key={k}
                 style={[
@@ -324,16 +331,38 @@ function TaskFormModal({
             multiline
           />
 
-          <Text style={styles.fieldLabel}>COMMAND (optional, runs directly)</Text>
-          <TextInput
-            style={styles.fieldInput}
-            value={command}
-            onChangeText={setCommand}
-            placeholder="df -h"
-            placeholderTextColor={C.icon}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          {showAdvancedForm && (
+            <>
+              <Text style={styles.fieldLabel}>
+                COMMAND (optional, runs directly)
+              </Text>
+              <TextInput
+                style={[styles.fieldInput, styles.fieldMultiline]}
+                value={command}
+                onChangeText={setCommand}
+                placeholder="df -h"
+                placeholderTextColor={C.icon}
+                autoCapitalize="none"
+                autoCorrect={false}
+                multiline
+              />
+            </>
+          )}
+
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleLabel}>ADVANCED</Text>
+              <Text style={styles.fieldHint}>
+                Cron syntax, one-time schedules & direct commands
+              </Text>
+            </View>
+            <Switch
+              value={showAdvancedForm}
+              onValueChange={setShowAdvancedForm}
+              trackColor={{ false: C.border, true: Ghost.accentSoft }}
+              thumbColor={showAdvancedForm ? Ghost.accent : C.icon}
+            />
+          </View>
 
           <View style={styles.toggleRow}>
             <View style={{ flex: 1 }}>
@@ -345,7 +374,7 @@ function TaskFormModal({
               onValueChange={setDeliver}
               trackColor={{
                 false: C.border,
-                true: "rgba(74, 222, 128, 0.3)",
+                true: "Ghost.accentSoft",
               }}
               thumbColor={deliver ? C.terminalGreen : C.icon}
             />
@@ -387,6 +416,29 @@ function timeAgo(date: number | string | Date): string {
   return Math.floor(seconds) + "s ago";
 }
 
+function humanSchedule(job: CronJob): string {
+  const s = job.schedule;
+  if (s.kind === "every") {
+    const secs = (s.everyMs ?? 0) / 1000;
+    if (secs % 86400 === 0)
+      return `Every ${secs / 86400} day${secs / 86400 > 1 ? "s" : ""}`;
+    if (secs % 3600 === 0)
+      return `Every ${secs / 3600} hour${secs / 3600 > 1 ? "s" : ""}`;
+    if (secs % 60 === 0) return `Every ${secs / 60} min`;
+    return `Every ${secs}s`;
+  }
+  if (s.kind === "at") {
+    const d = new Date(s.atMs ?? 0);
+    return `Once · ${d.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+  }
+  return "Custom schedule";
+}
+
 function JobCard({
   job,
   onAction,
@@ -410,13 +462,7 @@ function JobCard({
       <View style={styles.cardHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.jobName}>{job.name}</Text>
-          <Text style={styles.jobSchedule}>
-            {job.schedule.kind === "cron"
-              ? `Cron: ${job.schedule.expr}`
-              : job.schedule.kind === "every"
-                ? `Every ${(job.schedule.everyMs ?? 0) / 1000}s`
-                : `At ${new Date(job.schedule.atMs ?? 0).toLocaleString()}`}
-          </Text>
+          <Text style={styles.jobSchedule}>{humanSchedule(job)}</Text>
         </View>
         <View
           style={[
@@ -503,7 +549,7 @@ function JobCard({
 
 export default function CronScreen() {
   const insets = useSafeAreaInsets();
-  const { config } = useGhostStore();
+  const { config, connectionState } = useGhostStore();
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -673,9 +719,11 @@ export default function CronScreen() {
       <View
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
-        <Clock size={48} color={C.terminalGreen} style={{ marginBottom: 14 }} />
-        <Text style={styles.noConfigTitle}>Offline</Text>
-        <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
+        <EmptyState
+          icon={<ListChecks size={34} color={Ghost.accent} />}
+          title="You’re not connected"
+          subtitle="Connect to your Ghost to schedule what it does."
+        />
       </View>
     );
   }
@@ -684,19 +732,23 @@ export default function CronScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Clock size={20} color={C.terminalGreen} />
-          <Text style={styles.headerTitle}>Scheduled Tasks</Text>
+          <ListChecks size={20} color={Ghost.accent} />
+          <Text style={styles.headerTitle}>Activity</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <ConnectionPill
+            connected={connectionState === "online"}
+            degraded={connectionState === "syncing"}
+          />
           <TouchableOpacity onPress={openCreate} style={styles.newTaskBtn}>
-            <Plus size={16} color={C.background} />
+            <Plus size={16} color={Ghost.accentInk} />
             <Text style={styles.newTaskBtnText}>New</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => loadJobs()} disabled={loading}>
             {loading ? (
-              <ActivityIndicator color={C.terminalGreen} size="small" />
+              <ActivityIndicator color={Ghost.accent} size="small" />
             ) : (
-              <RefreshCw size={18} color={C.terminalGreen} />
+              <RefreshCw size={18} color={Ghost.text.secondary} />
             )}
           </TouchableOpacity>
         </View>
@@ -766,7 +818,7 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
   },
   headerTitle: {
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 16,
     fontWeight: "700",
     color: C.terminalGreen,
@@ -776,13 +828,13 @@ const styles = StyleSheet.create({
     color: C.terminalGreen,
     fontSize: 18,
     fontWeight: "700",
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   noConfigSub: {
     color: C.icon,
     fontSize: 13,
     marginTop: 8,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   listContent: { padding: UI.spacing.section, gap: UI.spacing.section },
   card: {
@@ -803,12 +855,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     marginBottom: 4,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   jobSchedule: {
     color: C.icon,
     fontSize: 11,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   statusBadge: {
     borderWidth: 1,
@@ -820,7 +872,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.5,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   statsRow: {
     flexDirection: "column",
@@ -829,12 +881,12 @@ const styles = StyleSheet.create({
   statText: {
     color: C.icon,
     fontSize: 11,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   commandText: {
     color: C.text,
     fontSize: 11,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     backgroundColor: "#ffffff08",
     paddingHorizontal: 8,
     paddingVertical: 6,
@@ -866,7 +918,7 @@ const styles = StyleSheet.create({
     color: C.terminalGreen,
     fontSize: 11,
     fontWeight: "700",
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   pauseBtn: {
     borderColor: C.icon,
@@ -875,7 +927,7 @@ const styles = StyleSheet.create({
     color: C.icon,
     fontSize: 11,
     fontWeight: "700",
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   resumeBtn: {
     borderColor: C.terminalGreen,
@@ -884,7 +936,7 @@ const styles = StyleSheet.create({
     color: C.terminalGreen,
     fontSize: 11,
     fontWeight: "700",
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   editBtn: {
     borderColor: C.icon,
@@ -893,7 +945,7 @@ const styles = StyleSheet.create({
     color: C.text,
     fontSize: 11,
     fontWeight: "700",
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   deleteBtn: {
     borderColor: C.error,
@@ -902,7 +954,7 @@ const styles = StyleSheet.create({
     color: C.error,
     fontSize: 11,
     fontWeight: "700",
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   newTaskBtn: {
     flexDirection: "row",
@@ -914,7 +966,7 @@ const styles = StyleSheet.create({
   },
   newTaskBtnText: {
     color: C.background,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 11,
     fontWeight: "700",
   },
@@ -937,7 +989,7 @@ const styles = StyleSheet.create({
     color: C.icon,
     fontSize: UI.typography.meta,
     letterSpacing: 1.2,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontWeight: "700",
     marginTop: 12,
     marginBottom: 6,
@@ -947,7 +999,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     color: C.text,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 13,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -959,7 +1011,7 @@ const styles = StyleSheet.create({
   fieldHint: {
     color: C.icon,
     fontSize: 10,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     marginTop: 4,
   },
   kindRow: {
@@ -979,7 +1031,7 @@ const styles = StyleSheet.create({
   },
   kindBtnText: {
     color: C.icon,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
@@ -1002,7 +1054,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: C.icon,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -1019,7 +1071,7 @@ const styles = StyleSheet.create({
   },
   dateBtnText: {
     color: C.text,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 13,
   },
   toggleRow: {
@@ -1031,7 +1083,7 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     color: C.text,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -1045,7 +1097,7 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     color: C.background,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.5,
@@ -1055,7 +1107,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 40,
     fontSize: 14,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFill,
@@ -1083,7 +1135,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     color: C.terminalGreen,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 14,
     fontWeight: "700",
     letterSpacing: 1,
@@ -1095,7 +1147,7 @@ const styles = StyleSheet.create({
   },
   modalMessage: {
     color: C.text,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -1107,7 +1159,7 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     color: C.background,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontWeight: "700",
     fontSize: 12,
   },

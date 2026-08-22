@@ -13,6 +13,7 @@ import {
   Activity,
   AlertCircle,
   ArrowUp,
+  MessageCircle,
   Bell,
   Check,
   ChevronDown,
@@ -56,11 +57,10 @@ import Markdown, { ASTNode } from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
-import GHOST_LOGO from "../../assets/images/logo.png";
-
-import { Colors, Fonts, UI } from "@/constants/theme";
+import { Colors, Fonts, Ghost, Space, UI } from "@/constants/theme";
 import ErrorCard from "../../components/ErrorCard";
 import QrPairingScanner from "../../components/QrPairingScanner";
+import { ConnectionPill, GhostButton } from "@/components/ghost";
 import {
   checkHealth,
   connectWebSocket,
@@ -326,16 +326,8 @@ const SLASH_COMMANDS: SlashCommand[] = [
   },
   { command: "/skills", description: "List all installed skills" },
   { command: "/install", description: "Install a new skill" },
-  { command: "/tools", description: "List available tools" },
   { command: "/think", description: "Enable reasoning" },
   { command: "/remind", description: "Set a reminder", requiresTool: "cron" },
-  { command: "/doctor", description: "Run system health check" },
-  {
-    command: "/loop",
-    description: "Re-run a prompt on an interval (e.g. /loop 5m …)",
-    requiresTool: "cron",
-  },
-  { command: "/loops", description: "List active loops", requiresTool: "cron" },
   {
     command: "/stoploop",
     description: "Stop a loop by job id",
@@ -1159,7 +1151,6 @@ function MessageRow({
               <AlertCircle size={10} color={C.error} />
             )}
           </View>
-          {traceLabel ? <Text style={s.traceText}>{traceLabel}</Text> : null}
         </View>
       </TouchableOpacity>
     );
@@ -1173,9 +1164,9 @@ function MessageRow({
     >
       <View style={s.ghostAvatar}>
         {!isGrouped ? (
-          <Terminal size={14} color={accent} />
+          <MessageCircle size={16} color={Ghost.accent} />
         ) : (
-          <View style={{ width: 14 }} />
+          <View style={{ width: 16 }} />
         )}
       </View>
       <View style={s.ghostContent}>
@@ -2350,16 +2341,18 @@ removeMessage(makeAssistantPlaceholderId(item.id));
   if (!config)
     return (
       <View style={[s.container, s.centered, { paddingTop: insets.top }]}>
-        <Image source={GHOST_LOGO} style={{ width: 64, height: 64 }} />
-        <Text style={s.noConfigTitle}>Offline</Text>
-        <Text style={s.noConfigSub}>Configure connection in Settings</Text>
-        <TouchableOpacity
-          style={s.noConfigBtn}
+        <View style={s.noConfigIconWrap}>
+          <MessageCircle size={34} color={Ghost.accent} />
+        </View>
+        <Text style={s.noConfigTitle}>You’re not connected</Text>
+        <Text style={s.noConfigSub}>
+          Connect to your Ghost to start talking.
+        </Text>
+        <GhostButton
+          title="Connect to your Ghost"
           onPress={() => setScannerOpen(true)}
-        >
-          <QrCode size={18} color={C.background} />
-          <Text style={s.noConfigBtnText}>Scan Pairing QR</Text>
-        </TouchableOpacity>
+          leftIcon={<QrCode size={18} color={Ghost.accentInk} />}
+        />
         <QrPairingScanner
           visible={scannerOpen}
           onClose={() => setScannerOpen(false)}
@@ -2387,14 +2380,7 @@ removeMessage(makeAssistantPlaceholderId(item.id));
         style={[
           s.header,
           { paddingTop: insets.top + 10 },
-          isStreaming && {
-            borderBottomColor:
-              accentColor === "green"
-                ? "#4ADE80"
-                : accentColor === "amber"
-                  ? "#FBBF24"
-                  : "#22D3EE",
-          },
+          isStreaming && { borderBottomColor: Ghost.accent },
         ]}
       >
         <TouchableOpacity
@@ -2410,7 +2396,9 @@ removeMessage(makeAssistantPlaceholderId(item.id));
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Image source={GHOST_LOGO} style={{ width: 18, height: 18 }} />
+            <View style={s.headerAvatar}>
+              <MessageCircle size={18} color={Ghost.accent} />
+            </View>
             <View>
               <Text style={s.headerTitle}>
                 {serverSessions.find((x) => x.id === currentSession)?.title ||
@@ -2418,25 +2406,13 @@ removeMessage(makeAssistantPlaceholderId(item.id));
                   "mobile:default"}
               </Text>
               {isStreaming && (
-                <Text
-                  style={[
-                    s.headerSub,
-                    {
-                      color:
-                        accentColor === "green"
-                          ? "#4ADE80"
-                          : accentColor === "amber"
-                            ? "#FBBF24"
-                            : "#22D3EE",
-                    },
-                  ]}
-                >
-                  THINKING...
+                <Text style={[s.headerSub, { color: Ghost.accent }]}>
+                  Thinking…
                 </Text>
               )}
               {connectionState === "syncing" && (
-                <Text style={[s.headerSub, { color: C.terminalAmber }]}>
-                  SYNCING...
+                <Text style={[s.headerSub, { color: Ghost.warn }]}>
+                  Syncing…
                 </Text>
               )}
             </View>
@@ -2444,7 +2420,10 @@ removeMessage(makeAssistantPlaceholderId(item.id));
           </View>
         </TouchableOpacity>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-          <ConnectionBadge state={connectionState} />
+          <ConnectionPill
+            connected={connectionState === "online"}
+            degraded={connectionState === "syncing"}
+          />
           {canvasHtml ? (
             <TouchableOpacity onPress={() => setCanvasOpen(true)}>
               <LayoutTemplate size={18} color={C.icon} />
@@ -2583,14 +2562,6 @@ removeMessage(makeAssistantPlaceholderId(item.id));
               )}
             </View>
           )}
-        </View>
-      )}
-      {lastSanitizedAt && Date.now() - lastSanitizedAt < 180000 && (
-        <View style={s.quarantineBanner}>
-          <AlertCircle size={12} color={C.terminalAmber} />
-          <Text style={s.quarantineText}>
-            Response sanitized to protect chat from internal artifacts.
-          </Text>
         </View>
       )}
 
@@ -2963,30 +2934,53 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   sessionBtn: { flexDirection: "row", alignItems: "center", padding: 4 },
-  noConfigTitle: {
-    color: C.terminalGreen,
-    fontFamily: FONT_MONO,
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: 1,
+  headerAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Ghost.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  noConfigSub: { color: C.icon, fontFamily: FONT_MONO, fontSize: 14 },
+  noConfigIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Ghost.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Space.lg,
+  },
+  noConfigTitle: {
+    color: Ghost.text.primary,
+    fontFamily: FONT_SANS,
+    fontSize: 20,
+    fontWeight: "600",
+    marginBottom: Space.xs,
+  },
+  noConfigSub: {
+    color: Ghost.text.secondary,
+    fontFamily: FONT_SANS,
+    fontSize: 15,
+    textAlign: "center",
+    marginBottom: Space.xl,
+  },
   msgList: { paddingHorizontal: 16, paddingVertical: 16 },
 
   // Message Styles
   userRow: { alignSelf: "flex-end", maxWidth: "85%", marginBottom: 16 },
   userBubble: {
     backgroundColor: C.card,
-    borderRadius: 8,
+    borderRadius: 16,
     padding: 12,
     borderWidth: 1,
     borderColor: C.border,
   },
   userText: {
     color: C.text,
-    fontFamily: FONT_MONO,
-    fontSize: 14,
-    lineHeight: 20,
+    fontFamily: FONT_SANS,
+    fontSize: 15,
+    lineHeight: 22,
   },
   ghostRow: {
     flexDirection: "row",
@@ -3003,7 +2997,7 @@ const s = StyleSheet.create({
     gap: 6,
     marginTop: 4,
   },
-  ts: { color: C.icon, fontSize: UI.typography.meta, fontFamily: FONT_MONO },
+  ts: { color: C.icon, fontSize: UI.typography.meta, fontFamily: FONT_SANS },
   traceText: {
     color: C.terminalAmber,
     fontFamily: FONT_MONO,
@@ -3041,8 +3035,8 @@ const s = StyleSheet.create({
     minHeight: 44,
   },
   prompt: {
-    color: C.terminalGreen,
-    fontFamily: FONT_MONO,
+    color: Ghost.accent,
+    fontFamily: FONT_SANS,
     fontSize: 16,
     marginRight: 8,
     fontWeight: "700",
@@ -3050,8 +3044,8 @@ const s = StyleSheet.create({
   input: {
     flex: 1,
     color: C.text,
-    fontFamily: FONT_MONO,
-    fontSize: 14,
+    fontFamily: FONT_SANS,
+    fontSize: 15,
     paddingVertical: 10,
     maxHeight: 100,
   },
@@ -3064,10 +3058,10 @@ const s = StyleSheet.create({
   sendBtn: {
     width: 44,
     height: 44,
-    backgroundColor: C.terminalGreen,
+    backgroundColor: Ghost.accent,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 4,
+    borderRadius: 22,
   },
 
   // Attachments

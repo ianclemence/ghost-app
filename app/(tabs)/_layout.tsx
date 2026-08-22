@@ -1,36 +1,32 @@
-
 import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
 import { Platform, Text, View } from "react-native";
-import { Terminal, Server, Clock, Brain, Settings } from "lucide-react-native";
-import { Colors, Fonts } from "@/constants/theme";
-import { useGhostStore } from "@/lib/store";
+import { MessageCircle, Bookmark, ListChecks, SlidersHorizontal } from "lucide-react-native";
+import { Colors, Fonts, Ghost } from "@/constants/theme";
 
 const C = Colors.dark;
-const FONT_MONO = Fonts.mono;
+const FONT = Fonts.sans;
+const ACCENT = Ghost.accent;
 
 function TabIcon({
   Icon,
   label,
   focused,
-  accent,
 }: {
   Icon: React.ElementType;
   label: string;
   focused: boolean;
-  accent: string;
 }) {
-  const color = focused ? accent : C.icon;
+  const color = focused ? ACCENT : C.icon;
   return (
     <View style={{ alignItems: "center", gap: 4, paddingTop: 12 }}>
-      <Icon size={20} color={color} strokeWidth={focused ? 2.5 : 2} />
+      <Icon size={22} color={color} strokeWidth={focused ? 2.25 : 1.9} />
       <Text
         style={{
-          fontSize: 10,
-          fontWeight: focused ? "700" : "500",
+          fontSize: 11,
+          fontWeight: focused ? "600" : "500",
           color,
-          letterSpacing: 1,
-          fontFamily: FONT_MONO,
+          fontFamily: FONT,
         }}
       >
         {label}
@@ -40,25 +36,18 @@ function TabIcon({
 }
 
 export default function TabLayout() {
-  const accentColor = useGhostStore((s) => s.accentColor);
-  const accent =
-    accentColor === "amber"
-      ? C.terminalAmber
-      : accentColor === "cyan"
-        ? C.terminalCyan
-        : C.terminalGreen;
-
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: C.background },
         tabBarStyle: {
-          backgroundColor: C.background,
-          borderTopColor: C.border,
+          backgroundColor: Ghost.bg.base,
+          borderTopColor: Ghost.hairline,
           borderTopWidth: 1,
-          height: Platform.OS === "ios" ? 88 : 68,
-          paddingBottom: Platform.OS === "ios" ? 28 : 8,
+          height: Platform.OS === "ios" ? 84 : 64,
+          paddingBottom: Platform.OS === "ios" ? 24 : 8,
+          paddingTop: 8,
           elevation: 0,
         },
         tabBarHideOnKeyboard: Platform.OS === "ios",
@@ -74,23 +63,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Terminal} label="Chat" focused={focused} accent={accent} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="remote"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Server} label="Device" focused={focused} accent={accent} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="cron"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Clock} label="Tasks" focused={focused} accent={accent} />
+            <TabIcon Icon={MessageCircle} label="Ghost" focused={focused} />
           ),
         }}
       />
@@ -98,7 +71,15 @@ export default function TabLayout() {
         name="memory"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Brain} label="Data" focused={focused} accent={accent} />
+            <TabIcon Icon={Bookmark} label="Memory" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="cron"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon Icon={ListChecks} label="Activity" focused={focused} />
           ),
         }}
       />
@@ -106,7 +87,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Settings} label="Settings" focused={focused} accent={accent} />
+            <TabIcon Icon={SlidersHorizontal} label="Settings" focused={focused} />
           ),
         }}
       />

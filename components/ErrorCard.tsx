@@ -1,65 +1,46 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import type { GhostError } from '../lib/ghostApi';
+import React from "react";
+import { View, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  Lock,
+  Clock,
+  AlertTriangle,
+  WifiOff,
+  MessageCircleOff,
+  ZapOff,
+  TimerOff,
+} from "lucide-react-native";
+import type { GhostError } from "../lib/ghostApi";
+import { Ghost, Radius, Space } from "../constants/theme";
+import { GhostText } from "./themed-text";
 
-const C = {
-  bg: '#080C0F',
-  surface: '#0D1117',
-  border: '#1A2332',
-  accent: '#00FF88',
-  text: '#C8D8E8',
-  textDim: '#4A6080',
-  danger: '#FF4455',
-  dangerDim: '#FF445520',
-  dangerBorder: '#FF445530',
-  warn: '#FFAA00',
-  warnDim: '#FFAA0020',
-  warnBorder: '#FFAA0030',
+const ICONS: Record<string, React.ElementType> = {
+  auth: Lock,
+  rate_limit: Clock,
+  provider: AlertTriangle,
+  network: WifiOff,
+  empty_stream: MessageCircleOff,
+  interrupted: ZapOff,
+  timeout: TimerOff,
 };
 
-const ERROR_CONFIG: Record<string, { icon: string; title: string; bg: string; border: string }> = {
-  auth: {
-    icon: '🔒',
-    title: 'Connection Rejected',
-    bg: C.dangerDim,
-    border: C.dangerBorder,
-  },
-  rate_limit: {
-    icon: '⏳',
-    title: 'Ghost is Busy',
-    bg: C.warnDim,
-    border: C.warnBorder,
-  },
-  provider: {
-    icon: '⚠️',
-    title: 'Response Failed',
-    bg: C.dangerDim,
-    border: C.dangerBorder,
-  },
-  network: {
-    icon: '📡',
-    title: "Can't Reach Ghost",
-    bg: C.dangerDim,
-    border: C.dangerBorder,
-  },
-  empty_stream: {
-    icon: '💭',
-    title: 'No Response',
-    bg: C.warnDim,
-    border: C.warnBorder,
-  },
-  interrupted: {
-    icon: '⚡',
-    title: 'Response Interrupted',
-    bg: C.warnDim,
-    border: C.warnBorder,
-  },
-  timeout: {
-    icon: '⏱',
-    title: 'Request Timed Out',
-    bg: C.warnDim,
-    border: C.warnBorder,
-  },
+const TITLES: Record<string, string> = {
+  auth: "Connection Rejected",
+  rate_limit: "Ghost is Busy",
+  provider: "Response Failed",
+  network: "Can’t Reach Ghost",
+  empty_stream: "No Response",
+  interrupted: "Response Interrupted",
+  timeout: "Request Timed Out",
+};
+
+const TONE: Record<string, { fg: string; bg: string; border: string }> = {
+  auth: { fg: Ghost.danger, bg: "rgba(212,104,90,0.10)", border: "rgba(212,104,90,0.30)" },
+  provider: { fg: Ghost.danger, bg: "rgba(212,104,90,0.10)", border: "rgba(212,104,90,0.30)" },
+  network: { fg: Ghost.danger, bg: "rgba(212,104,90,0.10)", border: "rgba(212,104,90,0.30)" },
+  rate_limit: { fg: Ghost.warn, bg: "rgba(214,160,90,0.10)", border: "rgba(214,160,90,0.30)" },
+  empty_stream: { fg: Ghost.warn, bg: "rgba(214,160,90,0.10)", border: "rgba(214,160,90,0.30)" },
+  interrupted: { fg: Ghost.warn, bg: "rgba(214,160,90,0.10)", border: "rgba(214,160,90,0.30)" },
+  timeout: { fg: Ghost.warn, bg: "rgba(214,160,90,0.10)", border: "rgba(214,160,90,0.30)" },
 };
 
 interface ErrorCardProps {
@@ -70,42 +51,51 @@ interface ErrorCardProps {
 }
 
 export default function ErrorCard({ error, onRetry, onDismiss, partialContent }: ErrorCardProps) {
-  const config = ERROR_CONFIG[error.kind] ?? ERROR_CONFIG.provider;
+  const tone = TONE[error.kind] ?? TONE.provider;
+  const Icon = ICONS[error.kind] ?? AlertTriangle;
+  const title = TITLES[error.kind] ?? "Something went wrong";
 
   return (
-    <View style={styles.outerRow}>
-      <View style={styles.avatar}>
-        <Text style={{ fontSize: 14 }}>👻</Text>
+    <View style={styles.row}>
+      <View style={styles.iconWrap}>
+        <Icon size={16} color={Ghost.text.secondary} />
       </View>
-      <View style={[styles.card, { backgroundColor: config.bg, borderColor: config.border }]}>
-        {/* Partial content (if stream was interrupted) */}
+      <View style={[styles.card, { backgroundColor: tone.bg, borderColor: tone.border }]}>
         {partialContent ? (
-          <Text style={styles.partialText}>{partialContent}</Text>
+          <GhostText type="body" style={styles.partial}>
+            {partialContent}
+          </GhostText>
         ) : null}
 
-        {/* Error header */}
         <View style={styles.header}>
-          <Text style={styles.icon}>{config.icon}</Text>
+          <View style={[styles.dot, { backgroundColor: tone.fg }]} />
           <View style={styles.headerText}>
-            <Text style={styles.title}>{config.title}</Text>
-            <Text style={styles.subtitle} numberOfLines={2}>{error.message}</Text>
+            <GhostText type="bodyStrong">{title}</GhostText>
+            <GhostText type="secondary" style={styles.subtitle} numberOfLines={3}>
+              {error.message}
+            </GhostText>
           </View>
         </View>
 
-        {/* Actions */}
         <View style={styles.actions}>
           {error.retryable && onRetry && (
             <TouchableOpacity style={styles.retryBtn} onPress={onRetry} activeOpacity={0.7}>
-              <Text style={styles.retryText}>↻ RETRY</Text>
+              <GhostText type="bodyStrong" style={{ color: tone.fg }}>
+                Try again
+              </GhostText>
             </TouchableOpacity>
           )}
           {onDismiss && (
             <TouchableOpacity style={styles.dismissBtn} onPress={onDismiss} activeOpacity={0.7}>
-              <Text style={styles.dismissText}>DISMISS</Text>
+              <GhostText type="secondary" style={{ color: Ghost.text.secondary }}>
+                Dismiss
+              </GhostText>
             </TouchableOpacity>
           )}
-          {error.kind === 'auth' && (
-            <Text style={styles.hintText}>Check Settings → Shared Secret</Text>
+          {error.kind === "auth" && (
+            <GhostText type="caption" style={styles.hint}>
+              Check Settings → Shared Secret
+            </GhostText>
           )}
         </View>
       </View>
@@ -114,100 +104,74 @@ export default function ErrorCard({ error, onRetry, onDismiss, partialContent }:
 }
 
 const styles = StyleSheet.create({
-  outerRow: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
+  row: {
+    flexDirection: "row",
+    gap: Space.sm,
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
   },
-  avatar: {
+  iconWrap: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: C.surface,
+    backgroundColor: Ghost.bg.surface2,
     borderWidth: 1,
-    borderColor: C.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: Ghost.hairline,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
   },
   card: {
-    maxWidth: '85%',
-    borderRadius: 12,
+    flex: 1,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    padding: 12,
-    gap: 10,
+    padding: Space.md,
+    gap: Space.sm,
   },
-  partialText: {
-    color: C.text,
-    fontSize: 15,
-    lineHeight: 22,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    paddingBottom: 8,
+  partial: {
+    color: Ghost.text.primary,
+    paddingBottom: Space.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#ffffff10',
+    borderBottomColor: Ghost.hairline,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Space.sm,
   },
-  icon: {
-    fontSize: 18,
-    marginTop: 1,
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 6,
   },
   headerText: {
     flex: 1,
-    gap: 2,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    gap: Space.xs,
   },
   subtitle: {
-    color: C.textDim,
-    fontSize: 12,
-    lineHeight: 16,
+    color: Ghost.text.secondary,
   },
   actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.md,
+    flexWrap: "wrap",
+    paddingTop: Space.xs,
   },
   retryBtn: {
     borderWidth: 1,
-    borderColor: C.accent,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    backgroundColor: '#00FF8810',
-  },
-  retryText: {
-    color: C.accent,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    borderColor: Ghost.hairlineStrong,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.sm,
   },
   dismissBtn: {
-    borderWidth: 1,
-    borderColor: '#ffffff20',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: Space.sm,
+    paddingVertical: Space.sm,
   },
-  dismissText: {
-    color: C.textDim,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
-  },
-  hintText: {
-    color: C.textDim,
-    fontSize: 11,
-    fontStyle: 'italic',
-    marginLeft: 4,
+  hint: {
+    color: Ghost.text.tertiary,
+    marginLeft: "auto",
   },
 });

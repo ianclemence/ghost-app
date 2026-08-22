@@ -32,8 +32,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Fonts, UI } from "@/constants/theme";
+import { Colors, Fonts, Ghost, Radius, UI } from "@/constants/theme";
 import QrPairingScanner from "../../components/QrPairingScanner";
+import { ConnectionPill } from "@/components/ghost";
 import {
   ChannelHealth,
   checkHealth,
@@ -65,6 +66,7 @@ import { useGhostStore } from "../../lib/store";
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
+const FONT_SANS = Fonts.sans;
 
 const ACCENTS = [
   { id: "green", label: "GREEN", color: "#4ADE80" },
@@ -126,6 +128,7 @@ export default function SettingsScreen() {
 
   // Pairing QR + model state
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelBusyName, setModelBusyName] = useState<string | null>(null);
@@ -387,16 +390,13 @@ export default function SettingsScreen() {
     >
       <View style={s.header}>
         <View style={s.headerLeft}>
-          <Settings size={20} color={C.terminalGreen} />
-          <Text style={s.headerTitle}>Settings</Text>
+          <Settings size={20} color={Ghost.accent} />
+          <Text style={s.headerTitle}>Your Ghost</Text>
         </View>
-        <View style={s.headerRight}>
-          {statusIcon}
-          <View style={[s.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[s.statusText, { color: statusColor }]}>
-            {statusLabel}
-          </Text>
-        </View>
+        <ConnectionPill
+          connected={connectionState === "online"}
+          degraded={connectionState === "syncing"}
+        />
       </View>
 
       {/* Connection */}
@@ -498,43 +498,6 @@ export default function SettingsScreen() {
         )}
       </Section>
 
-      <Section title="Interface">
-        <View style={s.toggleRow}>
-          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-            <Palette size={18} color={C.terminalGreen} />
-            <View>
-              <Text style={s.toggleLabel}>Terminal Accent</Text>
-              <Text style={s.toggleSub}>Choose your UI highlight color</Text>
-            </View>
-          </View>
-        </View>
-        <View style={s.accentRow}>
-          {ACCENTS.map((a) => (
-            <TouchableOpacity
-              key={a.id}
-              style={[
-                s.accentBtn,
-                accentColor === a.id && {
-                  borderColor: a.color,
-                  backgroundColor: `${a.color}20`,
-                },
-              ]}
-              onPress={() => setAccentColor(a.id as any)}
-            >
-              <View style={[s.accentDot, { backgroundColor: a.color }]} />
-              <Text
-                style={[
-                  s.accentLabel,
-                  accentColor === a.id && { color: a.color },
-                ]}
-              >
-                {a.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </Section>
-
       <Section title="Model">
         <View style={s.diagGrid}>
           <DiagItem
@@ -610,7 +573,7 @@ export default function SettingsScreen() {
           <Switch
             value={sendLocation}
             onValueChange={setSendLocation}
-            trackColor={{ false: C.border, true: "rgba(74, 222, 128, 0.3)" }}
+            trackColor={{ false: C.border, true: "Ghost.accentSoft" }}
             thumbColor={sendLocation ? C.terminalGreen : C.icon}
           />
         </View>
@@ -627,7 +590,7 @@ export default function SettingsScreen() {
             onValueChange={(v) => {
               if (v) requestNotifications();
             }}
-            trackColor={{ false: C.border, true: "rgba(74, 222, 128, 0.3)" }}
+            trackColor={{ false: C.border, true: "Ghost.accentSoft" }}
             thumbColor={notifEnabled ? C.terminalGreen : C.icon}
           />
         </View>
@@ -675,7 +638,7 @@ export default function SettingsScreen() {
                   onValueChange={(v) => handleToggleSkill(sk.name, v)}
                   trackColor={{
                     false: C.border,
-                    true: "rgba(74, 222, 128, 0.3)",
+                    true: "Ghost.accentSoft",
                   }}
                   thumbColor={sk.enabled ? C.terminalGreen : C.icon}
                 />
@@ -692,7 +655,25 @@ export default function SettingsScreen() {
         </View>
       </Section>
 
-      {/* Diagnostics */}
+      <Section title="Advanced">
+        <View style={s.toggleRow}>
+          <View>
+            <Text style={s.toggleLabel}>Advanced</Text>
+            <Text style={s.toggleSub}>
+              Diagnostics, channel ops and session details
+            </Text>
+          </View>
+          <Switch
+            value={showAdvanced}
+            onValueChange={setShowAdvanced}
+            trackColor={{ false: C.border, true: Ghost.accentSoft }}
+            thumbColor={showAdvanced ? Ghost.accent : C.icon}
+          />
+        </View>
+      </Section>
+
+      {showAdvanced && (
+      <>
       <Section title="Status">
         {overallStatus && (
           <View
@@ -884,6 +865,8 @@ export default function SettingsScreen() {
           />
         </View>
       </Section>
+      </>
+      )}
 
       <Section title="Help">
         <View style={s.infoBox}>
@@ -1111,7 +1094,7 @@ const s = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   headerTitle: {
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 16,
     fontWeight: "700",
     color: C.terminalGreen,
@@ -1123,7 +1106,7 @@ const s = StyleSheet.create({
     borderRadius: 3,
   },
   statusText: {
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: UI.typography.status,
     fontWeight: "700",
     letterSpacing: 1,
@@ -1135,14 +1118,15 @@ const s = StyleSheet.create({
     fontSize: UI.typography.meta,
     fontWeight: "700",
     letterSpacing: 2,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     marginBottom: 8,
   },
   sectionContent: {
-    backgroundColor: C.card,
+    backgroundColor: Ghost.bg.surface,
     borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 0,
+    borderColor: Ghost.hairline,
+    borderRadius: Radius.lg,
+    overflow: "hidden",
   },
 
   field: { padding: 14, borderBottomWidth: 1, borderBottomColor: C.border },
@@ -1150,13 +1134,13 @@ const s = StyleSheet.create({
     color: C.icon,
     fontSize: UI.typography.meta,
     letterSpacing: 1,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     marginBottom: 4,
   },
   fieldInput: {
     color: C.text,
     fontSize: 14,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     paddingVertical: 4,
   },
 
@@ -1164,28 +1148,28 @@ const s = StyleSheet.create({
   btn: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 0,
+    borderRadius: Radius.lg,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
   },
-  btnPrimary: { backgroundColor: C.terminalGreen },
-  btnOutline: { borderWidth: 1, borderColor: C.terminalGreen },
+  btnPrimary: { backgroundColor: Ghost.accent },
+  btnOutline: { borderWidth: 1, borderColor: Ghost.accent },
   btnDisabled: { opacity: 0.4 },
   btnPrimaryText: {
     color: C.background,
     fontWeight: "700",
     fontSize: 12,
     letterSpacing: 1,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   btnOutlineText: {
     color: C.terminalGreen,
     fontWeight: "700",
     fontSize: 12,
     letterSpacing: 1,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
 
   resultBanner: {
@@ -1198,7 +1182,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: "rgba(0,0,0,0.2)",
   },
-  resultText: { fontFamily: FONT_MONO, fontSize: 12, fontWeight: "700" },
+  resultText: { fontFamily: FONT_SANS, fontSize: 12, fontWeight: "700" },
 
   toggleRow: {
     flexDirection: "row",
@@ -1211,14 +1195,14 @@ const s = StyleSheet.create({
   toggleLabel: {
     color: C.text,
     fontSize: 12,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
   toggleSub: {
     color: C.icon,
     fontSize: UI.typography.meta,
     marginTop: 2,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
 
   accentRow: { flexDirection: "row", padding: 14, gap: 10, flexWrap: "wrap" },
@@ -1237,7 +1221,7 @@ const s = StyleSheet.create({
   accentLabel: {
     color: C.text,
     fontSize: UI.typography.meta,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontWeight: "700",
   },
 
@@ -1253,7 +1237,7 @@ const s = StyleSheet.create({
     color: C.icon,
     fontSize: UI.typography.meta,
     letterSpacing: 1.5,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     marginBottom: 4,
   },
   diagValue: { color: C.text, fontSize: 12, fontFamily: FONT_MONO },
@@ -1271,7 +1255,7 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1.2,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
 
   checksList: {
@@ -1284,19 +1268,19 @@ const s = StyleSheet.create({
   checkName: {
     color: C.text,
     fontSize: 11,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     textTransform: "uppercase",
   },
   checkLatency: {
     color: C.icon,
     fontSize: UI.typography.meta,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   checkMsg: {
     color: C.icon,
     fontSize: UI.typography.meta,
     marginTop: 2,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
 
   infoBox: { padding: 14 },
@@ -1304,7 +1288,7 @@ const s = StyleSheet.create({
     color: C.icon,
     fontSize: 11,
     lineHeight: 16,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
 
   // Skills
@@ -1325,7 +1309,7 @@ const s = StyleSheet.create({
     fontSize: 8,
     fontWeight: "700",
     letterSpacing: 0.5,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
   skillMetaRow: {
     flexDirection: "row",
@@ -1356,9 +1340,9 @@ const s = StyleSheet.create({
     top: 100,
     left: 20,
     right: 20,
-    backgroundColor: C.background,
+    backgroundColor: Ghost.bg.base,
     borderWidth: 1,
-    borderColor: C.terminalGreen,
+    borderColor: Ghost.hairline,
     borderRadius: UI.radius.panel,
     overflow: "hidden",
   },
@@ -1373,7 +1357,7 @@ const s = StyleSheet.create({
   },
   modalTitle: {
     color: C.terminalGreen,
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
     fontSize: 14,
     fontWeight: "700",
     letterSpacing: 1,

@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Bookmark,
   ChevronDown,
   ChevronRight,
   Database,
@@ -11,16 +12,11 @@ import {
 import React, {
   useCallback,
   useEffect,
-  useMemo,
-  useRef,
   useState,
 } from "react";
 import {
   ActivityIndicator,
-  Animated,
-  Dimensions,
   FlatList,
-  PanResponder,
   Image as RNImage,
   ScrollView,
   StyleSheet,
@@ -30,22 +26,18 @@ import {
 } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Line } from "react-native-svg";
 
-import { Colors, Fonts, UI } from "@/constants/theme";
+import { Colors, Fonts, Ghost, Radius, UI } from "@/constants/theme";
 import {
   fetchWorkspaceFilePreview,
   fetchWorkspaceFiles,
   WorkspaceFilePreview,
 } from "../../lib/ghostApi";
 import { useGhostStore } from "../../lib/store";
+import { ConnectionPill, EmptyState, GhostButton } from "@/components/ghost";
 
 const C = Colors.dark;
-const FONT_MONO = Fonts.mono;
-const MAP_MIN_SCALE = 0.65;
-const MAP_MAX_SCALE = 2.7;
-const MAP_CANVAS_MAX_WIDTH = 2200;
-const MAP_CANVAS_MAX_HEIGHT = 1600;
+const FONT_SANS = Fonts.sans;
 
 interface MemFile {
   name: string;
@@ -73,32 +65,6 @@ interface VisibleNode {
   key: string;
   level: number;
   node: TreeNode;
-}
-
-type ViewMode = "tree" | "map";
-
-type MapNodeType = "root" | "folder" | "file";
-
-interface MapNode {
-  id: string;
-  type: MapNodeType;
-  path: string;
-  label: string;
-  depth: number;
-  x: number;
-  y: number;
-}
-
-interface MapEdge {
-  from: string;
-  to: string;
-}
-
-interface WorkspaceMapGraph {
-  nodes: MapNode[];
-  edges: MapEdge[];
-  width: number;
-  height: number;
 }
 
 function formatRelativeTime(unixMs: number): string {
@@ -151,7 +117,7 @@ function buildTree(files: MemFile[]): TreeNode[] {
 
   files.forEach((file) => {
     const normalized = normalizePath(file.name);
-    const parts = normalized.split("/").filter(Boolean);
+    const parts = normalized.split("/").reverse().filter(Boolean);
     if (parts.length === 0) return;
 
     let current = root;
@@ -227,148 +193,6 @@ function countFolderNodes(nodes: TreeNode[]): number {
   return total;
 }
 
-function buildWorkspaceMapGraph(
-  files: MemFile[],
-  lastOpenedFile: string | null,
-): WorkspaceMapGraph {
-  const rootPath = "";
-  const folderSet = new Set<string>();
-  const fileNodes: MemFile[] = [];
-  const includedFileSet = new Set<string>();
-
-  const sortedByRecent = [...files].sort((a, b) => b.modified - a.modified);
-  const maxFiles = 180;
-  sortedByRecent.slice(0, maxFiles).forEach((f) => {
-    includedFileSet.add(normalizePath(f.name));
-    fileNodes.push({ ...f, name: normalizePath(f.name) });
-  });
-  if (lastOpenedFile && !includedFileSet.has(lastOpenedFile)) {
-    const found = files.find((f) => normalizePath(f.name) === lastOpenedFile);
-    if (found) {
-      includedFileSet.add(lastOpenedFile);
-      fileNodes.push({ ...found, name: normalizePath(found.name) });
-    }
-  }
-
-  for (const file of fileNodes) {
-    const parts = file.name.split("/").filter(Boolean);
-    let current = "";
-    for (let i = 0; i < parts.length - 1; i++) {
-      current = current ? `${current}/${parts[i]}` : parts[i];
-      folderSet.add(current);
-    }
-  }
-
-  const edges: MapEdge[] = [];
-  const nodeMeta = new Map<
-    string,
-    { type: MapNodeType; label: string; depth: number; path: string }
-  >();
-  nodeMeta.set("root:", {
-    type: "root",
-    label: "workspace",
-    depth: 0,
-    path: rootPath,
-  });
-
-  for (const folder of folderSet) {
-    const parts = folder.split("/").filter(Boolean);
-    const depth = parts.length;
-    const label = parts[parts.length - 1] || "workspace";
-    const id = `folder:${folder}`;
-    nodeMeta.set(id, { type: "folder", label, depth, path: folder });
-
-    const parentPath = parts.length <= 1 ? "" : parts.slice(0, -1).join("/");
-    const parentId = parentPath ? `folder:${parentPath}` : "root:";
-    edges.push({ from: parentId, to: id });
-  }
-
-  for (const file of fileNodes) {
-    const parts = file.name.split("/").filter(Boolean);
-    const label = parts[parts.length - 1] || file.name;
-    const depth = parts.length;
-    const id = `file:${file.name}`;
-    nodeMeta.set(id, { type: "file", label, depth, path: file.name });
-    const parentPath = parts.length <= 1 ? "" : parts.slice(0, -1).join("/");
-    const parentId = parentPath ? `folder:${parentPath}` : "root:";
-    edges.push({ from: parentId, to: id });
-  }
-
-  const groups = new Map<number, string[]>();
-  for (const [id, meta] of nodeMeta) {
-    if (!groups.has(meta.depth)) groups.set(meta.depth, []);
-    groups.get(meta.depth)?.push(id);
-  }
-
-  let maxDepth = 0;
-  let maxGroupCount = 1;
-  groups.forEach((ids, depth) => {
-    maxDepth = Math.max(maxDepth, depth);
-    maxGroupCount = Math.max(maxGroupCount, ids.length);
-  });
-
-  const screen = Dimensions.get("window");
-  const baseRadius = 120 + maxDepth * 150;
-  const densityExtra = Math.sqrt(maxGroupCount) * 120;
-  const diameter = baseRadius * 2 + densityExtra + 160;
-  const rawWidth = Math.max(screen.width + 80, diameter);
-  const rawHeight = Math.max(screen.height * 0.78, diameter * 0.92);
-  const width = Math.min(MAP_CANVAS_MAX_WIDTH, rawWidth);
-  const height = Math.min(MAP_CANVAS_MAX_HEIGHT, rawHeight);
-  const centerX = width / 2;
-  const centerY = height / 2;
-
-  const nodes: MapNode[] = [];
-  groups.forEach((ids, depth) => {
-    const sorted = [...ids].sort((a, b) => {
-      const am = nodeMeta.get(a);
-      const bm = nodeMeta.get(b);
-      if (!am || !bm) return 0;
-      if (am.type !== bm.type) {
-        if (am.type === "folder") return -1;
-        if (bm.type === "folder") return 1;
-      }
-      return am.label.localeCompare(bm.label);
-    });
-
-    sorted.forEach((id, idx) => {
-      const meta = nodeMeta.get(id);
-      if (!meta) return;
-      if (depth === 0) {
-        nodes.push({
-          id,
-          type: meta.type,
-          path: meta.path,
-          label: meta.label,
-          depth,
-          x: centerX,
-          y: centerY,
-        });
-        return;
-      }
-
-      const count = Math.max(sorted.length, 1);
-      const angleStep = (Math.PI * 2) / count;
-      const angle = -Math.PI / 2 + idx * angleStep;
-      const baseRing = 110 + (depth - 1) * 145;
-      const jitter = ((idx % 3) - 1) * 14;
-      const radius = baseRing + jitter;
-
-      nodes.push({
-        id,
-        type: meta.type,
-        path: meta.path,
-        label: meta.label,
-        depth,
-        x: centerX + Math.cos(angle) * radius,
-        y: centerY + Math.sin(angle) * radius,
-      });
-    });
-  });
-
-  return { nodes, edges, width, height };
-}
-
 export default function MemoryScreen() {
   const insets = useSafeAreaInsets();
   const { config, connectionState } = useGhostStore();
@@ -384,16 +208,6 @@ export default function MemoryScreen() {
   const [filePreviewMeta, setFilePreviewMeta] =
     useState<WorkspaceFilePreview | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("tree");
-  const [mapScale, setMapScale] = useState(1);
-  const [mapViewportSize, setMapViewportSize] = useState({
-    width: 0,
-    height: 0,
-  });
-  const [mapPan] = useState(() => new Animated.ValueXY({ x: 0, y: 0 }));
-  const [mapScaleAnim] = useState(() => new Animated.Value(1));
-  const mapScaleRef = useRef(1);
-  const hasMapInteractedRef = useRef(false);
 
   const loadFiles = useCallback(async () => {
     if (!config) return;
@@ -460,170 +274,20 @@ export default function MemoryScreen() {
     setLoadingFile(false);
   };
 
-  const totalSize = files.reduce((a, f) => a + f.size, 0);
-  const tree = buildTree(files);
-  const visibleNodes = flattenVisibleNodes(tree, expandedFolders);
-  const folderCount = countFolderNodes(tree);
-  const mapGraph = useMemo(
-    () => buildWorkspaceMapGraph(files, lastOpenedFile),
-    [files, lastOpenedFile],
-  );
-  const mapNodeById = useMemo(() => {
-    const index = new Map<string, MapNode>();
-    mapGraph.nodes.forEach((n) => index.set(n.id, n));
-    return index;
-  }, [mapGraph.nodes]);
-
-  useEffect(() => {
-    mapScaleRef.current = mapScale;
-  }, [mapScale]);
-
-  const applyMapFit = useCallback(
-    (animated: boolean) => {
-      if (mapViewportSize.width <= 0 || mapViewportSize.height <= 0) return;
-      const viewportPad = 24;
-      const fitW = (mapViewportSize.width - viewportPad) / mapGraph.width;
-      const fitH = (mapViewportSize.height - viewportPad) / mapGraph.height;
-      const nextScale = Math.min(
-        MAP_MAX_SCALE,
-        Math.max(MAP_MIN_SCALE, Math.min(fitW, fitH, 1.18)),
-      );
-      const offsetX = (mapViewportSize.width - mapGraph.width * nextScale) / 2;
-      const offsetY =
-        (mapViewportSize.height - mapGraph.height * nextScale) / 2;
-
-      if (animated) {
-        mapPan.stopAnimation((value: any) => {
-          mapPan.setOffset({ x: value.x, y: value.y });
-          mapPan.setValue({ x: 0, y: 0 });
-          mapPan.flattenOffset();
-          Animated.timing(mapPan, {
-            toValue: { x: offsetX, y: offsetY },
-            duration: 180,
-            useNativeDriver: true,
-          }).start();
-        });
-        Animated.timing(mapScaleAnim, {
-          toValue: nextScale,
-          duration: 180,
-          useNativeDriver: true,
-        }).start();
-      } else {
-        mapPan.stopAnimation();
-        mapPan.setOffset({ x: 0, y: 0 });
-        mapPan.setValue({ x: offsetX, y: offsetY });
-        mapScaleAnim.setValue(nextScale);
-      }
-
-      mapScaleRef.current = nextScale;
-      setMapScale(nextScale);
-    },
-    [
-      mapGraph.height,
-      mapGraph.width,
-      mapPan,
-      mapScaleAnim,
-      mapViewportSize.height,
-      mapViewportSize.width,
-    ],
-  );
-
-  useEffect(() => {
-    if (viewMode !== "map") return;
-    hasMapInteractedRef.current = false;
-  }, [viewMode]);
-
-  useEffect(() => {
-    if (viewMode !== "map") return;
-    if (hasMapInteractedRef.current) return;
-    applyMapFit(false);
-  }, [applyMapFit, mapViewportSize.height, mapViewportSize.width, viewMode]);
-
-  const mapPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_: any, gesture: any) =>
-          Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
-        onPanResponderGrant: () => {
-          hasMapInteractedRef.current = true;
-          mapPan.stopAnimation((value: any) => {
-            mapPan.setOffset({ x: value.x, y: value.y });
-            mapPan.setValue({ x: 0, y: 0 });
-          });
-        },
-        onPanResponderMove: (_: any, gesture: any) => {
-          mapPan.setValue({ x: gesture.dx, y: gesture.dy });
-        },
-        onPanResponderRelease: () => {
-          mapPan.flattenOffset();
-        },
-        onPanResponderTerminate: () => {
-          mapPan.flattenOffset();
-        },
-      }),
-    [mapPan],
-  );
-
-  const zoomIn = () => {
-    hasMapInteractedRef.current = true;
-    const next = Math.min(MAP_MAX_SCALE, mapScaleRef.current + 0.2);
-    setMapScale(next);
-    Animated.timing(mapScaleAnim, {
-      toValue: next,
-      duration: 140,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const zoomOut = () => {
-    hasMapInteractedRef.current = true;
-    const next = Math.max(MAP_MIN_SCALE, mapScaleRef.current - 0.2);
-    setMapScale(next);
-    Animated.timing(mapScaleAnim, {
-      toValue: next,
-      duration: 140,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const resetMapView = () => {
-    hasMapInteractedRef.current = false;
-    applyMapFit(true);
-  };
-
   const toggleFolder = (path: string) => {
     setExpandedFolders((prev) => ({ ...prev, [path]: !prev[path] }));
   };
-
-  const breadcrumbParts = lastOpenedFile
-    ? normalizePath(lastOpenedFile).split("/").filter(Boolean)
-    : [];
-  const statusColor =
-    connectionState === "online"
-      ? C.terminalGreen
-      : connectionState === "syncing"
-        ? C.terminalAmber
-        : C.error;
-  const statusLabel =
-    connectionState === "online"
-      ? "ONLINE"
-      : connectionState === "syncing"
-        ? "SYNCING"
-        : "OFFLINE";
 
   if (!config) {
     return (
       <View
         style={[styles.container, styles.centered, { paddingTop: insets.top }]}
       >
-        <Database
-          size={48}
-          color={C.terminalGreen}
-          style={{ marginBottom: 14 }}
+        <EmptyState
+          icon={<Bookmark size={34} color={Ghost.accent} />}
+          title="You’re not connected"
+          subtitle="Connect to your Ghost to see what it remembers."
         />
-        <Text style={styles.noConfigTitle}>Offline</Text>
-        <Text style={styles.noConfigSub}>Configure connection in Settings</Text>
       </View>
     );
   }
@@ -644,11 +308,11 @@ export default function MemoryScreen() {
             }}
             style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <ArrowLeft size={16} color={C.terminalGreen} />
+            <ArrowLeft size={18} color={Ghost.text.secondary} />
             <Text style={styles.backBtn}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerFile} numberOfLines={1}>
-            {selectedFile}
+            {selectedFile.split("/").pop()}
           </Text>
         </View>
         {filePreviewMeta && (
@@ -672,7 +336,7 @@ export default function MemoryScreen() {
         )}
         {loadingFile ? (
           <ActivityIndicator
-            color={C.terminalGreen}
+            color={Ghost.accent}
             style={{ marginTop: 40 }}
           />
         ) : fileImageURI ? (
@@ -698,293 +362,117 @@ export default function MemoryScreen() {
     );
   }
 
+  const tree = buildTree(files);
+  const visibleNodes = flattenVisibleNodes(tree, expandedFolders);
+  const folderCount = countFolderNodes(tree);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Database size={20} color={C.terminalGreen} />
-          <Text style={styles.headerTitle}>Workspace</Text>
+          <Bookmark size={20} color={Ghost.accent} />
+          <Text style={styles.headerTitle}>Memory</Text>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusText, { color: statusColor }]}>
-            {statusLabel}
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <ConnectionPill
+            connected={connectionState === "online"}
+            degraded={connectionState === "syncing"}
+          />
           <TouchableOpacity
             onPress={loadFiles}
             disabled={loading}
             style={styles.refreshBtnWrap}
           >
             {loading ? (
-              <ActivityIndicator color={C.terminalGreen} size="small" />
+              <ActivityIndicator color={Ghost.accent} size="small" />
             ) : (
-              <RefreshCw size={14} color={C.terminalGreen} />
+              <RefreshCw size={16} color={Ghost.text.secondary} />
             )}
           </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.content}>
-        <View style={styles.statsCard}>
-          <View style={styles.modeSwitch}>
-            <TouchableOpacity
-              onPress={() => setViewMode("tree")}
-              style={[
-                styles.modeBtn,
-                viewMode === "tree" && styles.modeBtnActive,
-              ]}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.modeBtnText,
-                  viewMode === "tree" && styles.modeBtnTextActive,
-                ]}
-              >
-                TREE
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setViewMode("map")}
-              style={[
-                styles.modeBtn,
-                viewMode === "map" && styles.modeBtnActive,
-              ]}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.modeBtnText,
-                  viewMode === "map" && styles.modeBtnTextActive,
-                ]}
-              >
-                MAP
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.metaPill}>
-            <Text style={styles.metaPillText}>{files.length} files</Text>
-          </View>
-          <View style={styles.metaPill}>
-            <Text style={styles.metaPillText}>{folderCount} folders</Text>
-          </View>
-          <View style={styles.metaPill}>
-            <Text style={styles.metaPillText}>{formatSize(totalSize)}</Text>
-          </View>
-        </View>
 
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryText}>
+          {files.length} {files.length === 1 ? "memory" : "memories"}
+          {folderCount > 0 ? ` · ${folderCount} folders` : ""}
+        </Text>
+      </View>
+
+      <View style={styles.content}>
         {loading ? (
-          <ActivityIndicator
-            color={C.terminalGreen}
-            style={{ marginTop: 40 }}
-          />
+          <ActivityIndicator color={Ghost.accent} style={{ marginTop: 40 }} />
         ) : files.length === 0 ? (
           <View style={styles.centered}>
-            <Text
-              style={{ color: C.icon, fontSize: 14, fontFamily: FONT_MONO }}
-            >
-              No workspace files found
-            </Text>
+            <Text style={styles.emptyText}>Nothing remembered yet.</Text>
           </View>
         ) : (
-          <>
-            {breadcrumbParts.length > 0 && (
-              <View style={styles.breadcrumbWrap}>
-                <ScrollView
-                  horizontal
-                  style={styles.breadcrumbScroll}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.breadcrumbRow}
+          <FlatList
+            data={visibleNodes}
+            keyExtractor={(item) => item.key}
+            style={styles.treeList}
+            renderItem={({ item }) =>
+              item.node.type === "folder" ? (
+                <TouchableOpacity
+                  style={[
+                    styles.treeRow,
+                    { paddingLeft: 16 + item.level * 16 },
+                  ]}
+                  onPress={() => toggleFolder(item.node.path)}
+                  activeOpacity={0.7}
                 >
-                  {breadcrumbParts.map((part, idx) => (
-                    <View key={`${part}-${idx}`} style={styles.breadcrumbChip}>
-                      <Text style={styles.breadcrumbText}>{part}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {viewMode === "tree" ? (
-              <FlatList
-                data={visibleNodes}
-                keyExtractor={(item) => item.key}
-                style={styles.treeList}
-                renderItem={({ item }) =>
-                  item.node.type === "folder" ? (
-                    <TouchableOpacity
-                      style={[
-                        styles.treeRow,
-                        { paddingLeft: 12 + item.level * 16 },
-                      ]}
-                      onPress={() => toggleFolder(item.node.path)}
-                      activeOpacity={0.7}
-                    >
-                      {expandedFolders[item.node.path] ? (
-                        <ChevronDown size={14} color={C.icon} />
-                      ) : (
-                        <ChevronRight size={14} color={C.icon} />
-                      )}
-                      {expandedFolders[item.node.path] ? (
-                        <FolderOpen size={16} color={C.terminalGreen} />
-                      ) : (
-                        <Folder size={16} color={C.terminalGreen} />
-                      )}
-                      <Text style={styles.treeFolderName} numberOfLines={1}>
-                        {item.node.name}
-                      </Text>
-                    </TouchableOpacity>
+                  {expandedFolders[item.node.path] ? (
+                    <ChevronDown size={16} color={Ghost.text.secondary} />
                   ) : (
-                    <TouchableOpacity
-                      style={[
-                        styles.treeRow,
-                        { paddingLeft: 12 + item.level * 16 },
-                        item.node.path === lastOpenedFile &&
-                          styles.treeRowActive,
-                      ]}
-                      onPress={() => openFile(item.node.path)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.treeSpacer} />
-                      <FileText
-                        size={14}
-                        color={
-                          item.node.path === lastOpenedFile
-                            ? C.terminalGreen
-                            : C.icon
-                        }
-                      />
-                      <View style={styles.fileInfo}>
-                        <Text style={styles.fileName} numberOfLines={1}>
-                          {item.node.name}
-                        </Text>
-                        <View style={styles.fileMeta}>
-                          <Text style={styles.fileMetaText}>
-                            {formatRelativeTime(item.node.file.modified * 1000)}
-                          </Text>
-                          <Text style={styles.fileMetaDot}>·</Text>
-                          <Text style={styles.fileMetaText}>
-                            {formatSize(item.node.file.size)}
-                          </Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  )
-                }
-                contentContainerStyle={styles.treeContent}
-              />
-            ) : (
-              <View style={styles.mapCard}>
-                <View style={styles.mapToolbar}>
-                  <Text style={styles.mapHintText}>
-                    Use + / − to zoom • drag to pan
+                    <ChevronRight size={16} color={Ghost.text.secondary} />
+                  )}
+                  {expandedFolders[item.node.path] ? (
+                    <FolderOpen size={16} color={Ghost.accent} />
+                  ) : (
+                    <Folder size={16} color={Ghost.text.secondary} />
+                  )}
+                  <Text style={styles.treeFolderName} numberOfLines={1}>
+                    {item.node.name}
                   </Text>
-                  <View style={styles.mapToolbarActions}>
-                    <TouchableOpacity
-                      style={styles.mapToolBtn}
-                      onPress={zoomOut}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.mapToolBtnText}>−</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.mapToolBtn}
-                      onPress={zoomIn}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.mapToolBtnText}>+</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.mapToolBtn}
-                      onPress={resetMapView}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.mapToolBtnText}>RESET</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View
-                  style={styles.mapViewport}
-                  onLayout={(e) =>
-                    setMapViewportSize({
-                      width: e.nativeEvent.layout.width,
-                      height: e.nativeEvent.layout.height,
-                    })
-                  }
-                  {...mapPanResponder.panHandlers}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.treeRow,
+                    { paddingLeft: 16 + item.level * 16 },
+                    item.node.path === lastOpenedFile && styles.treeRowActive,
+                  ]}
+                  onPress={() => openFile(item.node.path)}
+                  activeOpacity={0.7}
                 >
-                  <Animated.View
-                    style={{
-                      transform: [
-                        ...mapPan.getTranslateTransform(),
-                        { scale: mapScaleAnim },
-                      ],
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.mapCanvas,
-                        { width: mapGraph.width, height: mapGraph.height },
-                      ]}
-                    >
-                      <Svg style={StyleSheet.absoluteFill}>
-                        {mapGraph.edges.map((edge) => {
-                          const from = mapNodeById.get(edge.from);
-                          const to = mapNodeById.get(edge.to);
-                          if (!from || !to) return null;
-                          return (
-                            <Line
-                              key={`${edge.from}->${edge.to}`}
-                              x1={from.x}
-                              y1={from.y}
-                              x2={to.x}
-                              y2={to.y}
-                              stroke="rgba(74,222,128,0.22)"
-                              strokeWidth={1}
-                            />
-                          );
-                        })}
-                      </Svg>
-
-                      {mapGraph.nodes.map((node) => {
-                        const isFile = node.type === "file";
-                        const isRoot = node.type === "root";
-                        const isActive = isFile && node.path === lastOpenedFile;
-                        return (
-                          <TouchableOpacity
-                            key={node.id}
-                            activeOpacity={isFile ? 0.85 : 1}
-                            onPress={
-                              isFile ? () => openFile(node.path) : undefined
-                            }
-                            style={[
-                              styles.mapNode,
-                              isRoot && styles.mapNodeRoot,
-                              node.type === "folder" && styles.mapNodeFolder,
-                              isFile && styles.mapNodeFile,
-                              isActive && styles.mapNodeActive,
-                              { left: node.x, top: node.y },
-                            ]}
-                          >
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.mapNodeText,
-                                isRoot && styles.mapNodeTextRoot,
-                                isActive && styles.mapNodeTextActive,
-                              ]}
-                            >
-                              {node.label}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
+                  <View style={styles.treeSpacer} />
+                  <FileText
+                    size={15}
+                    color={
+                      item.node.path === lastOpenedFile
+                        ? Ghost.accent
+                        : Ghost.text.secondary
+                    }
+                  />
+                  <View style={styles.fileInfo}>
+                    <Text style={styles.fileName} numberOfLines={1}>
+                      {item.node.name}
+                    </Text>
+                    <View style={styles.fileMeta}>
+                      <Text style={styles.fileMetaText}>
+                        {formatRelativeTime(item.node.file.modified * 1000)}
+                      </Text>
+                      <Text style={styles.fileMetaDot}>·</Text>
+                      <Text style={styles.fileMetaText}>
+                        {formatSize(item.node.file.size)}
+                      </Text>
                     </View>
-                  </Animated.View>
-                </View>
-              </View>
-            )}
-          </>
+                  </View>
+                </TouchableOpacity>
+              )
+            }
+            contentContainerStyle={styles.treeContent}
+          />
         )}
       </View>
     </View>
@@ -992,306 +480,128 @@ export default function MemoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  content: { padding: UI.spacing.section, gap: UI.spacing.section },
-  statsCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-    backgroundColor: C.card,
-    borderRadius: UI.radius.panel,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: UI.spacing.card,
-  },
-  modeSwitch: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: UI.radius.bubble,
-    overflow: "hidden",
-    marginRight: 2,
-  },
-  modeBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: C.background,
-  },
-  modeBtnActive: {
-    backgroundColor: "rgba(74, 222, 128, 0.15)",
-  },
-  modeBtnText: {
-    color: C.icon,
-    fontFamily: FONT_MONO,
-    fontSize: 11,
-    letterSpacing: 0.7,
-    fontWeight: "700",
-  },
-  modeBtnTextActive: {
-    color: C.terminalGreen,
-  },
-  refreshBtnWrap: {
-    width: 24,
-    height: 24,
-    alignItems: "center",
+  container: { flex: 1, backgroundColor: Ghost.bg.base },
+  centered: {
+    flex: 1,
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: UI.radius.bubble,
-    backgroundColor: C.card,
+    alignItems: "center",
+    paddingHorizontal: 32,
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusText: {
-    fontFamily: FONT_MONO,
-    fontSize: UI.typography.status,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  metaPill: {
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: UI.radius.bubble,
-    backgroundColor: C.background,
-  },
-  metaPillText: {
-    color: C.icon,
-    fontFamily: FONT_MONO,
-    fontSize: 11,
-    letterSpacing: 0.4,
-  },
+  content: { flex: 1, paddingHorizontal: UI.spacing.screenX },
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: UI.spacing.screenX,
-    paddingVertical: UI.spacing.headerY,
+    paddingVertical: UI.spacing.headerY + 4,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: Ghost.hairline,
   },
   headerTitle: {
-    fontFamily: FONT_MONO,
-    fontSize: 16,
-    fontWeight: "700",
-    color: C.terminalGreen,
-    letterSpacing: 1,
-  },
-  headerSub: {
-    color: C.icon,
-    fontSize: 11,
-    marginTop: 4,
-    maxWidth: "80%",
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
+    fontSize: 20,
+    fontWeight: "600",
+    color: Ghost.text.primary,
   },
   headerFile: {
-    color: C.text,
-    fontSize: 14,
-    fontFamily: FONT_MONO,
+    color: Ghost.text.primary,
+    fontSize: 15,
+    fontFamily: FONT_SANS,
     flex: 1,
     marginLeft: 12,
   },
   backBtn: {
-    color: C.terminalGreen,
+    color: Ghost.text.secondary,
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: FONT_SANS,
+  },
+  summaryRow: {
+    paddingHorizontal: UI.spacing.screenX,
+    paddingVertical: UI.spacing.headerY,
+  },
+  summaryText: {
+    color: Ghost.text.tertiary,
     fontSize: 13,
-    fontWeight: "700",
-    fontFamily: FONT_MONO,
+    fontFamily: FONT_SANS,
   },
-  refreshBtn: {
-    color: C.terminalGreen,
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  breadcrumbWrap: {
-    borderRadius: UI.radius.panel,
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
-    minHeight: 36,
-    justifyContent: "center",
-  },
-  breadcrumbScroll: {
-    maxHeight: 40,
-  },
-  breadcrumbRow: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    gap: 6,
+  refreshBtnWrap: {
+    width: 30,
+    height: 30,
     alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: Ghost.bg.surface2,
   },
-  breadcrumbChip: {
+  previewMetaRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: UI.spacing.screenX,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Ghost.hairline,
+  },
+  metaPill: {
     borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    borderColor: Ghost.hairline,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: Ghost.bg.surface2,
   },
-  breadcrumbText: {
-    color: C.icon,
-    fontFamily: FONT_MONO,
-    fontSize: 10,
-    letterSpacing: 0.5,
+  metaPillText: {
+    color: Ghost.text.secondary,
+    fontFamily: FONT_SANS,
+    fontSize: 12,
+  },
+  emptyText: {
+    color: Ghost.text.secondary,
+    fontSize: 15,
+    fontFamily: FONT_SANS,
   },
   treeList: {
+    flex: 1,
     borderRadius: UI.radius.panel,
     borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
+    borderColor: Ghost.hairline,
+    backgroundColor: Ghost.bg.surface,
   },
   treeContent: { paddingVertical: 4 },
   treeRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingRight: 12,
-    paddingVertical: 8,
-    gap: 8,
+    paddingRight: 16,
+    paddingVertical: 10,
+    gap: 10,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    minHeight: 34,
+    borderBottomColor: Ghost.hairline,
+    minHeight: 40,
   },
   treeRowActive: {
-    backgroundColor: "rgba(74, 222, 128, 0.14)",
-    borderLeftWidth: 2,
-    borderLeftColor: C.terminalGreen,
+    backgroundColor: Ghost.accentSoft,
   },
   treeSpacer: {
     width: 12,
   },
   treeFolderName: {
-    color: C.text,
-    fontSize: 13,
-    fontFamily: FONT_MONO,
+    color: Ghost.text.primary,
+    fontSize: 15,
+    fontFamily: FONT_SANS,
     flex: 1,
   },
   fileInfo: { flex: 1, gap: 3 },
   fileName: {
-    color: C.text,
-    fontSize: 13,
-    fontFamily: FONT_MONO,
+    color: Ghost.text.primary,
+    fontSize: 15,
+    fontFamily: FONT_SANS,
   },
   fileMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  fileMetaText: { color: C.icon, fontSize: 11, fontFamily: FONT_MONO },
-  fileMetaDot: { color: C.icon, fontSize: 11 },
-  mapCard: {
-    borderRadius: UI.radius.panel,
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
-    minHeight: 360,
-    overflow: "hidden",
+  fileMetaText: {
+    color: Ghost.text.tertiary,
+    fontSize: 12,
+    fontFamily: FONT_SANS,
   },
-  mapToolbar: {
-    minHeight: 38,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    backgroundColor: C.background,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  mapHintText: {
-    color: C.icon,
-    fontFamily: FONT_MONO,
-    fontSize: 10,
-    letterSpacing: 0.4,
-    flex: 1,
-  },
-  mapToolbarActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  mapToolBtn: {
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
-    minWidth: 30,
-    height: 24,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: UI.radius.bubble,
-  },
-  mapToolBtnText: {
-    color: C.terminalGreen,
-    fontFamily: FONT_MONO,
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  mapViewport: {
-    minHeight: 320,
-    backgroundColor: "#060806",
-    overflow: "hidden",
-  },
-  mapCanvas: {
-    backgroundColor: "#060806",
-  },
-  mapNode: {
-    position: "absolute",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: "rgba(74,222,128,0.28)",
-    backgroundColor: "rgba(8,20,12,0.72)",
-    transform: [{ translateX: -36 }, { translateY: -11 }],
-    minWidth: 72,
-    shadowColor: "#4ADE80",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 2,
-  },
-  mapNodeRoot: {
-    borderColor: "rgba(74,222,128,0.7)",
-    backgroundColor: "rgba(18,44,24,0.95)",
-    transform: [{ translateX: -42 }, { translateY: -12 }],
-    minWidth: 84,
-  },
-  mapNodeFolder: {
-    borderColor: "rgba(96,165,250,0.55)",
-    backgroundColor: "rgba(14,24,36,0.82)",
-  },
-  mapNodeFile: {
-    borderColor: "rgba(74,222,128,0.24)",
-  },
-  mapNodeActive: {
-    borderColor: C.terminalGreen,
-    backgroundColor: "rgba(22,52,30,0.95)",
-  },
-  mapNodeText: {
-    color: "rgba(226,232,240,0.94)",
-    fontFamily: FONT_MONO,
-    fontSize: 10,
-    letterSpacing: 0.4,
-  },
-  mapNodeTextRoot: {
-    color: C.terminalGreen,
-    fontWeight: "700",
-    letterSpacing: 0.7,
-  },
-  mapNodeTextActive: {
-    color: C.terminalGreen,
-    fontWeight: "700",
-  },
-  previewMetaRow: {
-    flexDirection: "row",
-    gap: 6,
-    paddingHorizontal: UI.spacing.screenX,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
+  fileMetaDot: { color: Ghost.text.tertiary, fontSize: 12 },
   fileScroll: { flex: 1 },
   imagePreviewContent: {
     padding: 16,
@@ -1303,78 +613,66 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 420,
     borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
+    borderColor: Ghost.hairline,
+    backgroundColor: Ghost.bg.surface,
     borderRadius: UI.radius.panel,
   },
   fileContent: { padding: 18 },
-  noConfigTitle: {
-    color: C.terminalGreen,
-    fontSize: 18,
-    fontWeight: "700",
-    fontFamily: FONT_MONO,
-  },
-  noConfigSub: {
-    color: C.icon,
-    fontSize: 13,
-    marginTop: 8,
-    fontFamily: FONT_MONO,
-  },
 });
 
 const mdStyles = {
   body: {
-    color: C.text,
-    fontSize: 14,
-    lineHeight: 22,
-    fontFamily: FONT_MONO,
+    color: Ghost.text.primary,
+    fontSize: 15,
+    lineHeight: 23,
+    fontFamily: FONT_SANS,
   } as any,
   heading1: {
-    color: C.terminalGreen,
+    color: Ghost.text.primary,
     fontWeight: "800" as const,
-    fontSize: 18,
+    fontSize: 20,
     marginBottom: 8,
   },
   heading2: {
-    color: C.terminalGreen,
+    color: Ghost.text.primary,
     fontWeight: "700" as const,
-    fontSize: 16,
+    fontSize: 17,
     marginBottom: 6,
   },
   heading3: {
-    color: C.text,
+    color: Ghost.text.primary,
     fontWeight: "600" as const,
-    fontSize: 14,
+    fontSize: 15,
     marginBottom: 4,
   },
   code_inline: {
-    backgroundColor: "rgba(74, 222, 128, 0.1)",
-    color: C.terminalGreen,
-    fontFamily: FONT_MONO,
-    borderRadius: 0,
-    paddingHorizontal: 4,
+    backgroundColor: Ghost.bg.surface2,
+    color: Ghost.text.primary,
+    fontFamily: Fonts.mono,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 5,
     fontSize: 13,
   } as any,
   fence: {
-    backgroundColor: C.card,
-    borderRadius: 0,
+    backgroundColor: Ghost.bg.surface2,
+    borderRadius: Radius.sm,
     padding: 12,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: Ghost.hairline,
   } as any,
   code_block: {
-    color: C.terminalGreen,
-    fontFamily: FONT_MONO,
+    color: Ghost.text.primary,
+    fontFamily: Fonts.mono,
     fontSize: 13,
   } as any,
-  link: { color: C.terminalGreen, textDecorationLine: "underline" } as any,
-  strong: { color: C.text, fontWeight: "700" as const },
+  link: { color: Ghost.accent, textDecorationLine: "underline" } as any,
+  strong: { color: Ghost.text.primary, fontWeight: "700" as const },
   blockquote: {
     borderLeftWidth: 3,
-    borderLeftColor: C.terminalGreen,
+    borderLeftColor: Ghost.accent,
     paddingLeft: 10,
-    opacity: 0.8,
+    opacity: 0.85,
   } as any,
-  hr: { backgroundColor: C.border, height: 1 } as any,
-  list_item: { color: C.text, fontSize: 14, fontFamily: FONT_MONO } as any,
+  hr: { backgroundColor: Ghost.hairline, height: 1 } as any,
+  list_item: { color: Ghost.text.primary, fontSize: 15, fontFamily: FONT_SANS } as any,
 };
