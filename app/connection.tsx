@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { View, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { GhostText } from "@/components/themed-text";
@@ -11,32 +10,33 @@ import {
 } from "@/components/ghost";
 import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
 import { useGhostStore } from "@/lib/store";
-import { checkHealthDebug, ConnectionDebugResult } from "@/lib/ghostApi";
 import { reconnect, disconnectAndClear } from "@/lib/connection";
 
 const FONT = Fonts.sans;
 
+/**
+ * Connection settings screen.
+ * More → Connection.
+ * Restrained — no CPU, RAM, disk, IP, port, hostname.
+ */
 export default function ConnectionScreen() {
   const router = useRouter();
-  const config = useGhostStore((s) => s.config);
   const connectionState = useGhostStore((s) => s.connectionState);
-  const [debug, setDebug] = useState<ConnectionDebugResult | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  const isOnline = connectionState === "online";
 
   const handleReconnect = async () => {
-    setLoading(true);
     await reconnect();
-    setLoading(false);
   };
 
-  const handleDisconnect = () => {
+  const handlePairAnother = () => {
     Alert.alert(
-      "Disconnect",
-      "Remove all stored credentials? You'll need to pair again.",
+      "Pair another Ghost?",
+      "This will disconnect this phone from the current Ghost.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Disconnect",
+          text: "Continue",
           style: "destructive",
           onPress: async () => {
             await disconnectAndClear();
@@ -45,14 +45,6 @@ export default function ConnectionScreen() {
         },
       ],
     );
-  };
-
-  const handleDebug = async () => {
-    if (!config) return;
-    setLoading(true);
-    const result = await checkHealthDebug(config);
-    setDebug(result);
-    setLoading(false);
   };
 
   return (
@@ -64,34 +56,33 @@ export default function ConnectionScreen() {
         Connection
       </GhostText>
 
-      <SectionHeader title="Status" />
+      <SectionHeader title="Ghost Pod" />
       <View style={styles.card}>
         <View style={styles.statusRow}>
           <StatusDot
-            status={
-              connectionState === "online"
-                ? "online"
-                : connectionState === "syncing"
-                  ? "warning"
-                  : "offline"
-            }
+            status={isOnline ? "online" : connectionState === "syncing" ? "warning" : "offline"}
           />
           <View>
             <GhostText type="body" style={styles.statusText}>
-              {connectionState === "online"
-                ? "Connected"
+              Ghost
+            </GhostText>
+            <GhostText type="caption" style={styles.statusLabel}>
+              {isOnline
+                ? "Online"
                 : connectionState === "syncing"
                   ? "Connecting…"
-                  : "Disconnected"}
+                  : "Offline"}
             </GhostText>
-            {config && (
-              <GhostText type="caption" style={styles.subtext}>
-                {config.transport === "relay" ? "Relay" : "Local network"} ·{" "}
-                {config.piHost}:{config.piPort}
-              </GhostText>
-            )}
           </View>
         </View>
+
+        {!isOnline && (
+          <View style={styles.offlineMessage}>
+            <GhostText type="body" style={styles.offlineText}>
+              I can't reach your Ghost Pod right now.
+            </GhostText>
+          </View>
+        )}
       </View>
 
       <SectionHeader title="Actions" />
@@ -99,50 +90,30 @@ export default function ConnectionScreen() {
         <GhostList>
           <GhostRow
             title="Reconnect"
-            subtitle="Attempt to restore connection"
+            subtitle="Retry the existing connection"
             onPress={handleReconnect}
             chevron={false}
           />
           <GhostRow
-            title="Run diagnostics"
-            subtitle="Check connectivity to Ghost Pod"
-            onPress={handleDebug}
-            chevron={false}
-          />
-          <GhostRow
-            title="Disconnect"
-            subtitle="Remove stored credentials"
-            onPress={handleDisconnect}
+            title="Pair another Ghost"
+            subtitle="Connect to a different Ghost Pod"
+            onPress={handlePairAnother}
             chevron={false}
           />
         </GhostList>
       </View>
 
-      {debug && (
-        <View>
-          <SectionHeader title="Diagnostics" />
-          <View style={styles.card}>
-            <GhostText type="caption" style={styles.debugLabel}>
-              {debug.ok ? "Reachable" : "Unreachable"}
-            </GhostText>
-            {debug.latencyMs != null && (
-              <GhostText type="caption" style={styles.debugLabel}>
-                Latency: {debug.latencyMs}ms
-              </GhostText>
-            )}
-            {debug.status != null && (
-              <GhostText type="caption" style={styles.debugLabel}>
-                HTTP {debug.status} {debug.statusText}
-              </GhostText>
-            )}
-            {debug.error && (
-              <GhostText type="caption" style={[styles.debugLabel, { color: Ghost.status.error }]}>
-                {debug.error}
-              </GhostText>
-            )}
-          </View>
-        </View>
-      )}
+      <SectionHeader title="Advanced" />
+      <View style={styles.card}>
+        <GhostList>
+          <GhostRow
+            title="Advanced settings"
+            subtitle="Connection details, diagnostics"
+            onPress={() => router.push("/advanced")}
+            chevron
+          />
+        </GhostList>
+      </View>
     </ScrollView>
   );
 }
@@ -170,19 +141,24 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   statusText: {
-    fontSize: 16,
     fontFamily: FONT,
     color: Ghost.text.primary,
+    fontWeight: "500",
   },
-  subtext: {
+  statusLabel: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
     marginTop: 2,
-    opacity: 0.5,
-    fontFamily: FONT,
-    color: Ghost.text.secondary,
   },
-  debugLabel: {
-    marginBottom: 4,
+  offlineMessage: {
+    marginTop: Space.md,
+    paddingTop: Space.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Ghost.border.subtle,
+  },
+  offlineText: {
     fontFamily: FONT,
     color: Ghost.text.secondary,
+    fontStyle: "italic",
   },
 });

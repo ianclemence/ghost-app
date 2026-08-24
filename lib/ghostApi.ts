@@ -483,9 +483,11 @@ export async function redeemPairing(
   cfg: GhostConfig,
   token: string,
 ): Promise<PairingRedeemResult> {
+  // Pairing/redeem is a public endpoint — no auth headers needed.
+  // The token itself is the authorization.
   const res = await fetch(`${baseURL(cfg)}/v1/pairing/redeem`, {
     method: "POST",
-    headers: headers(cfg),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
   });
   if (!res.ok) throw new Error(`Failed to redeem pairing (HTTP ${res.status})`);

@@ -2,24 +2,41 @@ import { useState, useEffect } from "react";
 import { View, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { GhostText } from "@/components/themed-text";
-import {
-  GhostButton,
-  GhostList,
-  GhostRow,
-  SectionHeader,
-} from "@/components/ghost";
+import { GhostButton, GhostList, GhostRow, SectionHeader } from "@/components/ghost";
 import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
 import { useGhostStore } from "@/lib/store";
 import { checkHealthDebug, ConnectionDebugResult } from "@/lib/ghostApi";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
+import { getDeviceCredential, getConnectionMeta, clearAllCredentials } from "@/lib/credentials";
 
 const FONT = Fonts.sans;
 
+/**
+ * Advanced connection settings.
+ * For troubleshooting and development.
+ * Normal users should never need this.
+ */
 export default function AdvancedScreen() {
   const router = useRouter();
   const config = useGhostStore((s) => s.config);
   const [debug, setDebug] = useState<ConnectionDebugResult | null>(null);
+  const [meta, setMeta] = useState<{ host: string; port: string; transport: string; deviceId: string } | null>(null);
+
+  useEffect(() => {
+    loadMeta();
+  }, []);
+
+  const loadMeta = async () => {
+    const connMeta = await getConnectionMeta();
+    const cred = await getDeviceCredential();
+    if (connMeta) {
+      setMeta({
+        host: connMeta.host,
+        port: connMeta.port,
+        transport: connMeta.transport === "relay" ? "Relay" : "Local network",
+        deviceId: cred?.deviceID ? cred.deviceID.slice(0, 8) + "…" : "—",
+      });
+    }
+  };
 
   const handleDebug = async () => {
     if (!config) return;
@@ -37,10 +54,7 @@ export default function AdvancedScreen() {
           text: "Clear",
           style: "destructive",
           onPress: async () => {
-            await AsyncStorage.clear();
-            await SecureStore.deleteItemAsync("ghost.device_id");
-            await SecureStore.deleteItemAsync("ghost.credential");
-            await SecureStore.deleteItemAsync("ghost.client_token");
+            await clearAllCredentials();
             router.replace("/onboarding");
           },
         },
@@ -59,18 +73,17 @@ export default function AdvancedScreen() {
 
       <SectionHeader title="Connection details" />
       <View style={styles.card}>
-        <GhostText type="caption" style={styles.detailText}>
-          Transport: {config?.transport === "relay" ? "Relay" : "LAN"}
-        </GhostText>
-        <GhostText type="caption" style={styles.detailText}>
-          Host: {config?.piHost ?? "—"}
-        </GhostText>
-        <GhostText type="caption" style={styles.detailText}>
-          Port: {config?.piPort ?? "—"}
-        </GhostText>
-        <GhostText type="caption" style={styles.detailText}>
-          Device credentials: {config?.deviceID ? "Stored" : "None"}
-        </GhostText>
+        {meta ? (
+          <>
+            <DetailRow label="Transport" value={meta.transport} />
+            <DetailRow label="Endpoint" value={`${meta.host}:${meta.port}`} />
+            <DetailRow label="Device" value={meta.deviceId} />
+          </>
+        ) : (
+          <GhostText type="body" style={styles.emptyText}>
+            No connection data available.
+          </GhostText>
+        )}
       </View>
 
       <SectionHeader title="Diagnostics" />
@@ -117,6 +130,30 @@ export default function AdvancedScreen() {
   );
 }
 
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={detailStyles.row}>
+      <GhostText type="caption" style={detailStyles.label}>{label}</GhostText>
+      <GhostText type="body" style={detailStyles.value}>{value}</GhostText>
+    </View>
+  );
+}
+
+const detailStyles = StyleSheet.create({
+  row: {
+    paddingVertical: Space.sm,
+  },
+  label: {
+    fontFamily: Fonts.sans,
+    color: Ghost.text.tertiary,
+    marginBottom: 2,
+  },
+  value: {
+    fontFamily: Fonts.sans,
+    color: Ghost.text.primary,
+  },
+});
+
 const styles = StyleSheet.create({
   container: {
     padding: Space.xl,
@@ -134,21 +171,28 @@ const styles = StyleSheet.create({
     backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.lg,
   },
-  detailText: {
-    marginBottom: 4,
+  emptyText: {
     fontFamily: FONT,
     color: Ghost.text.secondary,
+    opacity: 0.5,
+    textAlign: "center",
+    paddingVertical: Space.sm,
   },
   debugResult: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: Space.md,
+    paddingTop: Space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Ghost.border.subtle,
   },
+  detailText: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+    marginBottom: 4,
+  },
   hint: {
-    marginTop: 8,
-    opacity: 0.4,
     fontFamily: FONT,
     color: Ghost.text.tertiary,
+    opacity: 0.5,
+    marginTop: Space.sm,
   },
 });

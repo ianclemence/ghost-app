@@ -6,10 +6,14 @@ import { Camera } from "expo-camera";
 import { GhostText } from "@/components/themed-text";
 import { GhostToggle, SectionHeader } from "@/components/ghost";
 import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const FONT = Fonts.sans;
 
+/**
+ * Permissions screen.
+ * Only permissions Ghost actually uses.
+ * Each permission explains why Ghost needs it.
+ */
 export default function PermissionsScreen() {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -20,14 +24,18 @@ export default function PermissionsScreen() {
   }, []);
 
   const checkPermissions = async () => {
-    const notif = await Notifications.getPermissionsAsync();
-    setNotifEnabled(notif.granted);
-
-    const loc = await Location.getForegroundPermissionsAsync();
-    setLocationEnabled(loc.granted);
-
-    const cam = await Camera.getCameraPermissionsAsync();
-    setCameraEnabled(cam.granted);
+    try {
+      const notif = await Notifications.getPermissionsAsync();
+      setNotifEnabled(notif.granted);
+    } catch {}
+    try {
+      const loc = await Location.getForegroundPermissionsAsync();
+      setLocationEnabled(loc.granted);
+    } catch {}
+    try {
+      const cam = await Camera.getCameraPermissionsAsync();
+      setCameraEnabled(cam.granted);
+    } catch {}
   };
 
   const toggleNotifications = async () => {
@@ -35,8 +43,10 @@ export default function PermissionsScreen() {
       setNotifEnabled(false);
       return;
     }
-    const { status } = await Notifications.requestPermissionsAsync();
-    setNotifEnabled(status === "granted");
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      setNotifEnabled(status === "granted");
+    } catch {}
   };
 
   const toggleLocation = async () => {
@@ -44,13 +54,10 @@ export default function PermissionsScreen() {
       setLocationEnabled(false);
       return;
     }
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    setLocationEnabled(status === "granted");
-    if (status === "granted") {
-      await AsyncStorage.setItem("ghost:send_location", "true");
-    } else {
-      await AsyncStorage.removeItem("ghost:send_location");
-    }
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationEnabled(status === "granted");
+    } catch {}
   };
 
   const toggleCamera = async () => {
@@ -58,8 +65,10 @@ export default function PermissionsScreen() {
       setCameraEnabled(false);
       return;
     }
-    const { status } = await Camera.requestCameraPermissionsAsync();
-    setCameraEnabled(status === "granted");
+    try {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setCameraEnabled(status === "granted");
+    } catch {}
   };
 
   return (
@@ -79,7 +88,7 @@ export default function PermissionsScreen() {
               Push notifications
             </GhostText>
             <GhostText type="caption" style={styles.hint}>
-              Ghost can reach you with proactive updates
+              Ghost can reach you when something needs your attention.
             </GhostText>
           </View>
           <GhostToggle value={notifEnabled} onValueChange={toggleNotifications} />
@@ -94,7 +103,7 @@ export default function PermissionsScreen() {
               Location access
             </GhostText>
             <GhostText type="caption" style={styles.hint}>
-              Ghost uses your location for contextual awareness
+              Used when Ghost needs your location for context-aware features.
             </GhostText>
           </View>
           <GhostToggle value={locationEnabled} onValueChange={toggleLocation} />
@@ -109,7 +118,7 @@ export default function PermissionsScreen() {
               Camera access
             </GhostText>
             <GhostText type="caption" style={styles.hint}>
-              Take photos to share with Ghost
+              Used to scan Ghost pairing codes.
             </GhostText>
           </View>
           <GhostToggle value={cameraEnabled} onValueChange={toggleCamera} />
@@ -150,9 +159,9 @@ const styles = StyleSheet.create({
     color: Ghost.text.primary,
   },
   hint: {
-    marginTop: 2,
-    opacity: 0.5,
     fontFamily: FONT,
     color: Ghost.text.secondary,
+    marginTop: 2,
+    opacity: 0.7,
   },
 });

@@ -14,7 +14,11 @@ import {
   onWSMessage,
 } from '../lib/ghostApi';
 import { parsePairingURI } from '../lib/pairing';
-import { initializeConnection, completePairing } from '../lib/connection';
+import {
+  initializeConnection,
+  isPaired,
+  handlePairingDeepLink,
+} from '../lib/connection';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
@@ -24,53 +28,58 @@ export default function RootLayout() {
 
   useEffect(() => {
     (async () => {
+      // Set up notification handler
       let notifications: typeof import('expo-notifications') | null = null;
       if (!isExpoGo) {
-        notifications = await import('expo-notifications');
-        notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowBanner: true,
-            shouldShowList: true,
-            shouldPlaySound: true,
-            shouldSetBadge: false,
-          }),
-        });
+        try {
+          notifications = await import('expo-notifications');
+          notifications.setNotificationHandler({
+            handleNotification: async () => ({
+              shouldShowBanner: true,
+              shouldShowList: true,
+              shouldPlaySound: true,
+              shouldSetBadge: false,
+            }),
+          });
+        } catch {}
       }
 
-      // Initialize connection from stored credentials.
-      await initializeConnection();
+      // Check if paired
+      const paired = await isPaired();
 
-      // Redirect to onboarding if no credentials stored.
-      const currentConfig = useGhostStore.getState().config;
-      const hasCredentials = currentConfig?.deviceID || currentConfig?.secret;
-      if (!hasCredentials) {
+      if (!paired) {
+        // First launch — show connect flow
         router.replace('/onboarding');
-        return;
+      } else {
+        // Paired — initialize connection in background, load Home immediately
+        initializeConnection();
       }
 
-      // Deep-link / QR pairing handling.
+      // Handle deep links (QR scan or external link)
       const handleDeepLink = async (url: string) => {
         const payload = parsePairingURI(url);
         if (!payload) return;
 
         if (payload.type === 'secure') {
-          // Secure pairing: redeem token and connect.
-          const result = await completePairing(
-            payload.host,
-            payload.port,
-            payload.token,
-          );
-          if (result.ok) {
-            setConnected(true);
-          }
+          // Secure pairing via deep link
+          router.replace({
+            pathname: '/confirm',
+            params: {
+              token: payload.token,
+              host: payload.host,
+              port: payload.port,
+              transport: payload.transport,
+            },
+          });
         } else if (payload.type === 'legacy') {
-          // Legacy pairing (direct config).
+          // Legacy pairing (deprecated)
           const cfg = payload.config;
           await saveConfig(cfg);
           setConfig(cfg);
           const ok = await checkHealth(cfg);
           setConnected(ok);
           if (ok) connectWebSocket(cfg);
+          router.replace('/(tabs)');
         }
       };
 
@@ -82,7 +91,7 @@ export default function RootLayout() {
         handleDeepLink(url);
       });
 
-      // Listen for WS push and send local notification.
+      // Listen for WS push and send local notification
       const unsub = onWSMessage((msg) => {
         const msgType = typeof msg.type === 'string'
           ? msg.type
@@ -120,54 +129,61 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
+        {/* Tabs — main app */}
         <Stack.Screen name="(tabs)" />
+
+        {/* Conversation */}
         <Stack.Screen
           name="conversation"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-          }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
+
+        {/* First launch / connect flow */}
         <Stack.Screen
           name="onboarding"
-          options={{
-            animation: 'fade',
-          }}
+          options={{ animation: 'fade' }}
+        />
+        <Stack.Screen
+          name="connect"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="scan"
+          options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+        />
+        <Stack.Screen
+          name="confirm"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="pairing-success"
+          options={{ animation: 'fade' }}
+        />
+        <Stack.Screen
+          name="manual"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+
+        {/* Settings */}
+        <Stack.Screen
+          name="connection"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="ghost-pod"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-          }}
-        />
-        <Stack.Screen
-          name="connection"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-          }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="advanced"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-          }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="permissions"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-          }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="about"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-          }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
       </Stack>
     </GestureHandlerRootView>

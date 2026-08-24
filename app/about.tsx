@@ -2,12 +2,18 @@ import { View, StyleSheet, ScrollView, Linking } from "react-native";
 import { GhostText } from "@/components/themed-text";
 import { GhostList, GhostRow, SectionHeader } from "@/components/ghost";
 import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
+import { GhostMark } from "@/components/ghost-mark";
 import Constants from "expo-constants";
 
 const FONT = Fonts.sans;
 
+/**
+ * About screen.
+ * Minimal — Ghost mark, name, version, tagline.
+ * Optional links that actually work.
+ */
 export default function AboutScreen() {
-  const version = Constants.expoConfig?.version ?? "1.0.0";
+  const version = Constants.expoConfig?.version ?? "2.0.0";
 
   return (
     <ScrollView
@@ -18,19 +24,17 @@ export default function AboutScreen() {
         About
       </GhostText>
 
-      <SectionHeader title="Ghost" />
-      <View style={styles.card}>
-        <View style={styles.center}>
-          <GhostText type="title" style={styles.appName}>
-            Ghost
-          </GhostText>
-          <GhostText type="body" style={styles.version}>
-            Version {version}
-          </GhostText>
-          <GhostText type="body" style={styles.tagline}>
-            Your personal AI.
-          </GhostText>
-        </View>
+      <View style={styles.center}>
+        <GhostMark size={56} />
+        <GhostText type="largeTitle" style={styles.appName}>
+          Ghost
+        </GhostText>
+        <GhostText type="body" style={styles.version}>
+          Version {version}
+        </GhostText>
+        <GhostText type="body" style={styles.tagline}>
+          Your AI, your hardware.
+        </GhostText>
       </View>
 
       <SectionHeader title="Links" />
@@ -69,32 +73,29 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: Ghost.text.primary,
   },
-  card: {
-    padding: 16,
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.lg,
-  },
   center: {
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: Space.xxxl,
+    gap: Space.sm,
   },
   appName: {
-    fontSize: 24,
-    fontWeight: "600",
-    marginBottom: 4,
     fontFamily: FONT,
     color: Ghost.text.primary,
   },
   version: {
-    opacity: 0.5,
-    marginBottom: 8,
     fontFamily: FONT,
     color: Ghost.text.secondary,
+    opacity: 0.6,
   },
   tagline: {
-    fontStyle: "italic",
-    opacity: 0.6,
     fontFamily: FONT,
     color: Ghost.text.secondary,
+    fontStyle: "italic",
+    opacity: 0.5,
+  },
+  card: {
+    backgroundColor: Ghost.bg.raised,
+    borderRadius: Radius.lg,
+    overflow: "hidden",
   },
 });
