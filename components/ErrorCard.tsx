@@ -34,13 +34,13 @@ const TITLES: Record<string, string> = {
 };
 
 const TONE: Record<string, { fg: string; bg: string; border: string }> = {
-  auth: { fg: Ghost.danger, bg: "rgba(212,104,90,0.10)", border: "rgba(212,104,90,0.30)" },
-  provider: { fg: Ghost.danger, bg: "rgba(212,104,90,0.10)", border: "rgba(212,104,90,0.30)" },
-  network: { fg: Ghost.danger, bg: "rgba(212,104,90,0.10)", border: "rgba(212,104,90,0.30)" },
-  rate_limit: { fg: Ghost.warn, bg: "rgba(214,160,90,0.10)", border: "rgba(214,160,90,0.30)" },
-  empty_stream: { fg: Ghost.warn, bg: "rgba(214,160,90,0.10)", border: "rgba(214,160,90,0.30)" },
-  interrupted: { fg: Ghost.warn, bg: "rgba(214,160,90,0.10)", border: "rgba(214,160,90,0.30)" },
-  timeout: { fg: Ghost.warn, bg: "rgba(214,160,90,0.10)", border: "rgba(214,160,90,0.30)" },
+  auth: { fg: Ghost.status.error, bg: "rgba(194,75,60,0.10)", border: "rgba(194,75,60,0.30)" },
+  provider: { fg: Ghost.status.error, bg: "rgba(194,75,60,0.10)", border: "rgba(194,75,60,0.30)" },
+  network: { fg: Ghost.status.error, bg: "rgba(194,75,60,0.10)", border: "rgba(194,75,60,0.30)" },
+  rate_limit: { fg: Ghost.status.warning, bg: "rgba(176,124,46,0.10)", border: "rgba(176,124,46,0.30)" },
+  empty_stream: { fg: Ghost.status.warning, bg: "rgba(176,124,46,0.10)", border: "rgba(176,124,46,0.30)" },
+  interrupted: { fg: Ghost.status.warning, bg: "rgba(176,124,46,0.10)", border: "rgba(176,124,46,0.30)" },
+  timeout: { fg: Ghost.status.warning, bg: "rgba(176,124,46,0.10)", border: "rgba(176,124,46,0.30)" },
 };
 
 interface ErrorCardProps {
@@ -70,8 +70,8 @@ export default function ErrorCard({ error, onRetry, onDismiss, partialContent }:
         <View style={styles.header}>
           <View style={[styles.dot, { backgroundColor: tone.fg }]} />
           <View style={styles.headerText}>
-            <GhostText type="bodyStrong">{title}</GhostText>
-            <GhostText type="secondary" style={styles.subtitle} numberOfLines={3}>
+            <GhostText type="headline">{title}</GhostText>
+            <GhostText type="callout" style={styles.subtitle} numberOfLines={3}>
               {error.message}
             </GhostText>
           </View>
@@ -80,14 +80,14 @@ export default function ErrorCard({ error, onRetry, onDismiss, partialContent }:
         <View style={styles.actions}>
           {error.retryable && onRetry && (
             <TouchableOpacity style={styles.retryBtn} onPress={onRetry} activeOpacity={0.7}>
-              <GhostText type="bodyStrong" style={{ color: tone.fg }}>
+              <GhostText type="headline" style={{ color: tone.fg }}>
                 Try again
               </GhostText>
             </TouchableOpacity>
           )}
           {onDismiss && (
             <TouchableOpacity style={styles.dismissBtn} onPress={onDismiss} activeOpacity={0.7}>
-              <GhostText type="secondary" style={{ color: Ghost.text.secondary }}>
+              <GhostText type="callout" style={{ color: Ghost.text.secondary }}>
                 Dismiss
               </GhostText>
             </TouchableOpacity>
@@ -114,9 +114,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Ghost.bg.surface2,
+    backgroundColor: Ghost.bg.sunken,
     borderWidth: 1,
-    borderColor: Ghost.hairline,
+    borderColor: Ghost.border.subtle,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     color: Ghost.text.primary,
     paddingBottom: Space.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Ghost.hairline,
+    borderBottomColor: Ghost.border.subtle,
   },
   header: {
     flexDirection: "row",
@@ -161,8 +161,8 @@ const styles = StyleSheet.create({
   },
   retryBtn: {
     borderWidth: 1,
-    borderColor: Ghost.hairlineStrong,
-    borderRadius: Radius.pill,
+    borderColor: Ghost.border.default,
+    borderRadius: Radius.full,
     paddingHorizontal: Space.lg,
     paddingVertical: Space.sm,
   },

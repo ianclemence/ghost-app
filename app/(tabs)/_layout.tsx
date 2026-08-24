@@ -1,12 +1,17 @@
 import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
 import { Platform, Text, View } from "react-native";
-import { MessageCircle, Bookmark, ListChecks, SlidersHorizontal } from "lucide-react-native";
-import { Colors, Fonts, Ghost } from "@/constants/theme";
+import {
+  House,
+  MessageCircle,
+  Clock,
+  Bookmark,
+  Settings,
+} from "lucide-react-native";
 
-const C = Colors.dark;
+import { Ghost, Fonts } from "@/constants/theme";
+
 const FONT = Fonts.sans;
-const ACCENT = Ghost.accent;
 
 function TabIcon({
   Icon,
@@ -17,16 +22,17 @@ function TabIcon({
   label: string;
   focused: boolean;
 }) {
-  const color = focused ? ACCENT : C.icon;
+  const color = focused ? Ghost.accent.primary : Ghost.text.tertiary;
   return (
-    <View style={{ alignItems: "center", gap: 4, paddingTop: 12 }}>
-      <Icon size={22} color={color} strokeWidth={focused ? 2.25 : 1.9} />
+    <View style={{ alignItems: "center", gap: 3, paddingTop: 10 }}>
+      <Icon size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
       <Text
         style={{
-          fontSize: 11,
-          fontWeight: focused ? "600" : "500",
+          fontSize: 10,
+          fontWeight: focused ? "600" : "400",
           color,
           fontFamily: FONT,
+          letterSpacing: 0.1,
         }}
       >
         {label}
@@ -40,15 +46,16 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: C.background },
+        sceneStyle: { backgroundColor: Ghost.bg.base },
         tabBarStyle: {
           backgroundColor: Ghost.bg.base,
-          borderTopColor: Ghost.hairline,
-          borderTopWidth: 1,
+          borderTopColor: Ghost.border.subtle,
+          borderTopWidth: Platform.OS === "ios" ? 0.5 : 1,
           height: Platform.OS === "ios" ? 84 : 64,
           paddingBottom: Platform.OS === "ios" ? 24 : 8,
           paddingTop: 8,
           elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarHideOnKeyboard: Platform.OS === "ios",
         tabBarShowLabel: false,
@@ -63,7 +70,23 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={MessageCircle} label="Ghost" focused={focused} />
+            <TabIcon Icon={House} label="Home" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon Icon={MessageCircle} label="Chat" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="activity"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon Icon={Clock} label="Activity" focused={focused} />
           ),
         }}
       />
@@ -76,18 +99,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="cron"
+        name="more"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={ListChecks} label="Activity" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={SlidersHorizontal} label="Settings" focused={focused} />
+            <TabIcon Icon={Settings} label="Settings" focused={focused} />
           ),
         }}
       />

@@ -1,6 +1,8 @@
 import React from "react";
 import {
+  ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Switch,
@@ -11,11 +13,11 @@ import {
   type TextStyle,
   type ViewStyle,
 } from "react-native";
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 
 /* ------------------------------------------------------------------ */
-/* GhostButton                                                          */
+/* GhostButton                                                        */
 /* ------------------------------------------------------------------ */
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -28,6 +30,7 @@ export function GhostButton({
   leftIcon,
   rightIcon,
   fullWidth,
+  loading,
   style,
 }: {
   title: string;
@@ -37,51 +40,81 @@ export function GhostButton({
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   fullWidth?: boolean;
+  loading?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const palette = {
-    primary: { bg: Ghost.accent, fg: Ghost.accentInk, border: "transparent" },
-    secondary: { bg: Ghost.bg.surface2, fg: Ghost.text.primary, border: Ghost.hairline },
-    ghost: { bg: "transparent", fg: Ghost.text.secondary, border: "transparent" },
-    danger: { bg: "transparent", fg: Ghost.danger, border: Ghost.hairline },
+    primary: {
+      bg: Ghost.accent.primary,
+      fg: Ghost.text.inverse,
+      border: "transparent",
+    },
+    secondary: {
+      bg: "transparent",
+      fg: Ghost.text.primary,
+      border: Ghost.border.default,
+    },
+    ghost: {
+      bg: "transparent",
+      fg: Ghost.text.secondary,
+      border: "transparent",
+    },
+    danger: {
+      bg: "transparent",
+      fg: Ghost.status.error,
+      border: Ghost.border.default,
+    },
   }[variant];
 
   return (
     <TouchableOpacity
-      activeOpacity={disabled ? 1 : 0.7}
-      onPress={disabled ? undefined : onPress}
+      activeOpacity={disabled || loading ? 1 : 0.7}
+      onPress={disabled || loading ? undefined : onPress}
       style={[
         {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
           gap: Space.sm,
-          paddingVertical: Space.md,
-          paddingHorizontal: Space.lg,
-          borderRadius: Radius.lg,
-          backgroundColor: disabled ? Ghost.bg.surface2 : palette.bg,
-          borderWidth: 1,
-          borderColor: disabled ? Ghost.hairline : palette.border,
+          paddingVertical: Space.md + 2,
+          paddingHorizontal: Space.xl,
+          borderRadius: Radius.full,
+          backgroundColor: disabled ? Ghost.bg.sunken : palette.bg,
+          borderWidth: variant === "ghost" ? 0 : 1,
+          borderColor: disabled ? Ghost.border.subtle : palette.border,
           opacity: disabled ? 0.5 : 1,
           alignSelf: fullWidth ? "stretch" : "flex-start",
+          minHeight: 48,
         },
         style,
       ]}
     >
-      {leftIcon}
-      <GhostText
-        type="bodyStrong"
-        style={{ color: disabled ? Ghost.text.tertiary : palette.fg }}
-      >
-        {title}
-      </GhostText>
-      {rightIcon}
+      {loading ? (
+        <ActivityIndicator
+          size="small"
+          color={variant === "primary" ? Ghost.text.inverse : Ghost.accent.primary}
+        />
+      ) : (
+        <>
+          {leftIcon}
+          <GhostText
+            type="headline"
+            style={{
+              color: disabled ? Ghost.text.tertiary : palette.fg,
+              fontSize: 15,
+            }}
+          >
+            {title}
+          </GhostText>
+          {rightIcon}
+        </>
+      )}
     </TouchableOpacity>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* GhostSheet (bottom sheet / modal)                                    */
+/* GhostSheet (bottom sheet / modal)                                   */
 /* ------------------------------------------------------------------ */
 
 export function GhostSheet({
@@ -98,42 +131,54 @@ export function GhostSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
+        style={{ flex: 1, backgroundColor: "rgba(26,22,17,0.4)" }}
         onPress={onClose}
       >
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
           <Pressable
             style={{
-              backgroundColor: Ghost.bg.surface,
-              borderTopLeftRadius: Radius.xl,
-              borderTopRightRadius: Radius.xl,
-              borderTopWidth: 1,
-              borderColor: Ghost.hairline,
+              backgroundColor: Ghost.bg.base,
+              borderTopLeftRadius: Radius.xxl,
+              borderTopRightRadius: Radius.xxl,
               maxHeight: "88%",
+              paddingTop: Space.sm,
             }}
             onPress={(e) => e.stopPropagation()}
           >
+            {/* Grabber */}
             <View
               style={{
-                paddingVertical: Space.lg,
-                paddingHorizontal: Space.xl,
-                borderBottomWidth: 1,
-                borderColor: Ghost.hairline,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: Ghost.border.default,
+                alignSelf: "center",
+                marginBottom: Space.sm,
               }}
-            >
-              <GhostText type="title">{title ?? ""}</GhostText>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
-                <GhostText type="secondary" style={{ color: Ghost.text.tertiary }}>
-                  Done
-                </GhostText>
-              </TouchableOpacity>
-            </View>
+            />
+
+            {title && (
+              <View
+                style={{
+                  paddingHorizontal: Space.xl,
+                  paddingBottom: Space.md,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <GhostText type="title">{title}</GhostText>
+                <TouchableOpacity onPress={onClose} hitSlop={8}>
+                  <GhostText type="headline" style={{ color: Ghost.accent.primary }}>
+                    Done
+                  </GhostText>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <ScrollView
-              style={{ padding: Space.xl }}
-              contentContainerStyle={{ gap: Space.lg, paddingBottom: Space.xl }}
+              style={{ paddingHorizontal: Space.xl }}
+              contentContainerStyle={{ gap: Space.lg, paddingBottom: Space.xxxl + 20 }}
               keyboardShouldPersistTaps="handled"
             >
               {children}
@@ -146,7 +191,7 @@ export function GhostSheet({
 }
 
 /* ------------------------------------------------------------------ */
-/* SectionHeader                                                        */
+/* SectionHeader                                                      */
 /* ------------------------------------------------------------------ */
 
 export function SectionHeader({
@@ -174,11 +219,22 @@ export function SectionHeader({
         style,
       ]}
     >
-      <View style={{ gap: Space.xs }}>
-        <GhostText type="micro" style={{ color: Ghost.text.tertiary }}>
+      <View style={{ gap: Space.xxs }}>
+        <GhostText
+          type="caption"
+          style={{
+            color: Ghost.text.tertiary,
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+          }}
+        >
           {title}
         </GhostText>
-        {subtitle ? <GhostText type="secondary">{subtitle}</GhostText> : null}
+        {subtitle ? (
+          <GhostText type="subhead" style={{ color: Ghost.text.secondary }}>
+            {subtitle}
+          </GhostText>
+        ) : null}
       </View>
       {action}
     </View>
@@ -186,12 +242,12 @@ export function SectionHeader({
 }
 
 /* ------------------------------------------------------------------ */
-/* GhostList + GhostRow                                                 */
+/* GhostList + GhostRow                                               */
 /* ------------------------------------------------------------------ */
 
 export function GhostList({
   children,
-  divided,
+  divided = true,
   style,
 }: {
   children: React.ReactNode;
@@ -202,7 +258,7 @@ export function GhostList({
     <View
       style={[
         {
-          backgroundColor: Ghost.bg.surface,
+          backgroundColor: Ghost.bg.raised,
           borderRadius: Radius.lg,
           marginHorizontal: Space.xl,
           overflow: "hidden",
@@ -214,7 +270,13 @@ export function GhostList({
         <View key={i}>
           {child}
           {divided && i < React.Children.count(children) - 1 ? (
-            <View style={{ height: 1, backgroundColor: Ghost.hairline, marginLeft: Space.lg }} />
+            <View
+              style={{
+                height: 0.5,
+                backgroundColor: Ghost.border.subtle,
+                marginLeft: Space.xl + 24 + Space.md,
+              }}
+            />
           ) : null}
         </View>
       ))}
@@ -229,6 +291,7 @@ export function GhostRow({
   trailing,
   onPress,
   chevron,
+  style,
 }: {
   icon?: React.ReactNode;
   title: string;
@@ -236,28 +299,44 @@ export function GhostRow({
   trailing?: React.ReactNode;
   onPress?: () => void;
   chevron?: boolean;
+  style?: StyleProp<ViewStyle>;
 }) {
   const content = (
     <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Space.md,
-        paddingVertical: Space.md,
-        paddingHorizontal: Space.lg,
-      }}
+      style={[
+        {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: Space.md,
+          paddingVertical: Space.md + 2,
+          paddingHorizontal: Space.lg,
+          minHeight: 52,
+        },
+        style,
+      ]}
     >
-      {icon ? <View style={{ width: 22, alignItems: "center" }}>{icon}</View> : null}
-      <View style={{ flex: 1, gap: Space.xs }}>
-        <GhostText type="body">{title}</GhostText>
+      {icon ? (
+        <View style={{ width: 24, alignItems: "center" }}>{icon}</View>
+      ) : null}
+      <View style={{ flex: 1, gap: 2 }}>
+        <GhostText type="body" style={{ color: Ghost.text.primary }}>
+          {title}
+        </GhostText>
         {subtitle ? (
-          <GhostText type="secondary" style={{ color: Ghost.text.secondary }}>
+          <GhostText type="subhead" style={{ color: Ghost.text.secondary }}>
             {subtitle}
           </GhostText>
         ) : null}
       </View>
       {trailing}
-      {chevron ? <GhostText style={{ color: Ghost.text.tertiary }}>›</GhostText> : null}
+      {chevron ? (
+        <GhostText
+          type="callout"
+          style={{ color: Ghost.text.tertiary, marginLeft: Space.xs }}
+        >
+          ›
+        </GhostText>
+      ) : null}
     </View>
   );
 
@@ -272,7 +351,7 @@ export function GhostRow({
 }
 
 /* ------------------------------------------------------------------ */
-/* GhostToggle                                                          */
+/* GhostToggle                                                        */
 /* ------------------------------------------------------------------ */
 
 export function GhostToggle({
@@ -289,15 +368,15 @@ export function GhostToggle({
       value={value}
       onValueChange={onValueChange}
       disabled={disabled}
-      trackColor={{ false: Ghost.bg.surface2, true: Ghost.accentSoft }}
-      thumbColor={value ? Ghost.accent : Ghost.text.tertiary}
-      style={{ transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] }}
+      trackColor={{ false: Ghost.bg.sunken, true: Ghost.accent.medium }}
+      thumbColor={value ? Ghost.accent.primary : Ghost.text.tertiary}
+      style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
     />
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* GhostInput                                                           */
+/* GhostInput                                                         */
 /* ------------------------------------------------------------------ */
 
 export function GhostInput({
@@ -328,18 +407,18 @@ export function GhostInput({
       keyboardType={keyboardType}
       style={[
         {
-          backgroundColor: Ghost.bg.surface2,
+          backgroundColor: Ghost.bg.sunken,
           borderWidth: 1,
-          borderColor: Ghost.hairline,
-          borderRadius: Radius.lg,
+          borderColor: Ghost.border.default,
+          borderRadius: Radius.md,
           paddingVertical: Space.md,
-          paddingHorizontal: Space.md,
+          paddingHorizontal: Space.lg,
           color: Ghost.text.primary,
-          fontFamily: undefined,
+          fontFamily: Fonts.sans,
           fontSize: 16,
           lineHeight: 24,
           textAlignVertical: multiline ? "top" : "center",
-          minHeight: multiline ? 96 : undefined,
+          minHeight: multiline ? 96 : 48,
         },
         style,
       ]}
@@ -348,7 +427,7 @@ export function GhostInput({
 }
 
 /* ------------------------------------------------------------------ */
-/* ConnectionPill (quiet presence)                                      */
+/* ConnectionPill (quiet presence)                                     */
 /* ------------------------------------------------------------------ */
 
 export function ConnectionPill({
@@ -360,29 +439,39 @@ export function ConnectionPill({
   degraded?: boolean;
   label?: string;
 }) {
-  const dot = degraded ? Ghost.warn : connected ? Ghost.accent : Ghost.text.tertiary;
-  const text = degraded ? "Available" : connected ? (label ?? "Connected") : "Offline";
+  const dot = degraded
+    ? Ghost.status.warning
+    : connected
+      ? Ghost.accent.primary
+      : Ghost.text.tertiary;
+  const text = degraded
+    ? "Available"
+    : connected
+      ? (label ?? "Connected")
+      : "Offline";
+
   return (
     <View
       style={{
         flexDirection: "row",
         alignItems: "center",
         gap: Space.sm,
-        backgroundColor: Ghost.accentSoft,
-        paddingVertical: Space.xs + 2,
+        paddingVertical: Space.xs,
         paddingHorizontal: Space.md,
-        borderRadius: Radius.pill,
       }}
     >
       <View
         style={{
-          width: 7,
-          height: 7,
-          borderRadius: 4,
+          width: 6,
+          height: 6,
+          borderRadius: 3,
           backgroundColor: dot,
         }}
       />
-      <GhostText type="caption" style={{ color: Ghost.text.secondary }}>
+      <GhostText
+        type="footnote"
+        style={{ color: Ghost.text.secondary }}
+      >
         {text}
       </GhostText>
     </View>
@@ -390,7 +479,7 @@ export function ConnectionPill({
 }
 
 /* ------------------------------------------------------------------ */
-/* EmptyState                                                           */
+/* EmptyState                                                         */
 /* ------------------------------------------------------------------ */
 
 export function EmptyState({
@@ -410,22 +499,87 @@ export function EmptyState({
         flex: 1,
         alignItems: "center",
         justifyContent: "center",
-        paddingHorizontal: Space.xxxl,
+        paddingHorizontal: Space.huge,
         gap: Space.lg,
       }}
     >
-      {icon ? <View style={{ opacity: 0.7 }}>{icon}</View> : null}
+      {icon ? (
+        <View style={{ opacity: 0.4 }}>{icon}</View>
+      ) : null}
       <View style={{ gap: Space.sm, alignItems: "center" }}>
-        <GhostText type="title" style={{ textAlign: "center" }}>
+        <GhostText
+          type="headline"
+          style={{ textAlign: "center", color: Ghost.text.primary }}
+        >
           {title}
         </GhostText>
         {subtitle ? (
-          <GhostText type="secondary" style={{ textAlign: "center", color: Ghost.text.secondary }}>
+          <GhostText
+            type="body"
+            style={{ textAlign: "center", color: Ghost.text.secondary }}
+          >
             {subtitle}
           </GhostText>
         ) : null}
       </View>
       {action}
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* StatusDot                                                          */
+/* ------------------------------------------------------------------ */
+
+export function StatusDot({
+  status,
+  size = 6,
+}: {
+  status: "online" | "offline" | "warning";
+  size?: number;
+}) {
+  const color =
+    status === "online"
+      ? Ghost.accent.primary
+      : status === "warning"
+        ? Ghost.status.warning
+        : Ghost.text.tertiary;
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: color,
+      }}
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Card                                                               */
+/* ------------------------------------------------------------------ */
+
+export function Card({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: Ghost.bg.raised,
+          borderRadius: Radius.lg,
+          padding: Space.lg,
+        },
+        style,
+      ]}
+    >
+      {children}
     </View>
   );
 }

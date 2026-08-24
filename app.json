@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icons/ios-light.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "scheme": "ghost",
     "ios": {
       "supportsTablet": false,
@@ -27,7 +27,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff",
+        "backgroundColor": "#FAFAF7",
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "backgroundImage": "./assets/icons/adaptive-icon.png",
         "monochromeImage": "./assets/icons/adaptive-icon.png"
@@ -48,7 +48,7 @@
         "expo-notifications",
         {
           "icon": "./assets/images/logo.png",
-          "color": "#00FF88",
+          "color": "#3D7A5F",
           "sounds": []
         }
       ],

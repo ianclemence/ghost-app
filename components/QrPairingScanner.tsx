@@ -11,11 +11,10 @@ import {
   View,
 } from "react-native";
 
-import { Colors, Fonts, UI } from "@/constants/theme";
+import { Colors, Fonts, Ghost, UI } from "@/constants/theme";
 import { parseConnectURL } from "@/lib/pairing";
 import type { GhostConfig } from "@/lib/ghostApi";
 
-const C = Colors.dark;
 const FONT_MONO = Fonts.mono;
 
 /**
@@ -79,7 +78,7 @@ export default function QrPairingScanner({
         <View style={styles.header}>
           <Text style={styles.title}>SCAN PAIRING QR</Text>
           <TouchableOpacity onPress={onClose} hitSlop={8}>
-            <X size={20} color={C.text} />
+            <X size={20} color={Ghost.text.primary} />
           </TouchableOpacity>
         </View>
         <View style={styles.body}>
@@ -105,7 +104,7 @@ export default function QrPairingScanner({
                 Point this at the pairing QR shown by the Ghost web console.
               </Text>
               {status === "scanned" && (
-                <ActivityIndicator color={C.terminalGreen} size="small" />
+                <ActivityIndicator color={Ghost.accent.primary} size="small" />
               )}
             </>
           )}
@@ -125,9 +124,9 @@ const styles = StyleSheet.create({
     top: 90,
     left: UI.modal.side,
     right: UI.modal.side,
-    backgroundColor: C.background,
+    backgroundColor: Ghost.bg.base,
     borderWidth: 1,
-    borderColor: C.terminalGreen,
+    borderColor: Ghost.accent.primary,
     borderRadius: UI.radius.panel,
     overflow: "hidden",
   },
@@ -137,11 +136,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: UI.modal.headerPadding,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    backgroundColor: C.card,
+    borderBottomColor: Ghost.border.default,
+    backgroundColor: Ghost.bg.raised,
   },
   title: {
-    color: C.terminalGreen,
+    color: Ghost.accent.primary,
     fontFamily: FONT_MONO,
     fontSize: 14,
     fontWeight: "700",
@@ -149,7 +148,7 @@ const styles = StyleSheet.create({
   },
   body: {
     padding: UI.modal.bodyPadding,
-    backgroundColor: C.card,
+    backgroundColor: Ghost.bg.raised,
     gap: 12,
   },
   cameraWrap: {
@@ -167,7 +166,7 @@ const styles = StyleSheet.create({
     margin: 48,
   },
   hint: {
-    color: C.icon,
+    color: Ghost.text.secondary,
     fontFamily: FONT_MONO,
     fontSize: 11,
     lineHeight: 16,

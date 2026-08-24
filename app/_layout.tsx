@@ -72,7 +72,7 @@ export default function RootLayout() {
         if (msgType === 'assistant_message' && msg.content) {
           notifications.scheduleNotificationAsync({
             content: {
-              title: '👻 Ghost',
+              title: 'Ghost',
               body: msg.content.slice(0, 100),
             },
             trigger: null,
@@ -80,7 +80,7 @@ export default function RootLayout() {
         } else if (msgType === 'clarify_request' && msg.content) {
           notifications.scheduleNotificationAsync({
             content: {
-              title: '👻 Ghost has a question',
+              title: 'Ghost has a question',
               body: msg.content.slice(0, 100),
             },
             trigger: null,
@@ -97,9 +97,16 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="conversation"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
       </Stack>
     </GestureHandlerRootView>
   );

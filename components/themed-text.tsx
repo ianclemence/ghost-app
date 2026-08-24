@@ -6,13 +6,14 @@ import { Fonts, Type } from "@/constants/theme";
 export type TextType =
   | "default"
   | "display"
+  | "largeTitle"
   | "title"
-  | "subtitle"
+  | "headline"
   | "body"
-  | "bodyStrong"
-  | "secondary"
+  | "callout"
+  | "subhead"
+  | "footnote"
   | "caption"
-  | "micro"
   | "link"
   | "mono";
 
@@ -26,24 +27,35 @@ function typeStyle(type: TextType): StyleProp<TextStyle> {
   switch (type) {
     case "display":
       return Type.display;
+    case "largeTitle":
+      return Type.largeTitle;
     case "title":
       return Type.title;
-    case "subtitle":
-      return Type.subtitle;
+    case "headline":
+      return Type.headline;
     case "body":
       return Type.body;
-    case "bodyStrong":
-      return Type.bodyStrong;
-    case "secondary":
-      return Type.secondary;
+    case "callout":
+      return Type.callout;
+    case "subhead":
+      return Type.subhead;
+    case "footnote":
+      return Type.footnote;
     case "caption":
       return Type.caption;
-    case "micro":
-      return { ...Type.micro, textTransform: "uppercase" as const };
     case "link":
-      return { fontSize: 16, lineHeight: 24, color: "#6FBE8E", textDecorationLine: "underline" };
+      return {
+        fontSize: 16,
+        lineHeight: 24,
+        color: "#3D7A5F",
+        textDecorationLine: "underline",
+      };
     case "mono":
-      return { fontSize: 14, fontFamily: Fonts.mono, color: "#A79C8C" };
+      return {
+        fontSize: 14,
+        fontFamily: Fonts.mono,
+        color: "#6B6560",
+      };
     default:
       return Type.body;
   }
@@ -65,6 +77,6 @@ export function ThemedText({
   );
 }
 
-/** Alias used by the new design system. */
+/** Alias used by the design system. */
 export const GhostText = ThemedText;
 export default ThemedText;
