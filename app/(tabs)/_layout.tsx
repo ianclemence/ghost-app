@@ -27,6 +27,7 @@ function TabIcon({
     <View style={{ alignItems: "center", gap: 3, paddingTop: 10 }}>
       <Icon size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
       <Text
+        numberOfLines={1}
         style={{
           fontSize: 10,
           fontWeight: focused ? "600" : "400",
