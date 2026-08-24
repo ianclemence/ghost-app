@@ -9,17 +9,32 @@ Step-by-step procedure for testing the mobile app against a real Ghost Pod on a 
 - Both devices on the same Wi-Fi network
 - Ghost Pod IP address (run `hostname -I` on the Pi)
 
-## 1. Verify Ghost Pod is running
+## 1. Fresh Install & Setup
 
 ```bash
-# On the Pi
+# On the Pi — if Ghost is freshly installed
+ghost gateway
+# This will fail if setup is not complete
+# Run ghost-web to complete setup first
+```
+
+Complete the setup wizard:
+1. Open Ghost Web UI (http://<Pi IP>:80)
+2. Set owner name
+3. Set Ghost name
+4. Create password
+5. Ghost initializes
+
+## 2. Verify Ghost Pod is running
+
+```bash
 sudo systemctl status ghost
 ghost agent -m "ping"
 ```
 
 Expected: service is active, agent responds.
 
-## 2. Start the mobile app
+## 3. Start the mobile app
 
 ```bash
 # On your development machine
@@ -29,88 +44,52 @@ npx expo start
 
 Scan the QR with Expo Go (Android) or Camera (iOS).
 
-## 3. Pairing flow (secure token)
+## 4. Pairing flow (secure token)
 
-### 3a. Generate pairing token on the Pi
+### 4a. Generate pairing invitation on the Pi
 
 ```bash
 # On the Pi — start the API if not already running
 ghost gateway
 
-# In another terminal — generate a pairing token
-curl -s -X POST http://localhost:8766/v1/pairing/start \
+# In another terminal — create a pairing invitation
+curl -s -X POST http://localhost:8766/v1/pairing/invitations \
   -H "X-Ghost-Secret: $BRIDGE_SECRET" \
   -H "Content-Type: application/json" \
-  -d '{"display_name": "Test Phone"}' | jq .
+  -d '{"display_name": "Test Phone", "transport": "lan"}'
 ```
 
 Expected response:
 ```json
 {
   "pairing_id": "a1b2c3d4e5f6",
+  "pod_id": "abc12345",
+  "transport": "lan",
+  "host": "0.0.0.0",
+  "port": "8766",
   "token": "hex_token_string",
+  "expires_at": "2026-08-24T12:05:00Z",
   "expires_in": 300
 }
 ```
 
-### 3b. Redeem token from mobile app
+### 4b. Scan QR on mobile app
 
-Open the app → More → Connection → or use the onboarding screen.
+Open the app → first launch shows onboarding → tap "Connect to Ghost" → tap "Scan QR Code" → point camera at the QR code.
 
-Enter:
-- Host: `<Pi IP address>` (e.g., `192.168.1.42`)
-- Port: `8766`
-- Token: `<token from step 3a>`
+### 4c. Pairing confirmation
 
-Tap "Pair".
+The app shows "Connecting…" while redeeming the token.
 
-### 3c. Verify connection
+On success: "Ghost connected. Your Ghost is ready." → tap Continue → Home.
 
-The app should show "Connected" status. Check the Pi logs:
+## 5. Returning user (after pairing)
 
-```bash
-sudo journalctl -u ghost -f
-```
+Open the app → Home loads immediately → Ghost reconnects in background.
 
-You should see WebSocket connection established.
+No QR scan needed.
 
-## 4. Manual API testing
-
-### Health check (with device credentials)
-
-```bash
-# After pairing, get device ID from the app (More → Advanced)
-curl -s http://<Pi IP>:8766/v1/health \
-  -H "X-Ghost-Device-ID: <device_id>" \
-  -H "X-Ghost-Credential: <credential>" | jq .
-```
-
-### Health check (with bridge secret)
-
-```bash
-curl -s http://<Pi IP>:8766/v1/health \
-  -H "X-Ghost-Secret: $BRIDGE_SECRET" | jq .
-```
-
-### List paired devices
-
-```bash
-curl -s http://<Pi IP>:8766/v1/pairing/devices \
-  -H "X-Ghost-Secret: $BRIDGE_SECRET" | jq .
-```
-
-### Revoke a device
-
-```bash
-curl -s -X POST http://<Pi IP>:8766/v1/pairing/revoke \
-  -H "X-Ghost-Secret: $BRIDGE_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{"device_id": "<device_id>"}' | jq .
-```
-
-After revocation, the mobile app should lose connection.
-
-## 5. Test scenarios
+## 6. Test scenarios
 
 ### Basic connection
 - [ ] App pairs successfully with token
@@ -119,14 +98,14 @@ After revocation, the mobile app should lose connection.
 - [ ] Send a message → get a response
 
 ### Reconnection
-- [ ] Kill the Ghost service → app shows disconnected
+- [ ] Kill the Ghost service → app shows offline
 - [ ] Restart the service → app reconnects automatically
 - [ ] Toggle Wi-Fi on phone → app reconnects
 
 ### Revocation
-- [ ] Revoke device via API → app loses access
-- [ ] App shows "Disconnected" status
+- [ ] Revoke device via API → app shows "disconnected" screen
 - [ ] Cannot send messages
+- [ ] Re-pairing works
 
 ### Multiple devices
 - [ ] Pair two phones → both appear in device list
@@ -134,14 +113,50 @@ After revocation, the mobile app should lose connection.
 
 ### Token expiry
 - [ ] Generate token, wait 5 minutes
-- [ ] Try to redeem → should fail with "invalid or expired token"
+- [ ] Try to complete → should fail with "Pairing invitation expired"
+
+### Token replay
+- [ ] Generate token, pair phone A
+- [ ] Try same token with phone B → must fail
 
 ### Edge cases
-- [ ] Redeem same token twice → second attempt fails
 - [ ] Invalid token → proper error message
 - [ ] Wrong credentials → 401 unauthorized
+- [ ] Camera denied → settings action available
 
-## 6. Troubleshooting
+## 7. Backend API reference
+
+### Pairing endpoints
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `POST /v1/pairing/invitations` | Bridge secret | Create pairing invitation |
+| `POST /v1/pairing/complete` | PUBLIC | Complete pairing (token is auth) |
+| `GET /v1/pairing/devices` | Bridge secret | List paired devices |
+| `POST /v1/pairing/revoke` | Bridge secret | Revoke a device |
+| `POST /v1/pairing/cancel` | Bridge secret | Cancel pending invitation |
+
+### Legacy endpoints (still work)
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `POST /v1/pairing/start` | Bridge secret | Create invitation (alias) |
+| `POST /v1/pairing/redeem` | PUBLIC | Complete pairing (alias) |
+
+### Structured error responses
+
+```json
+{
+  "error": {
+    "code": "pairing_expired",
+    "message": "Pairing invitation expired."
+  }
+}
+```
+
+Error codes: `pairing_invalid`, `pairing_expired`, `pairing_consumed`, `pairing_rejected`, `device_revoked`, `device_not_found`
+
+## 8. Troubleshooting
 
 ### "Connection refused"
 - Check Pi IP address: `hostname -I`
@@ -160,13 +175,12 @@ After revocation, the mobile app should lose connection.
 - Verify the Pi is reachable: `curl http://<Pi IP>:8766/v1/health`
 - Check if firewall is blocking port 8766
 
-## 7. Cleanup
+## 9. Cleanup
 
 To remove all paired devices and start fresh:
 
 ```bash
-# On the Pi
 sqlite3 ~/ghost/workspace/ghost.db "DELETE FROM paired_devices; DELETE FROM pending_pairings;"
 ```
 
-Or on the mobile app: More → Advanced → Clear all data.
+Or on the mobile app: More → Connection → Connect another Ghost.

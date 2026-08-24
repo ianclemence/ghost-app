@@ -153,7 +153,7 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="confirm"
-          options={{ presentation: 'card', animation: 'slide_from_right' }}
+          options={{ animation: 'fade' }}
         />
         <Stack.Screen
           name="pairing-success"
@@ -162,6 +162,16 @@ export default function RootLayout() {
         <Stack.Screen
           name="manual"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+
+        {/* Error states */}
+        <Stack.Screen
+          name="auth-failure"
+          options={{ animation: 'fade' }}
+        />
+        <Stack.Screen
+          name="revoked"
+          options={{ animation: 'fade' }}
         />
 
         {/* Settings */}

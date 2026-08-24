@@ -30,7 +30,7 @@ import {
 } from "./credentials";
 import {
   GhostConfig,
-  redeemPairing,
+  completePairing as apiCompletePairing,
   checkHealth,
   connectWebSocket,
   disconnectWebSocket,
@@ -201,19 +201,22 @@ export async function completePairing(
   host: string,
   port: string,
   token: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; errorCode?: string }> {
   const store = useGhostStore.getState();
   store.setConnectionState("syncing");
 
   try {
-    // Build temp config for API call (pairing/redeem is public endpoint).
+    // Build temp config for API call (pairing/complete is public endpoint).
     const tempConfig: GhostConfig = {
       piHost: host,
       piPort: port,
       secret: "",
     };
 
-    const result = await redeemPairing(tempConfig, token);
+    // Get platform for device metadata.
+    const platform = require("react-native").Platform.OS;
+
+    const result = await apiCompletePairing(tempConfig, token, "Phone", platform);
 
     // Store credentials securely.
     await saveDeviceCredential({
@@ -224,6 +227,7 @@ export async function completePairing(
       host,
       port,
       transport: "lan",
+      ghostName: result.ghost_name,
     });
 
     // Build final config and connect.
@@ -241,6 +245,25 @@ export async function completePairing(
     return { ok: true };
   } catch (err: any) {
     store.setConnectionState("offline");
+
+    // Handle structured pairing errors from the backend.
+    if (err?.code) {
+      const code = err.code as string;
+      switch (code) {
+        case "pairing_expired":
+          return { ok: false, error: ERROR_MESSAGES.TOKEN_EXPIRED, errorCode: code };
+        case "pairing_consumed":
+          return { ok: false, error: ERROR_MESSAGES.TOKEN_USED, errorCode: code };
+        case "pairing_invalid":
+          return { ok: false, error: ERROR_MESSAGES.TOKEN_INVALID, errorCode: code };
+        case "pairing_rejected":
+          return { ok: false, error: ERROR_MESSAGES.AUTH_REJECTED, errorCode: code };
+        default:
+          return { ok: false, error: ERROR_MESSAGES.UNKNOWN, errorCode: code };
+      }
+    }
+
+    // Fallback to string matching for legacy errors.
     const msg = err?.message ?? "";
     if (msg.includes("expired")) return { ok: false, error: ERROR_MESSAGES.TOKEN_EXPIRED };
     if (msg.includes("already")) return { ok: false, error: ERROR_MESSAGES.TOKEN_USED };

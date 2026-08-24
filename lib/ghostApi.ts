@@ -437,16 +437,22 @@ export async function checkHealthDebug(
 
 // ─── Pairing ─────────────────────────────────────────────────────────────
 
-export interface PairingStartResult {
+export interface PairingInvitation {
   pairing_id: string;
+  pod_id: string;
+  transport: string;
+  host: string;
+  port: string;
   token: string;
+  expires_at: string;
   expires_in: number;
 }
 
-export interface PairingRedeemResult {
+export interface PairingCompleteResult {
   device_id: string;
   credential: string;
   paired_at: string;
+  ghost_name?: string;
 }
 
 export interface PairedDevice {
@@ -458,40 +464,74 @@ export interface PairedDevice {
   revoked_at?: string;
 }
 
+export interface PairingErrorResponse {
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
 /**
- * Start a pairing session. Returns a short-lived token for QR display.
+ * Create a pairing invitation. Returns a short-lived token for QR display.
  * Called from the Ghost Pod web UI (not the mobile app).
  */
-export async function startPairing(
+export async function createPairingInvitation(
   cfg: GhostConfig,
   displayName: string,
-): Promise<PairingStartResult> {
-  const res = await fetch(`${baseURL(cfg)}/v1/pairing/start`, {
+): Promise<PairingInvitation> {
+  const res = await fetch(`${baseURL(cfg)}/v1/pairing/invitations`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ display_name: displayName }),
   });
-  if (!res.ok) throw new Error(`Failed to start pairing (HTTP ${res.status})`);
+  if (!res.ok) throw new Error(`Failed to create pairing invitation (HTTP ${res.status})`);
   return res.json();
 }
 
 /**
- * Redeem a pairing token. Returns device credentials.
- * Called by the mobile app after scanning the QR code.
+ * Complete pairing. Mobile app presents token + device metadata, gets credentials.
+ * Single-use. Token expires after 5 minutes.
+ * PUBLIC endpoint — no auth headers needed.
+ */
+export async function completePairing(
+  cfg: GhostConfig,
+  token: string,
+  displayName: string,
+  platform: string,
+): Promise<PairingCompleteResult> {
+  const res = await fetch(`${baseURL(cfg)}/v1/pairing/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, display_name: displayName, platform }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    if (body?.error?.code) {
+      throw { code: body.error.code, message: body.error.message };
+    }
+    throw new Error(`Failed to complete pairing (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+/**
+ * @deprecated Use createPairingInvitation() instead.
+ */
+export async function startPairing(
+  cfg: GhostConfig,
+  displayName: string,
+): Promise<PairingInvitation> {
+  return createPairingInvitation(cfg, displayName);
+}
+
+/**
+ * @deprecated Use completePairing() instead.
  */
 export async function redeemPairing(
   cfg: GhostConfig,
   token: string,
-): Promise<PairingRedeemResult> {
-  // Pairing/redeem is a public endpoint — no auth headers needed.
-  // The token itself is the authorization.
-  const res = await fetch(`${baseURL(cfg)}/v1/pairing/redeem`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token }),
-  });
-  if (!res.ok) throw new Error(`Failed to redeem pairing (HTTP ${res.status})`);
-  return res.json();
+): Promise<PairingCompleteResult> {
+  return completePairing(cfg, token, "Phone", "unknown");
 }
 
 /** List all paired devices. */
