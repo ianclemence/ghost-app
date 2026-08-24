@@ -1,99 +1,199 @@
-# Ghost Mobile App — Design Report
+# Ghost Mobile — Design Report
 
-> A comprehensive review of every screen, component, token, and design decision in the Ghost mobile app as of commit `238a4d7`.
+> Comprehensive design documentation for the Ghost mobile app. Updated after the product-level redesign (commit `e03b3cf`).
 
 ---
 
 ## Table of Contents
 
-1. [Design Philosophy](#design-philosophy)
-2. [Color System](#color-system)
-3. [Typography](#typography)
-4. [Spacing & Layout](#spacing--layout)
-5. [Component Library](#component-library)
-6. [Tab Navigator](#tab-navigator)
-7. [Screen: Home](#screen-home)
-8. [Screen: Chat](#screen-chat)
-9. [Screen: Conversation](#screen-conversation)
-10. [Screen: Activity](#screen-activity)
-11. [Screen: Memory](#screen-memory)
-12. [Screen: Settings](#screen-settings)
-13. [Error Handling](#error-handling)
-14. [Backend Gaps & TODOs](#backend-gaps--todos)
-15. [What We Are NOT Building](#what-we-are-not-building)
+1. [Product Thesis](#product-thesis)
+2. [Design Principles](#design-principles)
+3. [Ghost Voice](#ghost-voice)
+4. [Visual Identity](#visual-identity)
+5. [Color System](#color-system)
+6. [Typography](#typography)
+7. [Spacing & Layout](#spacing--layout)
+8. [Component Library](#component-library)
+9. [Tab Navigator](#tab-navigator)
+10. [Screen: Home](#screen-home)
+11. [Screen: Chats](#screen-chats)
+12. [Screen: Conversation](#screen-conversation)
+13. [Screen: Activity](#screen-activity)
+14. [Screen: Memory](#screen-memory)
+15. [Screen: More](#screen-more)
+16. [Error Handling](#error-handling)
+17. [Backend Architecture](#backend-architecture)
+18. [What Was Removed](#what-was-removed)
 
 ---
 
-## Design Philosophy
+## 1. Product Thesis
 
-Ghost is a **personal AI** — not a chatbot, not a developer tool, not a home assistant. The mobile app is the window into that relationship.
+> Do not design an app that lets someone use Ghost.
+> Design the interface through which Ghost exists in someone's life.
 
-Three words guide every decision: **warm, quiet, premium.**
+Ghost is a **persistent personal AI**. It remembers, notices, works, communicates, and persists over time. The mobile app is the user's window into that entity.
 
-- **Light-first.** The app opens on warm paper tones, not dark panels. Dark mode is defined but secondary.
-- **No terminal aesthetic.** Killed green borders, glowing indicators, "THINKING..." labels, developer jargon. Monospace is reserved exclusively for actual technical values (code blocks, version strings).
-- **No dashboard.** No metric cards, no gauge charts, no system stats on the home screen. This is a personal interface, not an admin panel.
-- **No ChatGPT clone.** Ghost is not a blank text box with a send button. It has structure: a home feed, conversation history, activity log, memory browser, settings.
+Ghost is **not**:
+- A chatbot
+- ChatGPT clone
+- Developer console
+- Home assistant dashboard
+- Productivity SaaS
+- Raspberry Pi management app
+- Futuristic/sci-fi AI interface
+
+The interface should communicate: **"Ghost is here."**
+
+Not: "Here is an app containing features for Ghost."
 
 ---
 
-## Color System
+## 2. Design Principles
 
-All colors live in `constants/theme.ts` as a two-tier system: raw `Colors` (platform compat) and semantic `Ghost` tokens (canonical).
+### Quiet over decorative
+
+No glowing effects, gradients for decoration, AI particles, futuristic animations, excessive icons, badges, pills, illustrations, giant status indicators, or animated "AI" effects.
+
+Whitespace is a design element. Typography is a design element. Timing and motion are a design element. Language is a design element.
+
+### Cards — use much less
+
+The hierarchy is:
+
+- **Primary content:** open space, typography, grouping, dividers, rhythm
+- **Secondary content:** subtle tinted surfaces
+- **Interactive controls:** restrained rounded surfaces
+- **Modals/sheets:** stronger surfaces where appropriate
+
+Cards should represent independent objects (a morning briefing, a meaningful observation). Not list items, not settings rows, not memory categories.
+
+Rows should be rows. Lists should breathe. Use dividers and whitespace instead of containers.
+
+### Ghost's identity
+
+Ghost's identity comes from:
+- Typography
+- Spacing
+- Composition
+- Language
+- Motion
+- Surfaces
+- Restraint
+- The Ghost mark
+
+The accent supports the identity. It does not define it.
+
+### Distinct screen compositions
+
+Do not apply one template to every screen. Each screen has its own composition:
+
+- **Home:** spacious, editorial, presence-oriented
+- **Chats:** quiet chronological list
+- **Conversation:** editorial transcript
+- **Activity:** timeline / chronological work history
+- **Memory:** human knowledge browser
+- **More:** restrained configuration list
+
+The design system unifies these screens. It does not flatten them into the same template.
+
+---
+
+## 3. Ghost Voice
+
+Ghost speaks in a consistent voice throughout the app. The voice is: calm, concise, matter-of-fact, intelligent, understated.
+
+| Context | Ghost Voice |
+|---|---|
+| Empty home | "It's quiet today." |
+| Empty chats | "Start talking to Ghost." |
+| Empty activity | "Nothing to report." |
+| Empty memory | "Ghost is still getting to know you." |
+| Connection error | "I can't reach your Ghost Pod right now." |
+| Ghost offline | "Ghost is offline." |
+| Reconnecting | "Reconnecting…" |
+| Task done | "Done." |
+| Error | "Ghost couldn't finish that." |
+| No response | "Ghost didn't get a response." |
+
+Never used:
+- "Absolutely!" / excessive enthusiasm
+- Motivational language
+- Corporate language
+- Robotic status language
+- "No activity yet." / "No conversations yet." / "Connection failed."
+
+---
+
+## 4. Visual Identity
+
+### Ghost Mark
+
+A simple, restrained ghost silhouette. Derived from the existing ghost blob asset. Works at 16–64px. Quiet, editorial, timeless.
+
+Used beside Ghost responses, on Home, during onboarding, in notifications, on the Ghost Pod screen.
+
+Not a G-in-circle. Not a robot. Not a sparkle. Not a glowing orb.
+
+### Colors
+
+The warm light-first palette is unchanged. The muted sage green (`#3D7A5F`) serves as a restrained accent — used for primary actions, active states, and links. It does not dominate the interface.
+
+Identity comes from typography, spacing, and restraint — not from green.
+
+---
+
+## 5. Color System
+
+All colors live in `constants/theme.ts`. Two-tier system: raw `Colors` (platform compat) and semantic `Ghost` tokens (canonical).
 
 ### Background Stack
 
-Three elevation levels, each slightly darker/warmer than the last. No shadows — hierarchy is communicated through color alone.
+Three elevation levels. No shadows — hierarchy through color alone.
 
 | Token | Hex | Usage |
 |---|---|---|
 | `Ghost.bg.base` | `#FAFAF7` | Screen backgrounds, tab bar |
-| `Ghost.bg.raised` | `#F5F3EE` | Cards, list rows, input fields |
-| `Ghost.bg.sunken` | `#EDEBE6` | Disabled states, icon containers, toggle track |
+| `Ghost.bg.raised` | `#F5F3EE` | Cards, input fields |
+| `Ghost.bg.sunken` | `#EDEBE6` | Disabled states, icon containers |
 
 ### Text Stack
-
-Four levels of text emphasis. The warm near-black (`#1A1611`) avoids the harshness of pure black.
 
 | Token | Hex | Usage |
 |---|---|---|
 | `Ghost.text.primary` | `#1A1611` | Headings, primary content |
-| `Ghost.text.secondary` | `#6B6560` | Descriptions, subtitles, placeholders |
-| `Ghost.text.tertiary` | `#9C9590` | Timestamps, labels, inactive states |
-| `Ghost.text.inverse` | `#FAFAF7` | Text on accent/colored backgrounds |
+| `Ghost.text.secondary` | `#6B6560` | Descriptions, subtitles |
+| `Ghost.text.tertiary` | `#9C9590` | Timestamps, labels, inactive |
+| `Ghost.text.inverse` | `#FAFAF7` | Text on colored backgrounds |
 
 ### Accent
 
-A single, muted sage green. Used sparingly — buttons, links, active states, toggles, the connection dot.
-
 | Token | Value | Usage |
 |---|---|---|
-| `Ghost.accent.primary` | `#3D7A5F` | Primary actions, active tab, links |
-| `Ghost.accent.soft` | `rgba(61,122,95,0.08)` | Avatar backgrounds, icon tints |
-| `Ghost.accent.medium` | `rgba(61,122,95,0.15)` | Toggle track (on state) |
+| `Ghost.accent.primary` | `#3D7A5F` | Primary actions, links |
+| `Ghost.accent.soft` | `rgba(61,122,95,0.08)` | Subtle tints |
+| `Ghost.accent.medium` | `rgba(61,122,95,0.15)` | Toggle track (on) |
 
 ### Status
 
 | Token | Hex | Usage |
 |---|---|---|
-| `Ghost.status.success` | `#3D7A5F` | Connected, success messages |
-| `Ghost.status.warning` | `#B07C2E` | Rate limits, degraded state |
-| `Ghost.status.error` | `#C24B3C` | Failures, connection errors |
+| `Ghost.status.success` | `#3D7A5F` | Connected, success |
+| `Ghost.status.warning` | `#B07C2E` | Rate limits, degraded |
+| `Ghost.status.error` | `#C24B3C` | Failures |
 | `Ghost.status.info` | `#5A7A9A` | Informational |
 
 ### Borders
 
-Three opacity levels of the warm near-black, applied as rgba. No hard border colors.
-
 | Token | Value | Usage |
 |---|---|---|
-| `Ghost.border.subtle` | `rgba(26,22,17,0.06)` | List dividers, subtle separation |
-| `Ghost.border.default` | `rgba(26,22,17,0.12)` | Input borders, card borders |
-| `Ghost.border.strong` | `rgba(26,22,17,0.20)` | Focused states, emphasis borders |
+| `Ghost.border.subtle` | `rgba(26,22,17,0.06)` | Dividers |
+| `Ghost.border.default` | `rgba(26,22,17,0.12)` | Input borders |
+| `Ghost.border.strong` | `rgba(26,22,17,0.20)` | Focused states |
 
 ---
 
-## Typography
+## 6. Typography
 
 Platform-native fonts. SF Pro family on iOS, system sans-serif on Android.
 
@@ -102,12 +202,9 @@ Platform-native fonts. SF Pro family on iOS, system sans-serif on Android.
 | `Fonts.sans` | SF Pro Text | sans-serif |
 | `Fonts.display` | SF Pro Display | sans-serif-medium |
 | `Fonts.serif` | Georgia | serif |
-| `Fonts.rounded` | SF Pro Rounded | sans-serif-medium |
 | `Fonts.mono` | SF Mono | monospace |
 
 ### Type Scale
-
-Editorial hierarchy. Display at 34pt down to caption at 11pt. No ALL CAPS except section headers.
 
 | Name | Size | Line Height | Weight | Letter Spacing |
 |---|---|---|---|---|
@@ -121,17 +218,15 @@ Editorial hierarchy. Display at 34pt down to caption at 11pt. No ALL CAPS except
 | `Type.footnote` | 12 | 16 | 400 | — |
 | `Type.caption` | 11 | 14 | 500 | 0.2 |
 
-### ThemedText Component
-
-`components/themed-text.tsx` exports a `GhostText` component that maps a `type` prop to the correct type scale entry. Supports `display`, `largeTitle`, `title`, `headline`, `body`, `callout`, `subhead`, `footnote`, `caption`, `link`, and `mono`.
+Editorial hierarchy. No ALL CAPS except section labels (used sparingly).
 
 ---
 
-## Spacing & Layout
+## 7. Spacing & Layout
 
 ### Spacing Scale
 
-Consistent 4px base increment. The screen horizontal padding is always 20px (`Space.xl`).
+4px base increment. Screen horizontal padding: 20px.
 
 | Token | Value |
 |---|---|
@@ -144,385 +239,542 @@ Consistent 4px base increment. The screen horizontal padding is always 20px (`Sp
 | `Space.xxl` | 24 |
 | `Space.xxxl` | 32 |
 | `Space.huge` | 48 |
-| `Space.section` | 64 |
 
 ### Border Radius
 
-Rounded corners everywhere. Cards at 14px, bubbles at 18px, pills at 999px.
-
 | Token | Value | Usage |
 |---|---|---|
-| `Radius.sm` | 6 | Small buttons |
-| `Radius.md` | 10 | Input fields, icon containers |
-| `Radius.lg` | 14 | Cards, list rows |
+| `Radius.sm` | 6 | Small elements |
+| `Radius.md` | 10 | Input fields |
+| `Radius.lg` | 14 | Cards (sparingly) |
 | `Radius.xl` | 18 | Chat bubbles, input bars |
-| `Radius.xxl` | 24 | Bottom sheet top corners |
 | `Radius.full` | 999 | Pills, capsule buttons |
 
 ### Shadows
 
-**None.** Zero elevation, zero shadow, zero drop-shadow. Visual hierarchy is achieved entirely through background color layering (`base` → `raised` → `sunken`).
+**None.** Zero elevation, zero shadow. Hierarchy through background color layering alone.
 
 ---
 
-## Component Library
+## 8. Component Library
 
-All shared primitives live in `components/ghost.tsx`. Nine components total.
+All shared primitives in `components/ghost.tsx`. Plus `ghost-mark.tsx` and `ErrorCard.tsx`.
 
 ### GhostButton
 
-Four variants: `primary`, `secondary`, `ghost`, `danger`. All use `borderRadius: 999` (full pill), `minHeight: 48`, `paddingVertical: 14`, `paddingHorizontal: 20`. Disabled state uses `bg.sunken` background and 0.5 opacity. Loading state shows an `ActivityIndicator`.
+Four variants: `primary`, `secondary`, `ghost`, `disabled`. Full pill shape (`borderRadius: 999`), `minHeight: 48`. Loading state with `ActivityIndicator`.
 
 ### GhostSheet
 
-Bottom sheet modal. Transparent backdrop at `rgba(26,22,17,0.4)`. Sheet background is `bg.base` with `borderTopLeftRadius: 24` and `borderTopRightRadius: 24`. Contains a grabber bar (36×4, `borderRadius: 2`, `border.default` color), a title row with "Done" button, and a ScrollView content area.
+Bottom sheet modal. Transparent backdrop. Grabber bar, title row with "Done", ScrollView content.
 
 ### SectionHeader
 
-Uppercase section label with optional subtitle and action. Uses `caption` type, `tertiary` color, `textTransform: uppercase`, `letterSpacing: 0.5`. Horizontal padding 20px, top padding 32px.
+Quiet caption-style section label. Tertiary color, small font. No uppercase.
 
 ### GhostList / GhostRow
 
-A grouped list container with 14px border radius and 0.5px dividers indented 56px from the left. Each row has an optional leading icon (24px), title (`body`/primary), subtitle (`subhead`/secondary), and trailing chevron (`›` character in `callout`/tertiary). Rows become `TouchableOpacity` when `onPress` is provided.
+Grouped list container with dividers. Clean rows — no icon containers, no avatar circles. Just text + optional trailing chevron.
 
 ### GhostToggle
 
-Wraps React Native `Switch` with Ghost colors. Track: `bg.sunken` (off), `accent.medium` (on). Thumb: `accent.primary` (on), `tertiary` (off). Scaled to 85%.
+Wraps `Switch` with Ghost colors.
 
 ### GhostInput
 
-Text input with `bg.sunken` background, 1px `border.default` border, 10px border radius. Supports `multiline` (minHeight 96), `secureTextEntry`, and `keyboardType`. Font: 16px system sans.
-
-### ConnectionPill
-
-A small status indicator: 6px dot + label text. States: online (accent.primary dot, "Connected"), syncing (warning dot, "Available"), offline (tertiary dot, "Offline").
+Text input with sunken background, subtle border. Supports multiline, secure entry.
 
 ### EmptyState
 
-Centered placeholder for empty screens. Icon at 40% opacity, headline title (`body`/primary, centered), subtitle (`body`/secondary, centered), optional action button. Horizontal padding 48px.
+Centered placeholder. Ghost voice text. Optional action button.
 
 ### StatusDot
 
-A simple 6px colored circle. States: `online` (accent.primary), `warning` (warning), `offline` (tertiary).
+Simple colored circle for online/offline/warning states.
 
-### Card
+### Divider
 
-Basic container: `bg.raised`, `borderRadius: 14`, `padding: 16`.
+0.5px line for visual separation.
+
+### Screen
+
+Safe area wrapper with proper padding.
+
+### GhostMark (`components/ghost-mark.tsx`)
+
+Simple ghost silhouette SVG. Works at 16–64px. Used throughout the app as Ghost's visual identity.
+
+### ErrorCard (`components/ErrorCard.tsx`)
+
+Typed error display with tone-colored backgrounds. 7 error kinds mapped to icons and Ghost-voice titles.
 
 ---
 
-## Tab Navigator
+## 9. Tab Navigator
 
 Five tabs. Defined in `app/(tabs)/_layout.tsx`.
 
-| Tab | File | Icon (lucide) | Label |
+| Tab | File | Icon | Label |
 |---|---|---|---|
-| Home | `index.tsx` | `House` | Home |
-| Chat | `chat.tsx` | `MessageCircle` | Chat |
-| Activity | `activity.tsx` | `Clock` | Activity |
-| Memory | `memory.tsx` | `Bookmark` | Memory |
-| Settings | `settings.tsx` | `Settings` | Settings |
+| Home | `index.tsx` | House | Home |
+| Chats | `chats.tsx` | MessageCircle | Chats |
+| Activity | `activity.tsx` | Clock | Activity |
+| Memory | `memory.tsx` | Bookmark | Memory |
+| More | `more.tsx` | MoreHorizontal | More |
 
-### Tab Bar Style
-
+Tab bar:
 - Background: `Ghost.bg.base`
-- Top border: `border.subtle`, 0.5px on iOS, 1px on Android
-- Height: 84px on iOS (includes safe area), 64px on Android
+- Top border: `border.subtle`, 0.5px iOS / 1px Android
+- Height: 84px iOS / 64px Android
 - No shadows, no elevation
-- Icons: 22px, `strokeWidth` 2 (focused) / 1.5 (unfocused)
-- Labels: 10px, weight 600 (focused) / 400 (unfocused)
-- Haptic feedback on every tab switch (`Haptics.selectionAsync`)
+- Active tab: `text.primary` color, weight 600
+- Inactive tab: `text.tertiary` color, weight 400
+- Haptic feedback on every tab switch
 
 ---
 
-## Screen: Home
+## 10. Screen: Home
 
 **File:** `app/(tabs)/index.tsx`
 
-The landing screen. What Ghost wants you to know right now.
+The most important screen. Ghost's daily presence. NOT an inbox dashboard.
 
-### Layout
+### Composition
 
-1. **Greeting header.** Time-of-day greeting ("Good morning", "Good afternoon", "Good evening") in `display` type (34pt). Below: status line in `body`/secondary ("Ghost is connected" or "Ghost is offline"). Top-right: `ConnectionPill`.
+Spacious, editorial, presence-oriented.
 
-2. **Inbox feed.** A `FlatList` of `HomeItem` cards. Each card:
-   - Background: `raised`, `borderRadius: 14`, padding 16, gap 8
-   - Header row: timestamp (`footnote`/tertiary, HH:MM format) + kind label (`caption`/accent, lowercase — "briefing", "reminder", "noticed", "activity")
-   - Title: `headline`/primary, 1 line
-   - Preview: `callout`/secondary, 2 lines, lineHeight 20
+```
+Good morning, Ian.
 
-3. **Empty state.** When no inbox items: "Ghost is quiet today." with subtitle "Ask me anything, and I will start working for you."
+[only if offline: Ghost is offline.]
 
-4. **Input bar (fixed bottom).** Touchable bar that navigates to `/chat`. Background: `raised`, `borderRadius: 18`, padding 16/12, border `subtle`. Placeholder text in `body`/tertiary. Send button: 32×32 circle, `accent.primary` background, white ArrowUp icon.
 
-### Backend Dependency
+[content area — empty or items]
 
-Currently proxies `inbox` from the Zustand store. A proper `GET /v1/home` endpoint would aggregate inbox, recent activity, and pending reminders.
 
----
+Ask Ghost
+```
 
-## Screen: Chat
+### When content exists
 
-**File:** `app/(tabs)/chat.tsx`
+Inbox items from the Zustand store (populated via WebSocket push). Grouped by temporal context:
 
-Session list. Browse and create conversations.
+- **TODAY**
+- **YESTERDAY**
+- **EARLIER THIS WEEK**
+- Individual days for older items
 
-### Layout
+Each item: title (headline) + preview (body, secondary) + time (footnote, tertiary). Clean rows with dividers. No cards.
 
-1. **Header.** "Conversations" (`largeTitle`), `ConnectionPill`, new-conversation button (36×36 circle, `accent.primary` bg, white Plus icon).
+### When empty
 
-2. **Session list.** `FlatList` of sessions fetched via `fetchSessions(config)`. Each row:
-   - Background: `raised`, `borderRadius: 14`
-   - Leading icon: 40×40 circle, `bg.sunken`, `MessageCircle` icon (`tertiary`)
-   - Title: `headline`/primary, 1 line
-   - Timestamp: `caption`/tertiary, relative time ("Just now", "5m ago", "2h ago", "Yesterday", "3d ago", or "Jan 5")
-   - Preview: `callout`/secondary, "{n} messages"
+"It's quiet today." — centered, body style, tertiary color.
 
-3. **Empty states.**
-   - Not connected: "Connect to your Ghost to start conversations."
-   - No sessions: "No conversations yet" with "New Conversation" button (`accent.primary`, `borderRadius: full`)
-   - Loading: `ActivityIndicator` (accent.primary, large)
+### Input
 
-### Session Title Logic
+Simple text prompt at bottom: "Ask Ghost". Tap navigates to `/chats`. No send button visible. Subtle, recedes when not focused.
 
-Uses `session.title` if it exists and differs from the session ID. Falls back to the ID, splitting on `:` and taking the last segment.
+### Data source
 
-### Navigation
+- `inbox` from Zustand store (WebSocket push items)
+- `connectionState` for offline status
+- No API calls — purely reactive to store state
 
-Tapping a session sets `currentSession` in the store and pushes `/conversation`.
+### Backend gap
+
+No `GET /v1/home` aggregation endpoint exists. Currently proxies inbox items from WebSocket. A proper endpoint would aggregate inbox, recent activity, and pending reminders.
 
 ---
 
-## Screen: Conversation
+## 11. Screen: Chats
+
+**File:** `app/(tabs)/chats.tsx`
+
+How I talk to Ghost. Not a session manager.
+
+### Composition
+
+Quiet chronological list.
+
+```
+Chats
+
+TODAY
+[Session title]           3 messages    2h ago
+[Session title]           1 message     5m ago
+
+YESTERDAY
+[Session title]           12 messages   Yesterday
+
+EARLIER THIS WEEK
+[Session title]           8 messages    Jan 15
+
+EARLIER
+[Session title]           24 messages   Jan 3
+```
+
+### Each row
+
+- Title (headline) — uses `session.title` if set and different from key, else "Conversation"
+- Message count: "{n} messages" (footnote, secondary)
+- Time: relative (footnote, tertiary) — right-aligned
+- No icons, no avatar circles, no card backgrounds
+- Dividers between rows
+
+### Temporal grouping
+
+Sessions grouped by: Today, Yesterday, Earlier This Week, Earlier.
+
+### Empty state
+
+"Start talking to Ghost." with "New Conversation" button.
+
+### New conversation
+
+Sets `currentSession` to `"mobile:default"` and navigates to `/conversation`.
+
+### Data source
+
+`fetchSessions(config)` → `GET /v1/sessions` → `{sessions: [{id, title, message_count, last_activity}]}`
+
+---
+
+## 12. Screen: Conversation
 
 **File:** `app/conversation.tsx`
 
-Full chat interface. Message bubbles, markdown rendering, streaming.
+An editorial transcript. Not chatbot bubbles.
 
-### Layout
+### Composition
 
-1. **Header.** Back button (ArrowLeft, accent.primary, 24px), centered title "Ghost" (`headline`), spacer.
+```
+[←]                    Ghost                    [spacer]
+──────────────────────────────────────────────────────
 
-2. **Message list.** `FlatList` with inverted orientation.
-   - **User bubbles:** `alignSelf: flex-end`, maxWidth 85%, `bg.accent.primary`, `borderRadius: 18`, padding 16/12. Text: `body`/inverse.
-   - **Assistant bubbles:** `alignSelf: flex-start`, maxWidth 85%, `bg.raised`, `borderRadius: 18`, padding 12/16. Includes avatar: 28×28 circle, `bg.accent.soft`, "G" letter (`caption`/accent, weight 600). Content rendered via `react-native-markdown-display`.
-   - **Timestamps:** `caption`/tertiary, marginTop 4.
+USER
 
-3. **Streaming indicator.** `ActivityIndicator` + "Ghost is thinking..." (`footnote`/tertiary).
+Can you find three motorcycle suppliers in Bangkok?
 
-4. **Input bar.** `TextInput` (flex 1, `bg.raised`, `borderRadius: 18`, 1px `border.default`, maxHeight 120, fontSize 16, lineHeight 24, placeholder "Ask Ghost...") + Send button (40×40 circle, `accent.primary`, white Send icon). Disabled at opacity 0.4. Max 2000 characters.
+──────────────────────────────────────────────────────
 
-### Markdown Styles
+Ghost
 
-| Element | Rendering |
-|---|---|
-| `body` | primary, 16/24, sans |
-| `heading1` | primary, 700, 22, marginBottom 8 |
-| `heading2` | primary, 600, 18, marginBottom 6 |
-| `code_inline` | bg.sunken, primary, mono, borderRadius 6, px 5, fontSize 14 |
-| `fence` | bg.sunken, borderRadius 10, padding 12 |
-| `link` | accent.primary |
-| `strong` | primary, 600 |
-| `blockquote` | borderLeft 3px accent.primary, paddingLeft 12, opacity 0.85 |
-| `hr` | bg.border.subtle, height 1 |
+I found three that look worth contacting.
 
-### Send Flow
+[Content with markdown]
 
-1. Creates temp user message with `status: "sending"`
-2. Appends to store, clears input, sets `streaming = true`
-3. Calls `sendMessage` with:
-   - `onChunk` → `appendStream` (accumulates tokens)
-   - `onDone` → `commitStream` (finalizes message)
-   - `onError` → `setStreaming(false)`
+──────────────────────────────────────────────────────
+```
+
+### Key design decisions
+
+- **No colored user bubbles.** User messages: "USER" label (caption, tertiary, uppercase) above text (body).
+- **No assistant bubble background.** "GHOST" label (caption, secondary) above text (body).
+- **No avatar circles.** Removed entirely.
+- **No timestamps on every message.** Removed visual noise.
+- **Dividers** between messages (0.5px, `border.subtle`).
+- **Ghost's response breathes** — generous vertical padding.
+- **No "Ghost is thinking..."** — removed entirely. When streaming, the response appears naturally.
+
+### Input
+
+"Message Ghost..." placeholder. Clean, no border initially. Border appears on focus. Max 2000 characters.
+
+### Markdown rendering
+
+Quiet markdown styles. Code blocks use `bg.sunken`. Links in accent color. Blockquotes with left border.
+
+### Data source
+
+- `fetchHistory(config, 50, 0)` → `GET /v1/history?session=X&limit=50`
+- `sendMessage(config, opts)` → `POST /v1/chat` (SSE streaming)
+- Streaming: `onChunk` → `appendStream`, `onDone` → `commitStream`
 
 ---
 
-## Screen: Activity
+## 13. Screen: Activity
 
 **File:** `app/(tabs)/activity.tsx`
 
-Scheduled background tasks. Cron jobs presented as human-readable actions.
+What has Ghost been doing for me? Not a cron manager.
 
-### Layout
+### Composition
 
-1. **Header.** "Activity" (`largeTitle`), `ConnectionPill`.
+Timeline / chronological work history.
 
-2. **Job cards.** Each cron job rendered as a card:
-   - Background: `raised`, `borderRadius: 14`, padding 16, gap 8
-   - Header row: Name (`headline`/primary) + Schedule (`subhead`/secondary)
-   - Toggle button: 32×32 circle, Play/Pause icon. `accent.soft` bg when active, `bg.sunken` when paused.
-   - Meta rows: Clock/CheckCircle icon (12px, tertiary) + text (`footnote`/tertiary)
-     - "Next: Today · 3:00 PM" or "Next: Wed, Jan 8, 3:00 PM"
-     - "Ran 5 times · Last: 2h ago"
-   - Error row: AlertCircle (12px, error) + error text (`footnote`/error, 2 lines max)
-   - Run now button: Play icon + "Run now" (`footnote`/accent.primary)
+```
+Activity
 
-3. **Empty states.** Not connected / Loading / "No activity yet"
+TODAY
+Morning briefing          Daily · 8:00 AM
+Delivered · 8:02 AM
 
-### Schedule Parsing
+Researched suppliers      Completed · 10:42 AM
 
-- `every` kind: Converts milliseconds to human — "Every day", "Every 2 hours", "Every 30 min", "Every 15s"
-- `at` kind: "Once · Jan 5, 3:00 PM"
-- Fallback: "Custom schedule"
+UPCOMING
+Morning briefing          Daily at 8:00 AM
+Next: Tomorrow · 8:00 AM
 
-### Optimistic Toggle
+PAUSED
+Weekly summary            Paused
+```
 
-Immediately flips `lifecycle_state` in local state for instant UI feedback. Calls API in background. Reverts on error.
+### Each row
+
+- Title (headline) — the job name
+- Status line: "Delivered · 8:02 AM" or "Completed · 10:42 AM" (footnote, secondary)
+- For upcoming: "Next: Tomorrow · 8:00 AM"
+- For paused: "Paused" (footnote, tertiary)
+- No play/pause/run buttons in the main list (management actions deferred to detail view)
+
+### Schedule conversion
+
+Cron expressions converted to human text:
+- `every` with 86400000ms → "Daily"
+- `every` with 3600000ms → "Every hour"
+- `cron` with "0 8 * * *" → "Daily at 8:00 AM"
+- `at` kind → "Once · Jan 15"
+
+### Sections
+
+- **TODAY** — jobs that ran today
+- **UPCOMING** — active jobs with future next run
+- **PAUSED** — paused jobs
+
+### Empty state
+
+"Nothing to report."
+
+### Data source
+
+`fetchCronJobs(config)` → `GET /v1/cron/jobs` → `{jobs: [CronJob]}`
+
+CronJob fields: `id`, `name`, `enabled`, `lifecycle_state` ("active"|"paused"|"running"), `schedule` (kind, atMs, everyMs, expr), `payload` (message, deliver, channel), `state` (nextRunAtMs, lastRunAtMs), `run_count`.
 
 ---
 
-## Screen: Memory
+## 14. Screen: Memory
 
 **File:** `app/(tabs)/memory.tsx`
 
-Browse what Ghost knows about you. Currently displays category structure with placeholder counts.
+What does Ghost know about me? Not a database browser.
 
-### Layout
+### Composition
 
-1. **Header.** "Memory" (`largeTitle`), `ConnectionPill`.
+Human knowledge browser.
 
-2. **Subtitle.** "What Ghost remembers about you" (`body`/secondary).
+```
+Memory
 
-3. **Category list.** `FlatList` of memory categories. Each row:
-   - Background: `raised`, `borderRadius: 14`, padding 16, gap 12
-   - Icon container: 40×40, `borderRadius: 10`, `bg.accent.soft`, icon colored `accent.primary`
-   - Title: `headline`/primary
-   - Description: `subhead`/secondary
-   - Count badge: minWidth 24, height 24, `borderRadius: 12`, `bg.sunken`, `caption`/tertiary
-   - Trailing chevron: `ChevronRight` (16px, tertiary)
+What Ghost remembers about you.
 
-### Categories
 
-| ID | Title | Icon | Description |
-|---|---|---|---|
-| `people` | People | Users | People Ghost knows about |
-| `projects` | Projects | Folder | Things you are working on |
-| `preferences` | Preferences | Heart | How you like things |
-| `places` | Places | MapPin | Locations that matter |
-| `goals` | Goals | Flag | What you are working toward |
-| `facts` | Facts | Info | Important things to remember |
-| `decisions` | Decisions | GitBranch | Choices you have made |
+People
+Ian's wife is Maria. She works at the hospital.
 
-### Backend Gap
+Things you're working on
+Building a motorcycle workshop in Bangkok.
 
-Categories are hardcoded with `count: 0`. A `GET /v1/memory/entries` endpoint is needed to populate real counts and entry lists.
+How you like things
+Prefers concise communication. Morning person.
+```
 
----
+### Each row
 
-## Screen: Settings
+- Category title (headline)
+- Preview of content (body, secondary, 2 lines max)
+- No count badges, no icon containers, no chevrons
+- Clean rows with dividers
 
-**File:** `app/(tabs)/settings.tsx`
+### Data source
 
-Unified settings screen. Profile, connection, permissions, about — all in one scrollable view.
+Reads real backend files:
+- `fetchMemoryFile(config, "user-profile.md")` → user profile info
+- `fetchMemoryFile(config, "curated-memory.md")` → Ghost's curated notes
 
-### Layout
+Parses markdown headings into sections with content previews.
 
-1. **Header.** "Settings" (`largeTitle`), `ConnectionPill`.
+### Backend reality
 
-2. **Profile card.** Background `raised`, `borderRadius: 14`, padding 16, marginHorizontal 20, marginBottom 24.
-   - Avatar: 48×48 circle, `bg.accent.soft`, `User` icon (accent.primary, 24px)
-   - Name: `headline`/primary ("Ghost Owner")
-   - Status: `StatusDot` + `subhead`/secondary text (Connected / Syncing / Offline)
+The Ghost backend has three memory layers:
+1. **File-based:** `workspace/memory/MEMORY.md` + daily notes
+2. **RAG:** SQLite + HNSW vector index (via `remember` tool)
+3. **Curated:** `curated-memory.md` + `user-profile.md` (char-limited, injected into system prompt)
 
-3. **CONNECTION section.** Uppercase section header (`caption`/tertiary, letterSpacing 0.5).
-   - Card: `raised`, `borderRadius: 14`, padding 16, gap 16
-   - Host field: `GhostInput`, placeholder "192.168.1.100"
-   - Port field: `GhostInput`, numeric, placeholder "8766"
-   - Secret Key field: `GhostInput`, `secureTextEntry`
-   - QR Scan button: `border.default`, `borderRadius: 10`, QrCode icon + "Scan QR Code" (`headline`/accent.primary, fontSize 15)
-   - Button row: "Test" (secondary) + "Save & Connect" (primary, `borderRadius: full`)
-   - Feedback text: "Connected successfully" (success) / "Connection failed" (error)
+The mobile app reads layer 3 (curated). No `GET /v1/memory/entries` endpoint exists for structured entry access.
 
-4. **PERMISSIONS section.** Uppercase header.
-   - Card with single toggle row:
-     - Location: Switch (Ghost-styled) + "Share location for weather and context"
+### Empty state
 
-5. **ABOUT section.** Uppercase header.
-   - Card with:
-     - Version: "1.0.0" (`headline`/tertiary)
-     - Capabilities: Zap icon + chevron
-     - About Ghost: Info icon + chevron
-
-### QR Pairing Flow
-
-Opens `QrPairingScanner` modal (camera-based QR scanner). On successful scan: fills host/port/secret fields, saves config, connects.
+"Ghost is still getting to know you."
 
 ---
 
-## Error Handling
+## 15. Screen: More
+
+**File:** `app/(tabs)/more.tsx`
+
+Ghost Pod, capabilities, settings, about. Not a settings page.
+
+### Composition
+
+Restrained configuration list.
+
+```
+More
+
+[GhostMark 48px]
+Ghost
+Online
+
+
+────────────────────────────────
+
+Ghost Pod
+Online · Ghost 2.0.0
+
+────────────────────────────────
+
+Capabilities
+What Ghost can do
+
+Settings
+Connection, preferences
+
+About
+Version info
+
+────────────────────────────────
+```
+
+### Profile section
+
+- GhostMark icon (not G-in-circle)
+- Name: "Ghost"
+- Status: "Online" / "Offline" (with StatusDot)
+
+### Capabilities (human concepts)
+
+- Research — web search and browsing
+- Remember — saves what matters
+- Read — files, documents, images
+- Organize — notes, lists, tasks
+- Monitor — scheduled checks
+- Notify — reaches you when it matters
+
+Not: `web_search`, `shell`, `memory_search`, etc.
+
+### Settings sub-navigation
+
+- Connection: QR scan, reconnect
+- Advanced: host/port/secret (hidden behind "Advanced")
+- Permissions: location toggle
+
+### Ghost Pod
+
+- Status (Online/Offline)
+- Version
+- "Reconnect" action
+
+Not: CPU temperature, load, IP address, hostname, process list.
+
+### Data source
+
+- `checkHealth(config)` → version, status
+- `fetchSkills(config)` → capability list
+- `fetchAvailableTools(config)` → tool list
+
+---
+
+## 16. Error Handling
 
 **File:** `components/ErrorCard.tsx`
 
-Typed error cards with tone-colored backgrounds.
+Errors sound like Ghost.
 
-### Error Kinds → Icons
-
-| Kind | Icon | Title |
+| Error Kind | Icon | Ghost Voice Title |
 |---|---|---|
-| `auth` | Lock | Connection Rejected |
-| `rate_limit` | Clock | Ghost is Busy |
-| `provider` | AlertTriangle | Response Failed |
-| `network` | WifiOff | Can't Reach Ghost |
-| `empty_stream` | MessageCircleOff | No Response |
-| `interrupted` | ZapOff | Response Interrupted |
-| `timeout` | TimerOff | Request Timed Out |
+| `auth` | Lock | "Connection rejected" |
+| `rate_limit` | Clock | "Ghost is busy" |
+| `provider` | AlertTriangle | "Something went wrong" |
+| `network` | WifiOff | "Can't reach your Ghost Pod" |
+| `empty_stream` | MessageCircleOff | "No response" |
+| `interrupted` | ZapOff | "Interrupted" |
+| `timeout` | TimerOff | "Took too long" |
 
-### Tone Colors
+Tone colors:
+- **Error** (auth, provider, network): `#C24B3C` with 10% bg, 30% border
+- **Warning** (rate_limit, empty_stream, interrupted, timeout): `#B07C2E` with 10% bg, 30% border
 
-- **Error** (auth, provider, network): fg `#C24B3C`, bg `rgba(194,75,60,0.10)`, border `rgba(194,75,60,0.30)`
-- **Warning** (rate_limit, empty_stream, interrupted, timeout): fg `#B07C2E`, bg `rgba(176,124,46,0.10)`, border `rgba(176,124,46,0.30)`
-
-### Card Layout
-
-- Row: icon wrapper (28×28, `borderRadius: 14`, `bg.sunken`) + content card (flex 1, `borderRadius: 14`, 1px border, padding 12)
-- Partial content area with bottom border
-- Header row: colored dot (8×8) + error title
-- Action buttons: "Retry" (`borderRadius: full`, 1px border) + "Dismiss" (text only)
-- Auth hint: "Check Settings → Shared Secret" (`caption`/tertiary, right-aligned)
+Card layout: icon wrapper + content card with header, partial content, and action buttons.
 
 ---
 
-## Backend Gaps & TODOs
+## 17. Backend Architecture
 
-These features are designed but cannot be fully implemented without backend endpoints.
+### API Endpoints Used by Mobile App
 
-### P0 — Required for MVP
-
-| Gap | Screen | Current State | Needed Endpoint |
+| Endpoint | Method | Used By | Returns |
 |---|---|---|---|
-| Home feed aggregation | Home | Proxies inbox items from store | `GET /v1/home` — returns inbox, pending reminders, recent activity |
-| Memory entries | Memory | Hardcoded categories with count=0 | `GET /v1/memory/entries` — returns entries grouped by kind |
-| Device status | Settings (About) | Shows hardcoded "1.0.0" | `GET /v1/device/status` — returns version, uptime, health |
+| `/v1/health` | GET | Root layout, More | `{status, version, uptime_s}` |
+| `/v1/sessions` | GET | Chats | `{sessions: [{id, title, message_count, last_activity}]}` |
+| `/v1/history` | GET | Conversation | `{messages: [{id, role, content, timestamp}], total}` |
+| `/v1/chat` | POST | Conversation | SSE stream (text chunks, tool_status, lifecycle) |
+| `/v1/cron/jobs` | GET | Activity | `{jobs: [CronJob]}` |
+| `/v1/cron/jobs/{id}/pause` | POST | Activity | Pause job |
+| `/v1/cron/jobs/{id}/resume` | POST | Activity | Resume job |
+| `/v1/cron/jobs/{id}/run` | POST | Activity | Run job now |
+| `/v1/memory/files` | GET | Memory | `[{name, modified, size}]` |
+| `/v1/memory/file` | GET | Memory | `{content}` |
+| `/v1/tools` | GET | More | `{tools: [{name}]}` |
+| `/v1/skills` | GET | More | `{skills: [{name, description, enabled}]}` |
+| `/v1/model` | GET | Settings | `{active, provider, presets}` |
+| `/v1/ws` | WS | Root layout | Real-time push messages |
 
-### P1 — Important for Polish
+### WebSocket Events
 
-| Gap | Screen | Needed |
+The mobile app receives these via WebSocket:
+- `assistant_message` → triggers local notification
+- `clarify_request` → triggers local notification
+- `canvas_update` → updates canvas HTML
+- `cron_update` → refreshes activity
+- `progress_event` → updates tool status
+
+### Session Architecture
+
+- Session keys: `mobile:default`, `telegram:123456`, `cron-{jobID}`
+- Messages stored in SQLite with FTS5 search
+- Session titles may just be the key — mobile app falls back to "Conversation"
+
+### Pairing
+
+QR codes contain: `ghost://connect?host=...&port=...&secret=...` (LAN) or `ghost://connect?transport=relay&relay=...&ghost=...&token=...` (relay).
+
+### Backend Gaps
+
+| Gap | Status | Mobile Workaround |
 |---|---|---|
-| Session titles | Chat | Auto-generated conversation titles from first message |
-| Profile data | Settings | `GET /v1/profile` — returns user name, preferences |
-| Capabilities list | Settings | `GET /v1/capabilities` — returns available tools as human-readable categories |
-
-### P2 — Nice to Have
-
-| Gap | Screen | Needed |
-|---|---|---|
-| Memory CRUD | Memory | Create, edit, delete personal context entries |
-| Activity history | Activity | Historical run log beyond current cron jobs |
-| Notification preferences | Settings | Per-notification-type toggle controls |
+| `GET /v1/home` (aggregated feed) | **Missing** | Use inbox WS items |
+| `GET /v1/memory/entries` (structured) | **Missing** | Read curated-memory.md, user-profile.md |
+| `GET /v1/device/status` (clean) | **Missing** | Use health + doctor |
+| Auto-generated chat titles | **Missing** | Client fallback: "Conversation" |
+| Activity history (beyond cron) | **Missing** | Only cron jobs available |
 
 ---
 
-## What We Are NOT Building
+## 18. What Was Removed
 
-Explicitly excluded from the mobile app:
-
-- **Technical diagnostics** (CPU, memory, disk, temperature) — belongs on the Ghost Pod web console
-- **Raw tool names** (~30 backend tools) — translated to human capabilities (Research, Remember, Browse, etc.)
-- **Developer jargon** (WebSocket status, bridge secrets, relay logs, cron expressions)
-- **Dashboard metrics** (request counts, latency charts, token usage)
-- **Multi-user management** — Ghost is personal, one user per device
-- **Theme customization** — one warm, quiet theme. Done.
-- **Tablet-optimized layouts** — phone-first, `supportsTablet: false`
+| Removed | Why |
+|---|---|
+| ConnectionPill on every screen | Makes Ghost feel like device management |
+| "Ghost is thinking..." | Chatbot pattern — Ghost is not a chatbot |
+| G-in-circle avatar | Generic AI assistant look |
+| Excessive rounded cards | Cards for every list item creates visual sameness |
+| Developer jargon | Session IDs, cron expressions, tool names |
+| Raw cron expressions | "EVERY 86400 SECONDS" → "Daily" |
+| Technical connection fields | Host/port/secret in normal settings |
+| Terminal aesthetic | Green borders, glowing indicators |
+| Dashboard metrics | CPU, memory, disk on home screen |
+| "No activity yet." / "No conversations yet." | Replaced with Ghost voice |
 
 ---
 
