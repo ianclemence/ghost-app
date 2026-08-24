@@ -128,6 +128,15 @@ export default function MoreScreen() {
         <TouchableOpacity
           style={styles.menuRow}
           activeOpacity={0.6}
+          onPress={() => router.push("/onboarding")}
+        >
+          <Text style={styles.menuLabel}>Pair with Ghost Pod</Text>
+          <ChevronRight size={16} color={Ghost.text.tertiary} />
+        </TouchableOpacity>
+        <Divider />
+        <TouchableOpacity
+          style={styles.menuRow}
+          activeOpacity={0.6}
           onPress={() => router.push("/ghost-pod")}
         >
           <Text style={styles.menuLabel}>Manage Ghost Pod</Text>

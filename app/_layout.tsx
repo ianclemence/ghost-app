@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Constants, { AppOwnership } from 'expo-constants';
@@ -20,6 +20,7 @@ const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
 export default function RootLayout() {
   const { setConfig, setConnected } = useGhostStore();
+  const router = useRouter();
 
   useEffect(() => {
     (async () => {
@@ -38,6 +39,14 @@ export default function RootLayout() {
 
       // Initialize connection from stored credentials.
       await initializeConnection();
+
+      // Redirect to onboarding if no credentials stored.
+      const currentConfig = useGhostStore.getState().config;
+      const hasCredentials = currentConfig?.deviceID || currentConfig?.secret;
+      if (!hasCredentials) {
+        router.replace('/onboarding');
+        return;
+      }
 
       // Deep-link / QR pairing handling.
       const handleDeepLink = async (url: string) => {
