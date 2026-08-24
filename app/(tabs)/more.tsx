@@ -1,7 +1,7 @@
 import {
   ChevronRight,
 } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -9,17 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
 import { StatusDot, Divider } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import {
-  checkHealth,
-  connectWebSocket,
-  saveConfig,
-  GhostConfig,
-} from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
 const FONT = Fonts.sans;
@@ -35,28 +30,11 @@ const CAPABILITIES = [
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const {
     config,
     connectionState,
   } = useGhostStore();
-
-  const [version, setVersion] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!config) return;
-    checkHealth(config).then((ok) => {
-      if (ok) {
-        // Version would come from health response in a real implementation
-        setVersion("2.0.0");
-      }
-    });
-  }, [config]);
-
-  const handleReconnect = async () => {
-    if (!config) return;
-    const ok = await checkHealth(config);
-    if (ok) connectWebSocket(config);
-  };
 
   return (
     <ScrollView
@@ -114,18 +92,30 @@ export default function MoreScreen() {
       {/* Settings */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Settings</Text>
-        <TouchableOpacity style={styles.menuRow} activeOpacity={0.6}>
+        <TouchableOpacity
+          style={styles.menuRow}
+          activeOpacity={0.6}
+          onPress={() => router.push("/connection")}
+        >
           <Text style={styles.menuLabel}>Connection</Text>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
         <Divider />
-        <TouchableOpacity style={styles.menuRow} activeOpacity={0.6}>
-          <Text style={styles.menuLabel}>Advanced</Text>
+        <TouchableOpacity
+          style={styles.menuRow}
+          activeOpacity={0.6}
+          onPress={() => router.push("/permissions")}
+        >
+          <Text style={styles.menuLabel}>Permissions</Text>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
         <Divider />
-        <TouchableOpacity style={styles.menuRow} activeOpacity={0.6}>
-          <Text style={styles.menuLabel}>Permissions</Text>
+        <TouchableOpacity
+          style={styles.menuRow}
+          activeOpacity={0.6}
+          onPress={() => router.push("/advanced")}
+        >
+          <Text style={styles.menuLabel}>Advanced</Text>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
       </View>
@@ -135,28 +125,13 @@ export default function MoreScreen() {
       {/* Ghost Pod */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Ghost Pod</Text>
-        <View style={styles.podRow}>
-          <Text style={styles.podLabel}>Status</Text>
-          <Text style={styles.podValue}>
-            {connectionState === "online" ? "Online" : "Offline"}
-          </Text>
-        </View>
-        <Divider />
-        {version && (
-          <>
-            <View style={styles.podRow}>
-              <Text style={styles.podLabel}>Version</Text>
-              <Text style={styles.podValue}>{version}</Text>
-            </View>
-            <Divider />
-          </>
-        )}
         <TouchableOpacity
-          style={styles.reconnectButton}
-          onPress={handleReconnect}
+          style={styles.menuRow}
           activeOpacity={0.6}
+          onPress={() => router.push("/ghost-pod")}
         >
-          <Text style={styles.reconnectText}>Reconnect</Text>
+          <Text style={styles.menuLabel}>Manage Ghost Pod</Text>
+          <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
       </View>
 
@@ -165,10 +140,14 @@ export default function MoreScreen() {
       {/* About */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
-        <View style={styles.podRow}>
-          <Text style={styles.podLabel}>Version</Text>
-          <Text style={styles.podValue}>{version ?? "—"}</Text>
-        </View>
+        <TouchableOpacity
+          style={styles.menuRow}
+          activeOpacity={0.6}
+          onPress={() => router.push("/about")}
+        >
+          <Text style={styles.menuLabel}>About Ghost</Text>
+          <ChevronRight size={16} color={Ghost.text.tertiary} />
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -250,37 +229,6 @@ const styles = StyleSheet.create({
     ...Type.headline,
     fontFamily: FONT,
     color: Ghost.text.primary,
-    fontSize: 15,
-  },
-
-  // Pod
-  podRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: Space.sm,
-  },
-  podLabel: {
-    ...Type.headline,
-    fontFamily: FONT,
-    color: Ghost.text.primary,
-    fontSize: 15,
-  },
-  podValue: {
-    ...Type.headline,
-    fontFamily: FONT,
-    color: Ghost.text.tertiary,
-    fontSize: 15,
-  },
-  reconnectButton: {
-    paddingVertical: Space.md,
-    alignItems: "center",
-    marginTop: Space.sm,
-  },
-  reconnectText: {
-    ...Type.headline,
-    fontFamily: FONT,
-    color: Ghost.accent.primary,
     fontSize: 15,
   },
 });

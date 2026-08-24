@@ -13,7 +13,8 @@ import {
   GhostConfig,
   onWSMessage,
 } from '../lib/ghostApi';
-import { parseConnectURL } from '../lib/pairing';
+import { parsePairingURI } from '../lib/pairing';
+import { initializeConnection, completePairing } from '../lib/connection';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
@@ -35,33 +36,44 @@ export default function RootLayout() {
         });
       }
 
-      const applyConnectParams = async (cfg: GhostConfig | null) => {
-        if (!cfg) return;
-        await saveConfig(cfg);
-        setConfig(cfg);
-        const ok = await checkHealth(cfg);
-        setConnected(ok);
-        if (ok) connectWebSocket(cfg);
+      // Initialize connection from stored credentials.
+      await initializeConnection();
+
+      // Deep-link / QR pairing handling.
+      const handleDeepLink = async (url: string) => {
+        const payload = parsePairingURI(url);
+        if (!payload) return;
+
+        if (payload.type === 'secure') {
+          // Secure pairing: redeem token and connect.
+          const result = await completePairing(
+            payload.host,
+            payload.port,
+            payload.token,
+          );
+          if (result.ok) {
+            setConnected(true);
+          }
+        } else if (payload.type === 'legacy') {
+          // Legacy pairing (direct config).
+          const cfg = payload.config;
+          await saveConfig(cfg);
+          setConfig(cfg);
+          const ok = await checkHealth(cfg);
+          setConnected(ok);
+          if (ok) connectWebSocket(cfg);
+        }
       };
 
-      // Load saved config on start
-      const cfg = await loadConfig();
-      if (cfg) {
-        setConfig(cfg);
-        const ok = await checkHealth(cfg);
-        setConnected(ok);
-      }
-
-      // Deep-link / QR pairing: ghost://connect?host=...&port=8766&secret=...
       const initial = await Linking.getInitialURL();
       if (initial) {
-        await applyConnectParams(parseConnectURL(initial));
+        await handleDeepLink(initial);
       }
       const sub = Linking.addEventListener('url', ({ url }) => {
-        applyConnectParams(parseConnectURL(url));
+        handleDeepLink(url);
       });
 
-      // Listen for WS push and send local notification
+      // Listen for WS push and send local notification.
       const unsub = onWSMessage((msg) => {
         const msgType = typeof msg.type === 'string'
           ? msg.type
@@ -102,6 +114,47 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="conversation"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="onboarding"
+          options={{
+            animation: 'fade',
+          }}
+        />
+        <Stack.Screen
+          name="ghost-pod"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="connection"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="advanced"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="permissions"
+          options={{
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="about"
           options={{
             presentation: 'card',
             animation: 'slide_from_right',

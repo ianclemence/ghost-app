@@ -22,6 +22,9 @@ export interface GhostConfig {
   relayServer?: string; // relay HTTP endpoint, e.g. "https://relay.example.com"
   ghostId?: string; // device ID for relay client auth
   clientToken?: string; // raw token for relay auth (stored in SecureStore)
+  // Per-device auth (paired devices — set after secure pairing)
+  deviceID?: string;
+  credential?: string;
 }
 
 export interface PiStats {
@@ -352,6 +355,14 @@ function headers(cfg: GhostConfig): HeadersInit {
       "X-Ghost-Client-Token": cfg.clientToken,
     };
   }
+  // Per-device auth (paired device).
+  if (cfg.deviceID && cfg.credential) {
+    return {
+      "Content-Type": "application/json",
+      "X-Ghost-Device-ID": cfg.deviceID,
+      "X-Ghost-Credential": cfg.credential,
+    };
+  }
   return { "Content-Type": "application/json", "X-Ghost-Secret": cfg.secret };
 }
 
@@ -422,6 +433,101 @@ export async function checkHealthDebug(
       latencyMs: Date.now() - start,
     };
   }
+}
+
+// ─── Pairing ─────────────────────────────────────────────────────────────
+
+export interface PairingStartResult {
+  pairing_id: string;
+  token: string;
+  expires_in: number;
+}
+
+export interface PairingRedeemResult {
+  device_id: string;
+  credential: string;
+  paired_at: string;
+}
+
+export interface PairedDevice {
+  id: string;
+  device_id: string;
+  display_name: string;
+  paired_at: string;
+  last_seen_at?: string;
+  revoked_at?: string;
+}
+
+/**
+ * Start a pairing session. Returns a short-lived token for QR display.
+ * Called from the Ghost Pod web UI (not the mobile app).
+ */
+export async function startPairing(
+  cfg: GhostConfig,
+  displayName: string,
+): Promise<PairingStartResult> {
+  const res = await fetch(`${baseURL(cfg)}/v1/pairing/start`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ display_name: displayName }),
+  });
+  if (!res.ok) throw new Error(`Failed to start pairing (HTTP ${res.status})`);
+  return res.json();
+}
+
+/**
+ * Redeem a pairing token. Returns device credentials.
+ * Called by the mobile app after scanning the QR code.
+ */
+export async function redeemPairing(
+  cfg: GhostConfig,
+  token: string,
+): Promise<PairingRedeemResult> {
+  const res = await fetch(`${baseURL(cfg)}/v1/pairing/redeem`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) throw new Error(`Failed to redeem pairing (HTTP ${res.status})`);
+  return res.json();
+}
+
+/** List all paired devices. */
+export async function listPairedDevices(
+  cfg: GhostConfig,
+): Promise<PairedDevice[]> {
+  const res = await fetch(`${baseURL(cfg)}/v1/pairing/devices`, {
+    headers: headers(cfg),
+  });
+  if (!res.ok) throw new Error(`Failed to list devices (HTTP ${res.status})`);
+  const data = await res.json();
+  return data.devices ?? [];
+}
+
+/** Revoke a paired device. */
+export async function revokePairedDevice(
+  cfg: GhostConfig,
+  deviceID: string,
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/pairing/revoke`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ device_id: deviceID }),
+  });
+  if (!res.ok) throw new Error(`Failed to revoke device (HTTP ${res.status})`);
+}
+
+/** Cancel a pending pairing token. */
+export async function cancelPairing(
+  cfg: GhostConfig,
+  pairingID: string,
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/pairing/cancel`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ pairing_id: pairingID }),
+  });
+  if (!res.ok) throw new Error(`Failed to cancel pairing (HTTP ${res.status})`);
 }
 
 // ─── History ───────────────────────────────────────────────────────────────
@@ -1506,7 +1612,17 @@ let wsCurrentURL: string | null = null;
 let wsReconnectConfig: GhostConfig | null = null;
 
 export function connectWebSocket(cfg: GhostConfig): void {
-  const url = `${wsURL(cfg)}/v1/ws?secret=${encodeURIComponent(cfg.secret)}&session=${encodeURIComponent(normalizeSession(cfg.session))}`;
+  // Build WS URL with appropriate auth params.
+  const session = encodeURIComponent(normalizeSession(cfg.session));
+  let authParams: string;
+  if (cfg.deviceID && cfg.credential) {
+    // Per-device auth (paired device).
+    authParams = `device_id=${encodeURIComponent(cfg.deviceID)}&credential=${encodeURIComponent(cfg.credential)}&session=${session}`;
+  } else {
+    // Bridge secret auth (legacy LAN).
+    authParams = `secret=${encodeURIComponent(cfg.secret)}&session=${session}`;
+  }
+  const url = `${wsURL(cfg)}/v1/ws?${authParams}`;
   wsReconnectConfig = cfg;
   wsShouldReconnect = true;
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
