@@ -1,8 +1,7 @@
-import { ArrowLeft, Send } from "lucide-react-native";
+import { ArrowLeft } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -15,7 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Markdown from "react-native-markdown-display";
 
-import { Colors, Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import {
   fetchHistory,
@@ -23,13 +22,6 @@ import {
 } from "@/lib/ghostApi";
 
 const FONT = Fonts.sans;
-
-function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
@@ -51,7 +43,6 @@ export default function ConversationScreen() {
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
-  // Load history on mount
   useEffect(() => {
     if (!config || !params.id) return;
     const loadHistory = async () => {
@@ -93,28 +84,19 @@ export default function ConversationScreen() {
   }, [config, input, isStreaming]);
 
   const renderMessage = useCallback(
-    ({ item }: { item: ExtendedMessage }) => {
+    ({ item, index }: { item: ExtendedMessage; index: number }) => {
       const isUser = item.role === "user";
       return (
-        <View
-          style={[
-            styles.messageBubble,
-            isUser ? styles.userBubble : styles.assistantBubble,
-          ]}
-        >
-          {!isUser && (
-            <View style={styles.ghostAvatar}>
-              <Text style={styles.ghostAvatarText}>G</Text>
-            </View>
+        <View style={styles.messageBlock}>
+          {index > 0 && <View style={styles.messageDivider} />}
+          <Text style={styles.messageLabel}>
+            {isUser ? "USER" : "GHOST"}
+          </Text>
+          {isUser ? (
+            <Text style={styles.userText}>{item.content}</Text>
+          ) : (
+            <Markdown style={markdownStyles}>{item.content}</Markdown>
           )}
-          <View style={[styles.messageContent, isUser && styles.userContent]}>
-            {isUser ? (
-              <Text style={styles.userText}>{item.content}</Text>
-            ) : (
-              <Markdown style={markdownStyles}>{item.content}</Markdown>
-            )}
-            <Text style={styles.messageTime}>{formatTime(item.timestamp)}</Text>
-          </View>
         </View>
       );
     },
@@ -133,7 +115,7 @@ export default function ConversationScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <ArrowLeft size={24} color={Ghost.accent.primary} />
+          <ArrowLeft size={24} color={Ghost.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           Ghost
@@ -158,38 +140,20 @@ export default function ConversationScreen() {
         }
       />
 
-      {/* Streaming indicator */}
-      {isStreaming && (
-        <View style={styles.streamingIndicator}>
-          <ActivityIndicator size="small" color={Ghost.accent.primary} />
-          <Text style={styles.streamingText}>Ghost is thinking...</Text>
-        </View>
-      )}
-
       {/* Input */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.sm }]}>
-        <View style={styles.inputRow}>
-          <TextInput
-            ref={inputRef}
-            style={styles.textInput}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask Ghost..."
-            placeholderTextColor={Ghost.text.tertiary}
-            multiline
-            maxLength={2000}
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!input.trim() || isStreaming) && styles.sendButtonDisabled,
-            ]}
-            onPress={handleSend}
-            disabled={!input.trim() || isStreaming}
-          >
-            <Send size={18} color={Ghost.text.inverse} />
-          </TouchableOpacity>
-        </View>
+        <TextInput
+          ref={inputRef}
+          style={styles.textInput}
+          value={input}
+          onChangeText={setInput}
+          placeholder="Message Ghost..."
+          placeholderTextColor={Ghost.text.tertiary}
+          multiline
+          maxLength={2000}
+          onSubmitEditing={handleSend}
+          blurOnSubmit={false}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -224,65 +188,26 @@ const styles = StyleSheet.create({
   messageList: {
     paddingHorizontal: Space.xl,
     paddingTop: Space.lg,
-    gap: Space.lg,
   },
-  messageBubble: {
-    flexDirection: "row",
-    gap: Space.sm,
-    maxWidth: "85%",
+  messageBlock: {
+    paddingVertical: Space.lg,
   },
-  userBubble: {
-    alignSelf: "flex-end",
+  messageDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Ghost.border.subtle,
+    marginBottom: Space.lg,
   },
-  assistantBubble: {
-    alignSelf: "flex-start",
-  },
-  ghostAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Ghost.accent.soft,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  ghostAvatarText: {
+  messageLabel: {
     ...Type.caption,
     fontFamily: FONT,
-    color: Ghost.accent.primary,
-    fontWeight: "600",
-  },
-  messageContent: {
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.xl,
-    paddingHorizontal: Space.lg,
-    paddingVertical: Space.md,
-  },
-  userContent: {
-    backgroundColor: Ghost.accent.primary,
+    color: Ghost.text.tertiary,
+    letterSpacing: 0.3,
+    marginBottom: Space.sm,
   },
   userText: {
     ...Type.body,
     fontFamily: FONT,
-    color: Ghost.text.inverse,
-  },
-  messageTime: {
-    ...Type.caption,
-    fontFamily: FONT,
-    color: Ghost.text.tertiary,
-    marginTop: Space.xs,
-  },
-  streamingIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.sm,
-    paddingHorizontal: Space.xl,
-    paddingVertical: Space.sm,
-  },
-  streamingText: {
-    ...Type.footnote,
-    fontFamily: FONT,
-    color: Ghost.text.tertiary,
+    color: Ghost.text.primary,
   },
   inputContainer: {
     paddingHorizontal: Space.xl,
@@ -290,13 +215,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Ghost.border.subtle,
   },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: Space.sm,
-  },
   textInput: {
-    flex: 1,
     backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.xl,
     borderWidth: 1,
@@ -309,17 +228,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     maxHeight: 120,
     textAlignVertical: "center",
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Ghost.accent.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendButtonDisabled: {
-    opacity: 0.4,
   },
 });
 

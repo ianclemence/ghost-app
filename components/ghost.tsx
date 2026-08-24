@@ -5,6 +5,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Switch,
   TextInput,
   TouchableOpacity,
@@ -13,8 +14,59 @@ import {
   type TextStyle,
   type ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
+import { GhostMark } from "@/components/ghost-mark";
+
+export { GhostMark };
+
+/* ------------------------------------------------------------------ */
+/* Divider                                                            */
+/* ------------------------------------------------------------------ */
+
+export function Divider({ style }: { style?: StyleProp<ViewStyle> }) {
+  return (
+    <View
+      style={[
+        {
+          height: StyleSheet.hairlineWidth,
+          backgroundColor: Ghost.border.subtle,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Screen — safe area wrapper with proper padding                      */
+/* ------------------------------------------------------------------ */
+
+export function Screen({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={[
+        {
+          flex: 1,
+          backgroundColor: Ghost.bg.base,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* GhostButton                                                        */
@@ -224,8 +276,7 @@ export function SectionHeader({
           type="caption"
           style={{
             color: Ghost.text.tertiary,
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
+            letterSpacing: 0.3,
           }}
         >
           {title}
@@ -258,10 +309,7 @@ export function GhostList({
     <View
       style={[
         {
-          backgroundColor: Ghost.bg.raised,
-          borderRadius: Radius.lg,
           marginHorizontal: Space.xl,
-          overflow: "hidden",
         },
         style,
       ]}
@@ -270,13 +318,7 @@ export function GhostList({
         <View key={i}>
           {child}
           {divided && i < React.Children.count(children) - 1 ? (
-            <View
-              style={{
-                height: 0.5,
-                backgroundColor: Ghost.border.subtle,
-                marginLeft: Space.xl + 24 + Space.md,
-              }}
-            />
+            <Divider style={{ marginLeft: Space.xl }} />
           ) : null}
         </View>
       ))}
@@ -285,7 +327,6 @@ export function GhostList({
 }
 
 export function GhostRow({
-  icon,
   title,
   subtitle,
   trailing,
@@ -293,7 +334,6 @@ export function GhostRow({
   chevron,
   style,
 }: {
-  icon?: React.ReactNode;
   title: string;
   subtitle?: string;
   trailing?: React.ReactNode;
@@ -307,17 +347,13 @@ export function GhostRow({
         {
           flexDirection: "row",
           alignItems: "center",
-          gap: Space.md,
           paddingVertical: Space.md + 2,
-          paddingHorizontal: Space.lg,
+          paddingHorizontal: Space.xl,
           minHeight: 52,
         },
         style,
       ]}
     >
-      {icon ? (
-        <View style={{ width: 24, alignItems: "center" }}>{icon}</View>
-      ) : null}
       <View style={{ flex: 1, gap: 2 }}>
         <GhostText type="body" style={{ color: Ghost.text.primary }}>
           {title}
@@ -427,68 +463,14 @@ export function GhostInput({
 }
 
 /* ------------------------------------------------------------------ */
-/* ConnectionPill (quiet presence)                                     */
-/* ------------------------------------------------------------------ */
-
-export function ConnectionPill({
-  connected,
-  degraded,
-  label,
-}: {
-  connected: boolean;
-  degraded?: boolean;
-  label?: string;
-}) {
-  const dot = degraded
-    ? Ghost.status.warning
-    : connected
-      ? Ghost.accent.primary
-      : Ghost.text.tertiary;
-  const text = degraded
-    ? "Available"
-    : connected
-      ? (label ?? "Connected")
-      : "Offline";
-
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Space.sm,
-        paddingVertical: Space.xs,
-        paddingHorizontal: Space.md,
-      }}
-    >
-      <View
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: 3,
-          backgroundColor: dot,
-        }}
-      />
-      <GhostText
-        type="footnote"
-        style={{ color: Ghost.text.secondary }}
-      >
-        {text}
-      </GhostText>
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* EmptyState                                                         */
 /* ------------------------------------------------------------------ */
 
 export function EmptyState({
-  icon,
   title,
   subtitle,
   action,
 }: {
-  icon?: React.ReactNode;
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
@@ -503,9 +485,6 @@ export function EmptyState({
         gap: Space.lg,
       }}
     >
-      {icon ? (
-        <View style={{ opacity: 0.4 }}>{icon}</View>
-      ) : null}
       <View style={{ gap: Space.sm, alignItems: "center" }}>
         <GhostText
           type="headline"
@@ -554,32 +533,5 @@ export function StatusDot({
         backgroundColor: color,
       }}
     />
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Card                                                               */
-/* ------------------------------------------------------------------ */
-
-export function Card({
-  children,
-  style,
-}: {
-  children: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-}) {
-  return (
-    <View
-      style={[
-        {
-          backgroundColor: Ghost.bg.raised,
-          borderRadius: Radius.lg,
-          padding: Space.lg,
-        },
-        style,
-      ]}
-    >
-      {children}
-    </View>
   );
 }

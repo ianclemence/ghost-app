@@ -6,7 +6,7 @@ import {
   MessageCircle,
   Clock,
   Bookmark,
-  Settings,
+  MoreHorizontal,
 } from "lucide-react-native";
 
 import { Ghost, Fonts } from "@/constants/theme";
@@ -22,7 +22,7 @@ function TabIcon({
   label: string;
   focused: boolean;
 }) {
-  const color = focused ? Ghost.accent.primary : Ghost.text.tertiary;
+  const color = focused ? Ghost.text.primary : Ghost.text.tertiary;
   return (
     <View style={{ alignItems: "center", gap: 3, paddingTop: 10 }}>
       <Icon size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
@@ -75,10 +75,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="chat"
+        name="chats"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={MessageCircle} label="Chat" focused={focused} />
+            <TabIcon Icon={MessageCircle} label="Chats" focused={focused} />
           ),
         }}
       />
@@ -102,7 +102,7 @@ export default function TabLayout() {
         name="more"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon Icon={Settings} label="Settings" focused={focused} />
+            <TabIcon Icon={MoreHorizontal} label="More" focused={focused} />
           ),
         }}
       />

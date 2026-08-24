@@ -1,5 +1,3 @@
-
-import { ArrowUp } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -11,15 +9,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
-import { ConnectionPill } from "@/components/ghost";
+import { Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { useGhostStore } from "@/lib/store";
 
 const FONT = Fonts.sans;
 
 interface HomeItem {
   id: string;
-  kind: "briefing" | "reminder" | "noticed" | "activity";
   title: string;
   preview: string;
   timestamp: number;
@@ -37,92 +33,129 @@ function formatTime(ts: number): string {
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function groupByDay(items: HomeItem[]): { title: string; data: HomeItem[] }[] {
+  const now = new Date();
+  const today = now.toDateString();
+  const yesterday = new Date(now.getTime() - 86400000).toDateString();
+
+  const groups: Record<string, HomeItem[]> = {};
+  for (const item of items) {
+    const d = new Date(item.timestamp);
+    const key = d.toDateString();
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  }
+
+  const result: { title: string; data: HomeItem[] }[] = [];
+  if (groups[today]) result.push({ title: "TODAY", data: groups[today] });
+  if (groups[yesterday]) result.push({ title: "YESTERDAY", data: groups[yesterday] });
+
+  const sortedKeys = Object.keys(groups)
+    .filter((k) => k !== today && k !== yesterday)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+  for (const key of sortedKeys) {
+    const d = new Date(key);
+    const label = d.toLocaleDateString([], { weekday: "long" });
+    result.push({ title: label.toUpperCase(), data: groups[key] });
+  }
+
+  return result;
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { config, connectionState, inbox } = useGhostStore();
+  const { connectionState, inbox } = useGhostStore();
   const [greeting] = useState(getGreeting);
 
-  // Transform inbox items to home items
   const items: HomeItem[] = inbox.map((item) => ({
     id: item.id,
-    kind: "activity" as const,
     title: "Ghost noticed",
     preview: item.content.slice(0, 120),
     timestamp: item.timestamp,
   }));
 
+  const sections = groupByDay(items);
+
   const handleAskGhost = () => {
-    router.push("/chat" as any);
+    router.push("/(tabs)/chats" as any);
   };
 
   const renderItem = useCallback(
     ({ item }: { item: HomeItem }) => (
-      <TouchableOpacity style={styles.itemCard} activeOpacity={0.7}>
-        <View style={styles.itemHeader}>
-          <Text style={styles.itemTime}>{formatTime(item.timestamp)}</Text>
-          <Text style={styles.itemKind}>{item.kind}</Text>
+      <View style={styles.row}>
+        <View style={styles.rowTop}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text style={styles.rowTime}>{formatTime(item.timestamp)}</Text>
         </View>
-        <Text style={styles.itemTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text style={styles.itemPreview} numberOfLines={2}>
+        <Text style={styles.rowPreview} numberOfLines={2}>
           {item.preview}
         </Text>
-      </TouchableOpacity>
+      </View>
     ),
     [],
   );
 
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: { title: string; data: HomeItem[] } }) => (
+      <Text style={styles.sectionTitle}>{section.title}</Text>
+    ),
+    [],
+  );
+
+  const sectionsForList = sections.map((s) => ({
+    ...s,
+    data: s.data,
+    key: s.title,
+  }));
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>{greeting}, Ian</Text>
+        <Text style={styles.greeting}>{greeting}, Ian.</Text>
+        {connectionState !== "online" && (
           <Text style={styles.statusLine}>
-            {connectionState === "online"
-              ? "Ghost is keeping an eye on things."
-              : connectionState === "syncing"
-                ? "Ghost is syncing..."
-                : "Ghost is offline."}
+            {connectionState === "syncing"
+              ? "Ghost is syncing..."
+              : "Ghost is offline."}
           </Text>
-        </View>
-        <ConnectionPill
-          connected={connectionState === "online"}
-          degraded={connectionState === "syncing"}
-        />
+        )}
       </View>
 
-      {/* Content */}
       {items.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>Ghost is quiet today.</Text>
-          <Text style={styles.emptySubtitle}>
-            Ask me anything, and I will start working for you.
-          </Text>
+          <Text style={styles.emptyTitle}>It's quiet today.</Text>
         </View>
       ) : (
         <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
+          data={sectionsForList}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item: section }) => (
+            <View>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              {section.data.map((row) => (
+                <View key={row.id}>
+                  {renderItem({ item: row })}
+                  <View style={styles.divider} />
+                </View>
+              ))}
+            </View>
+          )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* Ask Ghost */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.lg }]}>
         <TouchableOpacity
           style={styles.inputBar}
           activeOpacity={0.8}
           onPress={handleAskGhost}
         >
-          <Text style={styles.inputPlaceholder}>What can I help with?</Text>
-          <View style={styles.sendButton}>
-            <ArrowUp size={18} color={Ghost.text.inverse} />
-          </View>
+          <Text style={styles.inputPlaceholder}>Ask Ghost</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -135,15 +168,9 @@ const styles = StyleSheet.create({
     backgroundColor: Ghost.bg.base,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
     paddingHorizontal: Space.xl,
     paddingTop: Space.lg,
     paddingBottom: Space.xxl,
-  },
-  headerLeft: {
-    flex: 1,
     gap: Space.xs,
   },
   greeting: {
@@ -164,81 +191,65 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.huge,
   },
   emptyTitle: {
-    ...Type.headline,
-    fontFamily: FONT,
-    color: Ghost.text.primary,
-    textAlign: "center",
-  },
-  emptySubtitle: {
     ...Type.body,
     fontFamily: FONT,
-    color: Ghost.text.secondary,
+    color: Ghost.text.tertiary,
     textAlign: "center",
-    marginTop: Space.sm,
   },
   listContent: {
     paddingHorizontal: Space.xl,
-    gap: Space.md,
+    paddingBottom: Space.huge,
   },
-  itemCard: {
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.lg,
-    padding: Space.lg,
-    gap: Space.sm,
+  sectionTitle: {
+    ...Type.caption,
+    fontFamily: FONT,
+    color: Ghost.text.tertiary,
+    letterSpacing: 0.3,
+    marginTop: Space.xxl,
+    marginBottom: Space.sm,
   },
-  itemHeader: {
+  row: {
+    paddingVertical: Space.md,
+    gap: Space.xs,
+  },
+  rowTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  itemTime: {
-    ...Type.footnote,
-    fontFamily: FONT,
-    color: Ghost.text.tertiary,
-  },
-  itemKind: {
-    ...Type.caption,
-    fontFamily: FONT,
-    color: Ghost.accent.primary,
-    textTransform: "lowercase",
-  },
-  itemTitle: {
+  rowTitle: {
     ...Type.headline,
     fontFamily: FONT,
     color: Ghost.text.primary,
+    flex: 1,
   },
-  itemPreview: {
+  rowTime: {
+    ...Type.footnote,
+    fontFamily: FONT,
+    color: Ghost.text.tertiary,
+    marginLeft: Space.sm,
+  },
+  rowPreview: {
     ...Type.callout,
     fontFamily: FONT,
     color: Ghost.text.secondary,
     lineHeight: 20,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Ghost.border.subtle,
   },
   inputContainer: {
     paddingHorizontal: Space.xl,
     paddingTop: Space.md,
   },
   inputBar: {
-    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.xl,
-    paddingHorizontal: Space.lg,
     paddingVertical: Space.md,
-    borderWidth: 1,
-    borderColor: Ghost.border.subtle,
   },
   inputPlaceholder: {
     ...Type.body,
     fontFamily: FONT,
     color: Ghost.text.tertiary,
-    flex: 1,
-  },
-  sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Ghost.accent.primary,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

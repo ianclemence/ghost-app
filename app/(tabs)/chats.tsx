@@ -1,9 +1,3 @@
-
-import {
-  MessageCircle,
-  Plus,
-  ChevronRight,
-} from "lucide-react-native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -16,11 +10,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
-import { ConnectionPill, EmptyState } from "@/components/ghost";
+import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
+import { EmptyState, Divider, GhostButton } from "@/components/ghost";
+import { GhostMark } from "@/components/ghost-mark";
 import {
   fetchSessions,
-  deleteSession,
   SessionSummary,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
@@ -48,11 +42,40 @@ function getSessionTitle(session: SessionSummary): string {
   if (session.title && session.title !== session.id) {
     return session.title;
   }
-  const id = session.id;
-  if (id.includes(":")) {
-    return id.split(":").pop() || id;
+  return "Conversation";
+}
+
+function groupSessions(sessions: SessionSummary[]): { title: string; data: SessionSummary[] }[] {
+  const now = Date.now();
+  const dayMs = 86400000;
+  const today = new Date(now).toDateString();
+  const yesterday = new Date(now - dayMs).toDateString();
+  const weekAgo = new Date(now - 7 * dayMs).toDateString();
+
+  const groups: Record<string, SessionSummary[]> = {
+    TODAY: [],
+    YESTERDAY: [],
+    "EARLIER THIS WEEK": [],
+    EARLIER: [],
+  };
+
+  for (const s of sessions) {
+    const d = new Date(s.last_activity ?? Date.now());
+    const ds = d.toDateString();
+    if (ds === today) {
+      groups.TODAY.push(s);
+    } else if (ds === yesterday) {
+      groups.YESTERDAY.push(s);
+    } else if (d.getTime() > new Date(weekAgo).getTime()) {
+      groups["EARLIER THIS WEEK"].push(s);
+    } else {
+      groups.EARLIER.push(s);
+    }
   }
-  return id;
+
+  return Object.entries(groups)
+    .filter(([, data]) => data.length > 0)
+    .map(([title, data]) => ({ title, data }));
 }
 
 export default function ConversationsScreen() {
@@ -88,29 +111,26 @@ export default function ConversationsScreen() {
     router.push("/conversation" as any);
   };
 
+  const sections = groupSessions(sessions);
+
   const renderItem = useCallback(
     ({ item }: { item: SessionSummary }) => (
       <TouchableOpacity
-        style={styles.sessionRow}
+        style={styles.row}
         activeOpacity={0.6}
         onPress={() => openConversation(item)}
       >
-        <View style={styles.sessionIcon}>
-          <MessageCircle size={18} color={Ghost.text.tertiary} />
-        </View>
-        <View style={styles.sessionContent}>
-          <View style={styles.sessionHeader}>
-            <Text style={styles.sessionTitle} numberOfLines={1}>
-              {getSessionTitle(item)}
-            </Text>
-            <Text style={styles.sessionTime}>
-              {formatRelativeTime(item.last_activity ?? Date.now())}
-            </Text>
-          </View>
-          <Text style={styles.sessionPreview} numberOfLines={1}>
-            {item.message_count} message{item.message_count !== 1 ? "s" : ""}
+        <View style={styles.rowContent}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {getSessionTitle(item)}
+          </Text>
+          <Text style={styles.rowTime}>
+            {formatRelativeTime(item.last_activity ?? Date.now())}
           </Text>
         </View>
+        <Text style={styles.rowSubtitle}>
+          {item.message_count} message{item.message_count !== 1 ? "s" : ""}
+        </Text>
       </TouchableOpacity>
     ),
     [],
@@ -118,30 +138,20 @@ export default function ConversationsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Conversations</Text>
-        <View style={styles.headerActions}>
-          <ConnectionPill
-            connected={connectionState === "online"}
-            degraded={connectionState === "syncing"}
-          />
-          <TouchableOpacity
-            style={styles.newButton}
-            onPress={handleNewConversation}
-            activeOpacity={0.7}
-          >
-            <Plus size={20} color={Ghost.text.inverse} />
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.headerTitle}>Chats</Text>
+        {connectionState !== "online" && (
+          <View style={styles.offlineBadge}>
+            <GhostMark size={12} color={Ghost.text.tertiary} />
+            <Text style={styles.offlineText}>Offline</Text>
+          </View>
+        )}
       </View>
 
-      {/* Sessions List */}
       {!config ? (
         <EmptyState
-          icon={<MessageCircle size={40} color={Ghost.text.tertiary} />}
           title="Not connected"
-          subtitle="Connect to your Ghost to start conversations."
+          subtitle="Connect to your Ghost Pod to start."
         />
       ) : loading ? (
         <View style={styles.loadingContainer}>
@@ -149,23 +159,29 @@ export default function ConversationsScreen() {
         </View>
       ) : sessions.length === 0 ? (
         <EmptyState
-          icon={<MessageCircle size={40} color={Ghost.text.tertiary} />}
-          title="No conversations yet"
-          subtitle="Start a conversation with Ghost."
+          title="Start talking to Ghost."
           action={
-            <TouchableOpacity
-              style={styles.startButton}
+            <GhostButton
+              title="New Conversation"
               onPress={handleNewConversation}
-            >
-              <Text style={styles.startButtonText}>New Conversation</Text>
-            </TouchableOpacity>
+            />
           }
         />
       ) : (
         <FlatList
-          data={sessions}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
+          data={sections}
+          keyExtractor={(item) => item.title}
+          renderItem={({ item: section }) => (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              {section.data.map((session, i) => (
+                <View key={session.id}>
+                  {renderItem({ item: session })}
+                  {i < section.data.length - 1 && <Divider />}
+                </View>
+              ))}
+            </View>
+          )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
@@ -191,18 +207,17 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: Ghost.text.primary,
   },
-  headerActions: {
+  offlineBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Space.sm,
+    gap: Space.xs,
+    paddingVertical: Space.xs,
+    paddingHorizontal: Space.sm,
   },
-  newButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Ghost.accent.primary,
-    alignItems: "center",
-    justifyContent: "center",
+  offlineText: {
+    ...Type.footnote,
+    fontFamily: FONT,
+    color: Ghost.text.tertiary,
   },
   loadingContainer: {
     flex: 1,
@@ -211,62 +226,42 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: Space.xl,
-    gap: Space.sm,
+    paddingBottom: Space.huge,
   },
-  sessionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.md,
+  section: {
+    marginBottom: Space.xxl,
+  },
+  sectionTitle: {
+    ...Type.caption,
+    fontFamily: FONT,
+    color: Ghost.text.tertiary,
+    letterSpacing: 0.3,
+    marginBottom: Space.sm,
+  },
+  row: {
     paddingVertical: Space.md,
-    paddingHorizontal: Space.lg,
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.lg,
   },
-  sessionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Ghost.bg.sunken,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sessionContent: {
-    flex: 1,
-    gap: 2,
-  },
-  sessionHeader: {
+  rowContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  sessionTitle: {
+  rowTitle: {
     ...Type.headline,
     fontFamily: FONT,
     color: Ghost.text.primary,
     flex: 1,
   },
-  sessionTime: {
-    ...Type.caption,
+  rowTime: {
+    ...Type.footnote,
     fontFamily: FONT,
     color: Ghost.text.tertiary,
     marginLeft: Space.sm,
   },
-  sessionPreview: {
-    ...Type.callout,
+  rowSubtitle: {
+    ...Type.footnote,
     fontFamily: FONT,
     color: Ghost.text.secondary,
-  },
-  startButton: {
-    marginTop: Space.lg,
-    paddingVertical: Space.md,
-    paddingHorizontal: Space.xl,
-    backgroundColor: Ghost.accent.primary,
-    borderRadius: Radius.full,
-  },
-  startButtonText: {
-    ...Type.headline,
-    fontFamily: FONT,
-    color: Ghost.text.inverse,
-    fontSize: 15,
+    marginTop: Space.xxs,
   },
 });

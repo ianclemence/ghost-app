@@ -24,13 +24,13 @@ const ICONS: Record<string, React.ElementType> = {
 };
 
 const TITLES: Record<string, string> = {
-  auth: "Connection Rejected",
-  rate_limit: "Ghost is Busy",
-  provider: "Response Failed",
-  network: "Can’t Reach Ghost",
-  empty_stream: "No Response",
-  interrupted: "Response Interrupted",
-  timeout: "Request Timed Out",
+  auth: "Connection rejected",
+  rate_limit: "Ghost is busy",
+  provider: "Something went wrong",
+  network: "Can't reach your Ghost Pod",
+  empty_stream: "No response",
+  interrupted: "Interrupted",
+  timeout: "Took too long",
 };
 
 const TONE: Record<string, { fg: string; bg: string; border: string }> = {
