@@ -501,7 +501,7 @@ export function EmptyState({
           </GhostText>
         ) : null}
       </View>
-      {action}
+      {action ? <View style={{ alignItems: "center" }}>{action}</View> : null}
     </View>
   );
 }
