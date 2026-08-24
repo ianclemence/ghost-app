@@ -38,9 +38,9 @@ export default function AdvancedScreen() {
           style: "destructive",
           onPress: async () => {
             await AsyncStorage.clear();
-            await SecureStore.deleteItemAsync("ghost:device_id");
-            await SecureStore.deleteItemAsync("ghost:credential");
-            await SecureStore.deleteItemAsync("ghost:client_token");
+            await SecureStore.deleteItemAsync("ghost.device_id");
+            await SecureStore.deleteItemAsync("ghost.credential");
+            await SecureStore.deleteItemAsync("ghost.client_token");
             router.replace("/onboarding");
           },
         },

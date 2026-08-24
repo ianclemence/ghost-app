@@ -36,9 +36,9 @@ const STORAGE_KEYS = {
 } as const;
 
 const SECURE_KEYS = {
-  DEVICE_ID: "ghost:device_id",
-  CREDENTIAL: "ghost:credential",
-  CLIENT_TOKEN: "ghost:client_token",
+  DEVICE_ID: "ghost.device_id",
+  CREDENTIAL: "ghost.credential",
+  CLIENT_TOKEN: "ghost.client_token",
 } as const;
 
 /** Save paired device credentials to SecureStore + AsyncStorage. */
