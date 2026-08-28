@@ -22,6 +22,12 @@ interface GhostStore {
   // Connection (3-state)
   connectionState: ConnectionState;
   setConnectionState: (v: ConnectionState) => void;
+  // Identity of the paired Ghost (from the pairing response)
+  ghostName: string | null;
+  setGhostName: (name: string | null) => void;
+  // Gateway uptime in seconds (from /v1/health), null when unknown
+  uptimeSeconds: number | null;
+  setUptimeSeconds: (s: number | null) => void;
   // Legacy compat
   isConnected: boolean;
   setConnected: (v: boolean) => void;
@@ -144,6 +150,11 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   connectionState: "offline",
   setConnectionState: (v) =>
     set({ connectionState: v, isConnected: v === "online" }),
+
+  ghostName: null,
+  setGhostName: (name) => set({ ghostName: name }),
+  uptimeSeconds: null,
+  setUptimeSeconds: (s) => set({ uptimeSeconds: s }),
 
   isConnected: false,
   setConnected: (v) =>

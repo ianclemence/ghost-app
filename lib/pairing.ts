@@ -3,10 +3,12 @@
  *
  * Supported URI formats:
  *
- *   ghost://pair?v=1&token=...&host=...&port=...     (LAN pairing, v1)
- *   ghost://pair?v=1&transport=relay&relay=...&ghost=...&token=...  (relay pairing, v1)
- *   ghost://connect?host=...&secret=...                (legacy LAN, deprecated)
- *   ghost://connect?transport=relay&...                (legacy relay, deprecated)
+ *   ghost://pair?v=1&pod=...&transport=lan&host=...&port=...&token=...  (device pairing, v1)
+ *   ghost://pair?v=1&transport=relay&relay=...&ghost=...&token=...      (relay pairing, v1)
+ *   ghost://connect?transport=relay&relay=...&ghost=...&token=...       (legacy relay, deprecated)
+ *
+ * Shared-secret URIs (ghost://connect?host=...&secret=...) are no longer
+ * accepted — the gateway no longer supports bridge-secret authentication.
  *
  * Security:
  * - Only ghost:// scheme accepted
@@ -27,6 +29,8 @@ export interface SecurePairingPayload {
   token: string;
   host: string;
   port: string;
+  // Stable pod identifier from the invitation (informational)
+  podId?: string;
   // Relay-specific
   relayServer?: string;
   ghostId?: string;
@@ -88,7 +92,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
 
   const qp = getQueryParams(url);
 
-  // ── Secure pairing (v1): ghost://pair?v=1&token=...&host=... ──
+  // ── Secure pairing (v1): ghost://pair?v=1&pod=...&token=...&host=... ──
   if (url.includes("://pair?") || url.includes("://pair?")) {
     const version = parseInt(qp.v || "0", 10);
     if (version !== SUPPORTED_VERSION) return null;
@@ -96,6 +100,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
     const token = qp.token;
     if (!token || !VALID_TOKEN_PATTERN.test(token)) return null;
 
+    const podId = qp.pod || undefined;
     const transport = (qp.transport as "lan" | "relay") || "lan";
 
     if (transport === "relay") {
@@ -109,6 +114,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
         token,
         host: "",
         port: qp.port || "8766",
+        podId,
         relayServer,
         ghostId,
       };
@@ -125,6 +131,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
       token,
       host,
       port,
+      podId,
     };
   }
 
@@ -139,7 +146,6 @@ export function parsePairingURI(url: string): PairingPayload | null {
       config: {
         piHost: "",
         piPort: "8766",
-        secret: "",
         session: "mobile:default",
         sendLocation: true,
         transport: "relay",
@@ -150,59 +156,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
     };
   }
 
-  // ── Legacy LAN: ghost://connect?host=...&secret=... ──
-  const host = qp.host ?? qp._host;
-  const secret = qp.secret;
-  if (host && secret) {
-    const port = qp.port ?? qp._port ?? "8766";
-    return {
-      type: "legacy",
-      config: {
-        piHost: host,
-        piPort: port,
-        secret,
-        session: "mobile:default",
-        sendLocation: true,
-      },
-    };
-  }
-
   return null;
-}
-
-/**
- * @deprecated Use parsePairingURI() instead.
- */
-export function parseConnectURL(url: string): GhostConfig | null {
-  const payload = parsePairingURI(url);
-  if (!payload) return null;
-  if (payload.type === "secure") return null; // requires redemption first
-  return payload.config;
-}
-
-// ─── URI Builders ────────────────────────────────────────────────────────
-
-/** Build a v1 pairing QR URI for the Ghost Pod to display. */
-export function buildPairingQRURL(
-  token: string,
-  host: string,
-  port: string,
-): string {
-  return `ghost://pair?v=1&token=${encodeURIComponent(token)}&host=${encodeURIComponent(host)}&port=${encodeURIComponent(port)}`;
-}
-
-/** Build a legacy connect URI (deprecated, for backward compatibility). */
-export function buildConnectURL(cfg: GhostConfig): string {
-  if (cfg.transport === "relay" && cfg.relayServer && cfg.ghostId && cfg.clientToken) {
-    const relay = encodeURIComponent(cfg.relayServer);
-    const ghost = encodeURIComponent(cfg.ghostId);
-    const token = encodeURIComponent(cfg.clientToken);
-    return `ghost://connect?transport=relay&relay=${relay}&ghost=${ghost}&token=${token}`;
-  }
-  const host = encodeURIComponent(cfg.piHost);
-  const port = encodeURIComponent(cfg.piPort || "8766");
-  const secret = encodeURIComponent(cfg.secret);
-  return `ghost://connect?host=${host}&port=${port}&secret=${secret}`;
 }
 
 // ─── Validation Helpers ──────────────────────────────────────────────────

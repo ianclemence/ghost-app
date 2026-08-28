@@ -11,11 +11,26 @@ import {
   Divider,
 } from "@/components/ghost";
 import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
+import { timeAgo } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
 import { startPairing, cancelPairing, PairedDevice } from "@/lib/ghostApi";
 import { refreshDevices } from "@/lib/connection";
 
 const FONT = Fonts.sans;
+
+const CONNECTED_WINDOW_MS = 3 * 60_000;
+
+function devicePlatform(device: PairedDevice): string {
+  const p = device.platform ?? "device";
+  return p.charAt(0).toUpperCase() + p.slice(1);
+}
+
+function deviceStatus(device: PairedDevice): string {
+  if (!device.last_seen_at) return "Paired";
+  const seen = new Date(device.last_seen_at).getTime();
+  if (Date.now() - seen < CONNECTED_WINDOW_MS) return "Connected now";
+  return `Last seen ${timeAgo(seen)}`;
+}
 
 export default function GhostPodScreen() {
   const router = useRouter();
@@ -26,14 +41,14 @@ export default function GhostPodScreen() {
   const [pairingID, setPairingID] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadDevices();
-  }, []);
-
   const loadDevices = async () => {
     const list = await refreshDevices();
     setDevices(list);
   };
+
+  useEffect(() => {
+    loadDevices();
+  }, []);
 
   const handleStartPairing = async () => {
     if (!config) return;
@@ -57,14 +72,14 @@ export default function GhostPodScreen() {
     setPairingID(null);
   };
 
-  const handleRevoke = (device: PairedDevice) => {
+  const handleDisconnect = (device: PairedDevice) => {
     Alert.alert(
-      "Revoke device",
-      `Remove "${device.display_name}"? It will lose access to Ghost.`,
+      "Disconnect this device?",
+      `"${device.display_name}" will no longer be able to reach your Ghost. Your Ghost itself is not affected.`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Revoke",
+          text: "Disconnect",
           style: "destructive",
           onPress: async () => {
             if (!config) return;
@@ -73,7 +88,7 @@ export default function GhostPodScreen() {
               await revokePairedDevice(config, device.device_id);
               loadDevices();
             } catch (err: any) {
-              Alert.alert("Error", err?.message ?? "Failed to revoke");
+              Alert.alert("Error", err?.message ?? "Failed to disconnect");
             }
           },
         },
@@ -124,8 +139,8 @@ export default function GhostPodScreen() {
               <GhostRow
                 key={device.device_id}
                 title={device.display_name}
-                subtitle={`Paired ${new Date(device.paired_at).toLocaleDateString()}`}
-                onPress={() => handleRevoke(device)}
+                subtitle={`${devicePlatform(device)}  ·  ${deviceStatus(device)}  ·  added ${timeAgo(new Date(device.paired_at).getTime())}`}
+                onPress={() => handleDisconnect(device)}
               />
             ))}
           </GhostList>

@@ -29,7 +29,7 @@ export default function RevokedScreen() {
           This device has been disconnected from your Ghost.
         </GhostText>
         <GhostText type="body" style={styles.description}>
-          You'll need to pair again with your Ghost Pod.
+          You&apos;ll need to pair again with your Ghost Pod.
         </GhostText>
       </View>
 

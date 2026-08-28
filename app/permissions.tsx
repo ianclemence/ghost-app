@@ -19,10 +19,6 @@ export default function PermissionsScreen() {
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
 
-  useEffect(() => {
-    checkPermissions();
-  }, []);
-
   const checkPermissions = async () => {
     try {
       const notif = await Notifications.getPermissionsAsync();
@@ -37,6 +33,10 @@ export default function PermissionsScreen() {
       setCameraEnabled(cam.granted);
     } catch {}
   };
+
+  useEffect(() => {
+    checkPermissions();
+  }, []);
 
   const toggleNotifications = async () => {
     if (notifEnabled) {

@@ -1,71 +1,73 @@
 # 👻 Ghost Mobile
 
-A React Native (Expo) app that gives your Ghost AI running on a Raspberry Pi a fully native mobile interface. Chat with Ghost using streaming AI responses, real Whisper voice transcription, image and file attachments, browse conversation history and episodic memory, remotely control your Pi, and receive proactive notifications over your local network.
+The daily-driver companion app for your self-hosted Ghost — a personal AI that lives on your own hardware. Pair your phone with your Ghost Pod over a secure QR flow, chat with streaming responses, browse memory and history, manage automations, and receive proactive notifications.
 
 ---
 
 ## Architecture
 
 ```text
-┌──────────────────────────────┐         HTTP / WebSocket
-│       Ghost Mobile           │ ◄────────────────────────────► Raspberry Pi
-│    React Native (Expo)       │           Local Wi-Fi
-│                              │
-│ 👻 Chat      Streaming AI    │         internal-api :8766
-│ 🖥️ Remote    Pi control      │         ghost
-│ 📜 History   Conversations   │         ghost.db (SQLite)
-│ 🧠 Memory    Episodic memory  │         workspace/memory/
-│ ⚙️ Settings  Connection       │
-└──────────────────────────────┘
+┌──────────────────────┐   HTTPS + WebSocket   ┌───────────────┐   tunnel    ┌─────────────────────┐
+│     Ghost Mobile     │ ◄───────────────────► │  Relay server │ ◄─────────► │ Ghost Pod (gateway) │
+│   React Native/Expo  │  client token auth    │    (cloud)    │  localhost  │   127.0.0.1:8766    │
+└──────────────────────┘                       └───────────────┘             └─────────────────────┘
 ```
 
-`ghost-bridge` is a lightweight remote control server. The Ghost agent (`internal-api`) handles all AI chat, memory, history, and transcription endpoints directly.
+- The Ghost Pod gateway binds to **localhost only**. The phone reaches it through the **relay server**, which tunnels traffic over an outbound WebSocket from the Pod.
+- Relay connections authenticate with `X-Ghost-Client-Id` + `X-Ghost-Client-Token` headers.
+- Paired devices additionally authenticate to the gateway with `X-Ghost-Device-ID` + `X-Ghost-Credential` headers.
+- There is no shared secret. Each device gets its own credential at pairing time; tokens are never placed in URLs.
 
 ---
 
-# Project Layout
+## Project Layout
 
 ```text
-ghost-mobile/
+ghost-app/
 ├── app/
-│   ├── _layout.tsx
+│   ├── _layout.tsx           # Root stack, deep links, WS notifications
 │   ├── (tabs)/
-│   │   ├── _layout.tsx
-│   │   ├── index.tsx        # 👻 Chat
-│   │   ├── remote.tsx       # 🖥️ Remote
-│   │   ├── cron.tsx         # 🕒 Tasks
-│   │   ├── memory.tsx       # 🧠 Data (workspace)
-│   │   └── settings.tsx     # ⚙️ Settings
-│   │
-│   └── ...
-│
+│   │   ├── index.tsx         # 👻 Home — inbox + presence
+│   │   ├── chats.tsx         # 💬 Chats — session list
+│   │   ├── activity.tsx      # 🕒 Activity — cron timeline
+│   │   ├── memory.tsx        # 🧠 Memory — profile + curated memory
+│   │   └── more.tsx          # ⚙️ More — settings hub
+│   ├── conversation.tsx      # Streaming chat (SSE)
+│   ├── onboarding.tsx        # First-launch flow
+│   ├── connect.tsx           # Scan QR / enter manually
+│   ├── scan.tsx              # QR scanner
+│   ├── confirm.tsx           # Pairing progress
+│   ├── manual.tsx            # Manual pairing entry
+│   ├── pairing-success.tsx   # Connected state
+│   ├── auth-failure.tsx      # Credential rejected
+│   ├── revoked.tsx           # Device disconnected
+│   ├── connection.tsx        # Connection settings
+│   ├── ghost-pod.tsx         # Device management
+│   ├── advanced.tsx          # Diagnostics
+│   ├── permissions.tsx
+│   └── about.tsx
 ├── lib/
-│   ├── ghostApi.ts          # API client
-│   └── store.ts             # Zustand state
-│
+│   ├── ghostApi.ts           # API client (REST + SSE + WS)
+│   ├── connection.ts         # Connection state machine
+│   ├── credentials.ts        # SecureStore/AsyncStorage credential layer
+│   ├── pairing.ts            # Pairing URI parser
+│   ├── store.ts              # Zustand state
+│   └── format.ts             # Formatting helpers
 ├── components/
-├── hooks/
-├── constants/theme.ts       # Design tokens
-├── assets/
-├── package.json
-├── tsconfig.json
-└── eas.json
+├── constants/theme.ts        # Design tokens
+└── docs/
 ```
 
 ---
 
-# Tech Stack
+## Tech Stack
 
-- React Native
-- Expo
+- React Native + Expo (expo-router)
 - TypeScript
 - Zustand
-- Server-Sent Events (SSE)
-- WebSockets
-- SQLite
-- Whisper (Moonshot API)
-- Kimi API
-- Go HTTP Bridge
+- Server-Sent Events (SSE) for streaming chat
+- WebSockets for proactive push
+- expo-secure-store for credential storage
 
 ---
 
@@ -75,173 +77,131 @@ ghost-mobile/
 
 - Node.js 18+
 - Bun
-- Expo Go (Android/iOS)
-
-For standalone builds:
-
-- Android Studio
-- Xcode (macOS)
-
----
+- A running Ghost Pod with the web console reachable on your network
+- (For remote access) `ghost relay run` connected to your relay server
 
 ## Install
 
 ```bash
-cd app
 bun install
 bunx expo start
 ```
 
-Scan the QR code using Expo Go.
-
-Your phone and Raspberry Pi must be connected to the same Wi-Fi network.
-
 ---
 
-## First-time Configuration
+## Pairing Your Phone
 
-1. Open **⚙️ Settings**
-2. Enter your Pi IP address (example: `192.168.1.42`)
-3. Port: `8766`
-4. Enter your `BRIDGE_SECRET`
-5. Tap **Test**
-6. When connected, tap **Save & Connect**
+1. On the Ghost Pod web console, open **Devices → Connect another device**
+2. A QR code appears (`ghost://pair?v=1&pod=…&transport=…&host=…&port=…&token=…`), valid for 5 minutes, single-use
+3. In the app: **Pair your Ghost → Scan your Ghost**, or enter the token manually
+4. The app redeems the token against `POST /v1/pairing/complete` and receives a `device_id` + `credential`
+5. The credential is stored in SecureStore and used for all future requests
+
+Remote pairing uses a relay deep link from `ghost relay pair`:
+
+```text
+ghost://connect?transport=relay&relay=<server>&ghost=<ghostId>&token=<clientToken>
+```
+
+Opening this URI adopts the relay connection through the app's credential system.
 
 ---
 
 # Features
 
-## 👻 Chat
+## 👻 Home
+
+| Feature | Description |
+|---------|-------------|
+| Inbox | Proactive Ghost messages grouped by day |
+| Presence | Live connection status and gateway uptime |
+| Ask Ghost | Jump straight into a conversation |
+
+## 💬 Chats
 
 | Feature | Description |
 |---------|-------------|
 | Streaming AI | Token-by-token responses using SSE |
 | Live tool progress | Shows "Searching… / Running…" while Ghost works |
-| Voice input | Records audio with Expo Audio and transcribes using Whisper |
-| Image attachments | Pick images and send directly with messages |
-| File attachments | Upload documents to Ghost |
-| Markdown rendering | Code blocks, headings, links and formatting |
-| Search history | Full-text search across sessions (tap a result to copy) |
+| Voice input | Record and transcribe audio |
+| Image and file attachments | Send media with messages |
+| Markdown rendering | Code blocks, headings, links, formatting |
+| Search history | Full-text search across sessions |
 | Cancel generation | Stop a long response mid-stream |
-| Delete messages | Remove individual messages from the session |
 | Offline queue | Messages are queued and delivered when back online |
-| Push messages | Receive proactive Ghost messages over WebSocket |
-| Live connection status | Online/offline indicator |
+
+## 🕒 Activity
+
+- Scheduled jobs on a TODAY / UPCOMING / PAUSED timeline
+- Humanized schedules and run status
+
+## 🧠 Memory
+
+- Read Ghost's memory files (user profile, curated memory)
+
+## ⚙️ More
+
+- Connection status, reconnect, pair another Ghost
+- Ghost Pod device management: list paired devices, see who's connected now, disconnect devices
+- Advanced diagnostics and credential reset
 
 ---
 
-## 🖥️ Remote
+# Authentication
 
-| Feature | Description |
-|---------|-------------|
-| System stats | CPU, RAM, disk, uptime and Ghost status |
-| Open URLs | Opens websites on the Pi desktop |
-| Launch apps | Firefox, Chromium, Terminal, VLC, Spotify and more |
-| Screenshot | Capture the Pi display |
-| Shell commands | Execute allowlisted commands |
-| Quick actions | Disk usage, memory, uptime, network, Ghost status |
+| Mechanism | Headers | Used by |
+|-----------|---------|---------|
+| Relay client token | `X-Ghost-Client-Id` + `X-Ghost-Client-Token` | App ↔ relay server |
+| Device credential | `X-Ghost-Device-ID` + `X-Ghost-Credential` | App ↔ Ghost gateway (paired devices) |
 
----
+Message endpoints also send `X-Ghost-Session`. Pairing redemption (`POST /v1/pairing/complete`) is a public endpoint — the short-lived pairing token is the authorization.
 
-## 🕒 Tasks
+### Structured errors
 
-- List scheduled jobs (interval, cron expression, or one-time)
-- Run now, pause, resume, edit, and delete jobs
-- Create reminders and briefings that deliver results back to the app
+Pairing and auth errors return `{ "error": { "code", "message" } }`:
 
----
-
-## 🧠 Data
-
-- Browse the Ghost workspace as a file tree or radial map
-- Preview text and image files
-- Displays modification date and file size
-
----
-
-## ⚙️ Settings
-
-- Configure Pi address (with `ghost.local` quick-fill) and secure secret
-- Store credentials securely (bridge secret in SecureStore)
-- Test connection and run diagnostics
-- Enable or disable notifications
-- Manage skills: list, enable/disable, inspect, and install from GitHub
-- Pair over a deep link (`ghost://connect?host=…&port=8766&secret=…`)
+- `pairing_invalid`, `pairing_expired`, `pairing_consumed`, `pairing_rejected` — pairing problems
+- `device_revoked` — routes the app to the revoked screen
+- 401/403 on any authenticated request — routes the app to the auth-failure screen and clears credentials
 
 ---
 
 # API Reference
 
-Every request requires:
-
-```
-X-Ghost-Secret: <your_secret>
-```
-
-unless authentication is disabled.
-
 | Method | Endpoint | Description |
 |---------|----------|-------------|
-| GET | `/v1/health` | Connection test |
+| GET | `/v1/health` | Connection test (`uptime_s` included) |
+| POST | `/v1/pairing/invitations` | Create pairing invitation (Pod side) |
+| POST | `/v1/pairing/complete` | Redeem pairing token (public) |
+| GET | `/v1/pairing/devices` | List paired devices |
+| POST | `/v1/pairing/revoke` | Disconnect a device |
+| POST | `/v1/pairing/cancel` | Cancel a pending invitation |
+| POST | `/v1/chat` | Streaming AI chat (SSE) |
 | GET | `/v1/history` | Conversation history |
 | GET | `/v1/search` | Search messages |
-| POST | `/v1/chat` | Streaming AI chat |
+| GET | `/v1/sessions` | Session list |
 | POST | `/v1/upload` | Upload files |
-| POST | `/v1/transcribe` | Whisper transcription |
-| GET | `/v1/memory/files` | List memory files |
-| GET | `/v1/memory/file` | Read memory file |
-| GET | `/v1/workspace/files` | List workspace files |
-| GET | `/v1/workspace/file` | Preview workspace file |
-| DELETE | `/v1/message` | Delete message |
-| GET | `/v1/cron/jobs` | List scheduled jobs |
-| POST | `/v1/cron/jobs` | Create a scheduled job |
-| PATCH | `/v1/cron/jobs` | Update a scheduled job |
-| DELETE | `/v1/cron/jobs/:id` | Delete a scheduled job |
-| POST | `/v1/cron/jobs/:id/pause` `resume` `run` | Control a job |
+| POST | `/v1/transcribe` | Audio transcription |
+| GET | `/v1/memory/files` / `/v1/memory/file` | Memory files |
+| GET | `/v1/workspace/files` / `/v1/workspace/file` | Workspace files |
+| GET/POST/PATCH/DELETE | `/v1/cron/jobs` | Scheduled jobs |
 | GET | `/v1/skills` | List installed skills |
 | GET | `/v1/skills/read` | Read a skill's files |
 | POST | `/v1/skills/toggle` | Enable/disable a skill |
 | POST | `/v1/skills/install` | Install a skill from GitHub |
-| GET | `/v1/stats` | System statistics |
-| POST | `/v1/exec` | Execute allowlisted shell command |
-| POST | `/v1/open` | Open app or URL |
-| GET | `/v1/screenshot` | Capture Raspberry Pi display |
-| WS | `/v1/ws` | Push notifications |
-
----
-
-# Allowed Commands
-
-By default Ghost allows:
-
-```
-xdg-open
-systemctl status
-df
-free
-uptime
-hostname
-date
-ls
-cat /proc/
-journalctl -u ghost
-ping -c
-```
-
-Additional commands can be enabled using:
-
-```env
-ALLOWED_CMDS=python3,ollama,curl
-```
+| POST | `/v1/steering` | Mid-turn steering |
+| POST | `/v1/clarify/respond` | Answer a clarify request |
+| GET/POST | `/v1/model` | Model presets and switching |
+| WS | `/v1/ws` | Proactive push (`assistant_message`, `clarify_request`, `cron_update`, `progress_event`) |
 
 ---
 
 # Security
 
-- The bridge listens on `0.0.0.0` and is intended for trusted local networks.
-- Always configure a strong `BRIDGE_SECRET`.
-- Never expose port `8766` directly to the internet.
-- For secure remote access, use **Tailscale** and connect using your Pi's Tailscale IP address.
+- Credentials live only in platform secure storage (iOS Keychain / Android Keystore via expo-secure-store)
+- No shared secret exists — each device authenticates individually and can be disconnected independently from the Pod
+- Credentials are never placed in URLs, including WebSocket connections
+- The gateway is never exposed to the internet; remote access goes through the relay with per-client tokens
 
 ---
 

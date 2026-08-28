@@ -4,15 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Constants, { AppOwnership } from 'expo-constants';
 import * as Linking from 'expo-linking';
-import { useGhostStore } from '../lib/store';
-import {
-  loadConfig,
-  checkHealth,
-  connectWebSocket,
-  saveConfig,
-  GhostConfig,
-  onWSMessage,
-} from '../lib/ghostApi';
+import { onWSMessage } from '../lib/ghostApi';
 import { parsePairingURI } from '../lib/pairing';
 import {
   initializeConnection,
@@ -23,7 +15,6 @@ import {
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
 export default function RootLayout() {
-  const { setConfig, setConnected } = useGhostStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -69,16 +60,13 @@ export default function RootLayout() {
               host: payload.host,
               port: payload.port,
               transport: payload.transport,
+              relayServer: payload.relayServer ?? '',
+              ghostId: payload.ghostId ?? '',
             },
           });
         } else if (payload.type === 'legacy') {
-          // Legacy pairing (deprecated)
-          const cfg = payload.config;
-          await saveConfig(cfg);
-          setConfig(cfg);
-          const ok = await checkHealth(cfg);
-          setConnected(ok);
-          if (ok) connectWebSocket(cfg);
+          // Legacy relay deep link — adopted through the credentials system.
+          await handlePairingDeepLink(url);
           router.replace('/(tabs)');
         }
       };
@@ -123,7 +111,7 @@ export default function RootLayout() {
         sub.remove();
       };
     })();
-  }, [setConfig, setConnected]);
+  }, [router]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

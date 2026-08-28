@@ -50,6 +50,8 @@ export default function QrScannerScreen() {
           host: payload.host,
           port: payload.port,
           transport: payload.transport,
+          relayServer: payload.relayServer ?? "",
+          ghostId: payload.ghostId ?? "",
         },
       });
     },
@@ -126,7 +128,7 @@ export default function QrScannerScreen() {
       <View style={[styles.scrim, styles.scrimBottom, { paddingBottom: insets.bottom + Space.xl }]}>
         {status === "invalid" && (
           <GhostText type="callout" style={styles.invalidText}>
-            That's not a Ghost pairing code.
+            That&apos;s not a Ghost pairing code.
           </GhostText>
         )}
 

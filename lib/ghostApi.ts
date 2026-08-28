@@ -1,7 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
-import { Platform } from "react-native";
-
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -14,10 +10,11 @@ export interface Message {
 export interface GhostConfig {
   piHost: string;
   piPort: string;
-  secret: string;
   session?: string;
   sendLocation?: boolean;
-  // Relay transport (optional — absent/undefined = LAN mode)
+  // Relay transport is the default — the gateway binds to localhost only,
+  // so all traffic reaches Ghost through the relay tunnel. "lan" is only
+  // used for the direct pairing exchange itself.
   transport?: "lan" | "relay";
   relayServer?: string; // relay HTTP endpoint, e.g. "https://relay.example.com"
   ghostId?: string; // device ID for relay client auth
@@ -147,9 +144,10 @@ export interface GhostError {
 
 function classifyError(status: number, body: string): GhostError {
   if (status === 401 || status === 403) {
+    noteAuthFailure(status, body);
     return {
       kind: "auth",
-      message: "Connection rejected — check your secret in Settings",
+      message: "Ghost no longer recognizes this device. Re-pair to reconnect.",
       statusCode: status,
       retryable: false,
     };
@@ -194,129 +192,55 @@ function networkError(err: any): GhostError {
   };
 }
 
-// ─── Config ────────────────────────────────────────────────────────────────
+// ─── Auth Failure Notification ─────────────────────────────────────────────
+// The gateway authenticates devices via per-device credentials and the relay
+// authenticates apps via client tokens. When an authenticated request is
+// rejected with 401/403, the stored credential or client token is no longer
+// valid (e.g. the device was disconnected from the Ghost Pod). The connection
+// layer registers a handler to route the user to the auth-failure/revoked
+// screens instead of showing generic offline errors.
 
-const CONFIG_KEY = "ghost_config";
-const SECRET_KEY = "ghost_secret";
-const RELAY_TOKEN_KEY = "ghost_relay_token";
+export type AuthFailureReason = "revoked" | "invalid";
+type AuthFailureHandler = (reason: AuthFailureReason) => void;
 
-type StoredConfig = {
-  piHost: string;
-  piPort?: string;
-  session?: string;
-  sendLocation?: boolean;
-  secret?: string; // legacy: pre-SecureStore installs stored the secret inline
-  // Relay fields (persisted in AsyncStorage — no secrets here)
-  transport?: "lan" | "relay";
-  relayServer?: string;
-  ghostId?: string;
-};
+let authFailureHandler: AuthFailureHandler | null = null;
+let authFailureNotified = false;
 
-async function readSecret(): Promise<string> {
-  if (Platform.OS === "web") return "";
-  try {
-    return (await SecureStore.getItemAsync(SECRET_KEY)) ?? "";
-  } catch {
-    return "";
-  }
+export function setAuthFailureHandler(handler: AuthFailureHandler): void {
+  authFailureHandler = handler;
 }
 
-async function writeSecret(secret: string): Promise<void> {
-  if (Platform.OS === "web") return;
+export function resetAuthFailureState(): void {
+  authFailureNotified = false;
+}
+
+function noteAuthFailure(status: number, body: string): void {
+  if (authFailureNotified) return;
+  if (status !== 401 && status !== 403) return;
+  let code = "";
   try {
-    if (secret) {
-      await SecureStore.setItemAsync(SECRET_KEY, secret);
-    } else {
-      await SecureStore.deleteItemAsync(SECRET_KEY);
-    }
+    const parsed = JSON.parse(body);
+    code = parsed?.error?.code ?? "";
   } catch {}
+  authFailureNotified = true;
+  authFailureHandler?.(code === "device_revoked" ? "revoked" : "invalid");
 }
 
-async function readRelayToken(): Promise<string> {
-  if (Platform.OS === "web") return "";
-  try {
-    return (await SecureStore.getItemAsync(RELAY_TOKEN_KEY)) ?? "";
-  } catch {
-    return "";
-  }
-}
+// ─── Transport ─────────────────────────────────────────────────────────────
 
-async function writeRelayToken(token: string): Promise<void> {
-  if (Platform.OS === "web") return;
-  try {
-    if (token) {
-      await SecureStore.setItemAsync(RELAY_TOKEN_KEY, token);
-    } else {
-      await SecureStore.deleteItemAsync(RELAY_TOKEN_KEY);
-    }
-  } catch {}
-}
-
-export async function loadConfig(): Promise<GhostConfig | null> {
-  const raw = await AsyncStorage.getItem(CONFIG_KEY);
-  if (!raw) return null;
-  let stored: StoredConfig;
-  try {
-    stored = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  let secret = await readSecret();
-  if (!secret && typeof stored.secret === "string") secret = stored.secret;
-  // Migrate legacy inline secret out of AsyncStorage into SecureStore.
-  if (secret && typeof stored.secret === "string") {
-    await writeSecret(secret);
-    const migrated: StoredConfig = { ...stored };
-    delete migrated.secret;
-    await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(migrated)).catch(() => {});
-  }
-  // Load relay token from SecureStore
-  const clientToken = stored.transport === "relay" ? await readRelayToken() : undefined;
-  return {
-    piHost: stored.piHost,
-    piPort: stored.piPort ?? "8766",
-    secret,
-    session: stored.session,
-    sendLocation: stored.sendLocation !== false,
-    transport: stored.transport,
-    relayServer: stored.relayServer,
-    ghostId: stored.ghostId,
-    clientToken: clientToken || undefined,
-  };
-}
-
-export async function saveConfig(cfg: GhostConfig): Promise<void> {
-  await writeSecret(cfg.secret.trim());
-  // Store relay token in SecureStore (never in AsyncStorage)
-  if (cfg.transport === "relay" && cfg.clientToken) {
-    await writeRelayToken(cfg.clientToken);
-  } else {
-    await writeRelayToken("");
-  }
-  await AsyncStorage.setItem(
-    CONFIG_KEY,
-    JSON.stringify({
-      piHost: normalizeHost(cfg.piHost),
-      piPort: normalizePort(cfg.piPort),
-      session: normalizeSession(cfg.session),
-      sendLocation: cfg.sendLocation !== false,
-      // Relay fields (no secrets — token is in SecureStore)
-      transport: cfg.transport,
-      relayServer: cfg.relayServer,
-      ghostId: cfg.ghostId,
-    }),
-  );
+function resolveTransport(cfg: GhostConfig): "lan" | "relay" {
+  return cfg.transport ?? "relay";
 }
 
 function baseURL(cfg: GhostConfig): string {
-  if (cfg.transport === "relay" && cfg.relayServer) {
+  if (resolveTransport(cfg) === "relay" && cfg.relayServer) {
     return cfg.relayServer.replace(/\/+$/, "");
   }
   return `http://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
 }
 
 function wsURL(cfg: GhostConfig): string {
-  if (cfg.transport === "relay" && cfg.relayServer) {
+  if (resolveTransport(cfg) === "relay" && cfg.relayServer) {
     return cfg.relayServer.replace(/^http/i, "ws").replace(/\/+$/, "");
   }
   return `ws://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
@@ -347,34 +271,27 @@ function normalizeSession(session?: string): string {
   return value === "" ? "mobile:default" : value;
 }
 
-function headers(cfg: GhostConfig): HeadersInit {
-  if (cfg.transport === "relay" && cfg.ghostId && cfg.clientToken) {
-    return {
-      "Content-Type": "application/json",
-      "X-Ghost-Client-Id": cfg.ghostId,
-      "X-Ghost-Client-Token": cfg.clientToken,
-    };
+function authHeaders(cfg: GhostConfig): Record<string, string> {
+  // Per-hop credentials: the relay authenticates the client token, and the
+  // gateway (behind the tunnel) validates the device credential. A paired
+  // device connecting remotely sends both.
+  const h: Record<string, string> = {};
+  if (resolveTransport(cfg) === "relay" && cfg.ghostId && cfg.clientToken) {
+    h["X-Ghost-Client-Id"] = cfg.ghostId;
+    h["X-Ghost-Client-Token"] = cfg.clientToken;
   }
-  // Per-device auth (paired device).
   if (cfg.deviceID && cfg.credential) {
-    return {
-      "Content-Type": "application/json",
-      "X-Ghost-Device-ID": cfg.deviceID,
-      "X-Ghost-Credential": cfg.credential,
-    };
+    h["X-Ghost-Device-ID"] = cfg.deviceID;
+    h["X-Ghost-Credential"] = cfg.credential;
   }
-  return { "Content-Type": "application/json", "X-Ghost-Secret": cfg.secret };
+  return h;
+}
+
+function headers(cfg: GhostConfig): HeadersInit {
+  return { "Content-Type": "application/json", ...authHeaders(cfg) };
 }
 
 function messageHeaders(cfg: GhostConfig): HeadersInit {
-  if (cfg.transport === "relay" && cfg.ghostId && cfg.clientToken) {
-    return {
-      "Content-Type": "application/json",
-      "X-Ghost-Client-Id": cfg.ghostId,
-      "X-Ghost-Client-Token": cfg.clientToken,
-      "X-Ghost-Session": normalizeSession(cfg.session),
-    };
-  }
   return { ...headers(cfg), "X-Ghost-Session": normalizeSession(cfg.session) };
 }
 
@@ -395,17 +312,36 @@ async function fetchWithTimeout(
 
 // ─── Health ────────────────────────────────────────────────────────────────
 
-export async function checkHealth(cfg: GhostConfig): Promise<boolean> {
+export interface HealthStatus {
+  ok: boolean;
+  uptimeS?: number;
+  statusCode?: number;
+}
+
+export async function checkHealthInfo(cfg: GhostConfig): Promise<HealthStatus> {
+  const url = `${baseURL(cfg)}/v1/health`;
   try {
-    const res = await fetchWithTimeout(
-      `${baseURL(cfg)}/v1/health`,
-      { headers: headers(cfg) },
-      5000,
-    );
-    return res.ok;
+    const res = await fetchWithTimeout(url, { headers: headers(cfg) }, 5000);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      noteAuthFailure(res.status, body);
+      return { ok: false, statusCode: res.status };
+    }
+    const data = (await res.json().catch(() => null)) as
+      | { status?: string; uptime_s?: number }
+      | null;
+    return {
+      ok: data?.status === "ok" || data === null,
+      uptimeS: typeof data?.uptime_s === "number" ? data.uptime_s : undefined,
+      statusCode: res.status,
+    };
   } catch {
-    return false;
+    return { ok: false };
   }
+}
+
+export async function checkHealth(cfg: GhostConfig): Promise<boolean> {
+  return (await checkHealthInfo(cfg)).ok;
 }
 
 export async function checkHealthDebug(
@@ -459,6 +395,7 @@ export interface PairedDevice {
   id: string;
   device_id: string;
   display_name: string;
+  platform?: string;
   paired_at: string;
   last_seen_at?: string;
   revoked_at?: string;
@@ -1002,7 +939,7 @@ export async function uploadFile(
   form.append("file", { uri, type: mimeType, name: filename } as any);
   const res = await fetch(`${baseURL(cfg)}/v1/upload`, {
     method: "POST",
-    headers: { "X-Ghost-Secret": cfg.secret },
+    headers: authHeaders(cfg),
     body: form,
   });
   if (!res.ok) throw new Error("Upload failed");
@@ -1025,7 +962,7 @@ export async function transcribeAudio(
   try {
     const res = await fetch(`${baseURL(cfg)}/v1/transcribe`, {
       method: "POST",
-      headers: { "X-Ghost-Secret": cfg.secret },
+      headers: authHeaders(cfg),
       body: form,
     });
     if (!res.ok) return "";
@@ -1654,17 +1591,12 @@ let wsCurrentURL: string | null = null;
 let wsReconnectConfig: GhostConfig | null = null;
 
 export function connectWebSocket(cfg: GhostConfig): void {
-  // Build WS URL with appropriate auth params.
-  const session = encodeURIComponent(normalizeSession(cfg.session));
-  let authParams: string;
-  if (cfg.deviceID && cfg.credential) {
-    // Per-device auth (paired device).
-    authParams = `device_id=${encodeURIComponent(cfg.deviceID)}&credential=${encodeURIComponent(cfg.credential)}&session=${session}`;
-  } else {
-    // Bridge secret auth (legacy LAN).
-    authParams = `secret=${encodeURIComponent(cfg.secret)}&session=${session}`;
-  }
-  const url = `${wsURL(cfg)}/v1/ws?${authParams}`;
+  // Credentials are never placed in URLs (they leak into logs, history, and
+  // referer headers). The gateway trusts localhost traffic and validates
+  // device credentials on relay-forwarded requests; the relay authenticates
+  // the app tunnel itself. React Native WebSocket cannot send custom
+  // headers, so the connection is unauthenticated by design.
+  const url = `${wsURL(cfg)}/v1/ws`;
   wsReconnectConfig = cfg;
   wsShouldReconnect = true;
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);

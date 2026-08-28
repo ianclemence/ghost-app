@@ -15,8 +15,11 @@ const SECURE = {
   DEVICE_ID: "ghost.device_id",
   CREDENTIAL: "ghost.credential",
   CLIENT_TOKEN: "ghost.client_token",
-  BRIDGE_SECRET: "ghost_secret",
 } as const;
+
+// Legacy keys removed from storage on cleanup (bridge secret mode was
+// retired — the gateway no longer accepts shared secrets).
+const LEGACY_SECURE = ["ghost_secret", "ghost_relay_token"] as const;
 
 // ─── AsyncStorage Keys (non-sensitive metadata) ──────────────────────────
 
@@ -68,6 +71,9 @@ export async function clearDeviceCredential(): Promise<void> {
   await SecureStore.deleteItemAsync(SECURE.DEVICE_ID);
   await SecureStore.deleteItemAsync(SECURE.CREDENTIAL);
   await SecureStore.deleteItemAsync(SECURE.CLIENT_TOKEN);
+  for (const key of LEGACY_SECURE) {
+    await SecureStore.deleteItemAsync(key);
+  }
 }
 
 // ─── Connection Metadata Operations ──────────────────────────────────────
@@ -93,16 +99,6 @@ export async function getConnectionMeta(): Promise<ConnectionMeta | null> {
     ghostId: (await AsyncStorage.getItem(ASYNC.GHOST_ID)) || undefined,
     ghostName: (await AsyncStorage.getItem(ASYNC.GHOST_NAME)) || undefined,
   };
-}
-
-// ─── Bridge Secret (legacy, for LAN fallback) ────────────────────────────
-
-export async function saveBridgeSecret(secret: string): Promise<void> {
-  await SecureStore.setItemAsync(SECURE.BRIDGE_SECRET, secret);
-}
-
-export async function getBridgeSecret(): Promise<string | null> {
-  return SecureStore.getItemAsync(SECURE.BRIDGE_SECRET);
 }
 
 // ─── Client Token (relay) ───────────────────────────────────────────────

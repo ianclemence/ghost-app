@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Fonts, Ghost, Space, Type } from "@/constants/theme";
+import { formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
 
 const FONT = Fonts.sans;
@@ -66,7 +67,7 @@ function groupByDay(items: HomeItem[]): { title: string; data: HomeItem[] }[] {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { connectionState, inbox } = useGhostStore();
+  const { connectionState, inbox, ghostName, uptimeSeconds } = useGhostStore();
   const [greeting] = useState(getGreeting);
 
   const items: HomeItem[] = inbox.map((item) => ({
@@ -115,8 +116,14 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.greeting}>{greeting}, Ian.</Text>
-        {connectionState !== "online" && (
+        <Text style={styles.greeting}>
+          {ghostName ? `${greeting}, ${ghostName}.` : `${greeting}.`}
+        </Text>
+        {connectionState === "online" ? (
+          <Text style={styles.presenceLine}>
+            Ghost is running{uptimeSeconds ? ` · Up ${formatUptime(uptimeSeconds)}` : ""}.
+          </Text>
+        ) : (
           <Text style={styles.statusLine}>
             {connectionState === "syncing"
               ? "Ghost is syncing..."
@@ -127,7 +134,7 @@ export default function HomeScreen() {
 
       {items.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>It's quiet today.</Text>
+          <Text style={styles.emptyTitle}>It&apos;s quiet today.</Text>
         </View>
       ) : (
         <FlatList
@@ -182,6 +189,12 @@ const styles = StyleSheet.create({
     ...Type.body,
     fontFamily: FONT,
     color: Ghost.text.secondary,
+    marginTop: Space.xxs,
+  },
+  presenceLine: {
+    ...Type.body,
+    fontFamily: FONT,
+    color: Ghost.text.tertiary,
     marginTop: Space.xxs,
   },
   emptyContainer: {

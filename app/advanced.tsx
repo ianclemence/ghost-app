@@ -21,10 +21,6 @@ export default function AdvancedScreen() {
   const [debug, setDebug] = useState<ConnectionDebugResult | null>(null);
   const [meta, setMeta] = useState<{ host: string; port: string; transport: string; deviceId: string } | null>(null);
 
-  useEffect(() => {
-    loadMeta();
-  }, []);
-
   const loadMeta = async () => {
     const connMeta = await getConnectionMeta();
     const cred = await getDeviceCredential();
@@ -32,11 +28,15 @@ export default function AdvancedScreen() {
       setMeta({
         host: connMeta.host,
         port: connMeta.port,
-        transport: connMeta.transport === "relay" ? "Relay" : "Local network",
+        transport: connMeta.transport === "lan" ? "Local network" : "Relay",
         deviceId: cred?.deviceID ? cred.deviceID.slice(0, 8) + "…" : "—",
       });
     }
   };
+
+  useEffect(() => {
+    loadMeta();
+  }, []);
 
   const handleDebug = async () => {
     if (!config) return;

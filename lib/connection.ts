@@ -17,6 +17,7 @@
  *
  * Screens consume state. They do not implement their own connection logic.
  */
+import { router } from "expo-router";
 import {
   getDeviceCredential,
   saveDeviceCredential,
@@ -25,19 +26,22 @@ import {
   saveConnectionMeta,
   clearAllCredentials,
   hasDeviceCredential,
-  type DeviceCredential,
-  type ConnectionMeta,
+  saveClientToken,
+  getClientToken,
 } from "./credentials";
 import {
   GhostConfig,
   completePairing as apiCompletePairing,
-  checkHealth,
+  checkHealthInfo,
   connectWebSocket,
   disconnectWebSocket,
   listPairedDevices,
+  setAuthFailureHandler,
+  resetAuthFailureState,
+  HealthStatus,
   PairedDevice,
 } from "./ghostApi";
-import { parsePairingURI, SecurePairingPayload } from "./pairing";
+import { parsePairingURI } from "./pairing";
 import { useGhostStore } from "./store";
 
 // ─── Connection Status ───────────────────────────────────────────────────
@@ -77,17 +81,25 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_RECONNECT_DELAY = 1000;
 
+async function pollHealth(config: GhostConfig): Promise<HealthStatus> {
+  const health = await checkHealthInfo(config);
+  useGhostStore
+    .getState()
+    .setUptimeSeconds(health.ok ? (health.uptimeS ?? null) : null);
+  return health;
+}
+
 function startHealthMonitor(config: GhostConfig): void {
   stopHealthMonitor();
   healthInterval = setInterval(async () => {
     try {
-      const healthy = await checkHealth(config);
+      const health = await pollHealth(config);
       const store = useGhostStore.getState();
-      if (healthy && store.connectionState !== "online") {
+      if (health.ok && store.connectionState !== "online") {
         connectWebSocket(config);
         store.setConnectionState("online");
         reconnectAttempts = 0;
-      } else if (!healthy && store.connectionState === "online") {
+      } else if (!health.ok && store.connectionState === "online") {
         store.setConnectionState("syncing");
         scheduleReconnect(config);
       }
@@ -120,8 +132,8 @@ function scheduleReconnect(config: GhostConfig): void {
 
   reconnectTimer = setTimeout(async () => {
     try {
-      const healthy = await checkHealth(config);
-      if (healthy) {
+      const health = await pollHealth(config);
+      if (health.ok) {
         connectWebSocket(config);
         useGhostStore.getState().setConnectionState("online");
         reconnectAttempts = 0;
@@ -139,27 +151,64 @@ function scheduleReconnect(config: GhostConfig): void {
 async function buildConfig(): Promise<GhostConfig | null> {
   const cred = await getDeviceCredential();
   const meta = await getConnectionMeta();
-  if (!cred || !meta) return null;
+  if (!meta) return null;
+  if (!cred && !(meta.transport === "relay" && meta.relayServer)) return null;
+
+  const clientToken = (await getClientToken()) ?? undefined;
 
   return {
     piHost: meta.host,
     piPort: meta.port,
-    secret: "",
     session: "mobile:default",
     sendLocation: true,
-    transport: meta.transport,
+    transport: meta.transport ?? "relay",
     relayServer: meta.relayServer,
     ghostId: meta.ghostId,
-    deviceID: cred.deviceID,
-    credential: cred.credential,
+    clientToken,
+    deviceID: cred?.deviceID,
+    credential: cred?.credential,
   };
+}
+
+// ─── Auth Failure Routing ────────────────────────────────────────────────
+
+function registerAuthFailureHandler(): void {
+  setAuthFailureHandler((reason) => {
+    void handleCredentialRevoked(reason);
+  });
+}
+
+/**
+ * Handle credential revocation — the stored device credential or relay
+ * client token is no longer valid (e.g. the device was disconnected from
+ * the Ghost Pod). Clears credentials and routes to the matching screen.
+ */
+export async function handleCredentialRevoked(
+  reason: "revoked" | "invalid" = "invalid",
+): Promise<void> {
+  const paired = await isPaired();
+  stopHealthMonitor();
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  disconnectWebSocket();
+  await clearDeviceCredential();
+  const store = useGhostStore.getState();
+  store.setConnectionState("offline");
+  store.setUptimeSeconds(null);
+  if (paired) {
+    router.replace(reason === "revoked" ? "/revoked" : "/auth-failure");
+  }
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────
 
-/** Check if device is paired (has stored credentials). */
+/**
+ * Check if the device can authenticate to a Ghost: either a paired device
+ * credential, or an adopted relay connection (client token + relay meta).
+ */
 export async function isPaired(): Promise<boolean> {
-  return hasDeviceCredential();
+  if (await hasDeviceCredential()) return true;
+  const [token, meta] = await Promise.all([getClientToken(), getConnectionMeta()]);
+  return !!(token && meta?.transport === "relay" && meta.relayServer);
 }
 
 /** Initialize connection on app start. Loads saved credentials and connects. */
@@ -167,18 +216,23 @@ export async function initializeConnection(): Promise<void> {
   const store = useGhostStore.getState();
   store.setConnectionState("offline");
 
+  const meta = await getConnectionMeta();
+  if (meta?.ghostName) store.setGhostName(meta.ghostName);
+
   const config = await buildConfig();
   if (!config) {
     store.setConnectionState("offline");
     return;
   }
 
+  resetAuthFailureState();
+  registerAuthFailureHandler();
   store.setConfig(config);
   store.setConnectionState("syncing");
 
   try {
-    const healthy = await checkHealth(config);
-    if (healthy) {
+    const health = await pollHealth(config);
+    if (health.ok) {
       connectWebSocket(config);
       store.setConnectionState("online");
       startHealthMonitor(config);
@@ -193,30 +247,42 @@ export async function initializeConnection(): Promise<void> {
   }
 }
 
+/** Pairing request derived from a scanned QR code or deep link. */
+export interface PairingRequest {
+  token: string;
+  host?: string;
+  port?: string;
+  transport: "lan" | "relay";
+  relayServer?: string;
+  ghostId?: string;
+}
+
 /**
  * Redeem a pairing token and connect.
- * Called after QR scan or deep link with secure pairing payload.
+ * Called after QR scan or deep link with a secure pairing payload.
+ * The transport from the pairing payload is persisted so the connection
+ * uses the same route the invitation was issued for.
  */
 export async function completePairing(
-  host: string,
-  port: string,
-  token: string,
+  req: PairingRequest,
 ): Promise<{ ok: boolean; error?: string; errorCode?: string }> {
   const store = useGhostStore.getState();
   store.setConnectionState("syncing");
 
   try {
-    // Build temp config for API call (pairing/complete is public endpoint).
+    // Build temp config for API call (pairing/complete is a public endpoint).
     const tempConfig: GhostConfig = {
-      piHost: host,
-      piPort: port,
-      secret: "",
+      piHost: req.host ?? "",
+      piPort: req.port ?? "8766",
+      transport: req.transport,
+      relayServer: req.relayServer,
+      ghostId: req.ghostId,
     };
 
     // Get platform for device metadata.
     const platform = require("react-native").Platform.OS;
 
-    const result = await apiCompletePairing(tempConfig, token, "Phone", platform);
+    const result = await apiCompletePairing(tempConfig, req.token, "Phone", platform);
 
     // Store credentials securely.
     await saveDeviceCredential({
@@ -224,11 +290,16 @@ export async function completePairing(
       credential: result.credential,
     });
     await saveConnectionMeta({
-      host,
-      port,
-      transport: "lan",
+      host: req.host ?? "",
+      port: req.port ?? "8766",
+      transport: req.transport,
+      relayServer: req.relayServer,
+      ghostId: req.ghostId,
       ghostName: result.ghost_name,
     });
+    resetAuthFailureState();
+    registerAuthFailureHandler();
+    store.setGhostName(result.ghost_name ?? null);
 
     // Build final config and connect.
     const config = await buildConfig();
@@ -280,7 +351,9 @@ export async function disconnectAndClear(): Promise<void> {
   disconnectWebSocket();
   await clearAllCredentials();
   const store = useGhostStore.getState();
-  store.setConfig({ piHost: "", piPort: "", secret: "" });
+  store.setConfig({ piHost: "", piPort: "" });
+  store.setGhostName(null);
+  store.setUptimeSeconds(null);
   store.setConnectionState("offline");
 }
 
@@ -290,15 +363,18 @@ export async function reconnect(): Promise<void> {
   if (!config) return;
 
   const store = useGhostStore.getState();
+  resetAuthFailureState();
+  registerAuthFailureHandler();
   store.setConfig(config);
   store.setConnectionState("syncing");
 
   try {
-    const healthy = await checkHealth(config);
-    if (healthy) {
+    const health = await pollHealth(config);
+    if (health.ok) {
       connectWebSocket(config);
       store.setConnectionState("online");
       reconnectAttempts = 0;
+      startHealthMonitor(config);
     } else {
       store.setConnectionState("offline");
       scheduleReconnect(config);
@@ -307,16 +383,6 @@ export async function reconnect(): Promise<void> {
     store.setConnectionState("offline");
     scheduleReconnect(config);
   }
-}
-
-/** Handle credential revocation — clear credentials and set auth_required. */
-export async function handleCredentialRevoked(): Promise<void> {
-  stopHealthMonitor();
-  if (reconnectTimer) clearTimeout(reconnectTimer);
-  disconnectWebSocket();
-  await clearDeviceCredential();
-  const store = useGhostStore.getState();
-  store.setConnectionState("offline");
 }
 
 /** Start pairing flow. */
@@ -335,24 +401,80 @@ export async function refreshDevices(): Promise<PairedDevice[]> {
   }
 }
 
+/**
+ * Adopt a legacy relay deep link (ghost://connect?transport=relay&...) —
+ * the only supported legacy format. Persisted through the credentials
+ * system: client token in SecureStore, relay metadata in AsyncStorage.
+ */
+async function adoptLegacyRelayLink(config: GhostConfig): Promise<void> {
+  const existingMeta = await getConnectionMeta();
+  const sameGhost =
+    existingMeta?.ghostId && existingMeta.ghostId === config.ghostId;
+  if (!sameGhost) {
+    await clearAllCredentials();
+  }
+
+  if (config.clientToken) {
+    await saveClientToken(config.clientToken);
+  }
+  await saveConnectionMeta({
+    host: config.piHost,
+    port: config.piPort || "8766",
+    transport: "relay",
+    relayServer: config.relayServer,
+    ghostId: config.ghostId,
+  });
+
+  const store = useGhostStore.getState();
+  resetAuthFailureState();
+  registerAuthFailureHandler();
+
+  const adopted = await buildConfig();
+  if (!adopted) {
+    store.setConnectionState("offline");
+    return;
+  }
+
+  store.setConfig(adopted);
+  store.setConnectionState("syncing");
+  try {
+    const health = await pollHealth(adopted);
+    if (health.ok) {
+      connectWebSocket(adopted);
+      store.setConnectionState("online");
+      startHealthMonitor(adopted);
+    } else {
+      store.setConnectionState("offline");
+      startHealthMonitor(adopted);
+    }
+  } catch {
+    store.setConnectionState("offline");
+    startHealthMonitor(adopted);
+  }
+}
+
 /** Handle deep link with pairing URI. */
 export async function handlePairingDeepLink(url: string): Promise<{ ok: boolean; error?: string }> {
   const payload = parsePairingURI(url);
   if (!payload) return { ok: false, error: "Invalid pairing code." };
 
   if (payload.type === "secure") {
-    return completePairing(payload.host, payload.port, payload.token);
+    const result = await completePairing({
+      token: payload.token,
+      host: payload.host,
+      port: payload.port,
+      transport: payload.transport,
+      relayServer: payload.relayServer,
+      ghostId: payload.ghostId,
+    });
+    return { ok: result.ok, error: result.error };
   }
 
-  // Legacy pairing — direct config (deprecated).
+  // Legacy pairing — relay deep link adopted through the credentials system.
   if (payload.type === "legacy") {
-    const { saveConfig } = await import("./ghostApi");
-    await saveConfig(payload.config);
-    useGhostStore.getState().setConfig(payload.config);
-    const ok = await checkHealth(payload.config);
-    useGhostStore.getState().setConnected(ok);
-    if (ok) connectWebSocket(payload.config);
-    return { ok };
+    await adoptLegacyRelayLink(payload.config);
+    const state = useGhostStore.getState().connectionState;
+    return { ok: state === "online" };
   }
 
   return { ok: false, error: ERROR_MESSAGES.UNKNOWN };

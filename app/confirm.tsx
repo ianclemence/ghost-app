@@ -20,30 +20,29 @@ export default function PairingProgressScreen() {
     host: string;
     port: string;
     transport: string;
+    relayServer?: string;
+    ghostId?: string;
     name?: string;
   }>();
   const [status, setStatus] = useState<"connecting" | "success" | "error">("connecting");
   const [error, setError] = useState<string | null>(null);
   const hasStarted = useRef(false);
 
-  useEffect(() => {
-    if (hasStarted.current) return;
-    hasStarted.current = true;
-    startPairing();
-  }, []);
-
   const startPairing = async () => {
-    if (!params.token || !params.host) {
+    if (!params.token || (!params.host && params.transport !== "relay")) {
       setError("Missing pairing information.");
       setStatus("error");
       return;
     }
 
-    const result = await completePairing(
-      params.host,
-      params.port || "8766",
-      params.token,
-    );
+    const result = await completePairing({
+      token: params.token,
+      host: params.host || "",
+      port: params.port || "8766",
+      transport: params.transport === "relay" ? "relay" : "lan",
+      relayServer: params.relayServer || undefined,
+      ghostId: params.ghostId || undefined,
+    });
 
     if (result.ok) {
       setStatus("success");
@@ -56,6 +55,12 @@ export default function PairingProgressScreen() {
       setStatus("error");
     }
   };
+
+  useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
+    startPairing();
+  }, []);
 
   if (status === "success") {
     return (
@@ -73,7 +78,7 @@ export default function PairingProgressScreen() {
       <View style={[styles.container, styles.center]}>
         <GhostMark size={48} color={Ghost.text.tertiary} />
         <GhostText type="headline" style={styles.title}>
-          Couldn't connect
+          Couldn&apos;t connect
         </GhostText>
         <GhostText type="body" style={styles.errorText}>
           {error}

@@ -9,6 +9,7 @@ import {
   StatusDot,
 } from "@/components/ghost";
 import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
+import { formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
 import { reconnect, disconnectAndClear } from "@/lib/connection";
 
@@ -22,6 +23,8 @@ const FONT = Fonts.sans;
 export default function ConnectionScreen() {
   const router = useRouter();
   const connectionState = useGhostStore((s) => s.connectionState);
+  const ghostName = useGhostStore((s) => s.ghostName);
+  const uptimeSeconds = useGhostStore((s) => s.uptimeSeconds);
 
   const isOnline = connectionState === "online";
 
@@ -64,11 +67,13 @@ export default function ConnectionScreen() {
           />
           <View>
             <GhostText type="body" style={styles.statusText}>
-              Ghost
+              {ghostName ?? "Ghost"}
             </GhostText>
             <GhostText type="caption" style={styles.statusLabel}>
               {isOnline
-                ? "Online"
+                ? uptimeSeconds
+                  ? `Online · Up ${formatUptime(uptimeSeconds)}`
+                  : "Online"
                 : connectionState === "syncing"
                   ? "Connecting…"
                   : "Offline"}
@@ -79,7 +84,7 @@ export default function ConnectionScreen() {
         {!isOnline && (
           <View style={styles.offlineMessage}>
             <GhostText type="body" style={styles.offlineText}>
-              I can't reach your Ghost Pod right now.
+              I can&apos;t reach your Ghost Pod right now.
             </GhostText>
           </View>
         )}
