@@ -248,8 +248,8 @@ export default function ActivityScreen() {
       ) : failed && filtered.length === 0 ? (
         <View style={styles.emptyWrap}>
           <EmptyState
-            title="Couldn't load activity"
-            subtitle="Check your connection to the Ghost Pod and try again."
+            title="No activity yet"
+            subtitle="Ghost hasn't recorded any sessions, automations, memory, or errors."
             action={
               <GhostButton title="Retry" onPress={() => load()} />
             }
