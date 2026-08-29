@@ -1,19 +1,28 @@
 import { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Alert } from "react-native";
-import { useRouter } from "expo-router";
-import { GhostText } from "@/components/themed-text";
 import {
-  GhostButton,
-  GhostList,
-  GhostRow,
-  SectionHeader,
-  StatusDot,
-  Divider,
-} from "@/components/ghost";
-import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
-import { timeAgo } from "@/lib/format";
+  View,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import { ChevronRight } from "lucide-react-native";
+import { GhostText } from "@/components/themed-text";
+import { GhostButton, StatusDot, Divider } from "@/components/ghost";
+import { Ghost, Fonts, Space } from "@/constants/theme";
+import { timeAgo, formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
-import { startPairing, cancelPairing, PairedDevice } from "@/lib/ghostApi";
+import {
+  revokePairedDevice,
+  PairedDevice,
+  fetchStats,
+  fetchDoctor,
+  fetchModelInfo,
+  PiStats,
+  DoctorCheckResult,
+  ModelInfo,
+} from "@/lib/ghostApi";
 import { refreshDevices } from "@/lib/connection";
 
 const FONT = Fonts.sans;
@@ -32,45 +41,68 @@ function deviceStatus(device: PairedDevice): string {
   return `Last seen ${timeAgo(seen)}`;
 }
 
+function dotForStatus(status?: string): "online" | "warning" | "offline" {
+  if (status === "ok") return "online";
+  if (status === "warn") return "warning";
+  return "offline";
+}
+
+function serviceLabel(status?: string): string {
+  if (status === "ok") return "Running";
+  if (status === "warn") return "Degraded";
+  return "Stopped";
+}
+
 export default function GhostPodScreen() {
-  const router = useRouter();
   const config = useGhostStore((s) => s.config);
   const connectionState = useGhostStore((s) => s.connectionState);
+  const ghostName = useGhostStore((s) => s.ghostName);
+  const uptimeSeconds = useGhostStore((s) => s.uptimeSeconds);
   const [devices, setDevices] = useState<PairedDevice[]>([]);
-  const [pairingToken, setPairingToken] = useState<string | null>(null);
-  const [pairingID, setPairingID] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState<PiStats | null>(null);
+  const [model, setModel] = useState<ModelInfo | null>(null);
+  const [version, setVersion] = useState<string>("—");
+  const [checks, setChecks] = useState<DoctorCheckResult[] | null>(null);
+  const [doctorKeys, setDoctorKeys] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  const isOnline = connectionState === "online";
 
   const loadDevices = async () => {
     const list = await refreshDevices();
     setDevices(list);
   };
 
-  useEffect(() => {
-    loadDevices();
-  }, []);
+  const loadSystemInfo = async () => {
+    if (!config) return;
+    const [s, m] = await Promise.allSettled([
+      fetchStats(config),
+      fetchModelInfo(config),
+    ]);
+    if (s.status === "fulfilled") setStats(s.value);
+    if (m.status === "fulfilled") setModel(m.value);
+  };
 
-  const handleStartPairing = async () => {
+  const loadDoctor = async () => {
     if (!config) return;
     setLoading(true);
     try {
-      const result = await startPairing(config, "Phone");
-      setPairingToken(result.token);
-      setPairingID(result.pairing_id);
-    } catch (err: any) {
-      Alert.alert("Error", err?.message ?? "Failed to start pairing");
+      const res = await fetchDoctor(config);
+      setChecks(res.checks ?? []);
+      setVersion(res.version ?? "—");
+      setDoctorKeys(Object.keys(res).join(", "));
+    } catch {
+      setChecks([]);
     }
     setLoading(false);
   };
 
-  const handleCancelPairing = async () => {
-    if (!config || !pairingID) return;
-    try {
-      await cancelPairing(config, pairingID);
-    } catch {}
-    setPairingToken(null);
-    setPairingID(null);
-  };
+  useEffect(() => {
+    if (!config) return;
+    loadDevices();
+    loadSystemInfo();
+    loadDoctor();
+  }, [config]);
 
   const handleDisconnect = (device: PairedDevice) => {
     Alert.alert(
@@ -84,7 +116,6 @@ export default function GhostPodScreen() {
           onPress: async () => {
             if (!config) return;
             try {
-              const { revokePairedDevice } = await import("@/lib/ghostApi");
               await revokePairedDevice(config, device.device_id);
               loadDevices();
             } catch (err: any) {
@@ -96,6 +127,24 @@ export default function GhostPodScreen() {
     );
   };
 
+  const handleRestart = () => {
+    Alert.alert(
+      "Restart this device",
+      "Rebooting the hardware is only available from the Ghost web console. Open the console on your Ghost Pod to restart it.",
+      [{ text: "OK" }],
+    );
+  };
+
+  const activePreset =
+    model?.presets?.find((p) => p.name === model.active) ??
+    model?.presets?.[0];
+  const modelLabel = activePreset
+    ? `${activePreset.provider}${activePreset.model ? " · " + activePreset.model : ""}`
+    : model?.provider ?? "—";
+  const addressLabel = stats
+    ? `${stats.ip}${stats.hostname ? " (" + stats.hostname + ")" : ""}`
+    : "—";
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: Ghost.bg.base }}
@@ -105,80 +154,205 @@ export default function GhostPodScreen() {
         Ghost Pod
       </GhostText>
 
-      <SectionHeader title="Status" />
-      <View style={styles.card}>
-        <View style={styles.statusRow}>
-          <StatusDot
-            status={
-              connectionState === "online"
-                ? "online"
-                : connectionState === "syncing"
-                  ? "warning"
-                  : "offline"
-            }
-          />
+      {/* Connection status */}
+      <View style={styles.statusRow}>
+        <StatusDot
+          status={
+            isOnline
+              ? "online"
+              : connectionState === "syncing"
+                ? "warning"
+                : "offline"
+          }
+        />
+        <View>
           <GhostText type="body" style={styles.statusText}>
-              {connectionState === "online"
-                ? "Connected"
-                : connectionState === "syncing"
-                  ? "Connecting…"
-                  : "Disconnected"}
+            {ghostName ?? "Ghost"}
+          </GhostText>
+          <GhostText type="caption" style={styles.statusLabel}>
+            {isOnline
+              ? uptimeSeconds
+                ? `Online · Up ${formatUptime(uptimeSeconds)}`
+                : "Online"
+              : connectionState === "syncing"
+                ? "Connecting…"
+                : "Offline"}
           </GhostText>
         </View>
       </View>
+      {!isOnline && (
+        <GhostText type="body" style={styles.offlineText}>
+          I can&apos;t reach your Ghost Pod right now.
+        </GhostText>
+      )}
 
-      <SectionHeader title="Paired devices" />
-      <View style={styles.card}>
+      {/* Paired devices */}
+      <View style={styles.block}>
         {devices.length === 0 ? (
           <GhostText type="body" style={styles.emptyText}>
             No devices paired yet.
           </GhostText>
         ) : (
-          <GhostList>
-            {devices.map((device) => (
-              <GhostRow
-                key={device.device_id}
-                title={device.display_name}
-                subtitle={`${devicePlatform(device)}  ·  ${deviceStatus(device)}  ·  added ${timeAgo(new Date(device.paired_at).getTime())}`}
+          devices.map((device, i) => (
+            <View key={device.device_id}>
+              <TouchableOpacity
+                style={styles.row}
+                activeOpacity={0.6}
                 onPress={() => handleDisconnect(device)}
-              />
-            ))}
-          </GhostList>
+              >
+                <View style={styles.rowText}>
+                  <GhostText type="body" style={styles.rowTitle}>
+                    {device.display_name}
+                  </GhostText>
+                  <GhostText type="caption" style={styles.rowSubtitle}>
+                    {`${devicePlatform(device)}  ·  ${deviceStatus(device)}  ·  added ${timeAgo(new Date(device.paired_at).getTime())}`}
+                  </GhostText>
+                </View>
+                <ChevronRight size={16} color={Ghost.text.tertiary} />
+              </TouchableOpacity>
+              {i < devices.length - 1 && <Divider />}
+            </View>
+          ))
         )}
       </View>
 
-      <SectionHeader title="Pair new device" />
-      <View style={styles.card}>
-        {pairingToken ? (
-          <View>
-            <GhostText type="body" style={styles.tokenLabel}>
-              Pairing token:
-            </GhostText>
-            <GhostText type="mono" style={styles.tokenText}>
-              {pairingToken}
-            </GhostText>
-            <GhostText type="caption" style={styles.hint}>
-              Enter this token on your phone. Expires in 5 minutes.
-            </GhostText>
-            <GhostButton
-              title="Cancel"
-              variant="secondary"
-              onPress={handleCancelPairing}
-              style={styles.cancelButton}
-            />
+      {/* Ghost system info */}
+      <View style={styles.block}>
+        <InfoRow label="Version" value={version} />
+        <SystemInfo
+          stats={stats}
+          modelLabel={modelLabel}
+          addressLabel={addressLabel}
+        />
+      </View>
+
+      {/* Services (best-effort: gateway health checks) */}
+      <View style={styles.block}>
+        {loading ? (
+          <View style={styles.centerPad}>
+            <ActivityIndicator color={Ghost.accent.primary} />
           </View>
+        ) : checks && checks.length > 0 ? (
+          checks.map((ch) => (
+            <View key={ch.name} style={styles.svcRow}>
+              <GhostText type="body" style={styles.svcName}>
+                {ch.name}
+              </GhostText>
+              <View style={styles.svcStatus}>
+                <StatusDot status={dotForStatus(ch.status)} />
+                <GhostText type="caption" style={styles.svcStatusLabel}>
+                  {serviceLabel(ch.status)}
+                </GhostText>
+              </View>
+            </View>
+          ))
         ) : (
-          <GhostButton
-            title={loading ? "Generating…" : "Generate pairing token"}
-            variant="primary"
-            onPress={handleStartPairing}
-            disabled={loading || connectionState !== "online"}
-            loading={loading}
-            fullWidth
-          />
+          <GhostText type="body" style={styles.emptyText}>
+            No services reported.
+          </GhostText>
         )}
       </View>
+
+      {/* Diagnostics */}
+      <View style={styles.block}>
+        {loading ? (
+          <View style={styles.centerPad}>
+            <ActivityIndicator color={Ghost.accent.primary} />
+          </View>
+        ) : checks && checks.length > 0 ? (
+          checks.map((ch) => (
+            <View key={ch.name} style={styles.checkRow}>
+              <StatusDot status={dotForStatus(ch.status)} />
+              <View style={styles.checkText}>
+                <GhostText type="body" style={styles.checkName}>
+                  {ch.name}
+                </GhostText>
+                {ch.message ? (
+                  <GhostText type="caption" style={styles.checkMsg}>
+                    {ch.message}
+                  </GhostText>
+                ) : null}
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyBlock}>
+            <GhostText type="body" style={styles.emptyText}>
+              Nothing to report
+            </GhostText>
+            <GhostText type="caption" style={styles.emptySub}>
+              {`No checks returned. Response keys: ${doctorKeys || "—"}`}
+            </GhostText>
+          </View>
+        )}
+      </View>
+
+      {/* Danger zone */}
+      <GhostButton
+        title="Restart this device"
+        variant="danger"
+        onPress={handleRestart}
+        fullWidth
+        style={styles.actionButton}
+      />
+      <GhostText type="caption" style={styles.dangerHint}>
+        Reboots the hardware Ghost runs on. Use only if something is wrong.
+      </GhostText>
     </ScrollView>
+  );
+}
+
+function SystemInfo({
+  stats,
+  modelLabel,
+  addressLabel,
+}: {
+  stats: PiStats | null;
+  modelLabel: string;
+  addressLabel: string;
+}) {
+  const rows: { label: string; value?: string }[] = [
+    { label: "Uptime", value: stats?.uptime },
+    { label: "Model", value: modelLabel },
+    { label: "Address", value: addressLabel },
+    { label: "CPU temp", value: stats?.cpu_temp },
+    { label: "Memory", value: stats?.memory },
+    { label: "Storage", value: stats?.disk },
+    { label: "Load", value: stats?.load },
+    { label: "Service", value: stats?.ghost_svc },
+  ];
+  return (
+    <>
+      {rows.map((r, i) => (
+        <InfoRow
+          key={r.label}
+          label={r.label}
+          value={r.value}
+          last={i === rows.length - 1}
+        />
+      ))}
+    </>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+  last,
+}: {
+  label: string;
+  value?: string;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.infoRow, !last && styles.infoRowDivided]}>
+      <GhostText type="caption" style={styles.infoLabel}>
+        {label}
+      </GhostText>
+      <GhostText type="body" style={styles.infoValue}>
+        {value && value.length > 0 ? value : "—"}
+      </GhostText>
+    </View>
   );
 }
 
@@ -194,49 +368,134 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: Ghost.text.primary,
   },
-  card: {
-    padding: 16,
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.lg,
-  },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   statusText: {
-    fontSize: 16,
     fontFamily: FONT,
     color: Ghost.text.primary,
+    fontWeight: "500",
+  },
+  statusLabel: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+    marginTop: 2,
+  },
+  offlineText: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+    fontStyle: "italic",
+    marginTop: Space.sm,
+  },
+  block: {
+    marginTop: Space.xl,
   },
   emptyText: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
     opacity: 0.5,
     textAlign: "center",
-    paddingVertical: 12,
-    fontFamily: FONT,
-    color: Ghost.text.secondary,
+    paddingVertical: Space.sm,
   },
-  tokenLabel: {
-    fontSize: 14,
-    opacity: 0.6,
-    marginBottom: 8,
-    fontFamily: FONT,
-    color: Ghost.text.secondary,
+  emptyBlock: {
+    alignItems: "center",
+    paddingVertical: Space.sm,
   },
-  tokenText: {
-    fontSize: 18,
-    fontFamily: "Courier",
-    letterSpacing: 1,
-    marginBottom: 8,
-    color: Ghost.text.primary,
-  },
-  hint: {
-    opacity: 0.4,
-    marginBottom: 16,
+  emptySub: {
     fontFamily: FONT,
     color: Ghost.text.tertiary,
+    textAlign: "center",
+    marginTop: 2,
   },
-  cancelButton: {
-    marginTop: 8,
+  centerPad: {
+    paddingVertical: Space.lg,
+    alignItems: "center",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Space.md,
+  },
+  rowText: {
+    flex: 1,
+    gap: 2,
+  },
+  rowTitle: {
+    fontFamily: FONT,
+    color: Ghost.text.primary,
+  },
+  rowSubtitle: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Space.sm,
+  },
+  infoRowDivided: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Ghost.border.subtle,
+  },
+  infoLabel: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+  },
+  infoValue: {
+    fontFamily: FONT,
+    color: Ghost.text.primary,
+    flexShrink: 1,
+    textAlign: "right",
+    marginLeft: Space.lg,
+  },
+  svcRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Space.sm,
+  },
+  svcName: {
+    fontFamily: FONT,
+    color: Ghost.text.primary,
+  },
+  svcStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.xs,
+  },
+  svcStatusLabel: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+  },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Space.sm,
+    paddingVertical: Space.sm,
+  },
+  checkText: {
+    flex: 1,
+    gap: 2,
+  },
+  checkName: {
+    fontFamily: FONT,
+    color: Ghost.text.primary,
+  },
+  checkMsg: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+  },
+  actionButton: {
+    marginTop: Space.xl,
+  },
+  dangerHint: {
+    fontFamily: FONT,
+    color: Ghost.text.tertiary,
+    marginTop: Space.xs,
+    textAlign: "center",
   },
 });

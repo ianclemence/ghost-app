@@ -266,7 +266,7 @@ function normalizePort(port: string): string {
   return numeric === "" ? "8766" : numeric;
 }
 
-function normalizeSession(session?: string): string {
+export function normalizeSession(session?: string): string {
   const value = (session ?? "").trim();
   return value === "" ? "mobile:default" : value;
 }
@@ -516,8 +516,9 @@ export async function fetchHistory(
   limit = 50,
   offset = 0,
   since?: number,
+  sessionKey?: string,
 ): Promise<{ messages: Message[]; total: number }> {
-  const session = normalizeSession(cfg.session);
+  const session = normalizeSession(sessionKey ?? cfg.session);
   const qs = new URLSearchParams({
     limit: String(limit),
     offset: String(offset),
@@ -527,7 +528,10 @@ export async function fetchHistory(
     qs.set("since", String(Math.floor(since)));
   }
   const res = await fetch(`${baseURL(cfg)}/v1/history?${qs.toString()}`, {
-    headers: messageHeaders(cfg),
+    headers: {
+      ...headers(cfg),
+      "X-Ghost-Session": session,
+    },
   });
   if (!res.ok) throw new Error(`Failed to fetch history (HTTP ${res.status})`);
   return res.json();
@@ -613,6 +617,8 @@ export interface SendOptions {
   mediaB64?: string;
   mediaType?: string;
   signal?: AbortSignal;
+  // Override the session this message belongs to. Defaults to cfg.session.
+  sessionKey?: string;
   onChunk: (chunk: string) => void;
   onLifecycle?: (requestId: string, state: string) => void;
   onSanitized?: (reason: string) => void;
@@ -731,10 +737,11 @@ export async function sendMessage(
         ? [{ base64: opts.mediaB64 }]
         : [];
 
+  const sessionKey = normalizeSession(opts.sessionKey ?? cfg.session);
   const body: Record<string, unknown> = {
     request_id: opts.requestId,
     content: opts.content,
-    session_key: normalizeSession(cfg.session),
+    session_key: sessionKey,
     channel: "mobile",
     chat_id: "default",
   };
@@ -779,7 +786,10 @@ export async function sendMessage(
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: messageHeaders(cfg),
+      headers: {
+        ...messageHeaders(cfg),
+        "X-Ghost-Session": sessionKey,
+      },
       body: JSON.stringify(body),
       signal: abortController?.signal,
     });
@@ -996,6 +1006,24 @@ export async function fetchMemoryFile(
   if (!res.ok) throw new Error("Not found");
   const data = await res.json();
   return data.content;
+}
+
+export interface TraceIncident {
+  timestamp: number;
+  message: string;
+  level: string;
+}
+
+export async function fetchTraces(
+  cfg: GhostConfig,
+): Promise<TraceIncident[]> {
+  const res = await fetch(`${baseURL(cfg)}/v1/traces`, {
+    headers: headers(cfg),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const inc = data.incidents || (Array.isArray(data) ? data : []);
+  return inc;
 }
 
 export async function fetchWorkspaceFiles(

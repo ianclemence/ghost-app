@@ -1,112 +1,176 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Fonts, Ghost, Space, Type } from "@/constants/theme";
-import { EmptyState, Divider } from "@/components/ghost";
+import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
+import { EmptyState, GhostButton } from "@/components/ghost";
 import {
-  CronJob,
+  fetchSessions,
   fetchCronJobs,
+  fetchMemoryFiles,
+  fetchTraces,
+  SessionSummary,
+  CronJob,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
 const FONT = Fonts.sans;
 
-function humanSchedule(job: CronJob): string {
-  const s = job.schedule;
-  if (s.kind === "every") {
-    const ms = s.everyMs ?? 0;
-    if (ms >= 86400000 && ms % 86400000 === 0) {
-      const days = ms / 86400000;
-      return days === 1 ? "Daily" : `Every ${days} days`;
-    }
-    if (ms >= 3600000 && ms % 3600000 === 0) {
-      const hrs = ms / 3600000;
-      return hrs === 1 ? "Every hour" : `Every ${hrs} hours`;
-    }
-    if (ms >= 60000 && ms % 60000 === 0) return `Every ${ms / 60000} min`;
-    return `Every ${ms / 1000}s`;
-  }
-  if (s.kind === "at") {
-    const d = new Date(s.atMs ?? 0);
-    return `Once · ${d.toLocaleDateString([], {
-      month: "short",
-      day: "numeric",
-    })}`;
-  }
-  if (s.kind === "cron" && s.expr) {
-    const parts = s.expr.split(" ");
-    if (parts.length >= 2) {
-      const hour = parseInt(parts[1], 10);
-      if (!isNaN(hour)) {
-        const ampm = hour >= 12 ? "PM" : "AM";
-        const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-        return `Daily at ${h12}:00 ${ampm}`;
-      }
-    }
-    return "Custom schedule";
-  }
-  return "Custom schedule";
+type ActivityKind = "messages" | "automations" | "memory" | "errors";
+
+type ActivityItem = {
+  id: string;
+  kind: ActivityKind;
+  ts: number; // unix seconds
+  title: string;
+  meta: string;
+  sessionId?: string;
+};
+
+const FILTERS: { key: ActivityKind | "all"; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "messages", label: "Messages" },
+  { key: "automations", label: "Automations" },
+  { key: "memory", label: "Memory" },
+  { key: "errors", label: "Errors" },
+];
+
+const EMPTY_LABELS: Record<string, { title: string; subtitle: string }> = {
+  all: { title: "Nothing here yet", subtitle: "This view will fill in as Ghost works for you." },
+  messages: { title: "No conversations yet", subtitle: "Chats with Ghost will appear here." },
+  automations: { title: "No automations have run", subtitle: "Scheduled tasks will show up once they run." },
+  memory: { title: "Nothing remembered yet", subtitle: "Notes Ghost saves will appear here." },
+  errors: { title: "No errors", subtitle: "Ghost is healthy." },
+};
+
+function truncate(title: string): string {
+  const t = (title || "").trim() || "Conversation";
+  return t.length > 50 ? t.substring(0, 47) + "…" : t;
 }
 
-function getNextRunText(job: CronJob): string | null {
-  if (job.state.nextRunAtMs) {
-    const d = new Date(job.state.nextRunAtMs);
-    const now = new Date();
-    const isToday = d.toDateString() === now.toDateString();
-    const isTomorrow =
-      d.toDateString() === new Date(now.getTime() + 86400000).toDateString();
+function dayLabel(unixSec: number): string {
+  if (!unixSec) return "";
+  const d = new Date(unixSec * 1000);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return "Today";
+  const y = new Date(now);
+  y.setDate(y.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
-    if (isToday) {
-      return `Today · ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-    }
-    if (isTomorrow) {
-      return `Tomorrow · ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-    }
-    return d.toLocaleDateString([], {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
+function clockTime(unixSec: number): string {
+  if (!unixSec) return "";
+  return new Date(unixSec * 1000).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function collectItems(
+  sessions: SessionSummary[],
+  jobs: CronJob[],
+  memory: { name: string; modified: number }[],
+  traces: { timestamp: number; message: string; level: string }[],
+): ActivityItem[] {
+  const items: ActivityItem[] = [];
+
+  for (const s of sessions) {
+    const ts = s.last_activity || 0;
+      items.push({
+        id: "m-" + s.id,
+        kind: "messages",
+        ts,
+        title: truncate(s.title),
+        meta: (s.message_count || 0).toLocaleString("en-US") + " messages",
+        sessionId: s.id,
+      });
+  }
+
+  for (const j of jobs) {
+    const lr = j.state?.lastRunAtMs ? Math.floor(j.state.lastRunAtMs / 1000) : 0;
+    if (!lr) continue;
+    items.push({
+      id: "a-" + j.id,
+      kind: "automations",
+      ts: lr,
+      title: (j.name || "Automation").trim(),
+      meta: "Last run",
     });
   }
-  return null;
-}
 
-function getJobStatus(job: CronJob): string {
-  if (job.lifecycle_state === "paused") return "Paused";
-  if (job.state.lastRunAtMs) {
-    const d = new Date(job.state.lastRunAtMs);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  for (const m of memory.slice(0, 20)) {
+    const ts = m.modified || 0;
+    if (!ts) continue;
+    const name = String(m.name || "").replace(/\.md$/, "").trim();
+    if (!name) continue;
+    items.push({
+      id: "mem-" + name,
+      kind: "memory",
+      ts,
+      title: name,
+      meta: "Remembered",
+    });
   }
-  if (job.state.nextRunAtMs) {
-    return getNextRunText(job) ?? "Scheduled";
+
+  for (const inc of traces.slice(0, 20)) {
+    const ts = Math.floor((inc.timestamp || 0) / 1000);
+    items.push({
+      id: "e-" + ts + "-" + (inc.message || "incident").slice(0, 12),
+      kind: "errors",
+      ts,
+      title: (inc.message || "Incident").trim(),
+      meta: inc.level || "error",
+    });
   }
-  return "Scheduled";
+
+  items.sort((a, b) => b.ts - a.ts);
+  return items;
 }
 
 export default function ActivityScreen() {
   const insets = useSafeAreaInsets();
-  const { config } = useGhostStore();
-  const [jobs, setJobs] = useState<CronJob[]>([]);
+  const router = useRouter();
+  const { config, setCurrentSession } = useGhostStore();
+  const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [filter, setFilter] = useState<ActivityKind | "all">("all");
 
-  const loadJobs = useCallback(
+  const load = useCallback(
     async (silent = false) => {
       if (!config) return;
       if (!silent) setLoading(true);
       try {
-        const list = await fetchCronJobs(config);
-        setJobs(list);
+        const [sessions, jobs, memory, traces] = await Promise.allSettled([
+          fetchSessions(config),
+          fetchCronJobs(config),
+          fetchMemoryFiles(config),
+          fetchTraces(config),
+        ]);
+        const s = sessions.status === "fulfilled" ? sessions.value : [];
+        const j = jobs.status === "fulfilled" ? jobs.value : [];
+        const m = memory.status === "fulfilled" ? memory.value : [];
+        const t = traces.status === "fulfilled" ? traces.value : [];
+        setFailed(
+          sessions.status === "rejected" &&
+            jobs.status === "rejected" &&
+            memory.status === "rejected" &&
+            traces.status === "rejected",
+        );
+        setItems(collectItems(s, j, m, t));
       } catch {
-        // Fine
+        setFailed(true);
       }
       setLoading(false);
     },
@@ -114,53 +178,53 @@ export default function ActivityScreen() {
   );
 
   useEffect(() => {
-    loadJobs();
-  }, [loadJobs]);
+    load();
+  }, [load]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadJobs(true);
+    await load(true);
     setRefreshing(false);
   };
 
-  const completedJobs = jobs.filter(
-    (j) => j.lifecycle_state !== "paused" && j.run_count > 0,
+  const filtered = useMemo(
+    () => (filter === "all" ? items : items.filter((i) => i.kind === filter)),
+    [items, filter],
   );
-  const upcomingJobs = jobs.filter(
-    (j) => j.lifecycle_state !== "paused" && j.run_count === 0,
-  );
-  const pausedJobs = jobs.filter((j) => j.lifecycle_state === "paused");
 
-  const sections: { title: string; data: CronJob[] }[] = [];
-  if (completedJobs.length > 0) sections.push({ title: "TODAY", data: completedJobs });
-  if (upcomingJobs.length > 0) sections.push({ title: "UPCOMING", data: upcomingJobs });
-  if (pausedJobs.length > 0) sections.push({ title: "PAUSED", data: pausedJobs });
-
-  const renderJob = useCallback(
-    ({ item }: { item: CronJob }) => {
-      const status = getJobStatus(item);
-      const isPaused = item.lifecycle_state === "paused";
-
-      return (
-        <View style={styles.row}>
-          <View style={styles.rowContent}>
-            <Text style={styles.rowTitle} numberOfLines={1}>
-              {item.name}
-            </Text>
-          </View>
-          <Text style={styles.rowStatus}>
-            {isPaused ? "Paused" : status}
-          </Text>
-        </View>
-      );
-    },
-    [],
-  );
+  const empty = EMPTY_LABELS[filter] || EMPTY_LABELS.all;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Activity</Text>
+        <Text style={styles.headerSubtitle}>
+          A record of what Ghost has done on your behalf.
+        </Text>
+      </View>
+
+      <View style={styles.chipsWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chips}
+        >
+          {FILTERS.map((f) => {
+            const active = f.key === filter;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.chip, active && styles.chipActive]}
+                activeOpacity={0.6}
+                onPress={() => setFilter(f.key)}
+              >
+                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {!config ? (
@@ -172,27 +236,24 @@ export default function ActivityScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={Ghost.accent.primary} size="large" />
         </View>
-      ) : jobs.length === 0 ? (
-        <EmptyState
-          title="Nothing to report."
-          subtitle="Ghost will start working for you once you set up scheduled tasks."
-        />
+      ) : failed && filtered.length === 0 ? (
+        <View style={styles.emptyWrap}>
+          <EmptyState
+            title="Couldn't load activity"
+            subtitle="Check your connection to the Ghost Pod and try again."
+            action={
+              <GhostButton title="Retry" onPress={() => load()} />
+            }
+          />
+        </View>
+      ) : filtered.length === 0 ? (
+        <View style={styles.emptyWrap}>
+          <EmptyState title={empty.title} subtitle={empty.subtitle} />
+        </View>
       ) : (
-        <FlatList
-          data={sections}
-          keyExtractor={(item) => item.title}
-          renderItem={({ item: section }) => (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              {section.data.map((job, i) => (
-                <View key={job.id}>
-                  {renderJob({ item: job })}
-                  {i < section.data.length - 1 && <Divider />}
-                </View>
-              ))}
-            </View>
-          )}
-          contentContainerStyle={styles.listContent}
+        <ScrollView
+          style={styles.timeline}
+          contentContainerStyle={styles.timelineContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -201,7 +262,43 @@ export default function ActivityScreen() {
               tintColor={Ghost.accent.primary}
             />
           }
-        />
+        >
+          {filtered.map((item, idx) => {
+            const day = dayLabel(item.ts);
+            const prevDay = idx > 0 ? dayLabel(filtered[idx - 1].ts) : null;
+            const showDay = day !== prevDay;
+            const tappable = item.kind === "messages" && !!item.sessionId;
+            const Row = (
+              <View style={styles.row}>
+                <Text style={styles.rowTime}>{clockTime(item.ts)}</Text>
+                <View style={styles.rowContent}>
+                  <Text style={styles.rowTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.rowMeta}>{item.meta}</Text>
+                </View>
+              </View>
+            );
+            return (
+              <View key={item.id}>
+                {showDay && <Text style={styles.dayLabel}>{day}</Text>}
+                {tappable ? (
+                  <TouchableOpacity
+                    activeOpacity={0.6}
+                    onPress={() => {
+                      setCurrentSession(item.sessionId!);
+                      router.push("/conversation" as any);
+                    }}
+                  >
+                    {Row}
+                  </TouchableOpacity>
+                ) : (
+                  Row
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>
       )}
     </View>
   );
@@ -213,9 +310,6 @@ const styles = StyleSheet.create({
     backgroundColor: Ghost.bg.base,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     paddingHorizontal: Space.xl,
     paddingVertical: Space.lg,
   },
@@ -224,43 +318,88 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: Ghost.text.primary,
   },
+  headerSubtitle: {
+    ...Type.subhead,
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+    marginTop: 2,
+  },
+  chipsWrap: {
+    paddingHorizontal: Space.xl,
+    marginBottom: Space.md,
+  },
+  chips: {
+    gap: Space.sm,
+    paddingVertical: 2,
+  },
+  chip: {
+    paddingVertical: Space.sm,
+    paddingHorizontal: Space.md,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    backgroundColor: Ghost.bg.raised,
+  },
+  chipActive: {
+    backgroundColor: Ghost.accent.primary,
+    borderColor: Ghost.accent.primary,
+  },
+  chipLabel: {
+    ...Type.subhead,
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
+  },
+  chipLabelActive: {
+    color: Ghost.text.inverse,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  listContent: {
+  emptyWrap: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  timeline: {
+    flex: 1,
+  },
+  timelineContent: {
     paddingHorizontal: Space.xl,
     paddingBottom: Space.huge,
   },
-  section: {
-    marginBottom: Space.xxl,
-  },
-  sectionTitle: {
+  dayLabel: {
     ...Type.caption,
     fontFamily: FONT,
     color: Ghost.text.tertiary,
     letterSpacing: 0.3,
-    marginBottom: Space.sm,
+    marginTop: Space.lg,
+    marginBottom: Space.xs,
   },
   row: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Space.md,
   },
+  rowTime: {
+    ...Type.footnote,
+    fontFamily: FONT,
+    color: Ghost.text.tertiary,
+    width: 72,
+  },
   rowContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flex: 1,
   },
   rowTitle: {
     ...Type.headline,
     fontFamily: FONT,
     color: Ghost.text.primary,
-    flex: 1,
   },
-  rowStatus: {
+  rowMeta: {
     ...Type.footnote,
     fontFamily: FONT,
     color: Ghost.text.secondary,
-    marginLeft: Space.sm,
+    marginTop: 2,
+    textTransform: "capitalize",
   },
 });

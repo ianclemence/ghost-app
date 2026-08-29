@@ -41,8 +41,7 @@ ghost-app/
 │   ├── pairing-success.tsx   # Connected state
 │   ├── auth-failure.tsx      # Credential rejected
 │   ├── revoked.tsx           # Device disconnected
-│   ├── connection.tsx        # Connection settings
-│   ├── ghost-pod.tsx         # Device management
+│   ├── ghost-pod.tsx         # Ghost Pod screen (status, paired devices, system info, diagnostics)
 │   ├── advanced.tsx          # Diagnostics
 │   ├── permissions.tsx
 │   └── about.tsx

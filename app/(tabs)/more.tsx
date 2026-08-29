@@ -31,10 +31,7 @@ const CAPABILITIES = [
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const {
-    config,
-    connectionState,
-  } = useGhostStore();
+  const { connectionState } = useGhostStore();
 
   return (
     <ScrollView
@@ -95,9 +92,9 @@ export default function MoreScreen() {
         <TouchableOpacity
           style={styles.menuRow}
           activeOpacity={0.6}
-          onPress={() => router.push("/connection")}
+          onPress={() => router.push("/ghost-pod")}
         >
-          <Text style={styles.menuLabel}>Connection</Text>
+          <Text style={styles.menuLabel}>Ghost Pod</Text>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
         <Divider />
@@ -109,37 +106,19 @@ export default function MoreScreen() {
           <Text style={styles.menuLabel}>Permissions</Text>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
-        <Divider />
-        <TouchableOpacity
-          style={styles.menuRow}
-          activeOpacity={0.6}
-          onPress={() => router.push("/advanced")}
-        >
-          <Text style={styles.menuLabel}>Advanced</Text>
-          <ChevronRight size={16} color={Ghost.text.tertiary} />
-        </TouchableOpacity>
       </View>
 
       <Divider style={{ marginHorizontal: Space.xl }} />
 
-      {/* Ghost Pod */}
+      {/* Help */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ghost Pod</Text>
+        <Text style={styles.sectionTitle}>Help</Text>
         <TouchableOpacity
           style={styles.menuRow}
           activeOpacity={0.6}
-          onPress={() => router.push("/onboarding")}
+          onPress={() => router.push("/help")}
         >
-          <Text style={styles.menuLabel}>Pair with Ghost Pod</Text>
-          <ChevronRight size={16} color={Ghost.text.tertiary} />
-        </TouchableOpacity>
-        <Divider />
-        <TouchableOpacity
-          style={styles.menuRow}
-          activeOpacity={0.6}
-          onPress={() => router.push("/ghost-pod")}
-        >
-          <Text style={styles.menuLabel}>Manage Ghost Pod</Text>
+          <Text style={styles.menuLabel}>Help &amp; guide</Text>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
       </View>

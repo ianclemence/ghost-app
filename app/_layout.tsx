@@ -164,15 +164,7 @@ export default function RootLayout() {
 
         {/* Settings */}
         <Stack.Screen
-          name="connection"
-          options={{ presentation: 'card', animation: 'slide_from_right' }}
-        />
-        <Stack.Screen
           name="ghost-pod"
-          options={{ presentation: 'card', animation: 'slide_from_right' }}
-        />
-        <Stack.Screen
-          name="advanced"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen

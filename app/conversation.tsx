@@ -1,5 +1,5 @@
 import { ArrowLeft } from "lucide-react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -19,6 +19,7 @@ import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import {
   fetchHistory,
   sendMessage,
+  normalizeSession,
 } from "@/lib/ghostApi";
 
 const FONT = Fonts.sans;
@@ -26,9 +27,9 @@ const FONT = Fonts.sans;
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
   const {
     config,
+    currentSession,
     messages,
     setMessages,
     appendMessage,
@@ -44,17 +45,24 @@ export default function ConversationScreen() {
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (!config || !params.id) return;
+    if (!config) return;
+    const session = currentSession || normalizeSession(config.session);
     const loadHistory = async () => {
       try {
-        const { messages: history } = await fetchHistory(config, 50, 0);
+        const { messages: history } = await fetchHistory(
+          config,
+          50,
+          0,
+          undefined,
+          session,
+        );
         setMessages(history);
       } catch {
         // Fine
       }
     };
     loadHistory();
-  }, [config, params.id]);
+  }, [config, currentSession]);
 
   const handleSend = useCallback(async () => {
     if (!config || !input.trim() || isStreaming) return;
@@ -74,6 +82,7 @@ export default function ConversationScreen() {
     try {
       await sendMessage(config, {
         content: input.trim(),
+        sessionKey: currentSession || normalizeSession(config.session),
         onChunk: (token) => appendStream(token),
         onDone: () => commitStream(),
         onError: () => setStreaming(false),
@@ -81,7 +90,7 @@ export default function ConversationScreen() {
     } catch {
       setStreaming(false);
     }
-  }, [config, input, isStreaming]);
+  }, [config, input, isStreaming, currentSession]);
 
   const renderMessage = useCallback(
     ({ item, index }: { item: ExtendedMessage; index: number }) => {
@@ -106,7 +115,7 @@ export default function ConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
       keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
     >
       {/* Header */}
@@ -126,6 +135,7 @@ export default function ConversationScreen() {
       {/* Messages */}
       <FlatList
         ref={flatListRef}
+        style={{ flex: 1 }}
         data={messages}
         keyExtractor={(item) => item.id}
         renderItem={renderMessage}

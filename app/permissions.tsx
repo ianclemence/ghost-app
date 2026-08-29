@@ -4,8 +4,8 @@ import * as Notifications from "expo-notifications";
 import * as Location from "expo-location";
 import { Camera } from "expo-camera";
 import { GhostText } from "@/components/themed-text";
-import { GhostToggle, SectionHeader } from "@/components/ghost";
-import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
+import { GhostToggle } from "@/components/ghost";
+import { Ghost, Fonts, Space } from "@/constants/theme";
 
 const FONT = Fonts.sans;
 
@@ -80,49 +80,40 @@ export default function PermissionsScreen() {
         Permissions
       </GhostText>
 
-      <SectionHeader title="Notifications" />
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={styles.rowContent}>
-            <GhostText type="body" style={styles.rowLabel}>
-              Push notifications
-            </GhostText>
-            <GhostText type="caption" style={styles.hint}>
-              Ghost can reach you when something needs your attention.
-            </GhostText>
-          </View>
-          <GhostToggle value={notifEnabled} onValueChange={toggleNotifications} />
+      <View style={styles.row}>
+        <View style={styles.rowContent}>
+          <GhostText type="body" style={styles.rowLabel}>
+            Push notifications
+          </GhostText>
+          <GhostText type="caption" style={styles.hint}>
+            Ghost can reach you when something needs your attention.
+          </GhostText>
         </View>
+        <GhostToggle value={notifEnabled} onValueChange={toggleNotifications} />
       </View>
 
-      <SectionHeader title="Location" />
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={styles.rowContent}>
-            <GhostText type="body" style={styles.rowLabel}>
-              Location access
-            </GhostText>
-            <GhostText type="caption" style={styles.hint}>
-              Used when Ghost needs your location for context-aware features.
-            </GhostText>
-          </View>
-          <GhostToggle value={locationEnabled} onValueChange={toggleLocation} />
+      <View style={styles.row}>
+        <View style={styles.rowContent}>
+          <GhostText type="body" style={styles.rowLabel}>
+            Location access
+          </GhostText>
+          <GhostText type="caption" style={styles.hint}>
+            Used when Ghost needs your location for context-aware features.
+          </GhostText>
         </View>
+        <GhostToggle value={locationEnabled} onValueChange={toggleLocation} />
       </View>
 
-      <SectionHeader title="Camera" />
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={styles.rowContent}>
-            <GhostText type="body" style={styles.rowLabel}>
-              Camera access
-            </GhostText>
-            <GhostText type="caption" style={styles.hint}>
-              Used to scan Ghost pairing codes.
-            </GhostText>
-          </View>
-          <GhostToggle value={cameraEnabled} onValueChange={toggleCamera} />
+      <View style={styles.row}>
+        <View style={styles.rowContent}>
+          <GhostText type="body" style={styles.rowLabel}>
+            Camera access
+          </GhostText>
+          <GhostText type="caption" style={styles.hint}>
+            Used to scan Ghost pairing codes.
+          </GhostText>
         </View>
+        <GhostToggle value={cameraEnabled} onValueChange={toggleCamera} />
       </View>
     </ScrollView>
   );
@@ -140,15 +131,11 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: Ghost.text.primary,
   },
-  card: {
-    padding: 16,
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.lg,
-  },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingVertical: Space.md,
   },
   rowContent: {
     flex: 1,
