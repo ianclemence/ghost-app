@@ -151,27 +151,36 @@ export default function ActivityScreen() {
     async (silent = false) => {
       if (!config) return;
       if (!silent) setLoading(true);
-      try {
-        const [sessions, jobs, memory, traces] = await Promise.allSettled([
-          fetchSessions(config),
-          fetchCronJobs(config),
-          fetchMemoryFiles(config),
-          fetchTraces(config),
-        ]);
-        const s = sessions.status === "fulfilled" ? sessions.value : [];
-        const j = jobs.status === "fulfilled" ? jobs.value : [];
-        const m = memory.status === "fulfilled" ? memory.value : [];
-        const t = traces.status === "fulfilled" ? traces.value : [];
-        setFailed(
-          sessions.status === "rejected" &&
-            jobs.status === "rejected" &&
-            memory.status === "rejected" &&
-            traces.status === "rejected",
-        );
-        setItems(collectItems(s, j, m, t));
-      } catch {
-        setFailed(true);
-      }
+
+      // Each source fails independently so one bad endpoint can't blank the
+      // whole screen. Mirrors the web UI, which renders whatever loaded.
+      const safe = async (label: string, fn: () => Promise<unknown>) => {
+        try {
+          return await fn();
+        } catch (err) {
+          console.warn(`[activity] ${label} failed:`, err);
+          return null;
+        }
+      };
+
+      const [sessions, jobs, memory, traces] = await Promise.all([
+        safe("sessions", () => fetchSessions(config)),
+        safe("cron", () => fetchCronJobs(config)),
+        safe("memory", () => fetchMemoryFiles(config)),
+        safe("traces", () => fetchTraces(config)),
+      ]);
+
+      const s = Array.isArray(sessions) ? (sessions as SessionSummary[]) : [];
+      const j = Array.isArray(jobs) ? (jobs as CronJob[]) : [];
+      const m = Array.isArray(memory) ? (memory as { name: string; modified: number }[]) : [];
+      const t = Array.isArray(traces)
+        ? (traces as { timestamp: number; message: string; level: string }[])
+        : [];
+
+      const anyLoaded =
+        s.length > 0 || j.length > 0 || m.length > 0 || t.length > 0;
+      setFailed(!anyLoaded);
+      setItems(collectItems(s, j, m, t));
       setLoading(false);
     },
     [config],
