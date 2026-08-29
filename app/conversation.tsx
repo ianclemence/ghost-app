@@ -117,7 +117,7 @@ export default function ConversationScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior="padding"
-      keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
+      keyboardVerticalOffset={0}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
@@ -146,6 +146,8 @@ export default function ConversationScreen() {
         ]}
         showsVerticalScrollIndicator={false}
         inverted={false}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         onContentSizeChange={() =>
           flatListRef.current?.scrollToEnd({ animated: true })
         }
