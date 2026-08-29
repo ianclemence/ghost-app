@@ -519,7 +519,7 @@ export function StatusDot({
 }) {
   const color =
     status === "online"
-      ? Ghost.accent.primary
+      ? Ghost.status.success
       : status === "warning"
         ? Ghost.status.warning
         : Ghost.text.tertiary;

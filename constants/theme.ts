@@ -13,26 +13,26 @@ export const Colors = {
   light: {
     text: "#1A1611",
     background: "#FAFAF7",
-    tint: "#3D7A5F",
+    tint: "#3d3b5c",
     icon: "#6B6560",
     tabIconDefault: "#9C9590",
-    tabIconSelected: "#3D7A5F",
+    tabIconSelected: "#3d3b5c",
     border: "rgba(26,22,17,0.12)",
     card: "#F5F3EE",
-    success: "#3D7A5F",
+    success: "#2d7a4a",
     error: "#C24B3C",
     warning: "#B07C2E",
   },
   dark: {
     text: "#EFE9DF",
     background: "#0E0C09",
-    tint: "#6FBE8E",
+    tint: "#9b99c9",
     icon: "#A79C8C",
     tabIconDefault: "#6E665A",
-    tabIconSelected: "#6FBE8E",
+    tabIconSelected: "#9b99c9",
     border: "#26201A",
     card: "#17130E",
-    success: "#6FBE8E",
+    success: "#57b07a",
     error: "#D4685A",
     warning: "#D6A05A",
   },
@@ -58,14 +58,14 @@ export const Ghost = {
 
   // Accent
   accent: {
-    primary: "#3D7A5F",
-    soft: "rgba(61,122,95,0.08)",
-    medium: "rgba(61,122,95,0.15)",
+    primary: "#3d3b5c",
+    soft: "rgba(61,59,92,0.10)",
+    medium: "rgba(61,59,92,0.18)",
   },
 
   // Status
   status: {
-    success: "#3D7A5F",
+    success: "#2d7a4a",
     warning: "#B07C2E",
     error: "#C24B3C",
     info: "#5A7A9A",

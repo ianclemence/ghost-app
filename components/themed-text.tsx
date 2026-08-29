@@ -47,7 +47,7 @@ function typeStyle(type: TextType): StyleProp<TextStyle> {
       return {
         fontSize: 16,
         lineHeight: 24,
-        color: "#3D7A5F",
+        color: "#3d3b5c",
         textDecorationLine: "underline",
       };
     case "mono":

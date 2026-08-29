@@ -68,8 +68,6 @@ export default function MoreScreen() {
         </View>
       </View>
 
-      <Divider style={{ marginHorizontal: Space.xl }} />
-
       {/* Capabilities */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Capabilities</Text>
@@ -100,21 +98,6 @@ export default function MoreScreen() {
           onPress={() => router.push("/permissions")}
         >
           <Text style={styles.menuLabel}>Permissions</Text>
-          <ChevronRight size={16} color={Ghost.text.tertiary} />
-        </TouchableOpacity>
-      </View>
-
-      <Divider style={{ marginHorizontal: Space.xl }} />
-
-      {/* Help */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Help</Text>
-        <TouchableOpacity
-          style={styles.menuRow}
-          activeOpacity={0.6}
-          onPress={() => router.push("/help")}
-        >
-          <Text style={styles.menuLabel}>Help &amp; guide</Text>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
       </View>
