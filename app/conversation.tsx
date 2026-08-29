@@ -101,7 +101,9 @@ export default function ConversationScreen() {
             {isUser ? "USER" : "GHOST"}
           </Text>
           {isUser ? (
-            <Text style={styles.userText}>{item.content}</Text>
+            <View style={styles.userBubble}>
+              <Markdown style={markdownStyles}>{item.content}</Markdown>
+            </View>
           ) : (
             <Markdown style={markdownStyles}>{item.content}</Markdown>
           )}
@@ -208,10 +210,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     marginBottom: Space.sm,
   },
-  userText: {
-    ...Type.body,
-    fontFamily: FONT,
-    color: Ghost.text.primary,
+  userBubble: {
+    backgroundColor: Ghost.bg.raised,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
   },
   inputContainer: {
     paddingHorizontal: Space.xl,
