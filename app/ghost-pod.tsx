@@ -5,7 +5,6 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-  ActivityIndicator,
 } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 import { GhostText } from "@/components/themed-text";
@@ -20,7 +19,6 @@ import {
   fetchDoctor,
   fetchModelInfo,
   PiStats,
-  DoctorCheckResult,
   ModelInfo,
 } from "@/lib/ghostApi";
 import { refreshDevices } from "@/lib/connection";
@@ -41,18 +39,6 @@ function deviceStatus(device: PairedDevice): string {
   return `Last seen ${timeAgo(seen)}`;
 }
 
-function dotForStatus(status?: string): "online" | "warning" | "offline" {
-  if (status === "ok") return "online";
-  if (status === "warn") return "warning";
-  return "offline";
-}
-
-function serviceLabel(status?: string): string {
-  if (status === "ok") return "Running";
-  if (status === "warn") return "Degraded";
-  return "Stopped";
-}
-
 export default function GhostPodScreen() {
   const config = useGhostStore((s) => s.config);
   const connectionState = useGhostStore((s) => s.connectionState);
@@ -62,9 +48,6 @@ export default function GhostPodScreen() {
   const [stats, setStats] = useState<PiStats | null>(null);
   const [model, setModel] = useState<ModelInfo | null>(null);
   const [version, setVersion] = useState<string>("—");
-  const [checks, setChecks] = useState<DoctorCheckResult[] | null>(null);
-  const [doctorKeys, setDoctorKeys] = useState<string>("");
-  const [loading, setLoading] = useState(true);
 
   const isOnline = connectionState === "online";
 
@@ -85,16 +68,12 @@ export default function GhostPodScreen() {
 
   const loadDoctor = async () => {
     if (!config) return;
-    setLoading(true);
     try {
       const res = await fetchDoctor(config);
-      setChecks(res.checks ?? []);
       setVersion(res.version ?? "—");
-      setDoctorKeys(Object.keys(res).join(", "));
     } catch {
-      setChecks([]);
+      /* keep default */
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -217,7 +196,6 @@ export default function GhostPodScreen() {
 
       {/* Ghost system info */}
       <View style={styles.block}>
-        <InfoRow label="Version" value={version} />
         <SystemInfo
           stats={stats}
           modelLabel={modelLabel}
@@ -225,65 +203,9 @@ export default function GhostPodScreen() {
         />
       </View>
 
-      {/* Services (best-effort: gateway health checks) */}
+      {/* Version */}
       <View style={styles.block}>
-        {loading ? (
-          <View style={styles.centerPad}>
-            <ActivityIndicator color={Ghost.accent.primary} />
-          </View>
-        ) : checks && checks.length > 0 ? (
-          checks.map((ch) => (
-            <View key={ch.name} style={styles.svcRow}>
-              <GhostText type="body" style={styles.svcName}>
-                {ch.name}
-              </GhostText>
-              <View style={styles.svcStatus}>
-                <StatusDot status={dotForStatus(ch.status)} />
-                <GhostText type="caption" style={styles.svcStatusLabel}>
-                  {serviceLabel(ch.status)}
-                </GhostText>
-              </View>
-            </View>
-          ))
-        ) : (
-          <GhostText type="body" style={styles.emptyText}>
-            No services reported.
-          </GhostText>
-        )}
-      </View>
-
-      {/* Diagnostics */}
-      <View style={styles.block}>
-        {loading ? (
-          <View style={styles.centerPad}>
-            <ActivityIndicator color={Ghost.accent.primary} />
-          </View>
-        ) : checks && checks.length > 0 ? (
-          checks.map((ch) => (
-            <View key={ch.name} style={styles.checkRow}>
-              <StatusDot status={dotForStatus(ch.status)} />
-              <View style={styles.checkText}>
-                <GhostText type="body" style={styles.checkName}>
-                  {ch.name}
-                </GhostText>
-                {ch.message ? (
-                  <GhostText type="caption" style={styles.checkMsg}>
-                    {ch.message}
-                  </GhostText>
-                ) : null}
-              </View>
-            </View>
-          ))
-        ) : (
-          <View style={styles.emptyBlock}>
-            <GhostText type="body" style={styles.emptyText}>
-              Nothing to report
-            </GhostText>
-            <GhostText type="caption" style={styles.emptySub}>
-              {`No checks returned. Response keys: ${doctorKeys || "—"}`}
-            </GhostText>
-          </View>
-        )}
+        <InfoRow label="Version" value={version} />
       </View>
 
       {/* Danger zone */}
@@ -391,20 +313,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: Space.sm,
   },
-  emptyBlock: {
-    alignItems: "center",
-    paddingVertical: Space.sm,
-  },
-  emptySub: {
-    fontFamily: FONT,
-    color: Ghost.text.tertiary,
-    textAlign: "center",
-    marginTop: 2,
-  },
-  centerPad: {
-    paddingVertical: Space.lg,
-    alignItems: "center",
-  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -439,43 +347,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: "right",
     marginLeft: Space.lg,
-  },
-  svcRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: Space.sm,
-  },
-  svcName: {
-    fontFamily: FONT,
-    color: Ghost.text.primary,
-  },
-  svcStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.xs,
-  },
-  svcStatusLabel: {
-    fontFamily: FONT,
-    color: Ghost.text.secondary,
-  },
-  checkRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Space.sm,
-    paddingVertical: Space.sm,
-  },
-  checkText: {
-    flex: 1,
-    gap: 2,
-  },
-  checkName: {
-    fontFamily: FONT,
-    color: Ghost.text.primary,
-  },
-  checkMsg: {
-    fontFamily: FONT,
-    color: Ghost.text.secondary,
   },
   actionButton: {
     marginTop: Space.xl,
