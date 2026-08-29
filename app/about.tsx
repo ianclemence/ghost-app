@@ -57,14 +57,19 @@ export default function AboutScreen() {
         </GhostText>
         <View style={styles.bullets}>
           <GhostText type="body" style={styles.bullet}>
-            {"• "}Ghost Web is where you own, configure, understand, and take
-            care of Ghost.
+            {"• "}
+            <GhostText style={styles.bold}>Ghost Web</GhostText> is where you
+            own, configure, understand, and take care of Ghost.
           </GhostText>
           <GhostText type="body" style={styles.bullet}>
-            {"• "}Ghost Mobile is where you talk to Ghost and take it with you.
+            {"• "}
+            <GhostText style={styles.bold}>Ghost Mobile</GhostText> is where you
+            talk to Ghost and take it with you.
           </GhostText>
           <GhostText type="body" style={styles.bullet}>
-            {"• "}The Ghost Pod is the hardware Ghost lives on.
+            {"• "}
+            <GhostText style={styles.bold}>The Ghost Pod</GhostText> is the
+            hardware Ghost lives on.
           </GhostText>
         </View>
         <GhostText type="body" style={styles.prose}>
@@ -171,6 +176,11 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: Ghost.text.secondary,
     lineHeight: 22,
+  },
+  bold: {
+    fontFamily: FONT,
+    fontWeight: "700",
+    color: Ghost.text.primary,
   },
   linkRow: {
     flexDirection: "row",
