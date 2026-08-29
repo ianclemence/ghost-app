@@ -22,8 +22,9 @@ import { useGhostStore } from "@/lib/store";
 const FONT = Fonts.sans;
 
 function formatRelativeTime(timestamp: number): string {
+  const ts = (timestamp || 0) * 1000; // gateway returns seconds
   const now = Date.now();
-  const diffMs = now - timestamp;
+  const diffMs = now - ts;
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return "Just now";
   if (diffMin < 60) return `${diffMin}m ago`;
@@ -32,7 +33,7 @@ function formatRelativeTime(timestamp: number): string {
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay === 1) return "Yesterday";
   if (diffDay < 7) return `${diffDay}d ago`;
-  return new Date(timestamp).toLocaleDateString([], {
+  return new Date(ts).toLocaleDateString([], {
     month: "short",
     day: "numeric",
   });
@@ -60,7 +61,7 @@ function groupSessions(sessions: SessionSummary[]): { title: string; data: Sessi
   };
 
   for (const s of sessions) {
-    const d = new Date(s.last_activity ?? Date.now());
+    const d = new Date((s.last_activity ?? 0) * 1000);
     const ds = d.toDateString();
     if (ds === today) {
       groups.TODAY.push(s);
