@@ -143,12 +143,9 @@ export default function HomeScreen() {
           renderItem={({ item: section }) => (
             <View>
               <Text style={styles.sectionTitle}>{section.title}</Text>
-              {section.data.map((row) => (
-                <View key={row.id}>
-                  {renderItem({ item: row })}
-                  <View style={styles.divider} />
-                </View>
-              ))}
+                {section.data.map((row) => (
+                  <View key={row.id}>{renderItem({ item: row })}</View>
+                ))}
             </View>
           )}
           contentContainerStyle={styles.listContent}
@@ -247,10 +244,6 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: Ghost.text.secondary,
     lineHeight: 20,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Ghost.border.subtle,
   },
   inputContainer: {
     paddingHorizontal: Space.xl,

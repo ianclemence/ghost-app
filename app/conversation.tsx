@@ -97,7 +97,6 @@ export default function ConversationScreen() {
       const isUser = item.role === "user";
       return (
         <View style={styles.messageBlock}>
-          {index > 0 && <View style={styles.messageDivider} />}
           <Text style={styles.messageLabel}>
             {isUser ? "USER" : "GHOST"}
           </Text>
@@ -201,11 +200,6 @@ const styles = StyleSheet.create({
   },
   messageBlock: {
     paddingVertical: Space.lg,
-  },
-  messageDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Ghost.border.subtle,
-    marginBottom: Space.lg,
   },
   messageLabel: {
     ...Type.caption,

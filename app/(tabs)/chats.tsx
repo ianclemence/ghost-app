@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
-import { EmptyState, Divider, GhostButton } from "@/components/ghost";
+import { EmptyState, GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import {
   fetchSessions,
@@ -174,11 +174,8 @@ export default function ConversationsScreen() {
           renderItem={({ item: section }) => (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
-              {section.data.map((session, i) => (
-                <View key={session.id}>
-                  {renderItem({ item: session })}
-                  {i < section.data.length - 1 && <Divider />}
-                </View>
+              {section.data.map((session) => (
+                <View key={session.id}>{renderItem({ item: session })}</View>
               ))}
             </View>
           )}

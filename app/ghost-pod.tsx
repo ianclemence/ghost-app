@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 import { GhostText } from "@/components/themed-text";
-import { GhostButton, StatusDot, Divider } from "@/components/ghost";
+import { GhostButton, StatusDot } from "@/components/ghost";
 import { Ghost, Fonts, Space } from "@/constants/theme";
 import { timeAgo, formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
@@ -210,7 +210,6 @@ export default function GhostPodScreen() {
                 </View>
                 <ChevronRight size={16} color={Ghost.text.tertiary} />
               </TouchableOpacity>
-              {i < devices.length - 1 && <Divider />}
             </View>
           ))
         )}
@@ -323,13 +322,8 @@ function SystemInfo({
   ];
   return (
     <>
-      {rows.map((r, i) => (
-        <InfoRow
-          key={r.label}
-          label={r.label}
-          value={r.value}
-          last={i === rows.length - 1}
-        />
+      {rows.map((r) => (
+        <InfoRow key={r.label} label={r.label} value={r.value} />
       ))}
     </>
   );
@@ -338,14 +332,12 @@ function SystemInfo({
 function InfoRow({
   label,
   value,
-  last,
 }: {
   label: string;
   value?: string;
-  last?: boolean;
 }) {
   return (
-    <View style={[styles.infoRow, !last && styles.infoRowDivided]}>
+    <View style={styles.infoRow}>
       <GhostText type="caption" style={styles.infoLabel}>
         {label}
       </GhostText>
@@ -436,10 +428,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: Space.sm,
-  },
-  infoRowDivided: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Ghost.border.subtle,
   },
   infoLabel: {
     fontFamily: FONT,

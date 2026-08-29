@@ -73,13 +73,10 @@ export default function MoreScreen() {
       {/* Capabilities */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Capabilities</Text>
-        {CAPABILITIES.map((cap, i) => (
-          <View key={cap.name}>
-            <View style={styles.capRow}>
-              <Text style={styles.capName}>{cap.name}</Text>
-              <Text style={styles.capDesc}>{cap.description}</Text>
-            </View>
-            {i < CAPABILITIES.length - 1 && <Divider />}
+        {CAPABILITIES.map((cap) => (
+          <View key={cap.name} style={styles.capRow}>
+            <Text style={styles.capName}>{cap.name}</Text>
+            <Text style={styles.capDesc}>{cap.description}</Text>
           </View>
         ))}
       </View>
@@ -97,7 +94,6 @@ export default function MoreScreen() {
           <Text style={styles.menuLabel}>Ghost Pod</Text>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
-        <Divider />
         <TouchableOpacity
           style={styles.menuRow}
           activeOpacity={0.6}

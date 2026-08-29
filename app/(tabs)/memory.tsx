@@ -9,7 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Fonts, Ghost, Space, Type } from "@/constants/theme";
-import { EmptyState, Divider } from "@/components/ghost";
+import { EmptyState } from "@/components/ghost";
 import { useGhostStore } from "@/lib/store";
 import { fetchMemoryFile } from "@/lib/ghostApi";
 
@@ -126,7 +126,6 @@ export default function MemoryScreen() {
           renderItem={renderSection}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <Divider />}
         />
       )}
     </View>

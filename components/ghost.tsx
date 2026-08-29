@@ -298,7 +298,7 @@ export function SectionHeader({
 
 export function GhostList({
   children,
-  divided = true,
+  divided = false,
   style,
 }: {
   children: React.ReactNode;
