@@ -73,7 +73,7 @@ export default function AboutScreen() {
           </GhostText>
         </View>
         <GhostText type="body" style={styles.prose}>
-          This app is version {version}.
+          This app is version <GhostText style={styles.bold}>{version}</GhostText>.
         </GhostText>
         <GhostText type="body" style={styles.prose}>
           Ghost is open-source. Source, documentation, and license are in the

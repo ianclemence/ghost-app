@@ -4,40 +4,85 @@ import { Ghost, Fonts, Space } from "@/constants/theme";
 
 const FONT = Fonts.sans;
 
-type Block = { heading: string; body: string };
+type Part = { text: string; bold?: boolean; italic?: boolean };
+type Block = { heading: string; body: Part[] };
 
 const BLOCKS: Block[] = [
   {
     heading: "Connecting devices",
-    body: "Open Devices and choose Connect another device. Ghost shows a code that expires after a few minutes and can be used once. Scan it with the Ghost app on your phone. Once paired, that device can reach your Ghost — but your Ghost itself stays on this hardware.",
+    body: [
+      { text: "Open " },
+      { text: "Devices", bold: true },
+      { text: " and choose " },
+      { text: "Connect another device", italic: true },
+      {
+        text: ". Ghost shows a code that expires after a few minutes and can be used once. Scan it with the Ghost app on your phone. Once paired, that device can reach your Ghost — but your Ghost itself stays on this hardware.",
+      },
+    ],
   },
   {
     heading: "AI",
-    body: "Ghost runs a small model on your hardware for everyday tasks (Local intelligence). You can optionally add a cloud provider for harder reasoning. Ghost decides where each task runs based on capability, privacy, latency, cost, and availability.",
+    body: [
+      { text: "Ghost runs a small model on your hardware for everyday tasks (" },
+      { text: "Local intelligence", italic: true },
+      {
+        text: "). You can optionally add a cloud provider for harder reasoning. Ghost decides where each task runs based on capability, privacy, latency, cost, and availability.",
+      },
+    ],
   },
   {
     heading: "Memory",
-    body: "Ghost remembers things that matter as plain notes on this device. Open Memory to browse, read, and forget them. Forgetting deletes a note from your Ghost.",
+    body: [
+      { text: "Open " },
+      { text: "Memory", bold: true },
+      {
+        text: " to browse, read, and forget them. Forgetting deletes a note from your Ghost.",
+      },
+    ],
   },
   {
     heading: "Skills",
-    body: "Skills are capabilities Ghost has installed. Built-ins come with Ghost; you can add more from a GitHub repository. Disable a skill to turn it off without deleting it.",
+    body: [
+      {
+        text: "Skills are capabilities Ghost has installed. Built-ins come with Ghost; you can add more from a GitHub repository. Disable a skill to turn it off without deleting it.",
+      },
+    ],
   },
   {
     heading: "Automations",
-    body: "Automations are tasks Ghost runs on a schedule — a morning briefing, a weekly research roundup. Create one with a name, what it should do, and when it should run.",
+    body: [
+      {
+        text: "Automations are tasks Ghost runs on a schedule — a morning briefing, a weekly research roundup. Create one with a name, what it should do, and when it should run.",
+      },
+    ],
   },
   {
     heading: "Backups",
-    body: "A backup is a download containing your memory, skills, configuration, and automations. Secrets are kept out of backups for safety. Store the file somewhere you trust.",
+    body: [
+      {
+        text: "A backup is a download containing your memory, skills, configuration, and automations. Secrets are kept out of backups for safety. Store the file somewhere you trust.",
+      },
+    ],
   },
   {
     heading: "Diagnostics",
-    body: "If something seems off, open System and run Diagnostics. It checks Ghost, its services, storage, and connections, and tells you what's healthy and what isn't.",
+    body: [
+      { text: "If something seems off, open " },
+      { text: "System", bold: true },
+      { text: " and run " },
+      { text: "Diagnostics", italic: true },
+      {
+        text: ". It checks Ghost, its services, storage, and connections, and tells you what’s healthy and what isn’t.",
+      },
+    ],
   },
   {
     heading: "Recovery",
-    body: "If you're locked out, you can re-run setup from the Ghost service with the force flag to reset owner access. Your memory and skills are preserved.",
+    body: [
+      {
+        text: "If you’re locked out, you can re-run setup from the Ghost service with the force flag to reset owner access. Your memory and skills are preserved.",
+      },
+    ],
   },
 ];
 
@@ -61,7 +106,17 @@ export default function HelpScreen() {
               {block.heading}
             </GhostText>
             <GhostText type="body" style={styles.body}>
-              {block.body}
+              {block.body.map((part, i) => (
+                <GhostText
+                  key={i}
+                  style={[
+                    part.bold && styles.bold,
+                    part.italic && styles.italic,
+                  ]}
+                >
+                  {part.text}
+                </GhostText>
+              ))}
             </GhostText>
           </View>
         ))}
@@ -102,5 +157,14 @@ const styles = StyleSheet.create({
     fontFamily: FONT,
     color: Ghost.text.secondary,
     lineHeight: 22,
+  },
+  bold: {
+    fontFamily: FONT,
+    fontWeight: "700",
+    color: Ghost.text.primary,
+  },
+  italic: {
+    fontFamily: FONT,
+    fontStyle: "italic",
   },
 });
