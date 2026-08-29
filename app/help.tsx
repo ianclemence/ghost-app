@@ -133,7 +133,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "600",
-    marginBottom: 24,
     fontFamily: FONT,
     color: Ghost.text.primary,
   },
@@ -151,8 +150,6 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontFamily: FONT,
-    fontSize: 20,
-    fontWeight: "600",
     color: Ghost.text.primary,
     marginBottom: 2,
   },
