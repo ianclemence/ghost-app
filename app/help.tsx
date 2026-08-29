@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   bold: {
     fontFamily: FONT,
     fontWeight: "700",
-    color: Ghost.text.secondary,
+    color: Ghost.text.primary,
   },
   italic: {
     fontFamily: FONT,
