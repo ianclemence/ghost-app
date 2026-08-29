@@ -161,10 +161,11 @@ const styles = StyleSheet.create({
   bold: {
     fontFamily: FONT,
     fontWeight: "700",
-    color: Ghost.text.primary,
+    color: Ghost.text.secondary,
   },
   italic: {
     fontFamily: FONT,
     fontStyle: "italic",
+    color: Ghost.text.secondary,
   },
 });
