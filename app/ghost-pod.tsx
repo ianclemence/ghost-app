@@ -16,7 +16,6 @@ import {
   revokePairedDevice,
   PairedDevice,
   fetchStats,
-  fetchDoctor,
   fetchModelInfo,
   PiStats,
   ModelInfo,
@@ -62,25 +61,17 @@ export default function GhostPodScreen() {
       fetchStats(config),
       fetchModelInfo(config),
     ]);
-    if (s.status === "fulfilled") setStats(s.value);
-    if (m.status === "fulfilled") setModel(m.value);
-  };
-
-  const loadDoctor = async () => {
-    if (!config) return;
-    try {
-      const res = await fetchDoctor(config);
-      setVersion(res.version ?? "—");
-    } catch {
-      /* keep default */
+    if (s.status === "fulfilled") {
+      setStats(s.value);
+      setVersion(s.value.version ?? "—");
     }
+    if (m.status === "fulfilled") setModel(m.value);
   };
 
   useEffect(() => {
     if (!config) return;
     loadDevices();
     loadSystemInfo();
-    loadDoctor();
   }, [config]);
 
   const handleDisconnect = (device: PairedDevice) => {
@@ -198,14 +189,10 @@ export default function GhostPodScreen() {
       <View style={styles.block}>
         <SystemInfo
           stats={stats}
+          version={version}
           modelLabel={modelLabel}
           addressLabel={addressLabel}
         />
-      </View>
-
-      {/* Version */}
-      <View style={styles.block}>
-        <InfoRow label="Version" value={version} />
       </View>
 
       {/* Danger zone */}
@@ -225,30 +212,81 @@ export default function GhostPodScreen() {
 
 function SystemInfo({
   stats,
+  version,
   modelLabel,
   addressLabel,
 }: {
   stats: PiStats | null;
+  version: string;
   modelLabel: string;
   addressLabel: string;
 }) {
-  const rows: { label: string; value?: string }[] = [
-    { label: "Uptime", value: stats?.uptime },
-    { label: "Model", value: modelLabel },
-    { label: "Address", value: addressLabel },
-    { label: "CPU temp", value: stats?.cpu_temp },
-    { label: "Memory", value: stats?.memory },
-    { label: "Storage", value: stats?.disk },
-    { label: "Load", value: stats?.load },
-    { label: "Service", value: stats?.ghost_svc },
-  ];
+  const cpu =
+    stats?.cpu_percent != null ? `${Math.round(stats.cpu_percent)}%` : "—";
+  const memory =
+    stats?.memory
+      ? `${fmtBytes(stats.memory.used)} / ${fmtBytes(stats.memory.total)}`
+      : "—";
+  const storage =
+    stats?.disk
+      ? `${gb(stats.disk.used)} GB / ${gb(stats.disk.total)} GB`
+      : "—";
+  const load = stats?.load;
+  const cores = stats?.cpu_count ?? 1;
+  const loadRatio = load ? load.one / cores : 0;
+  const loadState: "online" | "warning" | "offline" =
+    loadRatio < 0.5 ? "online" : loadRatio < 1 ? "warning" : "offline";
+  const loadLabel =
+    loadRatio < 0.5 ? "Idle" : loadRatio < 1 ? "Loaded" : "Overloaded";
+  const loadValue = load
+    ? `${load.one.toFixed(2)} / ${load.five.toFixed(2)} / ${load.fifteen.toFixed(2)}  ·  ${cores} core${cores > 1 ? "s" : ""}`
+    : "—";
+
   return (
     <>
-      {rows.map((r) => (
-        <InfoRow key={r.label} label={r.label} value={r.value} />
-      ))}
+      <InfoRow label="Version" value={version} />
+      <InfoRow label="Uptime" value={stats?.uptime} />
+      <InfoRow label="Model" value={modelLabel} />
+      <InfoRow label="Address" value={addressLabel} />
+      <InfoRow label="CPU" value={cpu} />
+      <InfoRow label="Memory" value={memory} />
+      <InfoRow label="Storage" value={storage} />
+      {load ? (
+        <View style={styles.infoRow}>
+          <GhostText type="caption" style={styles.infoLabel}>
+            Load
+          </GhostText>
+          <View style={styles.loadValue}>
+            <View style={styles.loadTop}>
+              <StatusDot status={loadState} />
+              <GhostText type="body" style={styles.loadLabel}>
+                {loadLabel}
+              </GhostText>
+            </View>
+            <GhostText type="caption" style={styles.loadSub}>
+              {loadValue}
+            </GhostText>
+          </View>
+        </View>
+      ) : (
+        <InfoRow label="Load" value="—" />
+      )}
     </>
   );
+}
+
+function fmtBytes(n?: number): string {
+  if (!n) return "0 B";
+  const gb = 1073741824;
+  const mb = 1048576;
+  if (n >= gb) return (n / gb).toFixed(1) + " GB";
+  if (n >= mb) return Math.round(n / mb) + " MB";
+  return Math.round(n / 1024) + " KB";
+}
+
+function gb(n?: number): string {
+  if (!n) return "0";
+  return String(Math.round(n / 1073741824));
 }
 
 function InfoRow({
@@ -347,6 +385,25 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: "right",
     marginLeft: Space.lg,
+  },
+  loadValue: {
+    flexShrink: 1,
+    alignItems: "flex-end",
+    gap: 2,
+    marginLeft: Space.lg,
+  },
+  loadTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.xs,
+  },
+  loadLabel: {
+    fontFamily: FONT,
+    color: Ghost.text.primary,
+  },
+  loadSub: {
+    fontFamily: FONT,
+    color: Ghost.text.secondary,
   },
   actionButton: {
     marginTop: Space.xl,

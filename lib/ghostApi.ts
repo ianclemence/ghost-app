@@ -25,15 +25,16 @@ export interface GhostConfig {
 }
 
 export interface PiStats {
-  uptime: string;
-  cpu_temp: string;
-  memory: string;
-  disk: string;
-  load: string;
-  ip: string;
-  hostname: string;
-  ghost_svc: string;
-  timestamp: string;
+  version?: string;
+  uptime?: string;
+  ip?: string;
+  hostname?: string;
+  cpu_percent?: number;
+  cpu_count?: number;
+  load?: { one: number; five: number; fifteen: number };
+  memory?: { used: number; total: number };
+  disk?: { used: number; total: number };
+  timestamp?: number;
 }
 
 export interface DoctorCheckResult {
