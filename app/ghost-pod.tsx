@@ -230,6 +230,7 @@ export default function GhostPodScreen() {
         message="Rebooting the hardware is only available from the Ghost web console. Open the console on your Ghost Pod to restart it."
         confirmTitle="OK"
         onConfirm={() => {}}
+        variant="destructive"
       />
     </ScrollView>
   );
