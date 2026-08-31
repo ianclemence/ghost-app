@@ -22,7 +22,7 @@ function TabIcon({
   label: string;
   focused: boolean;
 }) {
-  const color = focused ? Ghost.text.primary : Ghost.text.tertiary;
+  const color = focused ? Ghost.accent.primary : Ghost.text.tertiary;
   return (
     <View style={{ alignItems: "center", gap: 3, paddingTop: 10 }}>
       <Icon size={22} color={color} strokeWidth={focused ? 2 : 1.5} />

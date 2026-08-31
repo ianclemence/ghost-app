@@ -136,6 +136,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: Space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Ghost.border.subtle,
   },
   rowContent: {
     flex: 1,
@@ -147,8 +149,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontFamily: FONT,
-    color: Ghost.text.secondary,
+    color: Ghost.text.tertiary,
     marginTop: 2,
-    opacity: 0.7,
   },
 });

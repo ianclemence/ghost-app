@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Send } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -97,8 +97,8 @@ export default function ConversationScreen() {
       const isUser = item.role === "user";
       return (
         <View style={styles.messageBlock}>
-          <Text style={styles.messageLabel}>
-            {isUser ? "USER" : "GHOST"}
+          <Text style={[styles.messageLabel, isUser && styles.messageLabelUser]}>
+            {isUser ? "You" : "Ghost"}
           </Text>
           {isUser ? (
             <View style={styles.userBubble}>
@@ -155,18 +155,29 @@ export default function ConversationScreen() {
 
       {/* Input */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.sm }]}>
-        <TextInput
-          ref={inputRef}
-          style={styles.textInput}
-          value={input}
-          onChangeText={setInput}
-          placeholder="Message Ghost..."
-          placeholderTextColor={Ghost.text.tertiary}
-          multiline
-          maxLength={2000}
-          onSubmitEditing={handleSend}
-          blurOnSubmit={false}
-        />
+        <View style={styles.inputRow}>
+          <TextInput
+            ref={inputRef}
+            style={styles.textInput}
+            value={input}
+            onChangeText={setInput}
+            placeholder="Message Ghost..."
+            placeholderTextColor={Ghost.text.tertiary}
+            multiline
+            maxLength={2000}
+            onSubmitEditing={handleSend}
+            blurOnSubmit={false}
+          />
+          {input.trim().length > 0 && (
+            <TouchableOpacity
+              style={styles.sendButton}
+              activeOpacity={0.7}
+              onPress={handleSend}
+            >
+              <Send size={18} color={Ghost.text.inverse} strokeWidth={2.5} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -212,6 +223,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     marginBottom: Space.sm,
   },
+  messageLabelUser: {
+    color: Ghost.text.secondary,
+  },
   userBubble: {
     backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.lg,
@@ -226,7 +240,13 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Ghost.border.subtle,
   },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: Space.sm,
+  },
   textInput: {
+    flex: 1,
     backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.xl,
     borderWidth: 1,
@@ -239,6 +259,15 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     maxHeight: 120,
     textAlignVertical: "center",
+  },
+  sendButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Ghost.accent.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
   },
 });
 

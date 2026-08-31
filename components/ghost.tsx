@@ -15,7 +15,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
+import { Ghost, Fonts, Radius, Space, UI } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { GhostMark } from "@/components/ghost-mark";
 
@@ -183,7 +183,7 @@ export function GhostSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
-        style={{ flex: 1, backgroundColor: "rgba(26,22,17,0.4)" }}
+        style={{ flex: 1, backgroundColor: UI.modal.backdrop }}
         onPress={onClose}
       >
         <View style={{ flex: 1, justifyContent: "flex-end" }}>

@@ -141,12 +141,23 @@ export default function ConversationsScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Chats</Text>
-        {connectionState !== "online" && (
-          <View style={styles.offlineBadge}>
-            <GhostMark size={12} color={Ghost.text.tertiary} />
-            <Text style={styles.offlineText}>Offline</Text>
-          </View>
-        )}
+        <View style={styles.headerRight}>
+          {connectionState !== "online" && (
+            <View style={styles.offlineBadge}>
+              <GhostMark size={12} color={Ghost.text.tertiary} />
+              <Text style={styles.offlineText}>Offline</Text>
+            </View>
+          )}
+          {config && sessions.length > 0 && (
+            <TouchableOpacity
+              style={styles.newButton}
+              activeOpacity={0.7}
+              onPress={handleNewConversation}
+            >
+              <Text style={styles.newButtonText}>New</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {!config ? (
@@ -200,6 +211,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.xl,
     paddingVertical: Space.lg,
   },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+  },
   headerTitle: {
     ...Type.largeTitle,
     fontFamily: FONT,
@@ -216,6 +232,18 @@ const styles = StyleSheet.create({
     ...Type.footnote,
     fontFamily: FONT,
     color: Ghost.text.tertiary,
+  },
+  newButton: {
+    paddingVertical: Space.xs,
+    paddingHorizontal: Space.md,
+    borderRadius: Radius.full,
+    backgroundColor: Ghost.accent.soft,
+  },
+  newButtonText: {
+    ...Type.subhead,
+    fontFamily: FONT,
+    fontWeight: "500",
+    color: Ghost.accent.primary,
   },
   loadingContainer: {
     flex: 1,

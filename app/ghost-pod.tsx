@@ -180,6 +180,9 @@ export default function GhostPodScreen() {
                 </View>
                 <ChevronRight size={16} color={Ghost.text.tertiary} />
               </TouchableOpacity>
+              {i < devices.length - 1 && (
+                <View style={styles.divider} />
+              )}
             </View>
           ))
         )}
@@ -404,5 +407,9 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginTop: Space.xl,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Ghost.border.subtle,
   },
 });

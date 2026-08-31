@@ -40,6 +40,7 @@ export default function AboutScreen() {
           {name}
         </GhostText>
       </View>
+      <View style={styles.divider} />
       <View style={styles.infoRow}>
         <GhostText type="caption" style={styles.infoLabel}>
           Version
@@ -142,9 +143,8 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontFamily: FONT,
-    color: Ghost.text.secondary,
+    color: Ghost.text.tertiary,
     fontStyle: "italic",
-    opacity: 0.5,
   },
   infoRow: {
     flexDirection: "row",
@@ -192,5 +192,9 @@ const styles = StyleSheet.create({
   linkLabel: {
     fontFamily: FONT,
     color: Ghost.text.primary,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Ghost.border.subtle,
   },
 });

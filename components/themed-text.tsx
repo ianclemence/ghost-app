@@ -1,7 +1,7 @@
 import { Text, type TextProps, type StyleProp, type TextStyle } from "react-native";
 
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { Fonts, Type } from "@/constants/theme";
+import { Fonts, Ghost, Type } from "@/constants/theme";
 
 export type TextType =
   | "default"
@@ -47,14 +47,14 @@ function typeStyle(type: TextType): StyleProp<TextStyle> {
       return {
         fontSize: 16,
         lineHeight: 24,
-        color: "#3d3b5c",
+        color: Ghost.accent.primary,
         textDecorationLine: "underline",
       };
     case "mono":
       return {
         fontSize: 14,
         fontFamily: Fonts.mono,
-        color: "#6B6560",
+        color: Ghost.text.secondary,
       };
     default:
       return Type.body;
