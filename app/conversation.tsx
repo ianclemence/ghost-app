@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Markdown from "react-native-markdown-display";
 
-import { Fonts, Ghost, Midnight, Radius, Space, Type } from "@/constants/theme";
+import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
 import { EmberIndicator } from "@/components/ember";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import {
@@ -134,7 +134,7 @@ export default function ConversationScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <ArrowLeft size={24} color={Midnight.inkDim} />
+          <ArrowLeft size={24} color={Ghost.text.secondary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -176,7 +176,7 @@ export default function ConversationScreen() {
             value={input}
             onChangeText={setInput}
             placeholder="Message Ghost..."
-            placeholderTextColor={Midnight.faint}
+            placeholderTextColor={Ghost.text.tertiary}
             multiline
             maxLength={2000}
             onSubmitEditing={handleSend}
@@ -188,7 +188,7 @@ export default function ConversationScreen() {
               activeOpacity={0.7}
               onPress={handleSend}
             >
-              <Send size={18} color={Midnight.bg} strokeWidth={2.5} />
+              <Send size={18} color={Ghost.text.primary} strokeWidth={2.5} />
             </TouchableOpacity>
           )}
         </View>
@@ -200,7 +200,7 @@ export default function ConversationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Midnight.bg,
+    backgroundColor: Ghost.bg.base,
   },
   header: {
     flexDirection: "row",
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.md,
     paddingVertical: Space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Midnight.line,
+    borderBottomColor: Ghost.border.subtle,
   },
   backButton: {
     padding: Space.sm,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Type.headline,
-    color: Midnight.ink,
+    color: Ghost.text.primary,
   },
   headerRight: {
     width: 40,
@@ -235,18 +235,18 @@ const styles = StyleSheet.create({
   },
   messageLabel: {
     ...Type.caption,
-    color: Midnight.muted,
+    color: Ghost.text.tertiary,
     letterSpacing: 0.3,
     marginBottom: Space.sm,
   },
   messageLabelUser: {
-    color: Midnight.inkDim,
+    color: Ghost.text.secondary,
   },
   userBubble: {
-    backgroundColor: Midnight.surface,
+    backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Midnight.line,
+    borderColor: Ghost.border.subtle,
     paddingHorizontal: Space.md,
     paddingVertical: Space.sm,
   },
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.xl,
     paddingTop: Space.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Midnight.line,
+    borderTopColor: Ghost.border.subtle,
   },
   inputRow: {
     flexDirection: "row",
@@ -263,13 +263,13 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: Midnight.bgSoft,
+    backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Midnight.lineStrong,
+    borderColor: Ghost.border.default,
     paddingHorizontal: Space.lg,
     paddingVertical: Space.md,
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontSize: 16,
     lineHeight: 24,
     maxHeight: 120,
@@ -288,55 +288,55 @@ const styles = StyleSheet.create({
 
 const markdownStyles = {
   body: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontSize: 16,
     lineHeight: 24,
   },
   paragraph: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontSize: 16,
     lineHeight: 24,
     marginVertical: Space.sm,
   },
   text: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontSize: 16,
     lineHeight: 24,
   },
   heading1: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontWeight: "700",
     fontSize: 24,
     lineHeight: 30,
     marginVertical: Space.md,
   },
   heading2: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontWeight: "700",
     fontSize: 20,
     lineHeight: 26,
     marginVertical: Space.md,
   },
   heading3: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontWeight: "600",
     fontSize: 17,
     lineHeight: 23,
     marginVertical: Space.sm,
   },
   heading4: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontWeight: "600",
     fontSize: 16,
     lineHeight: 22,
     marginVertical: Space.sm,
   },
   strong: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontWeight: "700",
   },
   em: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontStyle: "italic",
   },
   link: {
@@ -344,8 +344,8 @@ const markdownStyles = {
     textDecorationLine: "underline",
   },
   code_inline: {
-    backgroundColor: Midnight.surface2,
-    color: Midnight.ink,
+    backgroundColor: Ghost.bg.sunken,
+    color: Ghost.text.primary,
     fontFamily: Fonts.mono,
     borderRadius: Radius.sm,
     paddingHorizontal: 5,
@@ -353,13 +353,13 @@ const markdownStyles = {
     fontSize: 14,
   },
   fence: {
-    backgroundColor: Midnight.surface2,
+    backgroundColor: Ghost.bg.sunken,
     borderRadius: Radius.md,
     padding: Space.md,
     marginVertical: Space.sm,
   },
   code_block: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontFamily: Fonts.mono,
     fontSize: 14,
     lineHeight: 20,
@@ -371,18 +371,18 @@ const markdownStyles = {
     marginVertical: Space.sm,
   },
   list_item: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontSize: 16,
     lineHeight: 24,
     marginVertical: 2,
   },
   bullet_list_icon: {
-    color: Midnight.inkDim,
+    color: Ghost.text.secondary,
     fontSize: 16,
     lineHeight: 24,
   },
   ordered_list_icon: {
-    color: Midnight.inkDim,
+    color: Ghost.text.secondary,
     fontSize: 16,
     lineHeight: 24,
   },
@@ -391,31 +391,31 @@ const markdownStyles = {
     borderLeftColor: Ghost.ember,
     paddingLeft: Space.md,
     marginVertical: Space.sm,
-    color: Midnight.inkDim,
+    color: Ghost.text.secondary,
   },
   hr: {
-    backgroundColor: Midnight.line,
+    backgroundColor: Ghost.border.subtle,
     height: 1,
     marginVertical: Space.md,
   },
   table: {
-    borderColor: Midnight.lineStrong,
+    borderColor: Ghost.border.default,
     borderRadius: Radius.sm,
     marginVertical: Space.sm,
   },
   thead: {
-    backgroundColor: Midnight.surface2,
+    backgroundColor: Ghost.bg.sunken,
   },
   th: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     fontWeight: "700",
     padding: Space.sm,
-    borderColor: Midnight.lineStrong,
+    borderColor: Ghost.border.default,
   },
   td: {
-    color: Midnight.ink,
+    color: Ghost.text.primary,
     padding: Space.sm,
-    borderColor: Midnight.lineStrong,
+    borderColor: Ghost.border.default,
   },
   image: {
     borderRadius: Radius.md,
