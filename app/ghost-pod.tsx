@@ -203,9 +203,6 @@ export default function GhostPodScreen() {
         fullWidth
         style={styles.actionButton}
       />
-      <GhostText type="caption" style={styles.dangerHint}>
-        Reboots the hardware Ghost runs on. Use only if something is wrong.
-      </GhostText>
     </ScrollView>
   );
 }
@@ -407,11 +404,5 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginTop: Space.xl,
-  },
-  dangerHint: {
-    fontFamily: FONT,
-    color: Ghost.text.tertiary,
-    marginTop: Space.xs,
-    textAlign: "center",
   },
 });
