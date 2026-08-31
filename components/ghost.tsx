@@ -229,7 +229,12 @@ export function GhostSheet({
                   justifyContent: "space-between",
                 }}
               >
-                <GhostText type="title">{title}</GhostText>
+                <GhostText
+                  type="title"
+                  style={variant === "destructive" ? { color: Ghost.status.error } : undefined}
+                >
+                  {title}
+                </GhostText>
                 {!isAlert && (
                   <TouchableOpacity onPress={onClose} hitSlop={8}>
                     <GhostText type="headline" style={{ color: Ghost.accent.primary }}>
