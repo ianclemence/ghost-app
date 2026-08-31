@@ -218,6 +218,7 @@ export function GhostSheet({
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
           <Animated.View
             style={{
+              alignSelf: "stretch",
               transform: [{ translateY: sheetTranslateY }],
             }}
           >
