@@ -75,6 +75,16 @@ export default function ConversationScreen() {
     };
 
     appendMessage(userMessage);
+
+    const assistantPlaceholder: ExtendedMessage = {
+      id: `temp-assistant-${Date.now()}`,
+      role: "assistant",
+      content: "",
+      timestamp: Date.now(),
+      status: "streaming",
+    };
+    appendMessage(assistantPlaceholder);
+
     setInput("");
     setStreaming(true);
 

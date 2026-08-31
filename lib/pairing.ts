@@ -93,7 +93,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
   const qp = getQueryParams(url);
 
   // ── Secure pairing (v1): ghost://pair?v=1&pod=...&token=...&host=... ──
-  if (url.includes("://pair?") || url.includes("://pair?")) {
+  if (url.includes("://pair?")) {
     const version = parseInt(qp.v || "0", 10);
     if (version !== SUPPORTED_VERSION) return null;
 

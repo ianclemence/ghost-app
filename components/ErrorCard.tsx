@@ -94,7 +94,7 @@ export default function ErrorCard({ error, onRetry, onDismiss, partialContent }:
           )}
           {error.kind === "auth" && (
             <GhostText type="caption" style={styles.hint}>
-              Check Settings → Shared Secret
+              You may need to pair again from Ghost Web.
             </GhostText>
           )}
         </View>

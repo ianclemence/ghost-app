@@ -63,8 +63,8 @@ export async function getDeviceCredential(): Promise<DeviceCredential | null> {
 }
 
 export async function hasDeviceCredential(): Promise<boolean> {
-  const deviceID = await SecureStore.getItemAsync(SECURE.DEVICE_ID);
-  return deviceID !== null;
+  const cred = await getDeviceCredential();
+  return cred !== null;
 }
 
 export async function clearDeviceCredential(): Promise<void> {
