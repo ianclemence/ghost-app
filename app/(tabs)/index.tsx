@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
@@ -242,9 +242,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Space.md,
     backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
   },
   inputPlaceholder: {
     color: Ghost.text.tertiary,

@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { StatusDot, Divider } from "@/components/ghost";
+import { StatusDot } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import { useGhostStore } from "@/lib/store";
 
@@ -77,8 +77,6 @@ export default function MoreScreen() {
         ))}
       </View>
 
-      <Divider style={{ marginHorizontal: Space.xl }} />
-
       {/* Settings */}
       <View style={styles.section}>
         <GhostText type="caption" style={styles.sectionTitle}>Settings</GhostText>
@@ -99,8 +97,6 @@ export default function MoreScreen() {
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
       </View>
-
-      <Divider style={{ marginHorizontal: Space.xl }} />
 
       {/* About */}
       <View style={styles.section}>
@@ -155,7 +151,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: Ghost.text.tertiary,
-    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    letterSpacing: 1,
     marginBottom: Space.sm,
     marginTop: Space.sm,
   },

@@ -123,11 +123,10 @@ export default function MemoryScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <GhostText type="largeTitle" style={styles.headerTitle}>Memory</GhostText>
+        <GhostText type="subhead" style={styles.headerSubtitle}>
+          What Ghost remembers about you.
+        </GhostText>
       </View>
-
-      <GhostText type="body" style={styles.subtitle}>
-        What Ghost remembers about you.
-      </GhostText>
 
       {!config ? (
         <EmptyState
@@ -175,10 +174,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: Ghost.text.primary,
   },
-  subtitle: {
+  headerSubtitle: {
     color: Ghost.text.secondary,
-    paddingHorizontal: Space.xl,
-    paddingBottom: Space.xl,
+    marginTop: 2,
   },
   loadingContainer: {
     flex: 1,

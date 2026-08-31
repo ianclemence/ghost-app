@@ -134,8 +134,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: Space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Ghost.border.subtle,
   },
   rowContent: {
     flex: 1,

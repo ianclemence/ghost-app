@@ -4,12 +4,10 @@ import { ChevronRight } from "lucide-react-native";
 import { GhostText } from "@/components/themed-text";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostMark } from "@/components/ghost-mark";
-import Constants from "expo-constants";
 import { useGhostStore } from "@/lib/store";
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
-  const version = Constants.expoConfig?.version ?? "2.0.0";
   const ghostName = useGhostStore((s) => s.ghostName);
   const name = ghostName || "Ghost";
 
@@ -18,104 +16,83 @@ export default function AboutScreen() {
       style={{ flex: 1, backgroundColor: Ghost.bg.base }}
       contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl }]}
     >
-      <GhostText type="title" style={styles.title}>
-        About
-      </GhostText>
-
-      <View style={styles.center}>
-        <GhostMark size={56} />
-        <GhostText type="largeTitle" style={styles.appName}>
-          {name}
-        </GhostText>
-        <GhostText type="body" style={styles.tagline}>
+      <View style={styles.brand}>
+        <GhostMark size={48} />
+        <GhostText type="footnote" style={styles.brandTagline}>
           Your AI, Your Memory, Your Machine
         </GhostText>
       </View>
 
-      <View style={styles.infoRow}>
-        <GhostText type="caption" style={styles.infoLabel}>
-          Name
-        </GhostText>
-        <GhostText type="body" style={styles.infoValue}>
-          {name}
-        </GhostText>
-      </View>
-      <View style={styles.divider} />
-      <View style={styles.infoRow}>
-        <GhostText type="caption" style={styles.infoLabel}>
-          Version
-        </GhostText>
-        <GhostText type="body" style={styles.infoValue}>
-          {version}
+      <View style={styles.section}>
+        <GhostText type="body" style={styles.prose}>
+          <GhostText style={styles.proseBold}>{name}</GhostText> is a personal AI
+          that lives on your own hardware. It remembers what matters, works for
+          you without being watched, and stays with you across your devices.
         </GhostText>
       </View>
 
-      <View style={styles.block}>
-        <GhostText type="body" style={styles.prose}>
-          Ghost is a personal AI that lives on your own hardware. It remembers
-          what matters, works for you without being watched, and stays with you
-          across your devices.
+      <View style={styles.section}>
+        <GhostText type="caption" style={styles.sectionLabel}>
+          How it works
         </GhostText>
-        <View style={styles.bullets}>
-          <GhostText type="body" style={styles.bullet}>
-            {"• "}
-            <GhostText style={styles.bold}>Ghost Web</GhostText> is where you
-            own, configure, understand, and take care of Ghost.
-          </GhostText>
-          <GhostText type="body" style={styles.bullet}>
-            {"• "}
-            <GhostText style={styles.bold}>Ghost Mobile</GhostText> is where you
-            talk to Ghost and take it with you.
-          </GhostText>
-          <GhostText type="body" style={styles.bullet}>
-            {"• "}
-            <GhostText style={styles.bold}>The Ghost Pod</GhostText> is the
-            hardware Ghost lives on.
+        <View style={styles.item}>
+          <GhostText type="body" style={styles.itemTitle}>Ghost Web</GhostText>
+          <GhostText type="caption" style={styles.itemDesc}>
+            The control center. Configure, understand, and take care of Ghost.
           </GhostText>
         </View>
-        <GhostText type="body" style={styles.prose}>
-          This app is version <GhostText style={styles.bold}>{version}</GhostText>.
+        <View style={styles.item}>
+          <GhostText type="body" style={styles.itemTitle}>Ghost Mobile</GhostText>
+          <GhostText type="caption" style={styles.itemDesc}>
+            Your daily driver. Talk to Ghost and take it with you.
+          </GhostText>
+        </View>
+        <View style={styles.item}>
+          <GhostText type="body" style={styles.itemTitle}>The Ghost Pod</GhostText>
+          <GhostText type="caption" style={styles.itemDesc}>
+            The hardware Ghost lives on. A Raspberry Pi, RK1, or any Linux machine.
+          </GhostText>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <GhostText type="caption" style={styles.sectionLabel}>
+          Privacy
         </GhostText>
         <GhostText type="body" style={styles.prose}>
-          Ghost is open-source. Source, documentation, and license are in the
-          project repository. Configuration and secrets live only on your
-          device — nothing here is sent to a central service unless you
-          explicitly connect a cloud provider.
+          Configuration and secrets live only on your device. Nothing is sent to
+          a central service unless you explicitly connect a cloud provider.
         </GhostText>
       </View>
 
-      <TouchableOpacity
-        style={styles.linkRow}
-        activeOpacity={0.6}
-        onPress={() => Linking.openURL("https://ghost.ianclemence.com")}
-      >
-        <GhostText type="body" style={styles.linkLabel}>
-          Documentation
-        </GhostText>
-        <ChevronRight size={16} color={Ghost.text.tertiary} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.linkRow}
-        activeOpacity={0.6}
-        onPress={() => Linking.openURL("https://github.com/ianclemence/ghost")}
-      >
-        <GhostText type="body" style={styles.linkLabel}>
-          Source code
-        </GhostText>
-        <ChevronRight size={16} color={Ghost.text.tertiary} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.linkRow}
-        activeOpacity={0.6}
-        onPress={() =>
-          Linking.openURL("https://github.com/ianclemence/ghost/issues")
-        }
-      >
-        <GhostText type="body" style={styles.linkLabel}>
-          Report an issue
-        </GhostText>
-        <ChevronRight size={16} color={Ghost.text.tertiary} />
-      </TouchableOpacity>
+      <View style={styles.links}>
+        <TouchableOpacity
+          style={styles.linkRow}
+          activeOpacity={0.6}
+          onPress={() => Linking.openURL("https://ghost.ianclemence.com")}
+        >
+          <GhostText type="body" style={styles.linkLabel}>
+            Documentation
+          </GhostText>
+          <ChevronRight size={16} color={Ghost.text.tertiary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.linkRow}
+          activeOpacity={0.6}
+          onPress={() =>
+            Linking.openURL("https://github.com/ianclemence/ghost/issues")
+          }
+        >
+          <GhostText type="body" style={styles.linkLabel}>
+            Report an issue
+          </GhostText>
+          <ChevronRight size={16} color={Ghost.text.tertiary} />
+        </TouchableOpacity>
+      </View>
+
+      <GhostText type="caption" style={styles.license}>
+        Open source under the MIT License.
+      </GhostText>
     </ScrollView>
   );
 }
@@ -124,67 +101,59 @@ const styles = StyleSheet.create({
   container: {
     padding: Space.xl,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "600",
-    marginBottom: 24,
-    color: Ghost.text.primary,
-  },
-  center: {
+  brand: {
     alignItems: "center",
     paddingVertical: Space.xxxl,
     gap: Space.sm,
   },
-  appName: {
-    color: Ghost.text.primary,
-  },
-  tagline: {
+  brandTagline: {
     color: Ghost.text.tertiary,
     fontStyle: "italic",
   },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: Space.sm,
+  section: {
+    marginBottom: Space.xl,
   },
-  infoLabel: {
-    color: Ghost.text.secondary,
-  },
-  infoValue: {
-    color: Ghost.text.primary,
-  },
-  block: {
-    marginTop: Space.xl,
+  sectionLabel: {
+    color: Ghost.text.tertiary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: Space.sm,
   },
   prose: {
     color: Ghost.text.secondary,
     lineHeight: 22,
   },
-  bullets: {
-    gap: Space.xs,
-    marginVertical: Space.sm,
-  },
-  bullet: {
-    color: Ghost.text.secondary,
-    lineHeight: 22,
-  },
-  bold: {
-    fontWeight: "700",
+  proseBold: {
     color: Ghost.text.primary,
+    fontWeight: "700",
+  },
+  item: {
+    paddingVertical: Space.sm,
+  },
+  itemTitle: {
+    color: Ghost.text.primary,
+    fontWeight: "600",
+  },
+  itemDesc: {
+    color: Ghost.text.secondary,
+    marginTop: 2,
+  },
+  links: {
+    marginTop: Space.md,
   },
   linkRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: Space.md,
-    marginTop: Space.md,
   },
   linkLabel: {
     color: Ghost.text.primary,
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Ghost.border.subtle,
+  license: {
+    color: Ghost.text.tertiary,
+    textAlign: "center",
+    marginTop: Space.xxxl,
+    paddingBottom: Space.xl,
   },
 });
