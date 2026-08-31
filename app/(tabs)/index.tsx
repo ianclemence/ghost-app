@@ -243,6 +243,6 @@ const styles = StyleSheet.create({
     paddingVertical: Space.md,
   },
   inputPlaceholder: {
-    color: Ghost.text.tertiary,
+    color: Ghost.text.secondary,
   },
 });
