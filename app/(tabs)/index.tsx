@@ -3,17 +3,15 @@ import React, { useCallback, useState } from "react";
 import {
   FlatList,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { GhostText } from "@/components/themed-text";
 import { formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
-
-const FONT = Fonts.sans;
 
 interface HomeItem {
   id: string;
@@ -87,14 +85,16 @@ export default function HomeScreen() {
     ({ item }: { item: HomeItem }) => (
       <View style={styles.row}>
         <View style={styles.rowTop}>
-          <Text style={styles.rowTitle} numberOfLines={1}>
+          <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>
             {item.title}
-          </Text>
-          <Text style={styles.rowTime}>{formatTime(item.timestamp)}</Text>
+          </GhostText>
+          <GhostText type="footnote" style={styles.rowTime}>
+            {formatTime(item.timestamp)}
+          </GhostText>
         </View>
-        <Text style={styles.rowPreview} numberOfLines={2}>
+        <GhostText type="callout" style={styles.rowPreview} numberOfLines={2}>
           {item.preview}
-        </Text>
+        </GhostText>
       </View>
     ),
     [],
@@ -109,25 +109,30 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.greeting}>
+        <GhostText type="display" style={styles.greeting}>
           {ghostName ? `${greeting}, ${ghostName}.` : `${greeting}.`}
-        </Text>
+        </GhostText>
         {connectionState === "online" ? (
-          <Text style={styles.presenceLine}>
+          <GhostText type="body" style={styles.presenceLine}>
             Ghost is running{uptimeSeconds ? ` · Up ${formatUptime(uptimeSeconds)}` : ""}.
-          </Text>
+          </GhostText>
         ) : (
-          <Text style={styles.statusLine}>
+          <GhostText type="body" style={styles.statusLine}>
             {connectionState === "syncing"
               ? "Ghost is syncing..."
               : "Ghost is offline."}
-          </Text>
+          </GhostText>
         )}
       </View>
 
       {items.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>It&apos;s quiet today.</Text>
+          <GhostText type="body" style={styles.emptyTitle}>
+            Nothing new right now.
+          </GhostText>
+          <GhostText type="subhead" style={styles.emptySubtitle}>
+            Ghost will let you know when something comes up.
+          </GhostText>
         </View>
       ) : (
         <FlatList
@@ -135,10 +140,12 @@ export default function HomeScreen() {
           keyExtractor={(item) => item.key}
           renderItem={({ item: section }) => (
             <View>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-                {section.data.map((row) => (
-                  <View key={row.id}>{renderItem({ item: row })}</View>
-                ))}
+              <GhostText type="caption" style={styles.sectionTitle}>
+                {section.title}
+              </GhostText>
+              {section.data.map((row) => (
+                <View key={row.id}>{renderItem({ item: row })}</View>
+              ))}
             </View>
           )}
           contentContainerStyle={styles.listContent}
@@ -152,7 +159,7 @@ export default function HomeScreen() {
           activeOpacity={0.8}
           onPress={handleAskGhost}
         >
-          <Text style={styles.inputPlaceholder}>Ask Ghost</Text>
+          <GhostText type="body" style={styles.inputPlaceholder}>Ask Ghost</GhostText>
         </TouchableOpacity>
       </View>
     </View>
@@ -171,19 +178,13 @@ const styles = StyleSheet.create({
     gap: Space.xs,
   },
   greeting: {
-    ...Type.display,
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   statusLine: {
-    ...Type.body,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     marginTop: Space.xxs,
   },
   presenceLine: {
-    ...Type.body,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     marginTop: Space.xxs,
   },
@@ -192,10 +193,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: Space.huge,
+    gap: Space.sm,
   },
   emptyTitle: {
-    ...Type.body,
-    fontFamily: FONT,
+    color: Ghost.text.tertiary,
+    textAlign: "center",
+  },
+  emptySubtitle: {
     color: Ghost.text.tertiary,
     textAlign: "center",
   },
@@ -204,8 +208,6 @@ const styles = StyleSheet.create({
     paddingBottom: Space.huge,
   },
   sectionTitle: {
-    ...Type.caption,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     letterSpacing: 0.3,
     marginTop: Space.xxl,
@@ -221,20 +223,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   rowTitle: {
-    ...Type.headline,
-    fontFamily: FONT,
     color: Ghost.text.primary,
     flex: 1,
   },
   rowTime: {
-    ...Type.footnote,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     marginLeft: Space.sm,
   },
   rowPreview: {
-    ...Type.callout,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     lineHeight: 20,
   },
@@ -251,8 +247,6 @@ const styles = StyleSheet.create({
     borderColor: Ghost.border.default,
   },
   inputPlaceholder: {
-    ...Type.body,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
   },
 });

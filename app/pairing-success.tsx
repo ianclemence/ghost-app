@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Fonts, Space } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 import * as Notifications from "expo-notifications";
 import Constants, { AppOwnership } from "expo-constants";
 
-const FONT = Fonts.sans;
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
 /**
@@ -17,6 +17,7 @@ const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
  * Optionally prompts for notification permission.
  */
 export default function PairingSuccessScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [askedNotifications, setAskedNotifications] = useState(false);
   const [notifStatus, setNotifStatus] = useState<"granted" | "denied" | "undetermined">("undetermined");
@@ -53,7 +54,7 @@ export default function PairingSuccessScreen() {
   // After notifications handled, show the final state
   if (askedNotifications) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top + 100 }]}>
         <View style={styles.content}>
           <GhostMark size={48} />
           <GhostText type="largeTitle" style={styles.title}>
@@ -68,7 +69,7 @@ export default function PairingSuccessScreen() {
           </GhostText>
         </View>
 
-        <View style={styles.bottom}>
+        <View style={[styles.bottom, { paddingBottom: insets.bottom + 80 }]}>
           <GhostButton
             title="Continue"
             variant="primary"
@@ -81,7 +82,7 @@ export default function PairingSuccessScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 100 }]}>
       <View style={styles.content}>
         <GhostMark size={48} />
         <GhostText type="largeTitle" style={styles.title}>
@@ -92,7 +93,7 @@ export default function PairingSuccessScreen() {
         </GhostText>
       </View>
 
-      <View style={styles.bottom}>
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + 80 }]}>
         <GhostButton
           title="Continue"
           variant="primary"
@@ -109,7 +110,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Ghost.bg.base,
     paddingHorizontal: Space.xl,
-    paddingTop: 100,
   },
   content: {
     flex: 1,
@@ -118,17 +118,13 @@ const styles = StyleSheet.create({
     gap: Space.md,
   },
   title: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
     textAlign: "center",
   },
   description: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     textAlign: "center",
     lineHeight: 24,
   },
-  bottom: {
-    paddingBottom: 80,
-  },
+  bottom: {},
 });

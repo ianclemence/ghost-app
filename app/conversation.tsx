@@ -14,15 +14,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Markdown from "react-native-markdown-display";
 
-import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Fonts, Ghost, Midnight, Radius, Space, Type } from "@/constants/theme";
+import { EmberIndicator } from "@/components/ember";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import {
   fetchHistory,
   sendMessage,
   normalizeSession,
 } from "@/lib/ghostApi";
-
-const FONT = Fonts.sans;
 
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
@@ -125,11 +124,16 @@ export default function ConversationScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <ArrowLeft size={24} color={Ghost.text.primary} />
+          <ArrowLeft size={24} color={Midnight.inkDim} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          Ghost
-        </Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            Ghost
+          </Text>
+          {isStreaming && (
+            <EmberIndicator state="thinking" size={6} style={{ marginLeft: Space.xs }} />
+          )}
+        </View>
         <View style={styles.headerRight} />
       </View>
 
@@ -162,7 +166,7 @@ export default function ConversationScreen() {
             value={input}
             onChangeText={setInput}
             placeholder="Message Ghost..."
-            placeholderTextColor={Ghost.text.tertiary}
+            placeholderTextColor={Midnight.faint}
             multiline
             maxLength={2000}
             onSubmitEditing={handleSend}
@@ -174,7 +178,7 @@ export default function ConversationScreen() {
               activeOpacity={0.7}
               onPress={handleSend}
             >
-              <Send size={18} color={Ghost.text.inverse} strokeWidth={2.5} />
+              <Send size={18} color={Midnight.bg} strokeWidth={2.5} />
             </TouchableOpacity>
           )}
         </View>
@@ -186,7 +190,7 @@ export default function ConversationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Ghost.bg.base,
+    backgroundColor: Midnight.bg,
   },
   header: {
     flexDirection: "row",
@@ -194,17 +198,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.md,
     paddingVertical: Space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Ghost.border.subtle,
+    borderBottomColor: Midnight.line,
   },
   backButton: {
     padding: Space.sm,
   },
+  headerCenter: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: {
     ...Type.headline,
-    fontFamily: FONT,
-    color: Ghost.text.primary,
-    flex: 1,
-    textAlign: "center",
+    color: Midnight.ink,
   },
   headerRight: {
     width: 40,
@@ -218,19 +225,18 @@ const styles = StyleSheet.create({
   },
   messageLabel: {
     ...Type.caption,
-    fontFamily: FONT,
-    color: Ghost.text.tertiary,
+    color: Midnight.muted,
     letterSpacing: 0.3,
     marginBottom: Space.sm,
   },
   messageLabelUser: {
-    color: Ghost.text.secondary,
+    color: Midnight.inkDim,
   },
   userBubble: {
-    backgroundColor: Ghost.bg.raised,
+    backgroundColor: Midnight.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Ghost.border.default,
+    borderColor: Midnight.line,
     paddingHorizontal: Space.md,
     paddingVertical: Space.sm,
   },
@@ -238,7 +244,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.xl,
     paddingTop: Space.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Ghost.border.subtle,
+    borderTopColor: Midnight.line,
   },
   inputRow: {
     flexDirection: "row",
@@ -247,14 +253,13 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: Ghost.bg.raised,
+    backgroundColor: Midnight.bgSoft,
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Ghost.border.default,
+    borderColor: Midnight.lineStrong,
     paddingHorizontal: Space.lg,
     paddingVertical: Space.md,
-    color: Ghost.text.primary,
-    fontFamily: FONT,
+    color: Midnight.ink,
     fontSize: 16,
     lineHeight: 24,
     maxHeight: 120,
@@ -264,7 +269,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: Ghost.accent.primary,
+    backgroundColor: Ghost.ember,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
@@ -273,69 +278,64 @@ const styles = StyleSheet.create({
 
 const markdownStyles = {
   body: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: FONT,
   },
   paragraph: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: FONT,
     marginVertical: Space.sm,
   },
   text: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: FONT,
   },
   heading1: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontWeight: "700",
     fontSize: 24,
     lineHeight: 30,
     marginVertical: Space.md,
   },
   heading2: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontWeight: "700",
     fontSize: 20,
     lineHeight: 26,
     marginVertical: Space.md,
   },
   heading3: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontWeight: "600",
     fontSize: 17,
     lineHeight: 23,
     marginVertical: Space.sm,
   },
   heading4: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontWeight: "600",
     fontSize: 16,
     lineHeight: 22,
     marginVertical: Space.sm,
   },
   strong: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontWeight: "700",
-    fontFamily: FONT,
   },
   em: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontStyle: "italic",
-    fontFamily: FONT,
   },
   link: {
-    color: Ghost.accent.primary,
+    color: Ghost.ember,
     textDecorationLine: "underline",
   },
   code_inline: {
-    backgroundColor: Ghost.bg.sunken,
-    color: Ghost.text.primary,
+    backgroundColor: Midnight.surface2,
+    color: Midnight.ink,
     fontFamily: Fonts.mono,
     borderRadius: Radius.sm,
     paddingHorizontal: 5,
@@ -343,13 +343,13 @@ const markdownStyles = {
     fontSize: 14,
   },
   fence: {
-    backgroundColor: Ghost.bg.sunken,
+    backgroundColor: Midnight.surface2,
     borderRadius: Radius.md,
     padding: Space.md,
     marginVertical: Space.sm,
   },
   code_block: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontFamily: Fonts.mono,
     fontSize: 14,
     lineHeight: 20,
@@ -361,56 +361,51 @@ const markdownStyles = {
     marginVertical: Space.sm,
   },
   list_item: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: FONT,
     marginVertical: 2,
   },
   bullet_list_icon: {
-    color: Ghost.text.secondary,
+    color: Midnight.inkDim,
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: FONT,
   },
   ordered_list_icon: {
-    color: Ghost.text.secondary,
+    color: Midnight.inkDim,
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: FONT,
   },
   blockquote: {
     borderLeftWidth: 3,
-    borderLeftColor: Ghost.accent.primary,
+    borderLeftColor: Ghost.ember,
     paddingLeft: Space.md,
     marginVertical: Space.sm,
-    color: Ghost.text.secondary,
+    color: Midnight.inkDim,
   },
   hr: {
-    backgroundColor: Ghost.border.subtle,
+    backgroundColor: Midnight.line,
     height: 1,
     marginVertical: Space.md,
   },
   table: {
-    borderColor: Ghost.border.default,
+    borderColor: Midnight.lineStrong,
     borderRadius: Radius.sm,
     marginVertical: Space.sm,
   },
   thead: {
-    backgroundColor: Ghost.bg.sunken,
+    backgroundColor: Midnight.surface2,
   },
   th: {
-    color: Ghost.text.primary,
+    color: Midnight.ink,
     fontWeight: "700",
-    fontFamily: FONT,
     padding: Space.sm,
-    borderColor: Ghost.border.default,
+    borderColor: Midnight.lineStrong,
   },
   td: {
-    color: Ghost.text.primary,
-    fontFamily: FONT,
+    color: Midnight.ink,
     padding: Space.sm,
-    borderColor: Ghost.border.default,
+    borderColor: Midnight.lineStrong,
   },
   image: {
     borderRadius: Radius.md,

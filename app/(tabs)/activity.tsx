@@ -4,14 +4,14 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { GhostText } from "@/components/themed-text";
 import { EmptyState, GhostButton } from "@/components/ghost";
 import {
   fetchSessions,
@@ -22,8 +22,6 @@ import {
   CronJob,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
-
-const FONT = Fonts.sans;
 
 type ActivityKind = "messages" | "automations" | "memory" | "errors";
 
@@ -206,10 +204,10 @@ export default function ActivityScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Activity</Text>
-        <Text style={styles.headerSubtitle}>
+        <GhostText type="largeTitle" style={styles.headerTitle}>Activity</GhostText>
+        <GhostText type="subhead" style={styles.headerSubtitle}>
           A record of what Ghost has done on your behalf.
-        </Text>
+        </GhostText>
       </View>
 
       <View style={styles.chipsWrap}>
@@ -227,9 +225,9 @@ export default function ActivityScreen() {
                 activeOpacity={0.6}
                 onPress={() => setFilter(f.key)}
               >
-                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
+                <GhostText type="subhead" style={[styles.chipLabel, active && styles.chipLabelActive]}>
                   {f.label}
-                </Text>
+                </GhostText>
               </TouchableOpacity>
             );
           })}
@@ -279,18 +277,18 @@ export default function ActivityScreen() {
             const tappable = item.kind === "messages" && !!item.sessionId;
             const Row = (
               <View style={styles.row}>
-                <Text style={styles.rowTime}>{clockTime(item.ts)}</Text>
+                <GhostText type="footnote" style={styles.rowTime}>{clockTime(item.ts)}</GhostText>
                 <View style={styles.rowContent}>
-                  <Text style={styles.rowTitle} numberOfLines={2}>
+                  <GhostText type="headline" style={styles.rowTitle} numberOfLines={2}>
                     {item.title}
-                  </Text>
-                  <Text style={styles.rowMeta}>{item.meta}</Text>
+                  </GhostText>
+                  <GhostText type="footnote" style={styles.rowMeta}>{item.meta}</GhostText>
                 </View>
               </View>
             );
             return (
               <View key={item.id}>
-                {showDay && <Text style={styles.dayLabel}>{day}</Text>}
+                {showDay && <GhostText type="caption" style={styles.dayLabel}>{day}</GhostText>}
                 {tappable ? (
                   <TouchableOpacity
                     activeOpacity={0.6}
@@ -324,12 +322,10 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Type.largeTitle,
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   headerSubtitle: {
     ...Type.subhead,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     marginTop: 2,
   },
@@ -355,7 +351,6 @@ const styles = StyleSheet.create({
   },
   chipLabel: {
     ...Type.subhead,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
   },
   chipLabelActive: {
@@ -379,7 +374,6 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     ...Type.caption,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     letterSpacing: 0.3,
     marginTop: Space.lg,
@@ -392,7 +386,6 @@ const styles = StyleSheet.create({
   },
   rowTime: {
     ...Type.footnote,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     width: 72,
   },
@@ -401,12 +394,10 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     ...Type.headline,
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   rowMeta: {
     ...Type.footnote,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     marginTop: 2,
     textTransform: "capitalize",

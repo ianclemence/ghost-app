@@ -8,11 +8,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
+import { Ghost, Radius, Space } from "@/constants/theme";
 import { parsePairingURI } from "@/lib/pairing";
 import { startPairing } from "@/lib/connection";
-
-const FONT = Fonts.sans;
 
 /**
  * QR Scanner screen.
@@ -194,14 +192,12 @@ const styles = StyleSheet.create({
   },
 
   instruction: {
-    fontFamily: FONT,
     color: "#fff",
     fontSize: 18,
     fontWeight: "600",
     marginTop: Space.sm,
   },
   hint: {
-    fontFamily: FONT,
     color: "rgba(255,255,255,0.6)",
     textAlign: "center",
   },
@@ -250,12 +246,10 @@ const styles = StyleSheet.create({
 
   // Permission denied
   deniedTitle: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
     textAlign: "center",
   },
   deniedBody: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     textAlign: "center",
     lineHeight: 22,
@@ -268,7 +262,6 @@ const styles = StyleSheet.create({
 
   // Feedback
   invalidText: {
-    fontFamily: FONT,
     color: "rgba(255,255,255,0.8)",
     textAlign: "center",
   },
@@ -279,7 +272,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   loadingText: {
-    fontFamily: FONT,
     color: "rgba(255,255,255,0.8)",
   },
 });

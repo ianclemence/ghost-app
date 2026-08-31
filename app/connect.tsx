@@ -1,10 +1,9 @@
 import { View, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
-import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
-
-const FONT = Fonts.sans;
+import { Ghost, Radius, Space } from "@/constants/theme";
 
 /**
  * Connect to Ghost screen.
@@ -12,10 +11,11 @@ const FONT = Fonts.sans;
  * Secondary: Enter manually (visually quiet).
  */
 export default function ConnectToGhostScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 100 }]}>
       <View style={styles.content}>
         <GhostText type="largeTitle" style={styles.title}>
           Connect to Ghost
@@ -25,7 +25,7 @@ export default function ConnectToGhostScreen() {
         </GhostText>
       </View>
 
-      <View style={styles.bottom}>
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + 80 }]}>
         <GhostButton
           title="Scan QR Code"
           variant="primary"
@@ -51,7 +51,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Ghost.bg.base,
     paddingHorizontal: Space.xl,
-    paddingTop: 100,
   },
   content: {
     flex: 1,
@@ -59,19 +58,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
     textAlign: "center",
     marginBottom: Space.md,
   },
   description: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     textAlign: "center",
     lineHeight: 24,
   },
   bottom: {
-    paddingBottom: 80,
     gap: Space.md,
   },
   manualButton: {
@@ -79,7 +75,6 @@ const styles = StyleSheet.create({
     paddingVertical: Space.md,
   },
   manualText: {
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
   },
 });

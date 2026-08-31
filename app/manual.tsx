@@ -8,12 +8,11 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton, SectionHeader } from "@/components/ghost";
-import { Ghost, Fonts, Radius, Space } from "@/constants/theme";
+import { Ghost, Radius, Space } from "@/constants/theme";
 import { startPairing } from "@/lib/connection";
-
-const FONT = Fonts.sans;
 
 /**
  * Parse a ghost://pair?… or ghost://connect?… link and pull out the fields
@@ -53,6 +52,7 @@ function parseGhostLink(raw: string): {
  * full pairing link copied from the Ghost Pod console.
  */
 export default function ManualScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [host, setHost] = useState("");
   const [port, setPort] = useState("8766");
@@ -94,7 +94,7 @@ export default function ManualScreen() {
     >
       <ScrollView
         style={{ flex: 1, backgroundColor: Ghost.bg.base }}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 80, paddingBottom: insets.bottom + 80 }]}
         keyboardShouldPersistTaps="handled"
       >
         <GhostText type="largeTitle" style={styles.title}>
@@ -170,15 +170,12 @@ export default function ManualScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: Space.xl,
-    paddingTop: 80,
   },
   title: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
     marginBottom: Space.sm,
   },
   description: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     marginBottom: Space.lg,
   },
@@ -188,7 +185,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
   },
   label: {
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     marginBottom: Space.xs,
     marginTop: Space.md,
@@ -199,7 +195,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: 12,
     fontSize: 16,
-    fontFamily: FONT,
     color: Ghost.text.primary,
     backgroundColor: Ghost.bg.base,
   },

@@ -2,18 +2,17 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Fonts, Ghost, Space, Type } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
+import { GhostText } from "@/components/themed-text";
 import { EmptyState } from "@/components/ghost";
 import { useGhostStore } from "@/lib/store";
 import { fetchMemoryFile } from "@/lib/ghostApi";
-
-const FONT = Fonts.sans;
 
 interface MemorySection {
   id: string;
@@ -56,42 +55,65 @@ export default function MemoryScreen() {
   const { config } = useGhostStore();
   const [sections, setSections] = useState<MemorySection[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const loadMemory = useCallback(async () => {
     if (!config) return;
     setLoading(true);
+    try {
+      const [profile, curated] = await Promise.allSettled([
+        fetchMemoryFile(config, "user-profile.md"),
+        fetchMemoryFile(config, "curated-memory.md"),
+      ]);
 
-    const load = async () => {
-      try {
-        const [profile, curated] = await Promise.allSettled([
-          fetchMemoryFile(config, "user-profile.md"),
-          fetchMemoryFile(config, "curated-memory.md"),
-        ]);
-
-        const all: MemorySection[] = [];
-        if (profile.status === "fulfilled") {
-          all.push(...parseProfileSections(profile.value));
-        }
-        if (curated.status === "fulfilled") {
-          all.push(...parseProfileSections(curated.value));
-        }
-        setSections(all);
-      } catch {
-        // Fine
+      const all: MemorySection[] = [];
+      if (profile.status === "fulfilled") {
+        all.push(...parseProfileSections(profile.value));
       }
-      setLoading(false);
-    };
-
-    load();
+      if (curated.status === "fulfilled") {
+        all.push(...parseProfileSections(curated.value));
+      }
+      setSections(all);
+    } catch {
+      // Fine
+    }
+    setLoading(false);
   }, [config]);
+
+  const onRefresh = useCallback(async () => {
+    if (!config) return;
+    setRefreshing(true);
+    try {
+      const [profile, curated] = await Promise.allSettled([
+        fetchMemoryFile(config, "user-profile.md"),
+        fetchMemoryFile(config, "curated-memory.md"),
+      ]);
+
+      const all: MemorySection[] = [];
+      if (profile.status === "fulfilled") {
+        all.push(...parseProfileSections(profile.value));
+      }
+      if (curated.status === "fulfilled") {
+        all.push(...parseProfileSections(curated.value));
+      }
+      setSections(all);
+    } catch {
+      // Fine
+    }
+    setRefreshing(false);
+  }, [config]);
+
+  useEffect(() => {
+    loadMemory();
+  }, [loadMemory]);
 
   const renderSection = useCallback(
     ({ item }: { item: MemorySection }) => (
       <View style={styles.row}>
-        <Text style={styles.rowTitle}>{item.title}</Text>
-        <Text style={styles.rowPreview} numberOfLines={2}>
+        <GhostText type="headline" style={styles.rowTitle}>{item.title}</GhostText>
+        <GhostText type="callout" style={styles.rowPreview} numberOfLines={2}>
           {item.preview}
-        </Text>
+        </GhostText>
       </View>
     ),
     [],
@@ -100,10 +122,12 @@ export default function MemoryScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Memory</Text>
+        <GhostText type="largeTitle" style={styles.headerTitle}>Memory</GhostText>
       </View>
 
-      <Text style={styles.subtitle}>What Ghost remembers about you.</Text>
+      <GhostText type="body" style={styles.subtitle}>
+        What Ghost remembers about you.
+      </GhostText>
 
       {!config ? (
         <EmptyState
@@ -116,8 +140,8 @@ export default function MemoryScreen() {
         </View>
       ) : sections.length === 0 ? (
         <EmptyState
-          title="Ghost is still getting to know you."
-          subtitle="Talk to Ghost, and it will remember."
+          title="Nothing remembered yet."
+          subtitle="Talk to Ghost and it will remember what matters."
         />
       ) : (
         <FlatList
@@ -126,6 +150,13 @@ export default function MemoryScreen() {
           renderItem={renderSection}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Ghost.accent.primary}
+            />
+          }
         />
       )}
     </View>
@@ -142,13 +173,9 @@ const styles = StyleSheet.create({
     paddingVertical: Space.lg,
   },
   headerTitle: {
-    ...Type.largeTitle,
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   subtitle: {
-    ...Type.body,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     paddingHorizontal: Space.xl,
     paddingBottom: Space.xl,
@@ -166,14 +193,10 @@ const styles = StyleSheet.create({
     paddingVertical: Space.md,
   },
   rowTitle: {
-    ...Type.headline,
-    fontFamily: FONT,
     color: Ghost.text.primary,
     marginBottom: Space.xxs,
   },
   rowPreview: {
-    ...Type.callout,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     lineHeight: 20,
   },

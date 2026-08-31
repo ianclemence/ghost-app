@@ -9,9 +9,7 @@ import {
   MoreHorizontal,
 } from "lucide-react-native";
 
-import { Ghost, Fonts } from "@/constants/theme";
-
-const FONT = Fonts.sans;
+import { Ghost } from "@/constants/theme";
 
 function TabIcon({
   Icon,
@@ -24,7 +22,7 @@ function TabIcon({
 }) {
   const color = focused ? Ghost.accent.primary : Ghost.text.tertiary;
   return (
-    <View style={{ alignItems: "center", gap: 3, paddingTop: 10 }}>
+    <View style={{ alignItems: "center", gap: 2, paddingTop: 10 }}>
       <Icon size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
       <Text
         numberOfLines={1}
@@ -32,7 +30,6 @@ function TabIcon({
           fontSize: 10,
           fontWeight: focused ? "600" : "400",
           color,
-          fontFamily: FONT,
           letterSpacing: 0.1,
         }}
       >

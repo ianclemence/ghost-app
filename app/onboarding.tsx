@@ -3,9 +3,7 @@ import { useRouter } from "expo-router";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Fonts, Space } from "@/constants/theme";
-
-const FONT = Fonts.sans;
+import { Ghost, Space } from "@/constants/theme";
 
 /**
  * First launch screen.
@@ -52,12 +50,10 @@ const styles = StyleSheet.create({
     gap: Space.md,
   },
   title: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
     marginTop: Space.sm,
   },
   tagline: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     opacity: 0.7,
   },

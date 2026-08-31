@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
 import { View, StyleSheet, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
 import * as Location from "expo-location";
 import { Camera } from "expo-camera";
 import { GhostText } from "@/components/themed-text";
 import { GhostToggle } from "@/components/ghost";
-import { Ghost, Fonts, Space } from "@/constants/theme";
-
-const FONT = Fonts.sans;
+import { Ghost, Space } from "@/constants/theme";
 
 /**
  * Permissions screen.
@@ -15,6 +14,7 @@ const FONT = Fonts.sans;
  * Each permission explains why Ghost needs it.
  */
 export default function PermissionsScreen() {
+  const insets = useSafeAreaInsets();
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
@@ -74,7 +74,7 @@ export default function PermissionsScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: Ghost.bg.base }}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl }]}
     >
       <GhostText type="title" style={styles.title}>
         Permissions
@@ -122,13 +122,11 @@ export default function PermissionsScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: Space.xl,
-    paddingTop: 80,
   },
   title: {
     fontSize: 28,
     fontWeight: "600",
     marginBottom: 24,
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   row: {
@@ -144,11 +142,9 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   rowLabel: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   hint: {
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     marginTop: 2,
   },

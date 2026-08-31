@@ -91,6 +91,34 @@ export const Ghost = {
   get hairlineStrong() {
     return this.border.default;
   },
+
+  // Ember — Ghost's presence light (warm midnight accent)
+  ember: "#ffb45c",
+  emberBright: "#ffca8f",
+  emberDeep: "#d88a33",
+} as const;
+
+// ─── Midnight Tokens (warm dark conversation world) ────────────────────────
+
+export const Midnight = {
+  bg: "#17130f",
+  bgSoft: "#1d1813",
+  surface: "#241e17",
+  surface2: "#2c251d",
+  surface3: "#352c22",
+
+  ink: "#f1e9dc",
+  inkDim: "#c3b6a6",
+  muted: "#a3927f",
+  faint: "#7a6c5d",
+
+  line: "rgba(240,233,223,0.07)",
+  lineStrong: "rgba(240,233,223,0.14)",
+
+  ok: "#86b28f",
+  clay: "#e08667",
+  clayDeep: "#a64f36",
+  warn: "#e8c06a",
 } as const;
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
@@ -224,4 +252,13 @@ export const UI = {
     buttonY: Space.sm,
     buttonX: Space.md,
   },
+} as const;
+
+// ─── Motion ────────────────────────────────────────────────────────────────
+
+export const Motion = {
+  fast: 120,
+  base: 180,
+  moderate: 240,
+  slow: 320,
 } as const;

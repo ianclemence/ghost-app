@@ -173,13 +173,23 @@ export function GhostSheet({
   visible,
   onClose,
   title,
+  message,
+  confirmTitle,
+  onConfirm,
+  variant = "default",
   children,
 }: {
   visible: boolean;
   onClose: () => void;
   title?: string;
-  children: React.ReactNode;
+  message?: string;
+  confirmTitle?: string;
+  onConfirm?: () => void;
+  variant?: "default" | "destructive";
+  children?: React.ReactNode;
 }) {
+  const isAlert = !!message || !!confirmTitle;
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
@@ -213,28 +223,59 @@ export function GhostSheet({
               <View
                 style={{
                   paddingHorizontal: Space.xl,
-                  paddingBottom: Space.md,
+                  paddingBottom: isAlert ? Space.xs : Space.md,
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
                 }}
               >
                 <GhostText type="title">{title}</GhostText>
-                <TouchableOpacity onPress={onClose} hitSlop={8}>
-                  <GhostText type="headline" style={{ color: Ghost.accent.primary }}>
-                    Done
-                  </GhostText>
-                </TouchableOpacity>
+                {!isAlert && (
+                  <TouchableOpacity onPress={onClose} hitSlop={8}>
+                    <GhostText type="headline" style={{ color: Ghost.accent.primary }}>
+                      Done
+                    </GhostText>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
-            <ScrollView
-              style={{ paddingHorizontal: Space.xl }}
-              contentContainerStyle={{ gap: Space.lg, paddingBottom: Space.xxxl + 20 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {children}
-            </ScrollView>
+            {isAlert ? (
+              <View style={{ paddingHorizontal: Space.xl, paddingBottom: Space.xxxl + 20 }}>
+                {message ? (
+                  <GhostText type="body" style={{ color: Ghost.text.secondary, marginBottom: Space.xl }}>
+                    {message}
+                  </GhostText>
+                ) : null}
+                <View style={{ gap: Space.sm }}>
+                  {confirmTitle && onConfirm && (
+                    <GhostButton
+                      title={confirmTitle}
+                      variant={variant === "destructive" ? "danger" : "primary"}
+                      fullWidth
+                      onPress={() => {
+                        onConfirm();
+                        onClose();
+                      }}
+                    />
+                  )}
+                  <GhostButton
+                    title="Cancel"
+                    variant="ghost"
+                    fullWidth
+                    onPress={onClose}
+                  />
+                </View>
+              </View>
+            ) : (
+              <ScrollView
+                style={{ paddingHorizontal: Space.xl }}
+                contentContainerStyle={{ gap: Space.lg, paddingBottom: Space.xxxl + 20 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {children}
+              </ScrollView>
+            )}
           </Pressable>
         </View>
       </Pressable>

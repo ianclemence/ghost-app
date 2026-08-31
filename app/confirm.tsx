@@ -2,11 +2,9 @@ import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { GhostText } from "@/components/themed-text";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Fonts, Space } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 import { completePairing } from "@/lib/connection";
 import { useEffect, useRef, useState } from "react";
-
-const FONT = Fonts.sans;
 
 /**
  * Pairing progress screen.
@@ -138,7 +136,6 @@ const styles = StyleSheet.create({
     gap: Space.md,
   },
   title: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
     textAlign: "center",
   },
@@ -148,27 +145,22 @@ const styles = StyleSheet.create({
     gap: Space.sm,
   },
   connectingText: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
   },
   hint: {
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     marginTop: Space.sm,
   },
   errorText: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     textAlign: "center",
     lineHeight: 22,
   },
   retryLink: {
-    fontFamily: FONT,
     color: Ghost.accent.primary,
     marginTop: Space.lg,
   },
   cancelLink: {
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     marginTop: Space.sm,
   },

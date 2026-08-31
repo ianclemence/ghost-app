@@ -3,13 +3,13 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
   TouchableOpacity,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import { GhostText } from "@/components/themed-text";
-import { GhostButton, StatusDot } from "@/components/ghost";
-import { Ghost, Fonts, Space } from "@/constants/theme";
+import { GhostButton, GhostSheet, StatusDot } from "@/components/ghost";
+import { Ghost, Space } from "@/constants/theme";
 import { timeAgo, formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
 import {
@@ -21,8 +21,6 @@ import {
   ModelInfo,
 } from "@/lib/ghostApi";
 import { refreshDevices } from "@/lib/connection";
-
-const FONT = Fonts.sans;
 
 const CONNECTED_WINDOW_MS = 3 * 60_000;
 
@@ -39,6 +37,7 @@ function deviceStatus(device: PairedDevice): string {
 }
 
 export default function GhostPodScreen() {
+  const insets = useSafeAreaInsets();
   const config = useGhostStore((s) => s.config);
   const connectionState = useGhostStore((s) => s.connectionState);
   const ghostName = useGhostStore((s) => s.ghostName);
@@ -47,6 +46,17 @@ export default function GhostPodScreen() {
   const [stats, setStats] = useState<PiStats | null>(null);
   const [model, setModel] = useState<ModelInfo | null>(null);
   const [version, setVersion] = useState<string>("—");
+
+  // Sheet state
+  const [disconnectSheet, setDisconnectSheet] = useState<{ visible: boolean; device: PairedDevice | null }>({
+    visible: false,
+    device: null,
+  });
+  const [errorSheet, setErrorSheet] = useState<{ visible: boolean; message: string }>({
+    visible: false,
+    message: "",
+  });
+  const [restartSheet, setRestartSheet] = useState(false);
 
   const isOnline = connectionState === "online";
 
@@ -75,34 +85,22 @@ export default function GhostPodScreen() {
   }, [config]);
 
   const handleDisconnect = (device: PairedDevice) => {
-    Alert.alert(
-      "Disconnect this device?",
-      `"${device.display_name}" will no longer be able to reach your Ghost. Your Ghost itself is not affected.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Disconnect",
-          style: "destructive",
-          onPress: async () => {
-            if (!config) return;
-            try {
-              await revokePairedDevice(config, device.device_id);
-              loadDevices();
-            } catch (err: any) {
-              Alert.alert("Error", err?.message ?? "Failed to disconnect");
-            }
-          },
-        },
-      ],
-    );
+    setDisconnectSheet({ visible: true, device });
+  };
+
+  const confirmDisconnect = async () => {
+    const device = disconnectSheet.device;
+    if (!config || !device) return;
+    try {
+      await revokePairedDevice(config, device.device_id);
+      loadDevices();
+    } catch (err: any) {
+      setErrorSheet({ visible: true, message: err?.message ?? "Failed to disconnect" });
+    }
   };
 
   const handleRestart = () => {
-    Alert.alert(
-      "Restart this device",
-      "Rebooting the hardware is only available from the Ghost web console. Open the console on your Ghost Pod to restart it.",
-      [{ text: "OK" }],
-    );
+    setRestartSheet(true);
   };
 
   const activePreset =
@@ -118,7 +116,7 @@ export default function GhostPodScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: Ghost.bg.base }}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl }]}
     >
       <GhostText type="title" style={styles.title}>
         Ghost Pod
@@ -205,6 +203,33 @@ export default function GhostPodScreen() {
         onPress={handleRestart}
         fullWidth
         style={styles.actionButton}
+      />
+
+      {/* Sheets */}
+      <GhostSheet
+        visible={disconnectSheet.visible}
+        onClose={() => setDisconnectSheet({ visible: false, device: null })}
+        title="Disconnect this device?"
+        message={`"${disconnectSheet.device?.display_name}" will no longer be able to reach your Ghost. Your Ghost itself is not affected.`}
+        confirmTitle="Disconnect"
+        onConfirm={confirmDisconnect}
+        variant="destructive"
+      />
+      <GhostSheet
+        visible={errorSheet.visible}
+        onClose={() => setErrorSheet({ visible: false, message: "" })}
+        title="Error"
+        message={errorSheet.message}
+        confirmTitle="OK"
+        onConfirm={() => {}}
+      />
+      <GhostSheet
+        visible={restartSheet}
+        onClose={() => setRestartSheet(false)}
+        title="Restart this device"
+        message="Rebooting the hardware is only available from the Ghost web console. Open the console on your Ghost Pod to restart it."
+        confirmTitle="OK"
+        onConfirm={() => {}}
       />
     </ScrollView>
   );
@@ -311,13 +336,11 @@ function InfoRow({
 const styles = StyleSheet.create({
   container: {
     padding: Space.xl,
-    paddingTop: 80,
   },
   title: {
     fontSize: 28,
     fontWeight: "600",
     marginBottom: 24,
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   statusRow: {
@@ -326,17 +349,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   statusText: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
     fontWeight: "500",
   },
   statusLabel: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     marginTop: 2,
   },
   offlineText: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     fontStyle: "italic",
     marginTop: Space.sm,
@@ -345,7 +365,6 @@ const styles = StyleSheet.create({
     marginTop: Space.xl,
   },
   emptyText: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     opacity: 0.5,
     textAlign: "center",
@@ -362,11 +381,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   rowTitle: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   rowSubtitle: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
   },
   infoRow: {
@@ -376,11 +393,9 @@ const styles = StyleSheet.create({
     paddingVertical: Space.sm,
   },
   infoLabel: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
   },
   infoValue: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
     flexShrink: 1,
     textAlign: "right",
@@ -398,11 +413,9 @@ const styles = StyleSheet.create({
     gap: Space.xs,
   },
   loadLabel: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   loadSub: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
   },
   actionButton: {

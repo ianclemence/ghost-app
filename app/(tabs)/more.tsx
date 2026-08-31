@@ -5,19 +5,17 @@ import React from "react";
 import {
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Radius, Space } from "@/constants/theme";
+import { GhostText } from "@/components/themed-text";
 import { StatusDot, Divider } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import { useGhostStore } from "@/lib/store";
-
-const FONT = Fonts.sans;
 
 const CAPABILITIES = [
   { name: "Research", description: "Web search and browsing" },
@@ -46,7 +44,7 @@ export default function MoreScreen() {
       <View style={styles.profileSection}>
         <GhostMark size={48} />
         <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>Ghost</Text>
+          <GhostText type="headline" style={styles.profileName}>Ghost</GhostText>
           <View style={styles.profileStatus}>
             <StatusDot
               status={
@@ -57,24 +55,24 @@ export default function MoreScreen() {
                     : "offline"
               }
             />
-            <Text style={styles.profileStatusText}>
+            <GhostText type="subhead" style={styles.profileStatusText}>
               {connectionState === "online"
                 ? "Online"
                 : connectionState === "syncing"
                   ? "Syncing"
                   : "Offline"}
-            </Text>
+            </GhostText>
           </View>
         </View>
       </View>
 
       {/* Capabilities */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Capabilities</Text>
+        <GhostText type="caption" style={styles.sectionTitle}>Capabilities</GhostText>
         {CAPABILITIES.map((cap) => (
           <View key={cap.name} style={styles.capRow}>
-            <Text style={styles.capName}>{cap.name}</Text>
-            <Text style={styles.capDesc}>{cap.description}</Text>
+            <GhostText type="headline" style={styles.capName}>{cap.name}</GhostText>
+            <GhostText type="subhead" style={styles.capDesc}>{cap.description}</GhostText>
           </View>
         ))}
       </View>
@@ -83,13 +81,13 @@ export default function MoreScreen() {
 
       {/* Settings */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Settings</Text>
+        <GhostText type="caption" style={styles.sectionTitle}>Settings</GhostText>
         <TouchableOpacity
           style={styles.menuRow}
           activeOpacity={0.6}
           onPress={() => router.push("/ghost-pod")}
         >
-          <Text style={styles.menuLabel}>Ghost Pod</Text>
+          <GhostText type="headline" style={styles.menuLabel}>Ghost Pod</GhostText>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
         <TouchableOpacity
@@ -97,7 +95,7 @@ export default function MoreScreen() {
           activeOpacity={0.6}
           onPress={() => router.push("/permissions")}
         >
-          <Text style={styles.menuLabel}>Permissions</Text>
+          <GhostText type="headline" style={styles.menuLabel}>Permissions</GhostText>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
       </View>
@@ -106,13 +104,13 @@ export default function MoreScreen() {
 
       {/* About */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>About</Text>
+        <GhostText type="caption" style={styles.sectionTitle}>About</GhostText>
         <TouchableOpacity
           style={styles.menuRow}
           activeOpacity={0.6}
           onPress={() => router.push("/about")}
         >
-          <Text style={styles.menuLabel}>About Ghost</Text>
+          <GhostText type="headline" style={styles.menuLabel}>About Ghost</GhostText>
           <ChevronRight size={16} color={Ghost.text.tertiary} />
         </TouchableOpacity>
       </View>
@@ -138,8 +136,6 @@ const styles = StyleSheet.create({
     gap: Space.xs,
   },
   profileName: {
-    ...Type.headline,
-    fontFamily: FONT,
     color: Ghost.text.primary,
     fontSize: 20,
   },
@@ -149,8 +145,6 @@ const styles = StyleSheet.create({
     gap: Space.xs,
   },
   profileStatusText: {
-    ...Type.subhead,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
   },
 
@@ -160,8 +154,6 @@ const styles = StyleSheet.create({
     paddingVertical: Space.md,
   },
   sectionTitle: {
-    ...Type.caption,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     letterSpacing: 0.3,
     marginBottom: Space.sm,
@@ -173,14 +165,10 @@ const styles = StyleSheet.create({
     paddingVertical: Space.sm,
   },
   capName: {
-    ...Type.headline,
-    fontFamily: FONT,
     color: Ghost.text.primary,
     fontSize: 15,
   },
   capDesc: {
-    ...Type.subhead,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     marginTop: 2,
   },
@@ -193,8 +181,6 @@ const styles = StyleSheet.create({
     paddingVertical: Space.md,
   },
   menuLabel: {
-    ...Type.headline,
-    fontFamily: FONT,
     color: Ghost.text.primary,
     fontSize: 15,
   },

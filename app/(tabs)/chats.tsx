@@ -3,14 +3,15 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  RefreshControl,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { GhostText } from "@/components/themed-text";
 import { EmptyState, GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import {
@@ -19,10 +20,8 @@ import {
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
-const FONT = Fonts.sans;
-
 function formatRelativeTime(timestamp: number): string {
-  const ts = (timestamp || 0) * 1000; // gateway returns seconds
+  const ts = (timestamp || 0) * 1000;
   const now = Date.now();
   const diffMs = now - ts;
   const diffMin = Math.floor(diffMs / 60000);
@@ -85,6 +84,7 @@ export default function ConversationsScreen() {
   const { config, connectionState, setCurrentSession } = useGhostStore();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadSessions = useCallback(async () => {
     if (!config) return;
@@ -96,6 +96,18 @@ export default function ConversationsScreen() {
       // Empty state is fine
     }
     setLoading(false);
+  }, [config]);
+
+  const onRefresh = useCallback(async () => {
+    if (!config) return;
+    setRefreshing(true);
+    try {
+      const list = await fetchSessions(config);
+      setSessions(list);
+    } catch {
+      // Fine
+    }
+    setRefreshing(false);
   }, [config]);
 
   useEffect(() => {
@@ -122,16 +134,16 @@ export default function ConversationsScreen() {
         onPress={() => openConversation(item)}
       >
         <View style={styles.rowContent}>
-          <Text style={styles.rowTitle} numberOfLines={1}>
+          <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>
             {getSessionTitle(item)}
-          </Text>
-          <Text style={styles.rowTime}>
+          </GhostText>
+          <GhostText type="footnote" style={styles.rowTime}>
             {formatRelativeTime(item.last_activity ?? Date.now())}
-          </Text>
+          </GhostText>
         </View>
-        <Text style={styles.rowSubtitle}>
+        <GhostText type="footnote" style={styles.rowSubtitle}>
           {item.message_count} message{item.message_count !== 1 ? "s" : ""}
-        </Text>
+        </GhostText>
       </TouchableOpacity>
     ),
     [],
@@ -140,12 +152,12 @@ export default function ConversationsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Chats</Text>
+        <GhostText type="largeTitle" style={styles.headerTitle}>Chats</GhostText>
         <View style={styles.headerRight}>
           {connectionState !== "online" && (
             <View style={styles.offlineBadge}>
               <GhostMark size={12} color={Ghost.text.tertiary} />
-              <Text style={styles.offlineText}>Offline</Text>
+              <GhostText type="footnote" style={styles.offlineText}>Offline</GhostText>
             </View>
           )}
           {config && sessions.length > 0 && (
@@ -154,7 +166,7 @@ export default function ConversationsScreen() {
               activeOpacity={0.7}
               onPress={handleNewConversation}
             >
-              <Text style={styles.newButtonText}>New</Text>
+              <GhostText type="subhead" style={styles.newButtonText}>New</GhostText>
             </TouchableOpacity>
           )}
         </View>
@@ -171,7 +183,8 @@ export default function ConversationsScreen() {
         </View>
       ) : sessions.length === 0 ? (
         <EmptyState
-          title="Start talking to Ghost."
+          title="No conversations yet."
+          subtitle="Start one and Ghost will remember."
           action={
             <GhostButton
               title="New Conversation"
@@ -185,7 +198,7 @@ export default function ConversationsScreen() {
           keyExtractor={(item) => item.title}
           renderItem={({ item: section }) => (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <GhostText type="caption" style={styles.sectionTitle}>{section.title}</GhostText>
               {section.data.map((session) => (
                 <View key={session.id}>{renderItem({ item: session })}</View>
               ))}
@@ -193,6 +206,13 @@ export default function ConversationsScreen() {
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Ghost.accent.primary}
+            />
+          }
         />
       )}
     </View>
@@ -217,8 +237,6 @@ const styles = StyleSheet.create({
     gap: Space.sm,
   },
   headerTitle: {
-    ...Type.largeTitle,
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   offlineBadge: {
@@ -229,8 +247,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.sm,
   },
   offlineText: {
-    ...Type.footnote,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
   },
   newButton: {
@@ -240,8 +256,6 @@ const styles = StyleSheet.create({
     backgroundColor: Ghost.accent.soft,
   },
   newButtonText: {
-    ...Type.subhead,
-    fontFamily: FONT,
     fontWeight: "500",
     color: Ghost.accent.primary,
   },
@@ -258,8 +272,6 @@ const styles = StyleSheet.create({
     marginBottom: Space.xxl,
   },
   sectionTitle: {
-    ...Type.caption,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     letterSpacing: 0.3,
     marginBottom: Space.sm,
@@ -273,20 +285,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   rowTitle: {
-    ...Type.headline,
-    fontFamily: FONT,
     color: Ghost.text.primary,
     flex: 1,
   },
   rowTime: {
-    ...Type.footnote,
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     marginLeft: Space.sm,
   },
   rowSubtitle: {
-    ...Type.footnote,
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     marginTop: Space.xxs,
   },

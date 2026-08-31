@@ -1,14 +1,14 @@
 import { View, StyleSheet, ScrollView, Linking, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import { GhostText } from "@/components/themed-text";
-import { Ghost, Fonts, Space } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 import { GhostMark } from "@/components/ghost-mark";
 import Constants from "expo-constants";
 import { useGhostStore } from "@/lib/store";
 
-const FONT = Fonts.sans;
-
 export default function AboutScreen() {
+  const insets = useSafeAreaInsets();
   const version = Constants.expoConfig?.version ?? "2.0.0";
   const ghostName = useGhostStore((s) => s.ghostName);
   const name = ghostName || "Ghost";
@@ -16,7 +16,7 @@ export default function AboutScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: Ghost.bg.base }}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl }]}
     >
       <GhostText type="title" style={styles.title}>
         About
@@ -123,13 +123,11 @@ export default function AboutScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: Space.xl,
-    paddingTop: 80,
   },
   title: {
     fontSize: 28,
     fontWeight: "600",
     marginBottom: 24,
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   center: {
@@ -138,11 +136,9 @@ const styles = StyleSheet.create({
     gap: Space.sm,
   },
   appName: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   tagline: {
-    fontFamily: FONT,
     color: Ghost.text.tertiary,
     fontStyle: "italic",
   },
@@ -153,18 +149,15 @@ const styles = StyleSheet.create({
     paddingVertical: Space.sm,
   },
   infoLabel: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
   },
   infoValue: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   block: {
     marginTop: Space.xl,
   },
   prose: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     lineHeight: 22,
   },
@@ -173,12 +166,10 @@ const styles = StyleSheet.create({
     marginVertical: Space.sm,
   },
   bullet: {
-    fontFamily: FONT,
     color: Ghost.text.secondary,
     lineHeight: 22,
   },
   bold: {
-    fontFamily: FONT,
     fontWeight: "700",
     color: Ghost.text.primary,
   },
@@ -190,7 +181,6 @@ const styles = StyleSheet.create({
     marginTop: Space.md,
   },
   linkLabel: {
-    fontFamily: FONT,
     color: Ghost.text.primary,
   },
   divider: {
