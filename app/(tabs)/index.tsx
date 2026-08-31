@@ -241,7 +241,6 @@ const styles = StyleSheet.create({
   inputBar: {
     alignItems: "center",
     paddingVertical: Space.md,
-    backgroundColor: Ghost.bg.raised,
   },
   inputPlaceholder: {
     color: Ghost.text.tertiary,
