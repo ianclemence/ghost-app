@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Modal,
   Platform,
   Pressable,
@@ -189,24 +190,47 @@ export function GhostSheet({
   children?: React.ReactNode;
 }) {
   const isAlert = !!message || !!confirmTitle;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      slideAnim.setValue(0);
+      Animated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 30,
+        stiffness: 300,
+      }).start();
+    }
+  }, [visible, slideAnim]);
+
+  const sheetTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [300, 0],
+  });
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         style={{ flex: 1, backgroundColor: UI.modal.backdrop }}
         onPress={onClose}
       >
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
-          <Pressable
+          <Animated.View
             style={{
-              backgroundColor: Ghost.bg.base,
-              borderTopLeftRadius: Radius.xxl,
-              borderTopRightRadius: Radius.xxl,
-              maxHeight: "88%",
-              paddingTop: Space.sm,
+              transform: [{ translateY: sheetTranslateY }],
             }}
-            onPress={(e) => e.stopPropagation()}
           >
+            <Pressable
+              style={{
+                backgroundColor: Ghost.bg.base,
+                borderTopLeftRadius: Radius.xxl,
+                borderTopRightRadius: Radius.xxl,
+                maxHeight: "88%",
+                paddingTop: Space.sm,
+              }}
+              onPress={(e) => e.stopPropagation()}
+            >
             {/* Grabber */}
             <View
               style={{
@@ -282,6 +306,7 @@ export function GhostSheet({
               </ScrollView>
             )}
           </Pressable>
+          </Animated.View>
         </View>
       </Pressable>
     </Modal>
