@@ -1,8 +1,13 @@
-import { ArrowLeft, Send } from "lucide-react-native";
+import { ArrowLeft, Paperclip, Send, X } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActionSheetIOS,
+  Alert,
   FlatList,
+  Image as RNImage,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -20,6 +25,7 @@ import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import {
   fetchHistory,
   sendMessage,
+  uploadFile,
   normalizeSession,
 } from "@/lib/ghostApi";
 
@@ -40,6 +46,14 @@ export default function ConversationScreen() {
   } = useGhostStore();
 
   const [input, setInput] = useState("");
+  const [pendingMedia, setPendingMedia] = useState<{
+    uri: string;
+    mimeType: string;
+    filename: string;
+    type: "image" | "file";
+    base64?: string;
+  } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -63,13 +77,83 @@ export default function ConversationScreen() {
     loadHistory();
   }, [config, currentSession]);
 
+  const pickImage = useCallback(async (useCamera: boolean) => {
+    try {
+      const launcher = useCamera
+        ? ImagePicker.launchCameraAsync
+        : ImagePicker.launchImageLibraryAsync;
+      const result = await launcher({
+        mediaTypes: ["images"],
+        quality: 0.8,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setPendingMedia({
+          uri: asset.uri,
+          mimeType: asset.mimeType ?? "image/jpeg",
+          filename: asset.fileName ?? `photo-${Date.now()}.jpg`,
+          type: "image",
+          base64: asset.base64 ?? undefined,
+        });
+      }
+    } catch {
+      // User cancelled or permission denied
+    }
+  }, []);
+
+  const pickFile = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setPendingMedia({
+          uri: asset.uri,
+          mimeType: asset.mimeType ?? "application/octet-stream",
+          filename: asset.name ?? `file-${Date.now()}`,
+          type: "file",
+        });
+      }
+    } catch {
+      // User cancelled
+    }
+  }, []);
+
+  const showAttachmentOptions = useCallback(() => {
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ["Cancel", "Take Photo", "Choose Photo", "Choose File"],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) pickImage(true);
+          else if (buttonIndex === 2) pickImage(false);
+          else if (buttonIndex === 3) pickFile();
+        },
+      );
+    } else {
+      Alert.alert("Attach", "Choose an option", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Take Photo", onPress: () => pickImage(true) },
+        { text: "Choose Photo", onPress: () => pickImage(false) },
+        { text: "Choose File", onPress: pickFile },
+      ]);
+    }
+  }, [pickImage, pickFile]);
+
   const handleSend = useCallback(async () => {
-    if (!config || !input.trim() || isStreaming) return;
+    if (!config || isStreaming) return;
+    const text = input.trim();
+    if (!text && !pendingMedia) return;
 
     const userMessage: ExtendedMessage = {
       id: `temp-${Date.now()}`,
       role: "user",
-      content: input.trim(),
+      content: text || (pendingMedia ? `[${pendingMedia.type === "image" ? "Image" : "File"}: ${pendingMedia.filename}]` : ""),
       timestamp: Date.now(),
       status: "sending",
     };
@@ -85,21 +169,46 @@ export default function ConversationScreen() {
     };
     appendMessage(assistantPlaceholder);
 
+    const mediaB64 = pendingMedia?.base64;
+    const mediaType = pendingMedia?.mimeType;
+    setPendingMedia(null);
     setInput("");
     setStreaming(true);
 
     try {
-      await sendMessage(config, {
-        content: input.trim(),
-        sessionKey: currentSession || normalizeSession(config.session),
-        onChunk: (token) => appendStream(token),
-        onDone: () => commitStream(),
-        onError: () => setStreaming(false),
-      });
+      if (pendingMedia && !mediaB64) {
+        setUploading(true);
+        const uploaded = await uploadFile(
+          config,
+          pendingMedia.uri,
+          pendingMedia.mimeType,
+          pendingMedia.filename,
+        );
+        setUploading(false);
+        await sendMessage(config, {
+          content: text || "",
+          mediaB64: uploaded.b64,
+          mediaType: uploaded.mime_type,
+          sessionKey: currentSession || normalizeSession(config.session),
+          onChunk: (token) => appendStream(token),
+          onDone: () => commitStream(),
+          onError: () => setStreaming(false),
+        });
+      } else {
+        await sendMessage(config, {
+          content: text || "",
+          mediaB64,
+          mediaType,
+          sessionKey: currentSession || normalizeSession(config.session),
+          onChunk: (token) => appendStream(token),
+          onDone: () => commitStream(),
+          onError: () => setStreaming(false),
+        });
+      }
     } catch {
       setStreaming(false);
     }
-  }, [config, input, isStreaming, currentSession]);
+  }, [config, input, isStreaming, currentSession, pendingMedia]);
 
   const renderMessage = useCallback(
     ({ item, index }: { item: ExtendedMessage; index: number }) => {
@@ -169,24 +278,53 @@ export default function ConversationScreen() {
 
       {/* Input */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.sm }]}>
+        {/* Media Preview */}
+        {pendingMedia && (
+          <View style={styles.previewContainer}>
+            {pendingMedia.type === "image" ? (
+              <RNImage source={{ uri: pendingMedia.uri }} style={styles.previewImage} />
+            ) : (
+              <View style={styles.previewFile}>
+                <Text style={styles.previewFileName} numberOfLines={1}>
+                  {pendingMedia.filename}
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.previewRemove}
+              onPress={() => setPendingMedia(null)}
+            >
+              <X size={14} color={Ghost.text.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.inputRow}>
+          <TouchableOpacity
+            style={styles.attachButton}
+            activeOpacity={0.7}
+            onPress={showAttachmentOptions}
+          >
+            <Paperclip size={20} color={Ghost.text.secondary} />
+          </TouchableOpacity>
           <TextInput
             ref={inputRef}
             style={styles.textInput}
             value={input}
             onChangeText={setInput}
-            placeholder="Message Ghost..."
+            placeholder={uploading ? "Uploading..." : "Message Ghost..."}
             placeholderTextColor={Ghost.text.tertiary}
             multiline
             maxLength={2000}
             onSubmitEditing={handleSend}
             blurOnSubmit={false}
+            editable={!uploading}
           />
-          {input.trim().length > 0 && (
+          {(input.trim().length > 0 || pendingMedia) && (
             <TouchableOpacity
-              style={styles.sendButton}
+              style={[styles.sendButton, uploading && styles.sendButtonDisabled]}
               activeOpacity={0.7}
               onPress={handleSend}
+              disabled={uploading}
             >
               <Send size={18} color={Ghost.text.primary} strokeWidth={2.5} />
             </TouchableOpacity>
@@ -261,6 +399,14 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: Space.sm,
   },
+  attachButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
   textInput: {
     flex: 1,
     backgroundColor: Ghost.bg.raised,
@@ -283,6 +429,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+  },
+  previewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Space.sm,
+    gap: Space.sm,
+  },
+  previewImage: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.md,
+    backgroundColor: Ghost.bg.sunken,
+  },
+  previewFile: {
+    flex: 1,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Ghost.bg.sunken,
+    borderWidth: 1,
+    borderColor: Ghost.border.subtle,
+    paddingHorizontal: Space.md,
+    justifyContent: "center",
+  },
+  previewFileName: {
+    ...Type.body,
+    color: Ghost.text.primary,
+    fontSize: 13,
+  },
+  previewRemove: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Ghost.bg.raised,
+    borderWidth: 1,
+    borderColor: Ghost.border.subtle,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
