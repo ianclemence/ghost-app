@@ -1,8 +1,17 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GhostText } from "@/components/themed-text";
@@ -12,18 +21,47 @@ import { Ghost, Radius, Space } from "@/constants/theme";
 import { parsePairingURI } from "@/lib/pairing";
 import { startPairing } from "@/lib/connection";
 
+const SCAN_SIZE = 250;
+const CORNER_SIZE = 20;
+const CORNER_THICKNESS = 2;
+
 /**
  * QR Scanner screen.
  *
- * Calm, full-screen camera view with Ghost's editorial restraint.
- * No decorative scanning animations. No glowing reticle.
- * Just the camera, the Ghost mark, and a clear instruction.
+ * Full-screen camera with a clear "window" cutout for the QR code.
+ * Dark mask surrounds the scan area. Subtle animated scanning line
+ * provides visual feedback. Clean, minimal, premium.
  */
 export default function QrScannerScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [status, setStatus] = useState<"idle" | "scanned" | "invalid">("idle");
+
+  const scanLineAnim = useRef(new Animated.Value(0)).current;
+  const invalidFlash = useRef(new Animated.Value(0)).current;
+
+  // Scanning line animation
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanLineAnim, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scanLineAnim, {
+          toValue: 0,
+          duration: 1800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [scanLineAnim]);
 
   const handleScan = useCallback(
     ({ data }: { data: string }) => {
@@ -33,6 +71,21 @@ export default function QrScannerScreen() {
       if (!payload || payload.type !== "secure") {
         setStatus("invalid");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+        // Flash the corners red briefly
+        Animated.sequence([
+          Animated.timing(invalidFlash, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(invalidFlash, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]).start();
+
         setTimeout(() => setStatus("idle"), 2000);
         return;
       }
@@ -53,8 +106,18 @@ export default function QrScannerScreen() {
         },
       });
     },
-    [status, router],
+    [status, router, invalidFlash],
   );
+
+  const scanLineTranslateY = scanLineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, SCAN_SIZE - 2],
+  });
+
+  const cornerColor = invalidFlash.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["rgba(255,255,255,0.8)", "#C24B3C"],
+  });
 
   // Loading
   if (!permission) {
@@ -97,63 +160,108 @@ export default function QrScannerScreen() {
   // Camera ready
   return (
     <View style={styles.container}>
+      {/* Camera feed */}
       <CameraView
         style={StyleSheet.absoluteFill}
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
         onBarcodeScanned={status === "scanned" ? undefined : handleScan}
       />
 
-      {/* Top scrim with instruction */}
-      <View style={[styles.scrim, styles.scrimTop, { paddingTop: insets.top + Space.lg }]}>
-        <GhostMark size={28} color="rgba(255,255,255,0.85)" />
-        <GhostText type="headline" style={styles.instruction}>
-          Scan your Ghost
-        </GhostText>
-        <GhostText type="subhead" style={styles.hint}>
-          Point at the QR code on your Ghost Pod
-        </GhostText>
+      {/* Dark mask with clear window */}
+      <View style={styles.maskLayer} pointerEvents="none">
+        {/* Top mask */}
+        <View style={styles.maskTop} />
+
+        {/* Middle row: left mask + scan window + right mask */}
+        <View style={styles.maskMiddle}>
+          <View style={styles.maskSide} />
+          <View style={styles.scanWindow}>
+            {/* Scanning line */}
+            {status === "idle" && (
+              <Animated.View
+                style={[
+                  styles.scanLine,
+                  { transform: [{ translateY: scanLineTranslateY }] },
+                ]}
+              >
+                <LinearGradient
+                  colors={[
+                    "transparent",
+                    "rgba(255,255,255,0.4)",
+                    "rgba(255,255,255,0.6)",
+                    "rgba(255,255,255,0.4)",
+                    "transparent",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            )}
+
+            {/* Corner accents */}
+            <Animated.View
+              style={[styles.corner, styles.cornerTL, { borderColor: cornerColor }]}
+            />
+            <Animated.View
+              style={[styles.corner, styles.cornerTR, { borderColor: cornerColor }]}
+            />
+            <Animated.View
+              style={[styles.corner, styles.cornerBL, { borderColor: cornerColor }]}
+            />
+            <Animated.View
+              style={[styles.corner, styles.cornerBR, { borderColor: cornerColor }]}
+            />
+          </View>
+          <View style={styles.maskSide} />
+        </View>
+
+        {/* Bottom mask */}
+        <View style={styles.maskBottom} />
       </View>
 
-      {/* Reticle — four corner marks, not a full border */}
-      <View style={styles.reticleContainer} pointerEvents="none">
-        <View style={[styles.corner, styles.cornerTL]} />
-        <View style={[styles.corner, styles.cornerTR]} />
-        <View style={[styles.corner, styles.cornerBL]} />
-        <View style={[styles.corner, styles.cornerBR]} />
+      {/* Header text */}
+      <View
+        style={[styles.headerOverlay, { paddingTop: insets.top + Space.lg }]}
+      >
+        <GhostMark size={24} color="rgba(255,255,255,0.7)" />
+        <Text style={styles.headerTitle}>Scan your Ghost Pod</Text>
+        <Text style={styles.headerHint}>
+          Center the QR code in the frame
+        </Text>
       </View>
 
-      {/* Bottom scrim with feedback and cancel */}
-      <View style={[styles.scrim, styles.scrimBottom, { paddingBottom: insets.bottom + Space.xl }]}>
+      {/* Bottom feedback + cancel */}
+      <View
+        style={[
+          styles.bottomOverlay,
+          { paddingBottom: insets.bottom + Space.xl },
+        ]}
+      >
         {status === "invalid" && (
-          <GhostText type="callout" style={styles.invalidText}>
-            That&apos;s not a Ghost pairing code.
-          </GhostText>
+          <Text style={styles.invalidText}>
+            Not a Ghost pairing code
+          </Text>
         )}
 
         {status === "scanned" && (
           <View style={styles.loadingRow}>
-            <ActivityIndicator color={Ghost.accent.primary} size="small" />
-            <GhostText type="callout" style={styles.loadingText}>
-              Connecting…
-            </GhostText>
+            <ActivityIndicator color="#fff" size="small" />
+            <Text style={styles.loadingText}>Connecting…</Text>
           </View>
         )}
 
-        <GhostButton
-          title="Cancel"
-          variant="ghost"
+        <TouchableOpacity
+          style={styles.cancelButton}
+          activeOpacity={0.7}
           onPress={() => router.back()}
-          fullWidth
-        />
+        >
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 }
-
-const CORNER_SIZE = 28;
-const CORNER_THICKNESS = 2;
-const CORNER_RADIUS = 4;
-const RETICLE_MARGIN = 56;
 
 const styles = StyleSheet.create({
   container: {
@@ -168,83 +276,139 @@ const styles = StyleSheet.create({
     backgroundColor: Ghost.bg.base,
   },
 
-  // Scrims — gradient-free, just translucent solids
-  scrim: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    paddingHorizontal: Space.xxl,
-    zIndex: 10,
+  // ─── Mask Layer ──────────────────────────────────────────────────────────
+  maskLayer: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 2,
   },
-  scrimTop: {
-    top: 0,
-    paddingBottom: Space.xxxl,
-    gap: Space.xs,
-    // Subtle gradient via two layers
-    backgroundColor: "rgba(0,0,0,0.55)",
+  maskTop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
   },
-  scrimBottom: {
-    bottom: 0,
-    paddingTop: Space.xxl,
-    gap: Space.md,
+  maskMiddle: {
+    flexDirection: "row",
+    height: SCAN_SIZE,
+  },
+  maskSide: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
+  },
+  maskBottom: {
+    flex: 1,
     backgroundColor: "rgba(0,0,0,0.65)",
   },
 
-  instruction: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-    marginTop: Space.sm,
-  },
-  hint: {
-    color: "rgba(255,255,255,0.6)",
-    textAlign: "center",
+  // ─── Scan Window ─────────────────────────────────────────────────────────
+  scanWindow: {
+    width: SCAN_SIZE,
+    height: SCAN_SIZE,
+    position: "relative",
   },
 
-  // Reticle — four corner marks
-  reticleContainer: {
-    ...StyleSheet.absoluteFill,
-    margin: RETICLE_MARGIN,
-    zIndex: 5,
+  // Scanning line
+  scanLine: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    height: 2,
+    zIndex: 2,
   },
+
+  // Corner accents — thin, elegant
   corner: {
     position: "absolute",
     width: CORNER_SIZE,
     height: CORNER_SIZE,
-    borderColor: "rgba(255,255,255,0.7)",
-    borderWidth: 0, // We use border sides instead
+    borderWidth: 0,
   },
   cornerTL: {
     top: 0,
     left: 0,
     borderTopWidth: CORNER_THICKNESS,
     borderLeftWidth: CORNER_THICKNESS,
-    borderTopLeftRadius: CORNER_RADIUS,
+    borderTopLeftRadius: 3,
   },
   cornerTR: {
     top: 0,
     right: 0,
     borderTopWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
-    borderTopRightRadius: CORNER_RADIUS,
+    borderTopRightRadius: 3,
   },
   cornerBL: {
     bottom: 0,
     left: 0,
     borderBottomWidth: CORNER_THICKNESS,
     borderLeftWidth: CORNER_THICKNESS,
-    borderBottomLeftRadius: CORNER_RADIUS,
+    borderBottomLeftRadius: 3,
   },
   cornerBR: {
     bottom: 0,
     right: 0,
     borderBottomWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
-    borderBottomRightRadius: CORNER_RADIUS,
+    borderBottomRightRadius: 3,
   },
 
-  // Permission denied
+  // ─── Text Overlays ───────────────────────────────────────────────────────
+  headerOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    gap: Space.xs,
+    zIndex: 10,
+  },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "600",
+    letterSpacing: -0.3,
+    marginTop: Space.sm,
+  },
+  headerHint: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    fontWeight: "400",
+  },
+
+  bottomOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    gap: Space.md,
+    paddingHorizontal: Space.xxl,
+    zIndex: 10,
+  },
+  invalidText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+  },
+  loadingText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  cancelButton: {
+    paddingVertical: Space.sm,
+    paddingHorizontal: Space.xl,
+  },
+  cancelText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 15,
+    fontWeight: "400",
+  },
+
+  // ─── Permission Denied ───────────────────────────────────────────────────
   deniedTitle: {
     color: Ghost.text.primary,
     textAlign: "center",
@@ -258,20 +422,5 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: Space.sm,
     marginTop: Space.lg,
-  },
-
-  // Feedback
-  invalidText: {
-    color: "rgba(255,255,255,0.8)",
-    textAlign: "center",
-  },
-  loadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.sm,
-    justifyContent: "center",
-  },
-  loadingText: {
-    color: "rgba(255,255,255,0.8)",
   },
 });
