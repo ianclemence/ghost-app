@@ -16,10 +16,11 @@ import { EmptyState, GhostButton } from "@/components/ghost";
 import {
   fetchSessions,
   fetchCronJobs,
-  fetchMemoryFiles,
+  fetchMemorySelf,
   fetchTraces,
   SessionSummary,
   CronJob,
+  MemoryFact,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
@@ -89,19 +90,25 @@ function humanErrorTitle(message: string): string {
     .trim() || "Something didn't work";
 }
 
-function humanMemoryTitle(name: string): string {
-  return (
-    String(name || "")
-      .replace(/\.md$/, "")
-      .replace(/[_-]+/g, " ")
-      .trim() || "Memory"
-  );
+const MEMORY_KIND_LABEL: Record<string, string> = {
+  identity: "Identity",
+  preference: "Preferences",
+  fact: "About you",
+  goal: "Goals",
+  relationship: "People",
+  routine: "Routines",
+};
+
+function memoryEventDate(createdAt?: string): number {
+  if (!createdAt) return 0;
+  const ts = Math.floor(new Date(createdAt).getTime() / 1000);
+  return Number.isFinite(ts) && ts > 0 ? ts : 0;
 }
 
 function collectItems(
   sessions: SessionSummary[],
   jobs: CronJob[],
-  memory: { name: string; modified: number }[],
+  memory: MemoryFact[],
   traces: { timestamp: number; message: string; level: string }[],
 ): ActivityItem[] {
   const items: ActivityItem[] = [];
@@ -145,19 +152,22 @@ function collectItems(
     });
   }
 
-  for (const m of memory.slice(0, 20)) {
-    const ts = m.modified || 0;
+  // Memory events come from learned facts (created_at is the truthful
+  // "when"), never from workspace filenames or file mtimes.
+  for (const e of memory.slice(0, 50)) {
+    if (!e.id || seen.has(`mem:${e.id}`)) continue;
+    seen.add(`mem:${e.id}`);
+    const ts = memoryEventDate(e.created_at);
     if (!ts) continue;
-    const title = humanMemoryTitle(m.name);
-    const key = `mem:${m.name}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const kindLabel = MEMORY_KIND_LABEL[e.kind] ?? MEMORY_KIND_LABEL.fact;
+    const metaParts = [kindLabel];
+    if ((e.reinforce_count ?? 0) > 1) metaParts.push(`confirmed ${e.reinforce_count}×`);
     items.push({
-      id: key,
+      id: `mem:${e.id}`,
       kind: "memory",
       ts,
-      title,
-      meta: "Saved to memory",
+      title: `Ghost learned: ${(e.title || e.value || "something new").trim()}`,
+      meta: metaParts.join(" · "),
     });
   }
 
@@ -210,13 +220,13 @@ export default function ActivityScreen() {
       const [sessions, jobs, memory, traces] = await Promise.all([
         safe("sessions", () => fetchSessions(config)),
         safe("cron", () => fetchCronJobs(config)),
-        safe("memory", () => fetchMemoryFiles(config)),
+        safe("memory", () => fetchMemorySelf(config).then((self) => self.entries)),
         safe("traces", () => fetchTraces(config)),
       ]);
 
       const s = Array.isArray(sessions) ? (sessions as SessionSummary[]) : [];
       const j = Array.isArray(jobs) ? (jobs as CronJob[]) : [];
-      const m = Array.isArray(memory) ? (memory as { name: string; modified: number }[]) : [];
+      const m = Array.isArray(memory) ? (memory as MemoryFact[]) : [];
       const t = Array.isArray(traces)
         ? (traces as { timestamp: number; message: string; level: string }[])
         : [];
