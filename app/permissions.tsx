@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
+import { useState, useCallback } from "react";
+import { View, StyleSheet, ScrollView, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as Location from "expo-location";
 import { Camera } from "expo-camera";
@@ -34,13 +35,19 @@ export default function PermissionsScreen() {
     } catch {}
   };
 
-  useEffect(() => {
-    checkPermissions();
-  }, []);
+  // Re-read OS state every time the screen gains focus: the toggles mirror
+  // the system grant, which the user can change in Settings at any time.
+  // Turning a toggle off opens OS Settings because apps cannot revoke
+  // their own grants.
+  useFocusEffect(
+    useCallback(() => {
+      checkPermissions();
+    }, []),
+  );
 
   const toggleNotifications = async () => {
     if (notifEnabled) {
-      setNotifEnabled(false);
+      await Linking.openSettings();
       return;
     }
     try {
@@ -51,7 +58,7 @@ export default function PermissionsScreen() {
 
   const toggleLocation = async () => {
     if (locationEnabled) {
-      setLocationEnabled(false);
+      await Linking.openSettings();
       return;
     }
     try {
@@ -62,7 +69,7 @@ export default function PermissionsScreen() {
 
   const toggleCamera = async () => {
     if (cameraEnabled) {
-      setCameraEnabled(false);
+      await Linking.openSettings();
       return;
     }
     try {
@@ -98,7 +105,7 @@ export default function PermissionsScreen() {
             Location access
           </GhostText>
           <GhostText type="caption" style={styles.hint}>
-            Used when Ghost needs your location for context-aware features.
+            Used for weather context and schedules in your timezone. Coordinates stay on your Ghost.
           </GhostText>
         </View>
         <GhostToggle value={locationEnabled} onValueChange={toggleLocation} />

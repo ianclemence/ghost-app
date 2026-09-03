@@ -674,6 +674,7 @@ type WeatherLocationMeta = {
   longitude?: string;
   timezone?: string;
   location_source?: string;
+  location_hint?: string;
 };
 
 function isWeatherPrompt(text: string): boolean {
@@ -688,6 +689,38 @@ function isWeatherPrompt(text: string): boolean {
 function hasExplicitLocation(text: string): boolean {
   const lc = text.toLowerCase();
   return lc.includes(" in ") || lc.includes(" at ") || lc.includes(" for ");
+}
+
+// Device IANA timezone (e.g. "Europe/London") from the OS locale. This needs
+// no permission, never prompts, and is always sent so scheduling parses
+// "9 AM" in the user's zone. GPS coordinates are separate and gated below.
+function getDeviceTimezone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof tz === "string" ? tz : "";
+  } catch {
+    return "";
+  }
+}
+
+// Last-known GPS fix, only when the OS grant is already held. Never prompts:
+// permission is requested exclusively from the Permissions screen. Uses the
+// cached fix (no GPS wake-up, no send latency); rejects fixes older than
+// 15 minutes so a stale city can't leak into weather/scheduling.
+async function resolveDeviceCoords(): Promise<{ latitude: string; longitude: string } | null> {
+  try {
+    const Location = await import("expo-location");
+    const perm = await Location.getForegroundPermissionsAsync();
+    if (!perm.granted) return null;
+    const pos = await Location.getLastKnownPositionAsync();
+    if (!pos) return null;
+    const { latitude, longitude } = pos.coords;
+    if (typeof latitude !== "number" || typeof longitude !== "number") return null;
+    if (typeof pos.timestamp === "number" && Date.now() - pos.timestamp > 15 * 60 * 1000) return null;
+    return { latitude: String(latitude), longitude: String(longitude) };
+  } catch {
+    return null;
+  }
 }
 
 async function resolveApproxLocationMetadata(): Promise<WeatherLocationMeta | null> {
@@ -747,17 +780,30 @@ export async function sendMessage(
     chat_id: "default",
   };
   if (mediaItems.length > 0) body.media_items = mediaItems;
-  if (cfg.sendLocation !== false && isWeatherPrompt(opts.content)) {
-    const meta = await resolveApproxLocationMetadata();
-    if (meta) {
-      body.metadata = meta;
-    } else if (!hasExplicitLocation(opts.content)) {
-      body.metadata = {
+  // Timezone always travels (device locale, no permission needed) so
+  // scheduling parses "9 AM" in the user's zone. GPS coordinates only travel
+  // when the OS location grant is held; otherwise weather prompts fall back
+  // to the IP approximation, exactly as before.
+  const deviceTimezone = getDeviceTimezone();
+  let meta: WeatherLocationMeta | null = null;
+  if (cfg.sendLocation !== false) {
+    const coords = await resolveDeviceCoords();
+    if (coords) {
+      meta = { ...coords, location_source: "mobile_gps" };
+    } else if (isWeatherPrompt(opts.content)) {
+      meta = await resolveApproxLocationMetadata();
+    }
+    if (!meta && isWeatherPrompt(opts.content) && !hasExplicitLocation(opts.content)) {
+      meta = {
         location_source: "none",
         location_hint: "ask_or_label_fallback",
       };
     }
   }
+  if (deviceTimezone) {
+    meta = { ...(meta ?? {}), timezone: deviceTimezone };
+  }
+  if (meta && Object.keys(meta).length > 0) body.metadata = meta;
 
   const url = `${baseURL(cfg)}/v1/chat`;
   trace("send_start", {

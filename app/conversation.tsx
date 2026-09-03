@@ -34,7 +34,7 @@ import {
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { prompt, sessionId } = useLocalSearchParams<{ prompt?: string; sessionId?: string }>();
+  const { prompt, sessionId, attach } = useLocalSearchParams<{ prompt?: string; sessionId?: string; attach?: string }>();
   const {
     config,
     currentSession,
@@ -204,6 +204,20 @@ export default function ConversationScreen() {
       ]);
     }
   }, [pickImage, pickFile]);
+
+  const appliedAttach = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof attach !== "string" || !attach) return;
+    const key = `${typeof sessionId === "string" ? sessionId : ""}|${attach}`;
+    if (appliedAttach.current === key) return;
+    appliedAttach.current = key;
+    const t = setTimeout(() => {
+      if (attach === "camera") pickImage(true);
+      else if (attach === "photo") pickImage(false);
+      else if (attach === "file") pickFile();
+    }, 350);
+    return () => clearTimeout(t);
+  }, [attach, sessionId, pickImage, pickFile]);
 
   const handleSend = useCallback(async (retryText?: string) => {
     if (!config || isStreaming) return;

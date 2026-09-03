@@ -106,46 +106,44 @@ export default function ManualScreen() {
         </GhostText>
 
         <SectionHeader title="Connection" />
-        <View style={styles.card}>
-          <GhostText type="caption" style={styles.label}>
-            Ghost Pod address
-          </GhostText>
-          <TextInput
-            style={styles.input}
-            value={host}
-            onChangeText={setHost}
-            placeholder="192.168.1.42"
-            placeholderTextColor={Ghost.text.tertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-          />
+        <GhostText type="caption" style={styles.label}>
+          Ghost Pod address
+        </GhostText>
+        <TextInput
+          style={styles.input}
+          value={host}
+          onChangeText={setHost}
+          placeholder="192.168.1.42"
+          placeholderTextColor={Ghost.text.tertiary}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+        />
 
-          <GhostText type="caption" style={styles.label}>
-            Port
-          </GhostText>
-          <TextInput
-            style={styles.input}
-            value={port}
-            onChangeText={setPort}
-            placeholder="8766"
-            placeholderTextColor={Ghost.text.tertiary}
-            keyboardType="number-pad"
-          />
+        <GhostText type="caption" style={styles.label}>
+          Port
+        </GhostText>
+        <TextInput
+          style={styles.input}
+          value={port}
+          onChangeText={setPort}
+          placeholder="8766"
+          placeholderTextColor={Ghost.text.tertiary}
+          keyboardType="number-pad"
+        />
 
-          <GhostText type="caption" style={styles.label}>
-            Pairing token
-          </GhostText>
-          <TextInput
-            style={styles.input}
-            value={token}
-            onChangeText={handleTokenChange}
-            placeholder="Paste token or link from Ghost Pod"
-            placeholderTextColor={Ghost.text.tertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
+        <GhostText type="caption" style={styles.label}>
+          Pairing token
+        </GhostText>
+        <TextInput
+          style={styles.input}
+          value={token}
+          onChangeText={handleTokenChange}
+          placeholder="Paste token or link from Ghost Pod"
+          placeholderTextColor={Ghost.text.tertiary}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
 
         <View style={styles.buttonRow}>
           <GhostButton
@@ -178,11 +176,6 @@ const styles = StyleSheet.create({
   description: {
     color: Ghost.text.secondary,
     marginBottom: Space.lg,
-  },
-  card: {
-    padding: 20,
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.lg,
   },
   label: {
     color: Ghost.text.tertiary,

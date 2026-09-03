@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Camera, Copy, Mic, Menu, MapPin, Send, Upload } from "lucide-react-native";
+import { Camera, Copy, Menu, MapPin, Send, Upload } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
 import {
   FlatList,
@@ -75,7 +75,7 @@ const STARTER_PROMPT = "Catch me up on what I missed today";
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { config, connectionState, inbox, ghostName, profile, uptimeSeconds, setCurrentSession } = useGhostStore();
+  const { connectionState, inbox, ghostName, profile, uptimeSeconds, setCurrentSession } = useGhostStore();
   const [greeting] = useState(getGreeting);
   const [draft, setDraft] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -95,26 +95,40 @@ export default function HomeScreen() {
   const latest = items[0] ?? null;
   const online = connectionState === "online";
 
-  const goPrompt = useCallback(
-    (prompt: string, sessionId?: string | null) => {
-      const q = prompt.trim();
-      if (sessionId) setCurrentSession(sessionId);
-      if (!q) {
-        router.push("/conversation" as any);
-        return;
-      }
-      if (sessionId) {
-        router.push({ pathname: "/conversation", params: { prompt: q, sessionId } } as any);
-      } else {
-        router.push({ pathname: "/conversation", params: { prompt: q } } as any);
-      }
+  const freshSessionId = useCallback(
+    () => `mobile:home:${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+    [],
+  );
+
+  const openOriginSession = useCallback(
+    (sessionId: string | null) => {
+      if (!sessionId) return false;
+      setCurrentSession(sessionId);
+      router.push({ pathname: "/conversation", params: { sessionId } } as any);
+      return true;
     },
     [router, setCurrentSession],
   );
 
+  const startFreshPrompt = useCallback(
+    (prompt: string, attach?: "camera" | "photo" | "file") => {
+      const q = prompt.trim();
+      if (!q && !attach) return;
+      const id = freshSessionId();
+      setCurrentSession(id);
+      const params: Record<string, string> = { sessionId: id };
+      if (q) params.prompt = q;
+      if (attach) params.attach = attach;
+      router.push({ pathname: "/conversation", params } as any);
+    },
+    [router, setCurrentSession, freshSessionId],
+  );
+
   const handleSubmit = () => {
-    goPrompt(draft);
+    const q = draft.trim();
+    if (!q) return;
     setDraft("");
+    startFreshPrompt(q);
   };
 
   const renderItem = useCallback(
@@ -122,8 +136,10 @@ export default function HomeScreen() {
       <TouchableOpacity
         style={styles.row}
         activeOpacity={0.6}
-        onPress={() => goPrompt(item.full, item.sessionId)}
-        accessibilityLabel="Open in conversation"
+        onPress={() => {
+          if (!openOriginSession(item.sessionId)) startFreshPrompt(item.full);
+        }}
+        accessibilityLabel="Open origin conversation"
       >
         <View style={styles.rowTop}>
           <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>
@@ -138,7 +154,7 @@ export default function HomeScreen() {
         </GhostText>
       </TouchableOpacity>
     ),
-    [goPrompt],
+    [openOriginSession, startFreshPrompt],
   );
 
   const canSend = draft.trim().length > 0;
@@ -229,7 +245,8 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.starterCard}
             activeOpacity={0.85}
-            onPress={() => goPrompt(STARTER_PROMPT)}
+            onPress={() => startFreshPrompt(STARTER_PROMPT)}
+            accessibilityLabel="Start a new briefing conversation"
           >
             <GhostText type="callout" style={styles.cardText}>
               {STARTER_PROMPT}
@@ -243,12 +260,11 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.statusCard}
               activeOpacity={0.85}
-              onPress={() =>
-                latest
-                  ? goPrompt(latest.full, latest.sessionId)
-                  : goPrompt("What can you do for me?")
-              }
-              accessibilityLabel={latest ? "Open latest update in conversation" : "Ask what Ghost can do"}
+              onPress={() => {
+                if (latest?.sessionId) openOriginSession(latest.sessionId);
+                else startFreshPrompt("What can you do for me?");
+              }}
+              accessibilityLabel={latest?.sessionId ? "Open the conversation this update came from" : "Ask what Ghost can do in a new conversation"}
             >
               <GhostText type="callout" style={styles.cardText} numberOfLines={3}>
                 {latest ? latest.preview : "No updates right now"}
@@ -260,25 +276,18 @@ export default function HomeScreen() {
 
             <View style={styles.toolsPill}>
               <TouchableOpacity
-                onPress={() => router.push("/conversation" as any)}
+                onPress={() => startFreshPrompt("", "file")}
                 hitSlop={8}
-                accessibilityLabel="Attach a file in conversation"
+                accessibilityLabel="Start a new conversation with file picker"
               >
                 <Upload size={18} color={Ghost.text.secondary} />
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => router.push("/conversation" as any)}
+                onPress={() => startFreshPrompt("", "camera")}
                 hitSlop={8}
-                accessibilityLabel="Take a photo in conversation"
+                accessibilityLabel="Start a new conversation with camera"
               >
                 <Camera size={18} color={Ghost.text.secondary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push("/conversation" as any)}
-                hitSlop={8}
-                accessibilityLabel="Dictate in conversation"
-              >
-                <Mic size={18} color={Ghost.text.secondary} />
               </TouchableOpacity>
             </View>
           </View>

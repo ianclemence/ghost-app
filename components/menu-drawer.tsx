@@ -102,7 +102,7 @@ export function MenuDrawer({ visible, onClose }: Props) {
             <Settings size={20} color={Ghost.text.primary} />
             <GhostText type="headline" style={styles.rowLabel}>Settings</GhostText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.sysRow} activeOpacity={0.7} onPress={() => nav("/manual")}>
+          <TouchableOpacity style={styles.sysRow} activeOpacity={0.7} onPress={() => nav("/about")}>
             <CircleHelp size={20} color={Ghost.text.primary} />
             <GhostText type="headline" style={styles.rowLabel}>Help</GhostText>
           </TouchableOpacity>
