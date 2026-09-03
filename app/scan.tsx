@@ -1,3 +1,4 @@
+import { Linking } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -141,9 +142,12 @@ export default function QrScannerScreen() {
         </GhostText>
         <View style={styles.deniedActions}>
           <GhostButton
-            title="Open Settings"
+            title={permission.canAskAgain ? "Grant permission" : "Open Settings"}
             variant="primary"
-            onPress={() => requestPermission()}
+            onPress={() => {
+              if (permission.canAskAgain) requestPermission();
+              else Linking.openSettings();
+            }}
             fullWidth
           />
           <GhostButton

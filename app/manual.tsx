@@ -32,7 +32,7 @@ function parseGhostLink(raw: string): {
   if (!looksLikeLink) return null;
 
   const qIndex = text.indexOf("?");
-  const query = qIndex >= 0 ? text.slice(qIndex + 1) : text;
+  const query = (qIndex >= 0 ? text.slice(qIndex + 1) : text).replace(/\+/g, "%2B");
   const params = new URLSearchParams(query);
   const token = params.get("token");
   if (!token) return null;
@@ -118,7 +118,7 @@ export default function ManualScreen() {
             placeholderTextColor={Ghost.text.tertiary}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="decimal-pad"
+            keyboardType="url"
           />
 
           <GhostText type="caption" style={styles.label}>

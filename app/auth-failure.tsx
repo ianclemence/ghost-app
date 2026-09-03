@@ -5,7 +5,7 @@ import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import { Ghost, Space } from "@/constants/theme";
-import { disconnectAndClear } from "@/lib/connection";
+import { disconnectAndClear, initializeConnection } from "@/lib/connection";
 
 /**
  * Authentication failure screen.
@@ -21,7 +21,8 @@ export default function AuthFailureScreen() {
     router.replace("/onboarding");
   };
 
-  const handleTryReconnect = () => {
+  const handleTryReconnect = async () => {
+    await initializeConnection();
     router.replace("/(tabs)");
   };
 

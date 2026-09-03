@@ -200,7 +200,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
           m.id === msg.id ||
           (m.content === msg.content &&
             m.role === msg.role &&
-            Math.abs(m.timestamp - msg.timestamp) < 2.0), // Allow 2s drift
+            Math.abs(m.timestamp - msg.timestamp) < 2000), // ms + s tolerant
       );
       if (exists) {
         // If content matches but ID is different (e.g. temp ID vs server ID),

@@ -11,6 +11,7 @@ import {
   isPaired,
   handlePairingDeepLink,
 } from '../lib/connection';
+import { useGhostStore } from '../lib/store';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
@@ -18,6 +19,7 @@ export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
+    let cleanup: (() => void) | undefined;
     (async () => {
       // Set up notification handler
       let notifications: typeof import('expo-notifications') | null = null;
@@ -80,6 +82,7 @@ export default function RootLayout() {
       });
 
       // Listen for WS push and send local notification
+      // Skip messages for the session the user is currently viewing.
       const unsub = onWSMessage((msg) => {
         const msgType = typeof msg.type === 'string'
           ? msg.type
@@ -87,6 +90,11 @@ export default function RootLayout() {
             ? msg.metadata.type
             : '';
         if (!notifications) return;
+        if (!msg.content) return;
+        try {
+          const current = useGhostStore.getState().currentSession;
+          if (msg.session_id && current && msg.session_id === current) return;
+        } catch {}
         if (msgType === 'assistant_message' && msg.content) {
           notifications.scheduleNotificationAsync({
             content: {
@@ -106,11 +114,12 @@ export default function RootLayout() {
         }
       });
 
-      return () => {
+      cleanup = () => {
         unsub();
         sub.remove();
       };
     })();
+    return () => cleanup?.();
   }, [router]);
 
   return (

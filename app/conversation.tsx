@@ -1,7 +1,7 @@
 import { ArrowLeft, Paperclip, Send, X } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActionSheetIOS,
@@ -27,25 +27,41 @@ import {
   sendMessage,
   uploadFile,
   normalizeSession,
+  onWSMessage,
+  respondClarify,
 } from "@/lib/ghostApi";
 
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { prompt, sessionId } = useLocalSearchParams<{ prompt?: string; sessionId?: string }>();
   const {
     config,
     currentSession,
     messages,
     setMessages,
     appendMessage,
+    removeMessage,
     isStreaming,
     setStreaming,
-    streamBuffer,
     appendStream,
     commitStream,
+    clearStreamBuffer,
+    toolActivity,
+    setToolActivity,
+    setLastSentMessage,
+    lastSentMessage,
+    clarifyRequest,
+    setClarifyRequest,
   } = useGhostStore();
+  const [clarifyAnswer, setClarifyAnswer] = useState("");
+  const [clarifySending, setClarifySending] = useState(false);
+  const [clarifyError, setClarifyError] = useState<string | null>(null);
 
   const [input, setInput] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const nearBottom = useRef(true);
   const [pendingMedia, setPendingMedia] = useState<{
     uri: string;
     mimeType: string;
@@ -56,11 +72,49 @@ export default function ConversationScreen() {
   const [uploading, setUploading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
+  const appliedPrompt = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof sessionId === "string" && sessionId.trim()) {
+      const target = sessionId.trim();
+      if (useGhostStore.getState().currentSession !== target) {
+        useGhostStore.getState().setCurrentSession(target);
+      }
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    const key = `${typeof sessionId === "string" ? sessionId : ""}|${typeof prompt === "string" ? prompt : ""}`;
+    if (typeof prompt === "string" && prompt.trim() && appliedPrompt.current !== key) {
+      appliedPrompt.current = key;
+      setInput(prompt);
+      inputRef.current?.focus();
+    }
+  }, [prompt, sessionId]);
+
+  useEffect(() => {
+    const off = onWSMessage((msg) => {
+      const t = typeof msg.type === "string" ? msg.type : (msg.metadata as any)?.type;
+      if (t !== "clarify_request") return;
+      const meta = (msg.metadata ?? {}) as any;
+      const qid = typeof meta.question_id === "string" ? meta.question_id : typeof msg.id === "string" ? msg.id : "";
+      const question = typeof msg.content === "string" && msg.content ? msg.content : typeof meta.question === "string" ? meta.question : "";
+      const choices = Array.isArray(meta.choices) ? meta.choices.filter((c: any) => typeof c === "string") : [];
+      if (!qid || !question) return;
+      if (msg.session_id && msg.session_id !== useGhostStore.getState().currentSession) return;
+      setClarifyRequest({ questionId: qid, question, choices });
+      setClarifyError(null);
+      setClarifyAnswer("");
+    });
+    return off;
+  }, [setClarifyRequest]);
 
   useEffect(() => {
     if (!config) return;
     const session = currentSession || normalizeSession(config.session);
+    let cancelled = false;
     const loadHistory = async () => {
+      setHistoryError(null);
       try {
         const { messages: history } = await fetchHistory(
           config,
@@ -69,12 +123,18 @@ export default function ConversationScreen() {
           undefined,
           session,
         );
-        setMessages(history);
+        if (!cancelled) setMessages(history);
       } catch {
-        // Fine
+        if (!cancelled) setHistoryError("Couldn't load history. Pull to retry.");
       }
     };
+    clearStreamBuffer();
+    setSendError(null);
+    setToolActivity(null);
     loadHistory();
+    return () => {
+      cancelled = true;
+    };
   }, [config, currentSession]);
 
   const pickImage = useCallback(async (useCamera: boolean) => {
@@ -145,23 +205,25 @@ export default function ConversationScreen() {
     }
   }, [pickImage, pickFile]);
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(async (retryText?: string) => {
     if (!config || isStreaming) return;
-    const text = input.trim();
-    if (!text && !pendingMedia) return;
+    const text = (retryText ?? input).trim();
+    if (!text && !pendingMedia && !retryText) return;
 
+    const activeMedia = retryText ? undefined : pendingMedia;
     const userMessage: ExtendedMessage = {
-      id: `temp-${Date.now()}`,
+      id: `temp-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
       role: "user",
-      content: text || (pendingMedia ? `[${pendingMedia.type === "image" ? "Image" : "File"}: ${pendingMedia.filename}]` : ""),
+      content: text || (activeMedia ? `[${activeMedia.type === "image" ? "Image" : "File"}: ${activeMedia.filename}]` : ""),
       timestamp: Date.now(),
       status: "sending",
     };
 
     appendMessage(userMessage);
 
+    const assistantId = `temp-assistant-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     const assistantPlaceholder: ExtendedMessage = {
-      id: `temp-assistant-${Date.now()}`,
+      id: assistantId,
       role: "assistant",
       content: "",
       timestamp: Date.now(),
@@ -169,50 +231,82 @@ export default function ConversationScreen() {
     };
     appendMessage(assistantPlaceholder);
 
-    const mediaB64 = pendingMedia?.base64;
-    const mediaType = pendingMedia?.mimeType;
-    setPendingMedia(null);
-    setInput("");
+    const mediaB64 = activeMedia?.base64;
+    const mediaType = activeMedia?.mimeType;
+    const sessionAtSend = currentSession || normalizeSession(config.session);
+    setLastSentMessage({ content: text, mediaB64, mediaType });
+    if (!retryText) {
+      setPendingMedia(null);
+      setInput("");
+    }
+    setSendError(null);
     setStreaming(true);
+    setToolActivity(null);
+
+    const fail = (message: string) => {
+      removeMessage(assistantId);
+      setStreaming(false);
+      setToolActivity(null);
+      setSendError(message);
+    };
 
     try {
-      if (pendingMedia && !mediaB64) {
+      let finalB64 = mediaB64;
+      let finalType = mediaType;
+      if (activeMedia && !mediaB64) {
         setUploading(true);
-        const uploaded = await uploadFile(
-          config,
-          pendingMedia.uri,
-          pendingMedia.mimeType,
-          pendingMedia.filename,
-        );
-        setUploading(false);
-        await sendMessage(config, {
-          content: text || "",
-          mediaB64: uploaded.b64,
-          mediaType: uploaded.mime_type,
-          sessionKey: currentSession || normalizeSession(config.session),
-          onChunk: (token) => appendStream(token),
-          onDone: () => commitStream(),
-          onError: () => setStreaming(false),
-        });
-      } else {
-        await sendMessage(config, {
-          content: text || "",
-          mediaB64,
-          mediaType,
-          sessionKey: currentSession || normalizeSession(config.session),
-          onChunk: (token) => appendStream(token),
-          onDone: () => commitStream(),
-          onError: () => setStreaming(false),
-        });
+        try {
+          const uploaded = await uploadFile(
+            config,
+            activeMedia.uri,
+            activeMedia.mimeType,
+            activeMedia.filename,
+          );
+          finalB64 = uploaded.b64;
+          finalType = uploaded.mime_type || activeMedia.mimeType;
+        } finally {
+          setUploading(false);
+        }
       }
+      await sendMessage(config, {
+        content: text || "",
+        mediaB64: finalB64,
+        mediaType: finalType,
+        sessionKey: sessionAtSend,
+        onChunk: (token) => {
+          if (useGhostStore.getState().currentSession !== sessionAtSend) return;
+          appendStream(token);
+        },
+        onToolStatus: (_tool, label) => setToolActivity(label),
+        onDone: (fullText) => {
+          if (useGhostStore.getState().currentSession !== sessionAtSend) {
+            setStreaming(false);
+            return;
+          }
+          if (!fullText.trim()) {
+            fail("Ghost didn't respond. Try rephrasing.");
+            return;
+          }
+          commitStream();
+        },
+        onError: (err) => fail(err.message),
+      });
     } catch {
-      setStreaming(false);
+      fail("Can't reach Ghost — check connection and retry.");
     }
   }, [config, input, isStreaming, currentSession, pendingMedia]);
 
   const renderMessage = useCallback(
-    ({ item, index }: { item: ExtendedMessage; index: number }) => {
+    ({ item }: { item: ExtendedMessage; index: number }) => {
       const isUser = item.role === "user";
+      if (!isUser && !item.content.trim()) {
+        return (
+          <View style={styles.messageBlock}>
+            <Text style={styles.messageLabel}>Ghost</Text>
+            <Text style={styles.thinkingText}>{toolActivity ?? "Thinking…"}</Text>
+          </View>
+        );
+      }
       return (
         <View style={styles.messageBlock}>
           <Text style={[styles.messageLabel, isUser && styles.messageLabelUser]}>
@@ -220,15 +314,15 @@ export default function ConversationScreen() {
           </Text>
           {isUser ? (
             <View style={styles.userBubble}>
-              <Markdown style={markdownStyles}>{item.content}</Markdown>
+              <Text style={styles.userText}>{item.content}</Text>
             </View>
           ) : (
-            <Markdown style={markdownStyles}>{item.content}</Markdown>
+            <Markdown style={markdownStyles as any}>{item.content}</Markdown>
           )}
         </View>
       );
     },
-    [],
+    [toolActivity],
   );
 
   return (
@@ -256,6 +350,21 @@ export default function ConversationScreen() {
         <View style={styles.headerRight} />
       </View>
 
+      {historyError ? (
+        <TouchableOpacity
+          style={styles.inlineError}
+          onPress={() => {
+            setHistoryError(null);
+            if (!config) return;
+            fetchHistory(config, 50, 0, undefined, currentSession || normalizeSession(config.session))
+              .then(({ messages: history }) => setMessages(history))
+              .catch(() => setHistoryError("Couldn't load history. Tap to retry."));
+          }}
+        >
+          <Text style={styles.inlineErrorText}>{historyError} Tap to retry.</Text>
+        </TouchableOpacity>
+      ) : null}
+      {toolActivity && !isStreaming ? null : null}
       {/* Messages */}
       <FlatList
         ref={flatListRef}
@@ -271,10 +380,92 @@ export default function ConversationScreen() {
         inverted={false}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
-        onContentSizeChange={() =>
-          flatListRef.current?.scrollToEnd({ animated: true })
-        }
+        onScroll={(e) => {
+          const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+          nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
+        }}
+        scrollEventThrottle={200}
+        onContentSizeChange={() => {
+          if (nearBottom.current) flatListRef.current?.scrollToEnd({ animated: true });
+        }}
       />
+      {clarifyRequest ? (
+        <View style={styles.clarifyCard}>
+          <Text style={styles.clarifyTitle}>Ghost needs a detail</Text>
+          <Text style={styles.clarifyQuestion}>{clarifyRequest.question}</Text>
+          {clarifyRequest.choices.length > 0 ? (
+            <View style={styles.chipRow}>
+              {clarifyRequest.choices.map((c) => (
+                <TouchableOpacity key={c} style={styles.chip} onPress={() => setClarifyAnswer(c)}>
+                  <Text style={styles.chipText} numberOfLines={1}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+          <View style={styles.clarifyInputRow}>
+            <TextInput
+              value={clarifyAnswer}
+              onChangeText={(t) => {
+                setClarifyAnswer(t);
+                if (clarifyError) setClarifyError(null);
+              }}
+              placeholder="Type your answer…"
+              placeholderTextColor={Ghost.text.tertiary}
+              style={styles.clarifyInput}
+              editable={!clarifySending}
+              returnKeyType="send"
+              onSubmitEditing={() => {
+                if (!config || !clarifyAnswer.trim() || clarifySending) return;
+                setClarifySending(true);
+                respondClarify(config, clarifyRequest.questionId, clarifyAnswer.trim()).then((r) => {
+                  setClarifySending(false);
+                  if (r.ok) {
+                    setClarifyRequest(null);
+                    setClarifyAnswer("");
+                  } else {
+                    setClarifyError(r.error ?? "Couldn't send answer. Try again.");
+                  }
+                });
+              }}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (!clarifyAnswer.trim() || clarifySending) && styles.sendButtonDisabled]}
+              disabled={!clarifyAnswer.trim() || clarifySending}
+              onPress={() => {
+                if (!config || !clarifyAnswer.trim() || clarifySending) return;
+                setClarifySending(true);
+                respondClarify(config, clarifyRequest.questionId, clarifyAnswer.trim()).then((r) => {
+                  setClarifySending(false);
+                  if (r.ok) {
+                    setClarifyRequest(null);
+                    setClarifyAnswer("");
+                  } else {
+                    setClarifyError(r.error ?? "Couldn't send answer. Try again.");
+                  }
+                });
+              }}
+              accessibilityLabel="Send clarification answer"
+            >
+              <Send size={18} color={Ghost.text.primary} strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+          {clarifyError ? <Text style={styles.clarifyError}>{clarifyError}</Text> : null}
+        </View>
+      ) : null}
+      {sendError ? (
+        <View style={styles.inlineError}>
+          <Text style={styles.inlineErrorText}>{sendError}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              const retry = lastSentMessage?.content ?? "";
+              setSendError(null);
+              if (retry) handleSend(retry);
+            }}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Input */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.sm }]}>
@@ -310,12 +501,15 @@ export default function ConversationScreen() {
             ref={inputRef}
             style={styles.textInput}
             value={input}
-            onChangeText={setInput}
+            onChangeText={(t) => {
+              setInput(t);
+              if (sendError) setSendError(null);
+            }}
             placeholder={uploading ? "Uploading..." : "Message Ghost..."}
             placeholderTextColor={Ghost.text.tertiary}
             multiline
             maxLength={2000}
-            onSubmitEditing={handleSend}
+            onSubmitEditing={() => handleSend()}
             blurOnSubmit={false}
             editable={!uploading}
           />
@@ -323,7 +517,7 @@ export default function ConversationScreen() {
             <TouchableOpacity
               style={[styles.sendButton, uploading && styles.sendButtonDisabled]}
               activeOpacity={0.7}
-              onPress={handleSend}
+              onPress={() => handleSend()}
               disabled={uploading}
             >
               <Send size={18} color={Ghost.text.primary} strokeWidth={2.5} />
@@ -387,6 +581,93 @@ const styles = StyleSheet.create({
     borderColor: Ghost.border.subtle,
     paddingHorizontal: Space.md,
     paddingVertical: Space.sm,
+  },
+  userText: {
+    ...Type.body,
+    color: Ghost.text.primary,
+  },
+  thinkingText: {
+    ...Type.callout,
+    color: Ghost.text.tertiary,
+  },
+  inlineError: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Space.md,
+    marginHorizontal: Space.xl,
+    marginBottom: Space.sm,
+    backgroundColor: Ghost.bg.raised,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+  },
+  inlineErrorText: {
+    ...Type.subhead,
+    color: Ghost.text.secondary,
+    flex: 1,
+  },
+  retryText: {
+    ...Type.subhead,
+    color: Ghost.accent.primary,
+    fontWeight: "600",
+  },
+  clarifyCard: {
+    marginHorizontal: Space.xl,
+    marginBottom: Space.sm,
+    backgroundColor: Ghost.bg.raised,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    borderRadius: Radius.lg,
+    padding: Space.md,
+    gap: Space.sm,
+  },
+  clarifyTitle: {
+    ...Type.caption,
+    color: Ghost.text.tertiary,
+    letterSpacing: 0.3,
+  },
+  clarifyQuestion: {
+    ...Type.body,
+    color: Ghost.text.primary,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Space.sm,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    borderRadius: Radius.full,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.xs,
+    maxWidth: "100%",
+  },
+  chipText: {
+    ...Type.subhead,
+    color: Ghost.text.primary,
+  },
+  clarifyInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+  },
+  clarifyInput: {
+    ...Type.body,
+    color: Ghost.text.primary,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: Ghost.border.subtle,
+    borderRadius: Radius.md,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+  },
+  clarifyError: {
+    ...Type.subhead,
+    color: Ghost.status.error,
   },
   inputContainer: {
     paddingHorizontal: Space.xl,

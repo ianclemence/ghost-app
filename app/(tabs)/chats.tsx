@@ -21,7 +21,8 @@ import {
 import { useGhostStore } from "@/lib/store";
 
 function formatRelativeTime(timestamp: number): string {
-  const ts = (timestamp || 0) * 1000;
+  const raw = timestamp || 0;
+  const ts = raw > 1e12 ? raw : raw * 1000;
   const now = Date.now();
   const diffMs = now - ts;
   const diffMin = Math.floor(diffMs / 60000);
@@ -85,15 +86,17 @@ export default function ConversationsScreen() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   const loadSessions = useCallback(async () => {
     if (!config) return;
     setLoading(true);
+    setListError(null);
     try {
       const list = await fetchSessions(config);
       setSessions(list);
     } catch {
-      // Empty state is fine
+      setListError("Couldn't load conversations.");
     }
     setLoading(false);
   }, [config]);
@@ -101,11 +104,12 @@ export default function ConversationsScreen() {
   const onRefresh = useCallback(async () => {
     if (!config) return;
     setRefreshing(true);
+    setListError(null);
     try {
       const list = await fetchSessions(config);
       setSessions(list);
     } catch {
-      // Fine
+      setListError("Couldn't load conversations.");
     }
     setRefreshing(false);
   }, [config]);
@@ -160,11 +164,12 @@ export default function ConversationsScreen() {
               <GhostText type="footnote" style={styles.offlineText}>Offline</GhostText>
             </View>
           )}
-          {config && sessions.length > 0 && (
+          {config && (
             <TouchableOpacity
               style={styles.newButton}
               activeOpacity={0.7}
               onPress={handleNewConversation}
+              accessibilityLabel="Start new conversation"
             >
               <GhostText type="subhead" style={styles.newButtonText}>New</GhostText>
             </TouchableOpacity>
@@ -181,6 +186,17 @@ export default function ConversationsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={Ghost.accent.primary} size="large" />
         </View>
+      ) : listError && sessions.length === 0 ? (
+        <EmptyState
+          title="Couldn't load conversations."
+          subtitle="Check your connection and try again."
+          action={
+            <GhostButton
+              title="Retry"
+              onPress={loadSessions}
+            />
+          }
+        />
       ) : sessions.length === 0 ? (
         <EmptyState
           title="No conversations yet."

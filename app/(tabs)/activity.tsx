@@ -96,13 +96,20 @@ function collectItems(
 
   for (const j of jobs) {
     const lr = j.state?.lastRunAtMs ? Math.floor(j.state.lastRunAtMs / 1000) : 0;
-    if (!lr) continue;
+    const tz = (j.schedule as any)?.tz;
+    const nextRun = (j as any)?.next_run_at;
+    const metaParts: string[] = [];
+    if (lr) metaParts.push("Last run");
+    if (typeof nextRun === "string" && nextRun) metaParts.push(`Next ${nextRun}`);
+    if (typeof tz === "string" && tz) metaParts.push(tz);
+    const ts = lr || (typeof (j as any)?.createdAtMs === "number" ? Math.floor((j as any).createdAtMs / 1000) : 0);
+    if (!ts) continue;
     items.push({
       id: "a-" + j.id,
       kind: "automations",
-      ts: lr,
+      ts,
       title: (j.name || "Automation").trim(),
-      meta: "Last run",
+      meta: metaParts.join(" · ") || "Scheduled",
     });
   }
 
