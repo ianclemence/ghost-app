@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton, GhostSheet, StatusDot } from "@/components/ghost";
-import { Ghost, Space } from "@/constants/theme";
+import { Ghost, Space, Type } from "@/constants/theme";
 import { timeAgo, formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
 import {
@@ -339,15 +339,14 @@ const styles = StyleSheet.create({
     padding: Space.xl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "600",
-    marginBottom: 24,
+    ...Type.largeTitle,
+    marginBottom: Space.xl,
     color: Ghost.text.primary,
   },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: Space.sm,
   },
   statusText: {
     color: Ghost.text.primary,

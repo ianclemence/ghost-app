@@ -1,4 +1,3 @@
-import { Linking } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -8,6 +7,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -117,7 +117,7 @@ export default function QrScannerScreen() {
 
   const cornerColor = invalidFlash.interpolate({
     inputRange: [0, 1],
-    outputRange: ["rgba(255,255,255,0.8)", "#C24B3C"],
+    outputRange: ["rgba(255,255,255,0.8)", Ghost.status.error],
   });
 
   // Loading
@@ -405,6 +405,8 @@ const styles = StyleSheet.create({
   cancelButton: {
     paddingVertical: Space.sm,
     paddingHorizontal: Space.xl,
+    minHeight: 44,
+    justifyContent: "center",
   },
   cancelText: {
     color: "rgba(255,255,255,0.5)",

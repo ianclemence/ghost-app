@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Camera, Copy, Menu, MapPin, Send, Upload } from "lucide-react-native";
+import { Bell, Camera, Menu, Send, Sparkles, Upload } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
 import {
   FlatList,
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
+import { EmptyState } from "@/components/ghost";
 import { MenuDrawer } from "@/components/menu-drawer";
 import { formatUptime } from "@/lib/format";
 import { useGhostStore } from "@/lib/store";
@@ -196,10 +197,10 @@ export default function HomeScreen() {
         keyboardDismissMode="on-drag"
         ListHeaderComponent={
           <View style={styles.greetingWrap}>
-            <GhostText type="display" style={styles.hello}>
+            <GhostText type="largeTitle" style={styles.hello}>
               {greeting},{displayName ? ` ${displayName}` : ""}
             </GhostText>
-            <GhostText type="display" style={styles.help}>
+            <GhostText type="largeTitle" style={styles.help}>
               How may I help you?
             </GhostText>
             <GhostText type="subhead" style={styles.presence}>
@@ -229,12 +230,10 @@ export default function HomeScreen() {
         ListEmptyComponent={
           items.length === 0 ? (
             <View style={styles.emptyCenter}>
-              <GhostText type="body" style={styles.emptyTitle}>
-                Nothing new right now.
-              </GhostText>
-              <GhostText type="subhead" style={styles.emptySubtitle}>
-                Ghost will let you know when something comes up.
-              </GhostText>
+              <EmptyState
+                title="Nothing new right now."
+                subtitle="Ghost will let you know when something comes up."
+              />
             </View>
           ) : null
         }
@@ -252,7 +251,7 @@ export default function HomeScreen() {
               {STARTER_PROMPT}
             </GhostText>
             <View style={styles.cardIcon}>
-              <Copy size={16} color={Ghost.text.secondary} />
+              <Sparkles size={16} color={Ghost.text.secondary} />
             </View>
           </TouchableOpacity>
 
@@ -270,7 +269,7 @@ export default function HomeScreen() {
                 {latest ? latest.preview : "No updates right now"}
               </GhostText>
               <View style={styles.cardIcon}>
-                <MapPin size={16} color={Ghost.text.secondary} />
+                <Bell size={16} color={Ghost.text.secondary} />
               </View>
             </TouchableOpacity>
 
@@ -294,7 +293,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.lg }]}>
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.sm }]}>
         <View style={styles.promptBar}>
           <TextInput
             value={draft}
@@ -316,7 +315,7 @@ export default function HomeScreen() {
             accessibilityLabel="Send prompt"
             style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
           >
-            <Send size={18} color={canSend ? Ghost.bg.base : Ghost.text.tertiary} />
+            <Send size={18} color={canSend ? Ghost.text.inverse : Ghost.text.tertiary} />
           </TouchableOpacity>
         </View>
         {connectionState !== "online" ? (
@@ -384,17 +383,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   greetingWrap: {
-    marginTop: Space.section + Space.xxl,
+    marginTop: Space.xxxl + Space.sm,
   },
   hello: {
     color: Ghost.text.secondary,
-    fontSize: 36,
-    lineHeight: 42,
   },
   help: {
     color: Ghost.text.primary,
-    fontSize: 36,
-    lineHeight: 42,
   },
   presence: {
     color: Ghost.text.tertiary,
@@ -465,12 +460,10 @@ const styles = StyleSheet.create({
   },
   inboxLabel: {
     color: Ghost.text.tertiary,
-    letterSpacing: 0.3,
     marginTop: Space.xxxl,
   },
   sectionTitle: {
     color: Ghost.text.tertiary,
-    letterSpacing: 0.3,
     marginTop: Space.xl,
     marginBottom: Space.sm,
   },
@@ -494,14 +487,6 @@ const styles = StyleSheet.create({
   rowPreview: {
     color: Ghost.text.secondary,
     lineHeight: 20,
-  },
-  emptyTitle: {
-    color: Ghost.text.tertiary,
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    color: Ghost.text.tertiary,
-    textAlign: "center",
   },
   inputContainer: {
     paddingHorizontal: Space.xl,

@@ -21,14 +21,17 @@ export default function PairingSuccessScreen() {
   const router = useRouter();
   const [askedNotifications, setAskedNotifications] = useState(false);
   const [notifStatus, setNotifStatus] = useState<"granted" | "denied" | "undetermined">("undetermined");
+  const [busy, setBusy] = useState(false);
 
   const handleContinue = async () => {
+    if (busy) return;
     if (askedNotifications) {
       router.replace("/(tabs)");
       return;
     }
 
     // Check notification status
+    setBusy(true);
     try {
       const { status } = await Notifications.getPermissionsAsync();
       if (status === "granted") {
@@ -48,6 +51,8 @@ export default function PairingSuccessScreen() {
     } catch {
       // Notifications not available (Expo Go, etc.)
       router.replace("/(tabs)");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -98,6 +103,8 @@ export default function PairingSuccessScreen() {
           title="Continue"
           variant="primary"
           onPress={handleContinue}
+          loading={busy}
+          disabled={busy}
           fullWidth
         />
       </View>

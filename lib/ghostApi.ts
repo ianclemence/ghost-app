@@ -646,6 +646,16 @@ function isLikelyLogOrCorruptChunk(data: string): boolean {
   if (lower.includes("skills/{skill-name}/skill.md")) return true;
   if (/^name:\s*[\w\-]+\s*$/im.test(text) && /\ndescription:/i.test(text))
     return true;
+  // Tool-internals echo: skill files, workspace paths, fetch/read narration.
+  // Genuine assistant answers may contain links, but never bare skill paths,
+  // so these only match machine chatter. Markdown links ([text](url)) are
+  // explicitly preserved.
+  if (/skill\.md/i.test(text)) return true;
+  if (/workspace\/(skills|data|memory)\//i.test(text)) return true;
+  if (/^(fetching|fetch|reading|read|crawling|crawl|searching|running|executing|loading)\b.*https?:\/\//i.test(text))
+    return true;
+  if (/^https?:\/\/\S+$/.test(text) && !text.includes("](")) return true;
+  if (/^file:\s*\S+\.(md|txt|json|log)$/im.test(text)) return true;
   if (
     lower.includes('"metadata"') &&
     lower.includes('"homepage"') &&

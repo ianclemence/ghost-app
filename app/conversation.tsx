@@ -22,6 +22,7 @@ import Markdown from "react-native-markdown-display";
 import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
 import { EmberIndicator } from "@/components/ember";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
+import { cleanTitleText } from "@/lib/format";
 import {
   fetchHistory,
   sendMessage,
@@ -34,7 +35,12 @@ import {
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { prompt, sessionId, attach } = useLocalSearchParams<{ prompt?: string; sessionId?: string; attach?: string }>();
+  const { prompt, sessionId, attach, title } = useLocalSearchParams<{
+    prompt?: string;
+    sessionId?: string;
+    attach?: string;
+    title?: string;
+  }>();
   const {
     config,
     currentSession,
@@ -342,20 +348,22 @@ export default function ConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior="padding"
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={0}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity
           style={styles.backButton}
+          hitSlop={12}
+          accessibilityLabel="Go back"
           onPress={() => router.back()}
         >
           <ArrowLeft size={24} color={Ghost.text.secondary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            Ghost
+            {typeof title === "string" && cleanTitleText(title) ? cleanTitleText(title) : "Ghost"}
           </Text>
           {isStreaming && (
             <EmberIndicator state="thinking" size={6} style={{ marginLeft: Space.xs }} />
@@ -392,7 +400,7 @@ export default function ConversationScreen() {
         ]}
         showsVerticalScrollIndicator={false}
         inverted={false}
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "none"}
         keyboardShouldPersistTaps="handled"
         onScroll={(e) => {
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -507,6 +515,8 @@ export default function ConversationScreen() {
           <TouchableOpacity
             style={styles.attachButton}
             activeOpacity={0.7}
+            hitSlop={10}
+            accessibilityLabel="Attach a photo or file"
             onPress={showAttachmentOptions}
           >
             <Paperclip size={20} color={Ghost.text.secondary} />
@@ -531,6 +541,8 @@ export default function ConversationScreen() {
             <TouchableOpacity
               style={[styles.sendButton, uploading && styles.sendButtonDisabled]}
               activeOpacity={0.7}
+              hitSlop={10}
+              accessibilityLabel="Send message"
               onPress={() => handleSend()}
               disabled={uploading}
             >
@@ -582,7 +594,6 @@ const styles = StyleSheet.create({
   messageLabel: {
     ...Type.caption,
     color: Ghost.text.tertiary,
-    letterSpacing: 0.3,
     marginBottom: Space.sm,
   },
   messageLabelUser: {
@@ -641,7 +652,6 @@ const styles = StyleSheet.create({
   clarifyTitle: {
     ...Type.caption,
     color: Ghost.text.tertiary,
-    letterSpacing: 0.3,
   },
   clarifyQuestion: {
     ...Type.body,
@@ -686,8 +696,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: Space.xl,
     paddingTop: Space.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Ghost.border.subtle,
+    backgroundColor: Ghost.bg.base,
   },
   inputRow: {
     flexDirection: "row",
@@ -703,6 +712,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   textInput: {
+    ...Type.body,
     flex: 1,
     backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.xl,
@@ -711,8 +721,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.lg,
     paddingVertical: Space.md,
     color: Ghost.text.primary,
-    fontSize: 16,
-    lineHeight: 24,
     maxHeight: 120,
     textAlignVertical: "center",
   },
@@ -720,7 +728,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: Ghost.ember,
+    backgroundColor: Ghost.accent.primary,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
@@ -821,7 +829,7 @@ const markdownStyles = {
     fontStyle: "italic",
   },
   link: {
-    color: Ghost.ember,
+    color: Ghost.accent.primary,
     textDecorationLine: "underline",
   },
   code_inline: {
@@ -868,9 +876,12 @@ const markdownStyles = {
     lineHeight: 24,
   },
   blockquote: {
-    borderLeftWidth: 3,
-    borderLeftColor: Ghost.ember,
-    paddingLeft: Space.md,
+    backgroundColor: Ghost.accent.soft,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    borderRadius: Radius.md,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
     marginVertical: Space.sm,
     color: Ghost.text.secondary,
   },

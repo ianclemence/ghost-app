@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { MessageCirclePlus } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,10 +11,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
+import { cleanTitleText } from "@/lib/format";
 import { GhostText } from "@/components/themed-text";
-import { EmptyState, GhostButton } from "@/components/ghost";
-import { GhostMark } from "@/components/ghost-mark";
+import { EmptyState, GhostButton, OfflineBadge } from "@/components/ghost";
 import {
   fetchSessions,
   SessionSummary,
@@ -41,7 +42,7 @@ function formatRelativeTime(timestamp: number): string {
 
 function getSessionTitle(session: SessionSummary): string {
   if (session.title && session.title !== session.id) {
-    return session.title;
+    return cleanTitleText(session.title) || "Conversation";
   }
   return "Conversation";
 }
@@ -118,14 +119,25 @@ export default function ConversationsScreen() {
     loadSessions();
   }, [loadSessions]);
 
-  const openConversation = (session: SessionSummary) => {
-    setCurrentSession(session.id);
-    router.push("/conversation" as any);
-  };
+  const openConversation = useCallback(
+    (session: SessionSummary) => {
+      setCurrentSession(session.id);
+      const title = getSessionTitle(session);
+      router.push({
+        pathname: "/conversation",
+        params: { sessionId: session.id, title },
+      } as any);
+    },
+    [router, setCurrentSession],
+  );
 
   const handleNewConversation = () => {
-    setCurrentSession("mobile:default");
-    router.push("/conversation" as any);
+    const id = `mobile:chat:${Date.now()}`;
+    setCurrentSession(id);
+    router.push({
+      pathname: "/conversation",
+      params: { sessionId: id },
+    } as any);
   };
 
   const sections = groupSessions(sessions);
@@ -150,7 +162,7 @@ export default function ConversationsScreen() {
         </GhostText>
       </TouchableOpacity>
     ),
-    [],
+    [openConversation],
   );
 
   return (
@@ -159,20 +171,7 @@ export default function ConversationsScreen() {
         <GhostText type="largeTitle" style={styles.headerTitle}>Chats</GhostText>
         <View style={styles.headerRight}>
           {connectionState !== "online" && (
-            <View style={styles.offlineBadge}>
-              <GhostMark size={12} color={Ghost.text.tertiary} />
-              <GhostText type="footnote" style={styles.offlineText}>Offline</GhostText>
-            </View>
-          )}
-          {config && (
-            <TouchableOpacity
-              style={styles.newButton}
-              activeOpacity={0.7}
-              onPress={handleNewConversation}
-              accessibilityLabel="Start new conversation"
-            >
-              <GhostText type="subhead" style={styles.newButtonText}>New</GhostText>
-            </TouchableOpacity>
+            <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
           )}
         </View>
       </View>
@@ -231,6 +230,16 @@ export default function ConversationsScreen() {
           }
         />
       )}
+      {config ? (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + Space.xl }]}
+          activeOpacity={0.8}
+          onPress={handleNewConversation}
+          accessibilityLabel="Start a new chat"
+        >
+          <MessageCirclePlus size={24} color={Ghost.text.inverse} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -255,26 +264,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: Ghost.text.primary,
   },
-  offlineBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.xs,
-    paddingVertical: Space.xs,
-    paddingHorizontal: Space.sm,
-  },
-  offlineText: {
-    color: Ghost.text.tertiary,
-  },
-  newButton: {
-    paddingVertical: Space.xs,
-    paddingHorizontal: Space.md,
-    borderRadius: Radius.full,
-    backgroundColor: Ghost.accent.soft,
-  },
-  newButtonText: {
-    fontWeight: "500",
-    color: Ghost.accent.primary,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -289,7 +278,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: Ghost.text.tertiary,
-    letterSpacing: 0.3,
     marginBottom: Space.sm,
   },
   row: {
@@ -311,5 +299,20 @@ const styles = StyleSheet.create({
   rowSubtitle: {
     color: Ghost.text.secondary,
     marginTop: Space.xxs,
+  },
+  fab: {
+    position: "absolute",
+    right: Space.xl,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Ghost.accent.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
   },
 });

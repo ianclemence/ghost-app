@@ -60,7 +60,6 @@ const styles = StyleSheet.create({
   title: {
     color: Ghost.text.primary,
     textAlign: "center",
-    lineHeight: 26,
   },
   description: {
     color: Ghost.text.secondary,

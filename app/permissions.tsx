@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, StyleSheet, ScrollView, Linking } from "react-native";
+import { TouchableOpacity, View, StyleSheet, ScrollView, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import * as Notifications from "expo-notifications";
@@ -7,7 +7,7 @@ import * as Location from "expo-location";
 import { Camera } from "expo-camera";
 import { GhostText } from "@/components/themed-text";
 import { GhostToggle } from "@/components/ghost";
-import { Ghost, Space } from "@/constants/theme";
+import { Ghost, Space, Type } from "@/constants/theme";
 
 /**
  * Permissions screen.
@@ -87,7 +87,7 @@ export default function PermissionsScreen() {
         Permissions
       </GhostText>
 
-      <View style={styles.row}>
+      <TouchableOpacity style={styles.row} activeOpacity={0.6} onPress={toggleNotifications} accessibilityLabel="Push notifications">
         <View style={styles.rowContent}>
           <GhostText type="body" style={styles.rowLabel}>
             Push notifications
@@ -97,9 +97,9 @@ export default function PermissionsScreen() {
           </GhostText>
         </View>
         <GhostToggle value={notifEnabled} onValueChange={toggleNotifications} />
-      </View>
+      </TouchableOpacity>
 
-      <View style={styles.row}>
+      <TouchableOpacity style={styles.row} activeOpacity={0.6} onPress={toggleLocation} accessibilityLabel="Location access">
         <View style={styles.rowContent}>
           <GhostText type="body" style={styles.rowLabel}>
             Location access
@@ -109,9 +109,9 @@ export default function PermissionsScreen() {
           </GhostText>
         </View>
         <GhostToggle value={locationEnabled} onValueChange={toggleLocation} />
-      </View>
+      </TouchableOpacity>
 
-      <View style={styles.row}>
+      <TouchableOpacity style={styles.row} activeOpacity={0.6} onPress={toggleCamera} accessibilityLabel="Camera access">
         <View style={styles.rowContent}>
           <GhostText type="body" style={styles.rowLabel}>
             Camera access
@@ -121,7 +121,7 @@ export default function PermissionsScreen() {
           </GhostText>
         </View>
         <GhostToggle value={cameraEnabled} onValueChange={toggleCamera} />
-      </View>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -131,9 +131,8 @@ const styles = StyleSheet.create({
     padding: Space.xl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "600",
-    marginBottom: 24,
+    ...Type.largeTitle,
+    marginBottom: Space.xl,
     color: Ghost.text.primary,
   },
   row: {
@@ -144,13 +143,13 @@ const styles = StyleSheet.create({
   },
   rowContent: {
     flex: 1,
-    marginRight: 16,
+    marginRight: Space.lg,
   },
   rowLabel: {
     color: Ghost.text.primary,
   },
   hint: {
     color: Ghost.text.tertiary,
-    marginTop: 2,
+    marginTop: Space.xxs,
   },
 });

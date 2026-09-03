@@ -440,7 +440,6 @@ const styles = StyleSheet.create({
   dayLabel: {
     ...Type.caption,
     color: Ghost.text.tertiary,
-    letterSpacing: 0.3,
     marginTop: Space.lg,
     marginBottom: Space.xs,
   },

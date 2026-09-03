@@ -8,6 +8,23 @@ export function formatUptime(seconds: number | null | undefined): string {
   return `${m}m`;
 }
 
+/**
+ * Strip characters that can never render: lone UTF-16 surrogates (left
+ * behind when a title is sliced mid-emoji), control chars, and U+FFFD.
+ * Valid emoji and scripts pass through untouched.
+ */
+export function cleanTitleText(value: string): string {
+  let out = "";
+  for (const ch of value || "") {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp === 0xfffd) continue;
+    if (cp >= 0xd800 && cp <= 0xdfff) continue;
+    if (cp < 0x20 && cp !== 0x0a) continue;
+    out += ch;
+  }
+  return out.replace(/\s+/g, " ").trim();
+}
+
 export function timeAgo(timestampMs: number): string {
   const diff = Date.now() - timestampMs;
   if (diff < 0) return "just now";

@@ -579,6 +579,31 @@ export function EmptyState({
 }
 
 /* ------------------------------------------------------------------ */
+/* OfflineBadge — one offline language for every screen                */
+/* ------------------------------------------------------------------ */
+
+export function OfflineBadge({ state }: { state: "offline" | "syncing" }) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Space.xs,
+        paddingVertical: Space.xs,
+        paddingHorizontal: Space.sm,
+        minHeight: 44,
+      }}
+      accessibilityLabel={state === "syncing" ? "Reconnecting" : "Offline"}
+    >
+      <StatusDot status={state === "syncing" ? "warning" : "offline"} size={8} />
+      <GhostText type="footnote" style={{ color: Ghost.text.tertiary }}>
+        {state === "syncing" ? "Reconnecting" : "Offline"}
+      </GhostText>
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* StatusDot                                                          */
 /* ------------------------------------------------------------------ */
 

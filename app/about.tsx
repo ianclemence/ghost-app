@@ -116,12 +116,10 @@ const styles = StyleSheet.create({
   sectionLabel: {
     color: Ghost.text.tertiary,
     textTransform: "uppercase",
-    letterSpacing: 1,
     marginBottom: Space.sm,
   },
   prose: {
     color: Ghost.text.secondary,
-    lineHeight: 22,
   },
   proseBold: {
     color: Ghost.text.primary,
@@ -136,7 +134,7 @@ const styles = StyleSheet.create({
   },
   itemDesc: {
     color: Ghost.text.secondary,
-    marginTop: 2,
+    marginTop: Space.xxs,
   },
   links: {
     marginTop: Space.md,

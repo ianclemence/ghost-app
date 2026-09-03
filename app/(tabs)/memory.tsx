@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { EmptyState, GhostButton } from "@/components/ghost";
 import { useGhostStore } from "@/lib/store";
@@ -355,13 +355,14 @@ const styles = StyleSheet.create({
     marginTop: Space.sm,
   },
   searchInput: {
+    ...Type.body,
     flex: 1,
     borderWidth: 1,
     borderColor: Ghost.border.default,
     borderRadius: Radius.lg,
     paddingHorizontal: Space.md,
     paddingVertical: Space.sm,
-    fontSize: 15,
+    minHeight: 48,
     color: Ghost.text.primary,
     backgroundColor: Ghost.bg.raised,
   },
@@ -369,13 +370,15 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     backgroundColor: Ghost.accent.primary,
     paddingHorizontal: Space.lg,
+    paddingVertical: Space.sm,
+    minHeight: 48,
     justifyContent: "center",
   },
   searchBtnDisabled: {
     backgroundColor: Ghost.bg.sunken,
   },
   searchBtnText: {
-    color: Ghost.bg.base,
+    color: Ghost.text.inverse,
     fontWeight: "600",
   },
   inlineError: {
@@ -402,7 +405,6 @@ const styles = StyleSheet.create({
   },
   groupLabel: {
     color: Ghost.text.tertiary,
-    letterSpacing: 0.3,
     marginTop: Space.xl,
     marginBottom: Space.xs,
   },

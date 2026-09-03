@@ -1,6 +1,7 @@
 import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { GhostText } from "@/components/themed-text";
+import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import { Ghost, Space } from "@/constants/theme";
 import { completePairing } from "@/lib/connection";
@@ -81,25 +82,24 @@ export default function PairingProgressScreen() {
         <GhostText type="body" style={styles.errorText}>
           {error}
         </GhostText>
-        <GhostText
-          type="callout"
-          style={styles.retryLink}
-          onPress={() => {
-            setStatus("connecting");
-            setError(null);
-            hasStarted.current = false;
-            startPairing();
-          }}
-        >
-          Try again
-        </GhostText>
-        <GhostText
-          type="callout"
-          style={styles.cancelLink}
-          onPress={() => router.replace("/onboarding")}
-        >
-          Cancel
-        </GhostText>
+        <View style={styles.actions}>
+          <GhostButton
+            title="Try again"
+            onPress={() => {
+              setStatus("connecting");
+              setError(null);
+              hasStarted.current = false;
+              startPairing();
+            }}
+            fullWidth
+          />
+          <GhostButton
+            title="Cancel"
+            variant="ghost"
+            onPress={() => router.replace("/onboarding")}
+            fullWidth
+          />
+        </View>
       </View>
     );
   }
@@ -154,14 +154,10 @@ const styles = StyleSheet.create({
   errorText: {
     color: Ghost.text.secondary,
     textAlign: "center",
-    lineHeight: 22,
   },
-  retryLink: {
-    color: Ghost.accent.primary,
+  actions: {
+    width: "100%",
+    gap: Space.sm,
     marginTop: Space.lg,
-  },
-  cancelLink: {
-    color: Ghost.text.tertiary,
-    marginTop: Space.sm,
   },
 });

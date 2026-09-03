@@ -74,7 +74,7 @@ export function EmberIndicator({
   const color =
     state === "offline"
       ? Ghost.text.tertiary
-      : Ghost.ember;
+      : Ghost.accent.primary;
 
   const glowSize = size * 3;
 
@@ -98,7 +98,7 @@ export function EmberIndicator({
             width: glowSize,
             height: glowSize,
             borderRadius: glowSize / 2,
-            backgroundColor: Ghost.ember,
+            backgroundColor: Ghost.accent.primary,
             opacity: glowOpacity.interpolate({
               inputRange: [0.65, 1],
               outputRange: [0.12, 0.22],

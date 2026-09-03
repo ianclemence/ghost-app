@@ -219,8 +219,8 @@ export const Type = {
     fontWeight: "400" as const,
   },
   caption: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "500" as const,
     letterSpacing: 0.2,
   },
