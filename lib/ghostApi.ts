@@ -1003,6 +1003,93 @@ export async function uploadFile(
   return res.json();
 }
 
+// ─── Memory Self (canonical personal-context store) ───────────────────────
+// Same source the web console reads: live structured facts Ghost extracted
+// from conversation, plus curated notes. This is the source of truth — the
+// user-profile.md / curated-memory.md files are only a human-readable mirror.
+
+export interface MemoryFact {
+  id: string;
+  kind: string;
+  label: string;
+  title: string;
+  summary: string;
+  domain: string;
+  domain_label: string;
+  value: string;
+  created_at?: string;
+  reinforce_count?: number;
+  reinforced_at?: string | null;
+}
+
+export interface MemorySelf {
+  entries: MemoryFact[];
+  notes: string[];
+  you: string[];
+}
+
+export async function fetchMemorySelf(cfg: GhostConfig): Promise<MemorySelf> {
+  const res = await fetch(`${baseURL(cfg)}/v1/memory/self`, {
+    headers: headers(cfg),
+  });
+  if (!res.ok) throw new Error(`Failed to load memory (HTTP ${res.status})`);
+  const data = await res.json();
+  return {
+    entries: Array.isArray(data?.entries) ? data.entries : [],
+    notes: Array.isArray(data?.notes) ? data.notes : [],
+    you: Array.isArray(data?.you) ? data.you : [],
+  };
+}
+
+export async function forgetMemoryFact(cfg: GhostConfig, id: string): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/memory/self/forget`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) throw new Error(`Failed to forget (HTTP ${res.status})`);
+}
+
+export async function forgetMemoryNote(
+  cfg: GhostConfig,
+  target: "user" | "memory",
+  entry: string,
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/memory/self/forget`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ target, entry }),
+  });
+  if (!res.ok) throw new Error(`Failed to forget (HTTP ${res.status})`);
+}
+
+export interface RecallSession {
+  messages: string[];
+}
+
+export interface RecallResult {
+  sessions: RecallSession[];
+  summarized: boolean;
+  summary: string;
+}
+
+export async function recallConversations(
+  cfg: GhostConfig,
+  query: string,
+): Promise<RecallResult> {
+  const res = await fetch(
+    `${baseURL(cfg)}/v1/recall?query=${encodeURIComponent(query)}`,
+    { headers: headers(cfg) },
+  );
+  if (!res.ok) throw new Error(`Recall failed (HTTP ${res.status})`);
+  const data = await res.json();
+  return {
+    sessions: Array.isArray(data?.sessions) ? data.sessions : [],
+    summarized: data?.summarized === true,
+    summary: typeof data?.summary === "string" ? data.summary : "",
+  };
+}
+
 // ─── Voice Transcription ───────────────────────────────────────────────────
 
 export async function transcribeAudio(

@@ -74,6 +74,30 @@ function clockTime(unixSec: number): string {
   });
 }
 
+// Semantic layer: every raw record becomes a human sentence. No file paths,
+// session ids, tool names, or raw event strings ever reach the timeline.
+function humanSessionTitle(s: SessionSummary): string {
+  if (s.title && s.title !== s.id) return truncate(s.title);
+  return "Conversation";
+}
+
+function humanErrorTitle(message: string): string {
+  const m = (message || "").trim() || "Something didn't work";
+  return m
+    .replace(/^(tool|agent|channel|exec|schedule|cron)[\s_:.>-]+/i, "")
+    .replace(/\b[0-9a-f]{8,}\b/gi, "…")
+    .trim() || "Something didn't work";
+}
+
+function humanMemoryTitle(name: string): string {
+  return (
+    String(name || "")
+      .replace(/\.md$/, "")
+      .replace(/[_-]+/g, " ")
+      .trim() || "Memory"
+  );
+}
+
 function collectItems(
   sessions: SessionSummary[],
   jobs: CronJob[],
@@ -81,20 +105,26 @@ function collectItems(
   traces: { timestamp: number; message: string; level: string }[],
 ): ActivityItem[] {
   const items: ActivityItem[] = [];
+  const seen = new Set<string>();
 
   for (const s of sessions) {
+    if (!s.id || seen.has(`m:${s.id}`)) continue;
+    seen.add(`m:${s.id}`);
     const ts = s.last_activity || 0;
-      items.push({
-        id: "m-" + s.id,
-        kind: "messages",
-        ts,
-        title: truncate(s.title),
-        meta: (s.message_count || 0).toLocaleString("en-US") + " messages",
-        sessionId: s.id,
-      });
+    if (!ts) continue;
+    items.push({
+      id: `m:${s.id}`,
+      kind: "messages",
+      ts,
+      title: humanSessionTitle(s),
+      meta: `${(s.message_count || 0).toLocaleString("en-US")} messages`,
+      sessionId: s.id,
+    });
   }
 
   for (const j of jobs) {
+    if (!j.id || seen.has(`a:${j.id}`)) continue;
+    seen.add(`a:${j.id}`);
     const lr = j.state?.lastRunAtMs ? Math.floor(j.state.lastRunAtMs / 1000) : 0;
     const tz = (j.schedule as any)?.tz;
     const nextRun = (j as any)?.next_run_at;
@@ -104,11 +134,13 @@ function collectItems(
     if (typeof tz === "string" && tz) metaParts.push(tz);
     const ts = lr || (typeof (j as any)?.createdAtMs === "number" ? Math.floor((j as any).createdAtMs / 1000) : 0);
     if (!ts) continue;
+    const name = (j.name || "Automation").trim() || "Automation";
+    const paused = j.enabled === false;
     items.push({
-      id: "a-" + j.id,
+      id: `a:${j.id}`,
       kind: "automations",
       ts,
-      title: (j.name || "Automation").trim(),
+      title: paused ? `${name} (paused)` : name,
       meta: metaParts.join(" · ") || "Scheduled",
     });
   }
@@ -116,25 +148,32 @@ function collectItems(
   for (const m of memory.slice(0, 20)) {
     const ts = m.modified || 0;
     if (!ts) continue;
-    const name = String(m.name || "").replace(/\.md$/, "").trim();
-    if (!name) continue;
+    const title = humanMemoryTitle(m.name);
+    const key = `mem:${m.name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     items.push({
-      id: "mem-" + name,
+      id: key,
       kind: "memory",
       ts,
-      title: name,
-      meta: "Remembered",
+      title,
+      meta: "Saved to memory",
     });
   }
 
   for (const inc of traces.slice(0, 20)) {
     const ts = Math.floor((inc.timestamp || 0) / 1000);
+    if (!ts) continue;
+    const title = humanErrorTitle(inc.message).slice(0, 120);
+    const key = `e:${ts}:${title.slice(0, 32)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     items.push({
-      id: "e-" + ts + "-" + (inc.message || "incident").slice(0, 12),
+      id: key,
       kind: "errors",
       ts,
-      title: (inc.message || "Incident").trim(),
-      meta: inc.level || "error",
+      title,
+      meta: "Needs attention",
     });
   }
 
@@ -182,9 +221,8 @@ export default function ActivityScreen() {
         ? (traces as { timestamp: number; message: string; level: string }[])
         : [];
 
-      const anyLoaded =
-        s.length > 0 || j.length > 0 || m.length > 0 || t.length > 0;
-      setFailed(!anyLoaded);
+      // Failure means every source errored — genuine emptiness is not failure.
+      setFailed(sessions === null && jobs === null && memory === null && traces === null);
       setItems(collectItems(s, j, m, t));
       setLoading(false);
     },
@@ -281,7 +319,8 @@ export default function ActivityScreen() {
             const day = dayLabel(item.ts);
             const prevDay = idx > 0 ? dayLabel(filtered[idx - 1].ts) : null;
             const showDay = day !== prevDay;
-            const tappable = item.kind === "messages" && !!item.sessionId;
+            const openSession = item.kind === "messages" && !!item.sessionId;
+            const openMemory = item.kind === "memory";
             const Row = (
               <View style={styles.row}>
                 <GhostText type="footnote" style={styles.rowTime}>{clockTime(item.ts)}</GhostText>
@@ -296,13 +335,22 @@ export default function ActivityScreen() {
             return (
               <View key={item.id}>
                 {showDay && <GhostText type="caption" style={styles.dayLabel}>{day}</GhostText>}
-                {tappable ? (
+                {openSession ? (
                   <TouchableOpacity
                     activeOpacity={0.6}
+                    accessibilityLabel="Open conversation"
                     onPress={() => {
                       setCurrentSession(item.sessionId!);
                       router.push("/conversation" as any);
                     }}
+                  >
+                    {Row}
+                  </TouchableOpacity>
+                ) : openMemory ? (
+                  <TouchableOpacity
+                    activeOpacity={0.6}
+                    accessibilityLabel="Open memory"
+                    onPress={() => router.push("/(tabs)/memory" as any)}
                   >
                     {Row}
                   </TouchableOpacity>
