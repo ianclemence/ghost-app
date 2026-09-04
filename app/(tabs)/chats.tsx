@@ -1,22 +1,25 @@
 import { useRouter } from "expo-router";
-import { MessageCirclePlus } from "lucide-react-native";
+import { MessageCirclePlus, MoreHorizontal, Search } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Ghost, Space } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { cleanTitleText } from "@/lib/format";
 import { GhostText } from "@/components/themed-text";
-import { EmptyState, GhostButton, OfflineBadge } from "@/components/ghost";
+import { EmptyState, GhostButton, GhostRow, GhostSheet, OfflineBadge } from "@/components/ghost";
 import {
+  deleteSession,
   fetchSessions,
+  renameSession,
   SessionSummary,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
@@ -62,7 +65,8 @@ function groupSessions(sessions: SessionSummary[]): { title: string; data: Sessi
   };
 
   for (const s of sessions) {
-    const d = new Date((s.last_activity ?? 0) * 1000);
+    const rawTs = s.last_activity ?? 0;
+    const d = new Date(rawTs > 1e12 ? rawTs : rawTs * 1000);
     const ds = d.toDateString();
     if (ds === today) {
       groups.TODAY.push(s);
@@ -88,6 +92,22 @@ export default function ConversationsScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [actionSheet, setActionSheet] = useState<{ visible: boolean; session: SessionSummary | null }>({
+    visible: false,
+    session: null,
+  });
+  const [renameSheet, setRenameSheet] = useState<{ visible: boolean; session: SessionSummary | null; name: string }>({
+    visible: false,
+    session: null,
+    name: "",
+  });
+  const [deleteSheet, setDeleteSheet] = useState<{ visible: boolean; session: SessionSummary | null }>({
+    visible: false,
+    session: null,
+  });
+  const [mutating, setMutating] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const loadSessions = useCallback(async () => {
     if (!config) return;
@@ -140,7 +160,46 @@ export default function ConversationsScreen() {
     } as any);
   };
 
-  const sections = groupSessions(sessions);
+  const confirmDelete = async () => {
+    const s = deleteSheet.session;
+    if (!config || !s) return;
+    setMutating(true);
+    setMutationError(null);
+    try {
+      await deleteSession(config, s.id);
+      setSessions((prev) => prev.filter((x) => x.id !== s.id));
+      setDeleteSheet({ visible: false, session: null });
+    } catch {
+      setMutationError("Couldn't delete that conversation.");
+    }
+    setMutating(false);
+  };
+
+  const confirmRename = async () => {
+    const s = renameSheet.session;
+    const name = renameSheet.name.trim();
+    if (!config || !s || !name) return;
+    setMutating(true);
+    setMutationError(null);
+    try {
+      await renameSession(config, s.id, name);
+      setSessions((prev) =>
+        prev.map((x) => (x.id === s.id ? { ...x, title: name } : x)),
+      );
+      setRenameSheet({ visible: false, session: null, name: "" });
+    } catch {
+      setMutationError("Couldn't rename that conversation.");
+    }
+    setMutating(false);
+  };
+
+  const filteredSessions = query.trim()
+    ? sessions.filter((s) =>
+        getSessionTitle(s).toLowerCase().includes(query.trim().toLowerCase()),
+      )
+    : sessions;
+
+  const sections = groupSessions(filteredSessions);
 
   const renderItem = useCallback(
     ({ item }: { item: SessionSummary }) => (
@@ -149,17 +208,27 @@ export default function ConversationsScreen() {
         activeOpacity={0.6}
         onPress={() => openConversation(item)}
       >
-        <View style={styles.rowContent}>
-          <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>
-            {getSessionTitle(item)}
-          </GhostText>
-          <GhostText type="footnote" style={styles.rowTime}>
-            {formatRelativeTime(item.last_activity ?? Date.now())}
+        <View style={styles.rowMain}>
+          <View style={styles.rowContent}>
+            <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>
+              {getSessionTitle(item)}
+            </GhostText>
+            <GhostText type="footnote" style={styles.rowTime}>
+              {formatRelativeTime(item.last_activity ?? Date.now())}
+            </GhostText>
+          </View>
+          <GhostText type="footnote" style={styles.rowSubtitle}>
+            {item.message_count} message{item.message_count !== 1 ? "s" : ""}
           </GhostText>
         </View>
-        <GhostText type="footnote" style={styles.rowSubtitle}>
-          {item.message_count} message{item.message_count !== 1 ? "s" : ""}
-        </GhostText>
+        <TouchableOpacity
+          style={styles.rowAction}
+          hitSlop={8}
+          accessibilityLabel={`Options for ${getSessionTitle(item)}`}
+          onPress={() => setActionSheet({ visible: true, session: item })}
+        >
+          <MoreHorizontal size={18} color={Ghost.text.tertiary} />
+        </TouchableOpacity>
       </TouchableOpacity>
     ),
     [openConversation],
@@ -175,6 +244,21 @@ export default function ConversationsScreen() {
           )}
         </View>
       </View>
+
+      {config && !loading && sessions.length > 0 ? (
+        <View style={styles.searchRow}>
+          <Search size={16} color={Ghost.text.tertiary} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search chats"
+            placeholderTextColor={Ghost.text.tertiary}
+            style={styles.searchInput}
+            returnKeyType="search"
+            accessibilityLabel="Search chats"
+          />
+        </View>
+      ) : null}
 
       {!config ? (
         <EmptyState
@@ -204,6 +288,17 @@ export default function ConversationsScreen() {
             <GhostButton
               title="New Conversation"
               onPress={handleNewConversation}
+            />
+          }
+        />
+      ) : filteredSessions.length === 0 ? (
+        <EmptyState
+          title="No matches."
+          subtitle={`Nothing titled like "${query.trim()}".`}
+          action={
+            <GhostButton
+              title="Clear search"
+              onPress={() => setQuery("")}
             />
           }
         />
@@ -240,6 +335,86 @@ export default function ConversationsScreen() {
           <MessageCirclePlus size={24} color={Ghost.text.inverse} />
         </TouchableOpacity>
       ) : null}
+
+      <GhostSheet
+        visible={actionSheet.visible}
+        onClose={() => setActionSheet({ visible: false, session: null })}
+        title={actionSheet.session ? getSessionTitle(actionSheet.session) : undefined}
+      >
+        <GhostRow
+          title="Rename"
+          style={{ paddingHorizontal: 0 }}
+          onPress={() => {
+            const s = actionSheet.session;
+            setActionSheet({ visible: false, session: null });
+            if (s) setRenameSheet({ visible: true, session: s, name: getSessionTitle(s) });
+          }}
+        />
+        <GhostRow
+          title="Delete"
+          style={{ paddingHorizontal: 0 }}
+          onPress={() => {
+            const s = actionSheet.session;
+            setActionSheet({ visible: false, session: null });
+            if (s) {
+              setMutationError(null);
+              setDeleteSheet({ visible: true, session: s });
+            }
+          }}
+        />
+      </GhostSheet>
+
+      <GhostSheet
+        visible={renameSheet.visible}
+        onClose={() => {
+          if (!mutating) setRenameSheet({ visible: false, session: null, name: "" });
+        }}
+        title="Rename conversation"
+      >
+        <TextInput
+          value={renameSheet.name}
+          onChangeText={(t) => {
+            setRenameSheet((prev) => ({ ...prev, name: t }));
+            if (mutationError) setMutationError(null);
+          }}
+          placeholder="Conversation name"
+          placeholderTextColor={Ghost.text.tertiary}
+          style={styles.renameInput}
+          maxLength={80}
+          returnKeyType="done"
+          onSubmitEditing={confirmRename}
+          autoFocus
+        />
+        {mutationError ? (
+          <GhostText type="subhead" style={styles.sheetError}>{mutationError}</GhostText>
+        ) : null}
+        <GhostButton
+          title={mutating ? "Renaming…" : "Save"}
+          onPress={confirmRename}
+          disabled={!renameSheet.name.trim() || mutating}
+          fullWidth
+        />
+      </GhostSheet>
+
+      <GhostSheet
+        visible={deleteSheet.visible}
+        onClose={() => {
+          if (!mutating) {
+            setDeleteSheet({ visible: false, session: null });
+            setMutationError(null);
+          }
+        }}
+        title="Delete this conversation?"
+        message={
+          mutationError ??
+          (deleteSheet.session
+            ? `"${getSessionTitle(deleteSheet.session)}" and its history will be gone for good.`
+            : undefined)
+        }
+        confirmTitle={mutating ? "Deleting…" : "Delete"}
+        variant="destructive"
+        onConfirm={confirmDelete}
+      />
     </View>
   );
 }
@@ -281,7 +456,21 @@ const styles = StyleSheet.create({
     marginBottom: Space.sm,
   },
   row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
     paddingVertical: Space.md,
+  },
+  rowMain: {
+    flex: 1,
+    gap: Space.xxs,
+  },
+  rowAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   rowContent: {
     flexDirection: "row",
@@ -299,6 +488,40 @@ const styles = StyleSheet.create({
   rowSubtitle: {
     color: Ghost.text.secondary,
     marginTop: Space.xxs,
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+    marginHorizontal: Space.xl,
+    marginBottom: Space.sm,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Space.md,
+    backgroundColor: Ghost.bg.raised,
+  },
+  searchInput: {
+    ...Type.body,
+    flex: 1,
+    color: Ghost.text.primary,
+    paddingVertical: Space.sm,
+    minHeight: 44,
+  },
+  renameInput: {
+    ...Type.body,
+    color: Ghost.text.primary,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    borderRadius: Radius.md,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+    minHeight: 48,
+    backgroundColor: Ghost.bg.base,
+  },
+  sheetError: {
+    ...Type.subhead,
+    color: Ghost.status.error,
   },
   fab: {
     position: "absolute",

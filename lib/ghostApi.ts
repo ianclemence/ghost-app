@@ -1100,6 +1100,42 @@ export async function recallConversations(
   };
 }
 
+export interface LearningsSummary {
+  records: number;
+  drafts: number;
+  profiles: number;
+  recent: { skill: string; change_kind: string }[];
+}
+
+export async function fetchLearnings(cfg: GhostConfig): Promise<LearningsSummary> {
+  const fallback: LearningsSummary = { records: 0, drafts: 0, profiles: 0, recent: [] };
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/learnings`,
+      { headers: headers(cfg) },
+      8000,
+    );
+    if (!res.ok) return fallback;
+    const data = await res.json();
+    return {
+      records: Number(data?.records ?? 0),
+      drafts: Number(data?.drafts ?? 0),
+      profiles: Number(data?.profiles ?? 0),
+      recent: Array.isArray(data?.recent)
+        ? data.recent
+            .filter((r: any) => typeof r?.skill === "string")
+            .slice(0, 6)
+            .map((r: any) => ({
+              skill: String(r.skill),
+              change_kind: String(r.change_kind ?? ""),
+            }))
+        : [],
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 // ─── Voice Transcription ───────────────────────────────────────────────────
 
 export async function transcribeAudio(

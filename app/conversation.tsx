@@ -1,4 +1,5 @@
-import { ArrowLeft, Camera, FileText, ImagePlus, Paperclip, Send, X } from "lucide-react-native";
+import { ArrowLeft, Camera, FileText, ImagePlus, Paperclip, Send, Square, X } from "lucide-react-native";
+import { WebView } from "react-native-webview";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -6,6 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Image as RNImage,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -26,6 +28,8 @@ import { cleanTitleText, formatMessageTime, renderTaskLists } from "@/lib/format
 import {
   fetchHistory,
   sendMessage,
+  sendSteering,
+  transcribeAudio,
   uploadFile,
   normalizeSession,
   onWSMessage,
@@ -60,7 +64,10 @@ export default function ConversationScreen() {
     lastSentMessage,
     clarifyRequest,
     setClarifyRequest,
+    canvasHtml,
+    setCanvasHtml,
   } = useGhostStore();
+  const [canvasOpen, setCanvasOpen] = useState(false);
   const [clarifyAnswer, setClarifyAnswer] = useState("");
   const [clarifySending, setClarifySending] = useState(false);
   const [clarifyError, setClarifyError] = useState<string | null>(null);
@@ -103,6 +110,14 @@ export default function ConversationScreen() {
   useEffect(() => {
     const off = onWSMessage((msg) => {
       const t = typeof msg.type === "string" ? msg.type : (msg.metadata as any)?.type;
+      if (t === "canvas_update") {
+        if (msg.session_id && msg.session_id !== useGhostStore.getState().currentSession) return;
+        if (typeof msg.content === "string" && msg.content.trim()) {
+          setCanvasHtml(msg.content);
+          setCanvasOpen(true);
+        }
+        return;
+      }
       if (t !== "clarify_request") return;
       const meta = (msg.metadata ?? {}) as any;
       const qid = typeof meta.question_id === "string" ? meta.question_id : typeof msg.id === "string" ? msg.id : "";
@@ -115,7 +130,7 @@ export default function ConversationScreen() {
       setClarifyAnswer("");
     });
     return off;
-  }, [setClarifyRequest]);
+  }, [setClarifyRequest, setCanvasHtml]);
 
   useEffect(() => {
     if (!config) return;
@@ -139,6 +154,8 @@ export default function ConversationScreen() {
     clearStreamBuffer();
     setSendError(null);
     setToolActivity(null);
+    setCanvasHtml(null);
+    setCanvasOpen(false);
     loadHistory();
     return () => {
       cancelled = true;
@@ -390,7 +407,26 @@ export default function ConversationScreen() {
             <EmberIndicator state="thinking" size={6} style={{ marginLeft: Space.xs }} />
           )}
         </View>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {isStreaming ? (
+            <TouchableOpacity
+              style={styles.stopButton}
+              hitSlop={12}
+              accessibilityLabel="Stop generating"
+              onPress={() => {
+                const session = currentSession || (config ? normalizeSession(config.session) : "");
+                if (config && session) {
+                  sendSteering(config, { sessionKey: session, action: "abort" });
+                }
+                commitStream();
+                setStreaming(false);
+                setToolActivity(null);
+              }}
+            >
+              <Square size={14} color={Ghost.status.error} fill={Ghost.status.error} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
       {historyError ? (
@@ -549,6 +585,8 @@ export default function ConversationScreen() {
           busy={uploading}
           maxLength={2000}
           inputRef={inputRef}
+          onTranscribeAudio={(uri) => (config ? transcribeAudio(config, uri) : Promise.resolve(""))}
+          onVoiceError={(message) => setSendError(message)}
           leading={
             <TouchableOpacity
               style={styles.attachButton}
@@ -562,6 +600,41 @@ export default function ConversationScreen() {
           }
         />
       </View>
+
+      <Modal
+        visible={canvasOpen && !!canvasHtml}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setCanvasOpen(false);
+          setCanvasHtml(null);
+        }}
+      >
+        <View style={[styles.canvasWrap, { paddingTop: insets.top }]}>
+          <View style={styles.canvasBar}>
+            <Text style={styles.canvasTitle} numberOfLines={1}>
+              Ghost made this for you
+            </Text>
+            <TouchableOpacity
+              hitSlop={12}
+              accessibilityLabel="Close preview"
+              onPress={() => {
+                setCanvasOpen(false);
+                setCanvasHtml(null);
+              }}
+            >
+              <X size={22} color={Ghost.text.primary} />
+            </TouchableOpacity>
+          </View>
+          {canvasHtml ? (
+            <WebView
+              style={styles.canvasView}
+              originWhitelist={["*"]}
+              source={{ html: canvasHtml }}
+            />
+          ) : null}
+        </View>
+      </Modal>
 
       <GhostSheet
         visible={attachSheetOpen}
@@ -613,6 +686,15 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  stopButton: {
+    padding: Space.sm,
+    minHeight: 44,
+    minWidth: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   messageList: {
     paddingHorizontal: Space.xl,
@@ -801,6 +883,29 @@ const styles = StyleSheet.create({
     ...Type.body,
     color: Ghost.text.primary,
     flex: 1,
+  },
+  canvasWrap: {
+    flex: 1,
+    backgroundColor: Ghost.bg.base,
+  },
+  canvasBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Space.md,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Ghost.border.subtle,
+  },
+  canvasTitle: {
+    ...Type.headline,
+    color: Ghost.text.primary,
+    flex: 1,
+  },
+  canvasView: {
+    flex: 1,
+    backgroundColor: Ghost.bg.base,
   },
 });
 

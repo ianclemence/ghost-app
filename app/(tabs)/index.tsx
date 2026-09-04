@@ -18,6 +18,7 @@ import { GhostMark } from "@/components/ghost-mark";
 import { EmptyState } from "@/components/ghost";
 import { MenuDrawer } from "@/components/menu-drawer";
 import { formatUptime } from "@/lib/format";
+import { transcribeAudio } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
 interface HomeItem {
@@ -76,10 +77,11 @@ const STARTER_PROMPT = "Catch me up on what I missed today";
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { connectionState, inbox, ghostName, profile, uptimeSeconds, setCurrentSession } = useGhostStore();
+  const { config, connectionState, inbox, ghostName, profile, uptimeSeconds, setCurrentSession } = useGhostStore();
   const [greeting] = useState(getGreeting);
   const [draft, setDraft] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const navBusy = useRef(false);
 
   useFocusEffect(
@@ -155,7 +157,8 @@ export default function HomeScreen() {
     const q = text.trim();
     if (!q) return;
     setDraft("");
-    startFreshPrompt(q);
+    setVoiceError(null);
+    startFreshPrompt(q, undefined, true);
   };
 
   const renderItem = useCallback(
@@ -328,13 +331,22 @@ export default function HomeScreen() {
       >
         <Composer
           value={draft}
-          onChangeText={setDraft}
+          onChangeText={(t) => {
+            setDraft(t);
+            if (voiceError) setVoiceError(null);
+          }}
           onSubmit={handleSubmit}
           editable={!drawerOpen}
           minimal
-          showMic={false}
           minHeight={72}
+          onTranscribeAudio={(uri) => (config ? transcribeAudio(config, uri) : Promise.resolve(""))}
+          onVoiceError={(message) => setVoiceError(message)}
         />
+        {voiceError ? (
+          <GhostText type="footnote" style={styles.voiceError}>
+            {voiceError}
+          </GhostText>
+        ) : null}
       </View>
     </View>
   );
@@ -500,5 +512,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: Space.xl,
     paddingTop: Space.md,
+  },
+  voiceError: {
+    color: Ghost.status.error,
+    marginTop: Space.xs,
   },
 });

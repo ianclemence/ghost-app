@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -12,6 +12,7 @@ import { GhostText } from "@/components/themed-text";
 import { GhostRow, StatusDot } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import { useGhostStore } from "@/lib/store";
+import { fetchLearnings, LearningsSummary } from "@/lib/ghostApi";
 
 const CAPABILITIES = [
   { name: "Research", description: "Web search and browsing" },
@@ -25,7 +26,17 @@ const CAPABILITIES = [
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { connectionState } = useGhostStore();
+  const { config, connectionState } = useGhostStore();
+  const [learnings, setLearnings] = useState<LearningsSummary | null>(null);
+
+  const loadLearnings = useCallback(async () => {
+    if (!config) return;
+    setLearnings(await fetchLearnings(config));
+  }, [config]);
+
+  useEffect(() => {
+    loadLearnings();
+  }, [loadLearnings]);
 
   return (
     <ScrollView
@@ -72,6 +83,28 @@ export default function MoreScreen() {
           </View>
         ))}
       </View>
+
+      {/* Improvement */}
+      {learnings && (learnings.records > 0 || learnings.drafts > 0 || learnings.recent.length > 0) ? (
+        <View style={styles.section}>
+          <GhostText type="caption" style={styles.sectionTitle}>Improvement</GhostText>
+          <GhostText type="subhead" style={styles.learnSummary}>
+            {`Ghost has studied ${learnings.records} turn${learnings.records === 1 ? "" : "s"}${
+              learnings.drafts > 0
+                ? ` and drafted ${learnings.drafts} skill improvement${learnings.drafts === 1 ? "" : "s"}`
+                : ""
+            }.`}
+          </GhostText>
+          {learnings.recent.map((r, i) => (
+            <View key={`${r.skill}-${i}`} style={styles.capRow}>
+              <GhostText type="headline" style={styles.capName}>{r.skill}</GhostText>
+              {r.change_kind ? (
+                <GhostText type="subhead" style={styles.capDesc}>{r.change_kind}</GhostText>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {/* Settings */}
       <View style={styles.section}>
@@ -128,6 +161,11 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: Space.sm,
     marginTop: Space.sm,
+  },
+
+  learnSummary: {
+    color: Ghost.text.secondary,
+    marginBottom: Space.sm,
   },
 
   // Capabilities

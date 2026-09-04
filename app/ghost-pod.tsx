@@ -17,8 +17,10 @@ import {
   PairedDevice,
   fetchStats,
   fetchModelInfo,
+  setActiveModel,
   PiStats,
   ModelInfo,
+  ModelPresetInfo,
 } from "@/lib/ghostApi";
 import { refreshDevices } from "@/lib/connection";
 
@@ -57,6 +59,11 @@ export default function GhostPodScreen() {
     message: "",
   });
   const [restartSheet, setRestartSheet] = useState(false);
+  const [modelSheet, setModelSheet] = useState<{ visible: boolean; preset: ModelPresetInfo | null }>({
+    visible: false,
+    preset: null,
+  });
+  const [switchingModel, setSwitchingModel] = useState(false);
 
   const isOnline = connectionState === "online";
 
@@ -101,6 +108,25 @@ export default function GhostPodScreen() {
 
   const handleRestart = () => {
     setRestartSheet(true);
+  };
+
+  const confirmModelSwitch = async () => {
+    const preset = modelSheet.preset;
+    if (!config || !preset || switchingModel) return;
+    setSwitchingModel(true);
+    try {
+      const res = await setActiveModel(config, preset.name);
+      if (res.ok) {
+        const m = await fetchModelInfo(config);
+        if (m) setModel(m);
+        setModelSheet({ visible: false, preset: null });
+      } else {
+        setErrorSheet({ visible: true, message: res.error ?? "Couldn't switch model." });
+      }
+    } catch {
+      setErrorSheet({ visible: true, message: "Couldn't switch model. Check your connection." });
+    }
+    setSwitchingModel(false);
   };
 
   const activePreset =
@@ -196,6 +222,44 @@ export default function GhostPodScreen() {
         />
       </View>
 
+      {/* AI Model */}
+      {model && model.presets.length > 1 ? (
+        <View style={styles.block}>
+          <GhostText type="caption" style={styles.sectionTitle}>
+            AI MODEL
+          </GhostText>
+          {model.presets.map((p, i) => {
+            const selected = p.name === model.active;
+            return (
+              <View key={p.name}>
+                <TouchableOpacity
+                  style={styles.row}
+                  activeOpacity={0.6}
+                  disabled={switchingModel}
+                  onPress={() => {
+                    if (!selected) setModelSheet({ visible: true, preset: p });
+                  }}
+                  accessibilityLabel={`Use ${p.name} for reasoning`}
+                >
+                  <View style={styles.rowText}>
+                    <GhostText type="body" style={styles.rowTitle}>
+                      {p.name}
+                    </GhostText>
+                    <GhostText type="caption" style={styles.rowSubtitle}>
+                      {`${p.provider}${p.model ? " · " + p.model : ""}`}
+                    </GhostText>
+                  </View>
+                  <StatusDot status={selected ? "online" : "offline"} />
+                </TouchableOpacity>
+                {i < model.presets.length - 1 && (
+                  <View style={styles.divider} />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+
       {/* Danger zone */}
       <GhostButton
         title="Restart this device"
@@ -231,6 +295,20 @@ export default function GhostPodScreen() {
         confirmTitle="OK"
         onConfirm={() => {}}
         variant="destructive"
+      />
+      <GhostSheet
+        visible={modelSheet.visible}
+        onClose={() => {
+          if (!switchingModel) setModelSheet({ visible: false, preset: null });
+        }}
+        title="Switch reasoning?"
+        message={
+          modelSheet.preset
+            ? `Ghost will think with "${modelSheet.preset.name}" from now on. Ongoing turns finish on the previous model.`
+            : undefined
+        }
+        confirmTitle={switchingModel ? "Switching…" : "Switch"}
+        onConfirm={confirmModelSwitch}
       />
     </ScrollView>
   );
@@ -342,6 +420,10 @@ const styles = StyleSheet.create({
     ...Type.largeTitle,
     marginBottom: Space.xl,
     color: Ghost.text.primary,
+  },
+  sectionTitle: {
+    color: Ghost.text.tertiary,
+    marginBottom: Space.sm,
   },
   statusRow: {
     flexDirection: "row",
