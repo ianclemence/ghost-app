@@ -29,7 +29,6 @@
       "adaptiveIcon": {
         "backgroundColor": "#FAFAF7",
         "foregroundImage": "./assets/icons/adaptive-icon.png",
-        "backgroundImage": "./assets/icons/adaptive-icon.png",
         "monochromeImage": "./assets/icons/adaptive-icon.png"
       },
       "package": "com.ianclemence.ghost",
@@ -48,7 +47,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icons/adaptive-icon.png",
-          "color": "#3D7A5F",
+          "color": "#3d3b5c",
           "sounds": []
         }
       ],
