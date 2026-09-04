@@ -4,8 +4,6 @@ import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActionSheetIOS,
-  Alert,
   FlatList,
   Image as RNImage,
   KeyboardAvoidingView,
@@ -21,6 +19,7 @@ import Markdown from "react-native-markdown-display";
 
 import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
 import { EmberIndicator } from "@/components/ember";
+import { GhostRow, GhostSheet } from "@/components/ghost";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import { Composer } from "@/components/composer";
 import { cleanTitleText } from "@/lib/format";
@@ -191,28 +190,21 @@ export default function ConversationScreen() {
     }
   }, []);
 
+  const [attachSheetOpen, setAttachSheetOpen] = useState(false);
+
   const showAttachmentOptions = useCallback(() => {
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ["Cancel", "Take Photo", "Choose Photo", "Choose File"],
-          cancelButtonIndex: 0,
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 1) pickImage(true);
-          else if (buttonIndex === 2) pickImage(false);
-          else if (buttonIndex === 3) pickFile();
-        },
-      );
-    } else {
-      Alert.alert("Attach", "Choose an option", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Take Photo", onPress: () => pickImage(true) },
-        { text: "Choose Photo", onPress: () => pickImage(false) },
-        { text: "Choose File", onPress: pickFile },
-      ]);
-    }
-  }, [pickImage, pickFile]);
+    setAttachSheetOpen(true);
+  }, []);
+
+  const chooseAttachment = useCallback(
+    (kind: "camera" | "photo" | "file") => {
+      setAttachSheetOpen(false);
+      if (kind === "camera") pickImage(true);
+      else if (kind === "photo") pickImage(false);
+      else pickFile();
+    },
+    [pickImage, pickFile],
+  );
 
   const appliedAttach = useRef<string | null>(null);
   useEffect(() => {
@@ -564,6 +556,16 @@ export default function ConversationScreen() {
           }
         />
       </View>
+
+      <GhostSheet
+        visible={attachSheetOpen}
+        onClose={() => setAttachSheetOpen(false)}
+        title="Attach"
+      >
+        <GhostRow title="Take Photo" style={{ paddingHorizontal: 0 }} onPress={() => chooseAttachment("camera")} />
+        <GhostRow title="Choose Photo" style={{ paddingHorizontal: 0 }} onPress={() => chooseAttachment("photo")} />
+        <GhostRow title="Choose File" style={{ paddingHorizontal: 0 }} onPress={() => chooseAttachment("file")} />
+      </GhostSheet>
     </KeyboardAvoidingView>
   );
 }

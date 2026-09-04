@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -13,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { EmptyState, GhostButton } from "@/components/ghost";
+import { EmptyState, GhostButton, GhostSheet } from "@/components/ghost";
 import { useGhostStore } from "@/lib/store";
 import {
   fetchMemorySelf,
@@ -120,46 +119,45 @@ export default function MemoryScreen() {
     loadMemory();
   }, [loadMemory]);
 
+  const [forgetTarget, setForgetTarget] = useState<
+    { kind: "fact"; fact: MemoryFact } | { kind: "note"; note: string } | null
+  >(null);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+
   const confirmForgetFact = (f: MemoryFact) => {
-    if (!config) return;
-    Alert.alert("Forget this?", `"${f.title}" won't be used anymore.`, [
-      { text: "Keep", style: "cancel" },
-      {
-        text: "Forget",
-        style: "destructive",
-        onPress: async () => {
-          setForgettingId(f.id);
-          try {
-            await forgetMemoryFact(config, f.id);
-            setFacts((prev) => prev.filter((x) => x.id !== f.id));
-          } catch {
-            Alert.alert("Couldn't forget that", "Check your connection and try again.");
-          }
-          setForgettingId(null);
-        },
-      },
-    ]);
+    setForgetTarget({ kind: "fact", fact: f });
   };
 
   const confirmForgetNote = (note: string) => {
-    if (!config) return;
-    Alert.alert("Forget this?", "This note won't be used anymore.", [
-      { text: "Keep", style: "cancel" },
-      {
-        text: "Forget",
-        style: "destructive",
-        onPress: async () => {
-          setForgettingId(`note:${note}`);
-          try {
-            await forgetMemoryNote(config, "memory", note);
-            setNotes((prev) => prev.filter((x) => x !== note));
-          } catch {
-            Alert.alert("Couldn't forget that", "Check your connection and try again.");
-          }
-          setForgettingId(null);
-        },
-      },
-    ]);
+    setForgetTarget({ kind: "note", note });
+  };
+
+  const doForget = async () => {
+    if (!config || !forgetTarget) return;
+    setSheetError(null);
+    if (forgetTarget.kind === "fact") {
+      const f = forgetTarget.fact;
+      setForgettingId(f.id);
+      try {
+        await forgetMemoryFact(config, f.id);
+        setFacts((prev) => prev.filter((x) => x.id !== f.id));
+        setForgetTarget(null);
+      } catch {
+        setSheetError("Check your connection and try again.");
+      }
+      setForgettingId(null);
+    } else {
+      const note = forgetTarget.note;
+      setForgettingId(`note:${note}`);
+      try {
+        await forgetMemoryNote(config, "memory", note);
+        setNotes((prev) => prev.filter((x) => x !== note));
+        setForgetTarget(null);
+      } catch {
+        setSheetError("Check your connection and try again.");
+      }
+      setForgettingId(null);
+    }
   };
 
   const runRecall = async () => {
@@ -329,6 +327,26 @@ export default function MemoryScreen() {
           }
         />
       )}
+
+      <GhostSheet
+        visible={forgetTarget !== null}
+        onClose={() => {
+          setForgetTarget(null);
+          setSheetError(null);
+        }}
+        title={sheetError ? "Couldn't forget that" : "Forget this?"}
+        message={
+          sheetError ??
+          (forgetTarget
+            ? forgetTarget.kind === "fact"
+              ? `"${forgetTarget.fact.title}" won't be used anymore.`
+              : "This note won't be used anymore."
+            : undefined)
+        }
+        confirmTitle={sheetError ? "Try again" : "Forget"}
+        variant="destructive"
+        onConfirm={doForget}
+      />
     </View>
   );
 }
