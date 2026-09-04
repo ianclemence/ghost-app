@@ -22,6 +22,7 @@ import Markdown from "react-native-markdown-display";
 import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
 import { EmberIndicator } from "@/components/ember";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
+import { Composer } from "@/components/composer";
 import { cleanTitleText } from "@/lib/format";
 import {
   fetchHistory,
@@ -35,11 +36,12 @@ import {
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { prompt, sessionId, attach, title } = useLocalSearchParams<{
+  const { prompt, sessionId, attach, title, autoSend } = useLocalSearchParams<{
     prompt?: string;
     sessionId?: string;
     attach?: string;
     title?: string;
+    autoSend?: string;
   }>();
   const {
     config,
@@ -90,13 +92,14 @@ export default function ConversationScreen() {
   }, [sessionId]);
 
   useEffect(() => {
+    if (autoSend === "1") return;
     const key = `${typeof sessionId === "string" ? sessionId : ""}|${typeof prompt === "string" ? prompt : ""}`;
     if (typeof prompt === "string" && prompt.trim() && appliedPrompt.current !== key) {
       appliedPrompt.current = key;
       setInput(prompt);
       inputRef.current?.focus();
     }
-  }, [prompt, sessionId]);
+  }, [prompt, sessionId, autoSend]);
 
   useEffect(() => {
     const off = onWSMessage((msg) => {
@@ -316,6 +319,31 @@ export default function ConversationScreen() {
     }
   }, [config, input, isStreaming, currentSession, pendingMedia]);
 
+  // Auto-send for Home prompt cards: submit once per session+prompt, never
+  // again on remount, and never if the prompt is already in history.
+  const handleSendRef = useRef(handleSend);
+  handleSendRef.current = handleSend;
+  const autoSentRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (autoSend !== "1" || !config || isStreaming) return;
+    const q = typeof prompt === "string" ? prompt.trim() : "";
+    const sid = typeof sessionId === "string" && sessionId.trim()
+      ? sessionId.trim()
+      : currentSession;
+    if (!q || !sid) return;
+    const key = `${sid}|${q}`;
+    if (autoSentRef.current === key) return;
+    if (messages.some((m) => m.role === "user" && m.content.trim() === q)) {
+      autoSentRef.current = key;
+      return;
+    }
+    autoSentRef.current = key;
+    const t = setTimeout(() => {
+      handleSendRef.current(q);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [autoSend, config, isStreaming, prompt, sessionId, currentSession, messages]);
+
   const renderMessage = useCallback(
     ({ item }: { item: ExtendedMessage; index: number }) => {
       const isUser = item.role === "user";
@@ -511,45 +539,30 @@ export default function ConversationScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <View style={styles.inputRow}>
-          <TouchableOpacity
-            style={styles.attachButton}
-            activeOpacity={0.7}
-            hitSlop={10}
-            accessibilityLabel="Attach a photo or file"
-            onPress={showAttachmentOptions}
-          >
-            <Paperclip size={20} color={Ghost.text.secondary} />
-          </TouchableOpacity>
-          <TextInput
-            ref={inputRef}
-            style={styles.textInput}
-            value={input}
-            onChangeText={(t) => {
-              setInput(t);
-              if (sendError) setSendError(null);
-            }}
-            placeholder={uploading ? "Uploading..." : "Message Ghost..."}
-            placeholderTextColor={Ghost.text.tertiary}
-            multiline
-            maxLength={2000}
-            onSubmitEditing={() => handleSend()}
-            blurOnSubmit={false}
-            editable={!uploading}
-          />
-          {(input.trim().length > 0 || pendingMedia) && (
+        <Composer
+          value={input}
+          onChangeText={(t) => {
+            setInput(t);
+            if (sendError) setSendError(null);
+          }}
+          onSubmit={() => handleSend()}
+          placeholder={uploading ? "Uploading..." : "Message Ghost..."}
+          editable={!uploading}
+          busy={uploading}
+          maxLength={2000}
+          inputRef={inputRef}
+          leading={
             <TouchableOpacity
-              style={[styles.sendButton, uploading && styles.sendButtonDisabled]}
+              style={styles.attachButton}
               activeOpacity={0.7}
-              hitSlop={10}
-              accessibilityLabel="Send message"
-              onPress={() => handleSend()}
-              disabled={uploading}
+              hitSlop={8}
+              accessibilityLabel="Attach a photo or file"
+              onPress={showAttachmentOptions}
             >
-              <Send size={18} color={Ghost.text.primary} strokeWidth={2.5} />
+              <Paperclip size={18} color={Ghost.text.secondary} />
             </TouchableOpacity>
-          )}
-        </View>
+          }
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -698,31 +711,12 @@ const styles = StyleSheet.create({
     paddingTop: Space.sm,
     backgroundColor: Ghost.bg.base,
   },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: Space.sm,
-  },
   attachButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 2,
-  },
-  textInput: {
-    ...Type.body,
-    flex: 1,
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    paddingHorizontal: Space.lg,
-    paddingVertical: Space.md,
-    color: Ghost.text.primary,
-    maxHeight: 120,
-    textAlignVertical: "center",
   },
   sendButton: {
     width: 34,

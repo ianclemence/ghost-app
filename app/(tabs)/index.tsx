@@ -1,19 +1,19 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { Bell, Camera, Menu, Send, Sparkles, Upload } from "lucide-react-native";
-import React, { useCallback, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Bell, Camera, Menu, Mic, Sparkles, Upload } from "lucide-react-native";
+import React, { useCallback, useRef, useState } from "react";
 import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Radius, Space } from "@/constants/theme";
+import { Composer } from "@/components/composer";
 import { GhostText } from "@/components/themed-text";
 import { EmptyState } from "@/components/ghost";
 import { MenuDrawer } from "@/components/menu-drawer";
@@ -80,6 +80,16 @@ export default function HomeScreen() {
   const [greeting] = useState(getGreeting);
   const [draft, setDraft] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const navBusy = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      navBusy.current = false;
+      return () => {
+        navBusy.current = true;
+      };
+    }, []),
+  );
 
   const displayName = ghostName ?? profile?.name ?? null;
 
@@ -112,21 +122,37 @@ export default function HomeScreen() {
   );
 
   const startFreshPrompt = useCallback(
-    (prompt: string, attach?: "camera" | "photo" | "file") => {
+    (prompt: string, attach?: "camera" | "photo" | "file", autoSend?: boolean) => {
+      if (navBusy.current) return;
       const q = prompt.trim();
       if (!q && !attach) return;
+      navBusy.current = true;
       const id = freshSessionId();
       setCurrentSession(id);
       const params: Record<string, string> = { sessionId: id };
       if (q) params.prompt = q;
       if (attach) params.attach = attach;
+      if (autoSend && q) params.autoSend = "1";
       router.push({ pathname: "/conversation", params } as any);
     },
     [router, setCurrentSession, freshSessionId],
   );
 
-  const handleSubmit = () => {
-    const q = draft.trim();
+  const sendCardPrompt = useCallback(
+    (prompt: string) => startFreshPrompt(prompt, undefined, true),
+    [startFreshPrompt],
+  );
+
+  const openFreshConversation = useCallback(() => {
+    if (navBusy.current) return;
+    navBusy.current = true;
+    const id = freshSessionId();
+    setCurrentSession(id);
+    router.push({ pathname: "/conversation", params: { sessionId: id } } as any);
+  }, [router, setCurrentSession, freshSessionId]);
+
+  const handleSubmit = (text: string) => {
+    const q = text.trim();
     if (!q) return;
     setDraft("");
     startFreshPrompt(q);
@@ -158,12 +184,10 @@ export default function HomeScreen() {
     [openOriginSession, startFreshPrompt],
   );
 
-  const canSend = draft.trim().length > 0;
-
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={0}
     >
       <LinearGradient
@@ -244,8 +268,8 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.starterCard}
             activeOpacity={0.85}
-            onPress={() => startFreshPrompt(STARTER_PROMPT)}
-            accessibilityLabel="Start a new briefing conversation"
+            onPress={() => sendCardPrompt(STARTER_PROMPT)}
+            accessibilityLabel="Send briefing prompt to Ghost now"
           >
             <GhostText type="callout" style={styles.cardText}>
               {STARTER_PROMPT}
@@ -261,9 +285,9 @@ export default function HomeScreen() {
               activeOpacity={0.85}
               onPress={() => {
                 if (latest?.sessionId) openOriginSession(latest.sessionId);
-                else startFreshPrompt("What can you do for me?");
+                else sendCardPrompt("What can you do for me?");
               }}
-              accessibilityLabel={latest?.sessionId ? "Open the conversation this update came from" : "Ask what Ghost can do in a new conversation"}
+              accessibilityLabel={latest?.sessionId ? "Open the conversation this update came from" : "Send to Ghost now"}
             >
               <GhostText type="callout" style={styles.cardText} numberOfLines={3}>
                 {latest ? latest.preview : "No updates right now"}
@@ -288,36 +312,29 @@ export default function HomeScreen() {
               >
                 <Camera size={18} color={Ghost.text.secondary} />
               </TouchableOpacity>
+              <TouchableOpacity
+                onPress={openFreshConversation}
+                hitSlop={8}
+                accessibilityLabel="Start a new conversation with voice input"
+              >
+                <Mic size={18} color={Ghost.text.secondary} />
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </View>
 
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.sm }]}>
-        <View style={styles.promptBar}>
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            onSubmitEditing={handleSubmit}
-            blurOnSubmit={false}
-            returnKeyType="send"
-            placeholder="Enter a prompt here"
-            placeholderTextColor={Ghost.text.tertiary}
-            style={styles.promptInput}
-            multiline
-            textAlignVertical="top"
-            editable={!drawerOpen}
-          />
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={!canSend}
-            hitSlop={8}
-            accessibilityLabel="Send prompt"
-            style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-          >
-            <Send size={18} color={canSend ? Ghost.text.inverse : Ghost.text.tertiary} />
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom }]}>
+        <Composer
+          value={draft}
+          onChangeText={setDraft}
+          onSubmit={handleSubmit}
+          placeholder="Enter a prompt here"
+          editable={!drawerOpen}
+          minimal
+          showMic={false}
+          minHeight={72}
+        />
         {connectionState !== "online" ? (
           <GhostText type="footnote" style={styles.offlineNote}>
             {connectionState === "syncing" ? "Reconnecting — your prompt will open in conversation." : "Ghost is offline — you can still draft, sending happens in conversation."}
@@ -491,38 +508,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: Space.xl,
     paddingTop: Space.md,
-  },
-  promptBar: {
-    backgroundColor: Ghost.bg.base,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    paddingHorizontal: Space.lg,
-    paddingVertical: Space.md,
-    minHeight: 56,
-    maxHeight: 132,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: Space.sm,
-  },
-  promptInput: {
-    ...Type.body,
-    color: Ghost.text.primary,
-    flex: 1,
-    minHeight: 24,
-    maxHeight: 100,
-    paddingVertical: 0,
-  },
-  sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Ghost.accent.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendBtnDisabled: {
-    backgroundColor: Ghost.bg.sunken,
   },
   offlineNote: {
     color: Ghost.text.tertiary,
