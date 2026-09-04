@@ -70,21 +70,38 @@ ghost-app/
 
 ---
 
-# Getting Started
+# 🚀 Getting Started
 
 ## Prerequisites
 
-- Node.js 18+
-- Bun
+- [Bun](https://bun.sh/) (Preferred) or [Node.js](https://nodejs.org/) (v20+ or v22+ recommended)
+- [Expo CLI](https://docs.expo.dev/)
+- [Android Studio](https://developer.android.com/studio) _(for Android emulator)_
+- [Xcode](https://developer.apple.com/xcode/) _(for iOS simulator, macOS only)_
 - A running Ghost Pod with the web console reachable on your network
 - (For remote access) `ghost relay run` connected to your relay server
 
-## Install
+## Local Development
 
-```bash
-bun install
-bunx expo start
-```
+1. **Clone the repository:**
+    ```bash
+    git clone https://github.com/ianclemence/ghost-app.git
+    cd ghost-app
+    ```
+
+2. **Install dependencies:**
+    ```bash
+    bun install
+    # or
+    npm install
+    ```
+
+3. **Start the development server:**
+    ```bash
+    bunx expo start
+    # or
+    npx expo start
+    ```
 
 ---
 
@@ -204,24 +221,85 @@ Pairing and auth errors return `{ "error": { "code", "message" } }`:
 
 ---
 
-# Standalone Builds
+# 📦 Build & Deployment
 
-Android
+Build for production using **Expo Application Services (EAS)**:
+
+1. **Configure EAS Builds:**
+    ```bash
+    bunx eas build:configure
+
+    # Android
+    bunx eas build --platform android
+
+    # iOS
+    bunx eas build --platform ios
+    ```
+
+2. **Build for Preview:**
+    ```bash
+    # Android
+    eas build --platform android --profile preview
+
+    # iOS
+    eas build --platform ios --profile preview
+    ```
+
+3. **Build for Production:**
+    ```bash
+    # Android
+    eas build --platform android --profile production
+
+    # iOS
+    eas build --platform ios --profile production
+    ```
+
+4. **OTA Updates:**
+    ```bash
+    # Push OTA update to staging channel
+    eas update --channel staging --message "Testing new feature"
+
+    # Or target a specific branch
+    eas update --branch preview --message "Update memory and activity screens"
+
+    # Channel can be: development, preview, or production
+    # depending on the build type of the app
+    eas update --channel production --message "Bug fix release"
+    ```
+
+## GitHub Actions CI/CD
+
+Ghost Mobile uses `eas build --local` on GitHub-hosted runners — this does **not** consume EAS cloud build quota.
+
+| Workflow | Trigger | Output |
+|---|---|---|
+| `android-ci.yml` | Push / PR to `master` | APK artifact (14-day retention) |
+| `android-release.yml` | Push tag `v*.*.*` | APK published to **GitHub Releases tab** |
+
+> ⚠️ The `android-ci.yml` / `android-release.yml` workflows do not exist in this repo yet — add them (same shape as the Nairobi Unwind repo) before the table above applies.
+
+### Required GitHub secret
+
+Set this secret in your repository under **Settings → Secrets and variables → Actions**:
+
+| Secret | Required | Description |
+|---|---|---|
+| `EXPO_TOKEN` | ✅ Yes | Authenticates EAS CLI for signing credential download |
+
+Generate a token at [expo.dev/settings/access-tokens](https://expo.dev/settings/access-tokens).
+
+### Shipping a release
 
 ```bash
-bunx expo run:android
+git tag v1.0.0
+git push origin v1.0.0
+# → android-release.yml builds the APK on the GitHub runner
+# → APK appears on the Releases tab with auto-generated changelog
 ```
 
-iOS
+Beta / pre-release tags (`-beta`, `-alpha`, `-rc`) are automatically marked as pre-release on GitHub:
 
 ```bash
-bunx expo run:ios
-```
-
-Cloud build using EAS
-
-```bash
-bun add -g eas-cli
-
-eas build --platform android --profile preview
+git tag v1.0.0-beta
+git push origin v1.0.0-beta
 ```
