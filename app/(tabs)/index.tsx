@@ -335,11 +335,6 @@ export default function HomeScreen() {
           showMic={false}
           minHeight={72}
         />
-        {connectionState !== "online" ? (
-          <GhostText type="footnote" style={styles.offlineNote}>
-            {connectionState === "syncing" ? "Reconnecting — your prompt will open in conversation." : "Ghost is offline — you can still draft, sending happens in conversation."}
-          </GhostText>
-        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
@@ -508,9 +503,5 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: Space.xl,
     paddingTop: Space.md,
-  },
-  offlineNote: {
-    color: Ghost.text.tertiary,
-    marginTop: Space.xs,
   },
 });

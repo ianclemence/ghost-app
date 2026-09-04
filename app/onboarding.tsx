@@ -21,7 +21,7 @@ export default function FirstLaunchScreen() {
           Ghost
         </GhostText>
         <GhostText type="body" style={styles.tagline}>
-          Your AI, your hardware.
+          Your AI. Your Memory. Your Machine.
         </GhostText>
       </View>
 

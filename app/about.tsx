@@ -19,7 +19,7 @@ export default function AboutScreen() {
       <View style={styles.brand}>
         <GhostMark size={48} />
         <GhostText type="footnote" style={styles.brandTagline}>
-          Your AI, Your Memory, Your Machine
+          Your AI. Your Memory. Your Machine.
         </GhostText>
       </View>
 

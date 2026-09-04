@@ -22,7 +22,7 @@ import { EmberIndicator } from "@/components/ember";
 import { GhostRow, GhostSheet } from "@/components/ghost";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import { Composer } from "@/components/composer";
-import { cleanTitleText } from "@/lib/format";
+import { cleanTitleText, formatMessageTime, renderTaskLists } from "@/lib/format";
 import {
   fetchHistory,
   sendMessage,
@@ -337,27 +337,30 @@ export default function ConversationScreen() {
   }, [autoSend, config, isStreaming, prompt, sessionId, currentSession, messages]);
 
   const renderMessage = useCallback(
-    ({ item }: { item: ExtendedMessage; index: number }) => {
+    ({ item, index }: { item: ExtendedMessage; index: number }) => {
       const isUser = item.role === "user";
+      const time = formatMessageTime(item.timestamp);
+      const label = (
+        <View style={styles.labelRow}>
+          <Text style={styles.messageLabel}>{isUser ? "You" : "Ghost"}</Text>
+          {time ? <Text style={styles.messageTime}>{time}</Text> : null}
+        </View>
+      );
       if (!isUser && !item.content.trim()) {
         return (
           <View style={styles.messageBlock}>
-            <Text style={styles.messageLabel}>Ghost</Text>
+            {label}
             <Text style={styles.thinkingText}>{toolActivity ?? "Thinking…"}</Text>
           </View>
         );
       }
       return (
-        <View style={styles.messageBlock}>
-          <Text style={[styles.messageLabel, isUser && styles.messageLabelUser]}>
-            {isUser ? "You" : "Ghost"}
-          </Text>
+        <View style={[styles.messageBlock, isUser && index > 0 && styles.turnDivider]}>
+          {label}
           {isUser ? (
-            <View style={styles.userBubble}>
-              <Text style={styles.userText}>{item.content}</Text>
-            </View>
+            <Text style={styles.userText}>{item.content}</Text>
           ) : (
-            <Markdown style={markdownStyles as any}>{item.content}</Markdown>
+            <Markdown style={markdownStyles as any}>{renderTaskLists(item.content)}</Markdown>
           )}
         </View>
       );
@@ -604,23 +607,29 @@ const styles = StyleSheet.create({
     paddingTop: Space.lg,
   },
   messageBlock: {
-    paddingVertical: Space.lg,
+    paddingVertical: Space.xl,
+  },
+  turnDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Ghost.border.subtle,
+    marginTop: Space.sm,
+    paddingTop: Space.xl,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: Space.sm,
+    marginBottom: Space.sm,
   },
   messageLabel: {
     ...Type.caption,
     color: Ghost.text.tertiary,
-    marginBottom: Space.sm,
+    textTransform: "uppercase",
   },
-  messageLabelUser: {
-    color: Ghost.text.secondary,
-  },
-  userBubble: {
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Ghost.border.subtle,
-    paddingHorizontal: Space.md,
-    paddingVertical: Space.sm,
+  messageTime: {
+    ...Type.footnote,
+    color: Ghost.text.tertiary,
   },
   userText: {
     ...Type.body,
@@ -791,15 +800,15 @@ const markdownStyles = {
   heading1: {
     color: Ghost.text.primary,
     fontWeight: "700",
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 22,
+    lineHeight: 28,
     marginVertical: Space.md,
   },
   heading2: {
     color: Ghost.text.primary,
     fontWeight: "700",
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 19,
+    lineHeight: 25,
     marginVertical: Space.md,
   },
   heading3: {
@@ -815,6 +824,40 @@ const markdownStyles = {
     fontSize: 16,
     lineHeight: 22,
     marginVertical: Space.sm,
+  },
+  heading5: {
+    color: Ghost.text.primary,
+    fontWeight: "600",
+    fontSize: 15,
+    lineHeight: 21,
+    marginVertical: Space.sm,
+  },
+  heading6: {
+    color: Ghost.text.secondary,
+    fontWeight: "600",
+    fontSize: 14,
+    lineHeight: 20,
+    marginVertical: Space.sm,
+  },
+  s: {
+    color: Ghost.text.primary,
+    textDecorationLine: "line-through",
+  },
+  del: {
+    color: Ghost.text.primary,
+    textDecorationLine: "line-through",
+  },
+  u: {
+    color: Ghost.text.primary,
+    textDecorationLine: "underline",
+  },
+  sub: {
+    color: Ghost.text.primary,
+    fontSize: 12,
+  },
+  sup: {
+    color: Ghost.text.primary,
+    fontSize: 12,
   },
   strong: {
     color: Ghost.text.primary,

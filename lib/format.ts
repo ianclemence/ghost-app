@@ -25,6 +25,29 @@ export function cleanTitleText(value: string): string {
   return out.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Render GFM task-list markers as checkbox glyphs. The markdown parser has
+ * no checkbox node, so `- [ ]` / `- [x]` would otherwise show as raw text.
+ * Display-only: the underlying content is untouched.
+ */
+export function renderTaskLists(content: string): string {
+  return (content || "")
+    .replace(/^(\s*[-*]\s+)\[ \]/gm, "$1☐ ")
+    .replace(/^(\s*[-*]\s+)\[x\]/gim, "$1☑ ");
+}
+
+/** Normalize a backend (seconds) or local (ms) timestamp to millis. */
+export function toMillis(ts: number | null | undefined): number {
+  const v = ts || 0;
+  return v > 1e12 ? v : v * 1000;
+}
+
+export function formatMessageTime(ts: number | null | undefined): string {
+  const ms = toMillis(ts);
+  if (!ms) return "";
+  return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 export function timeAgo(timestampMs: number): string {
   const diff = Date.now() - timestampMs;
   if (diff < 0) return "just now";
