@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { MessageCirclePlus, MoreHorizontal, Search } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -329,7 +330,12 @@ export default function ConversationsScreen() {
         <TouchableOpacity
           style={[styles.fab, { bottom: insets.bottom + Space.xl }]}
           activeOpacity={0.8}
-          onPress={handleNewConversation}
+          onPress={() => {
+            if (process.env.EXPO_OS === "ios") {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            }
+            handleNewConversation();
+          }}
           accessibilityLabel="Start a new chat"
         >
           <MessageCirclePlus size={24} color={Ghost.text.inverse} />
@@ -498,6 +504,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Ghost.border.default,
     borderRadius: Radius.lg,
+    borderCurve: "continuous",
     paddingHorizontal: Space.md,
     backgroundColor: Ghost.bg.raised,
   },
@@ -532,10 +539,6 @@ const styles = StyleSheet.create({
     backgroundColor: Ghost.accent.primary,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    boxShadow: "0 3px 6px rgba(0, 0, 0, 0.2)",
   },
 });

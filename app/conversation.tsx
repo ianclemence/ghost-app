@@ -8,7 +8,6 @@ import {
   FlatList,
   Image as RNImage,
   Modal,
-  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import Markdown from "react-native-markdown-display";
 
@@ -375,7 +375,7 @@ export default function ConversationScreen() {
         <View style={[styles.messageBlock, isUser && index > 0 && styles.turnDivider]}>
           {label}
           {isUser ? (
-            <Text style={styles.userText}>{item.content}</Text>
+            <Text selectable style={styles.userText}>{item.content}</Text>
           ) : (
             <Markdown style={markdownStyles as any}>{renderTaskLists(item.content)}</Markdown>
           )}
@@ -440,7 +440,7 @@ export default function ConversationScreen() {
               .catch(() => setHistoryError("Couldn't load history. Tap to retry."));
           }}
         >
-          <Text style={styles.inlineErrorText}>{historyError} Tap to retry.</Text>
+          <Text selectable style={styles.inlineErrorText}>{historyError} Tap to retry.</Text>
         </TouchableOpacity>
       ) : null}
       {toolActivity && !isStreaming ? null : null}
@@ -457,7 +457,7 @@ export default function ConversationScreen() {
         ]}
         showsVerticalScrollIndicator={false}
         inverted={false}
-        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "none"}
+        keyboardDismissMode={process.env.EXPO_OS === "ios" ? "interactive" : "none"}
         keyboardShouldPersistTaps="handled"
         onScroll={(e) => {
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -469,9 +469,9 @@ export default function ConversationScreen() {
         }}
       />
       {clarifyRequest ? (
-        <View style={styles.clarifyCard}>
+        <Animated.View entering={FadeIn.duration(200)} style={styles.clarifyCard}>
           <Text style={styles.clarifyTitle}>Ghost needs a detail</Text>
-          <Text style={styles.clarifyQuestion}>{clarifyRequest.question}</Text>
+          <Text selectable style={styles.clarifyQuestion}>{clarifyRequest.question}</Text>
           {clarifyRequest.choices.length > 0 ? (
             <View style={styles.chipRow}>
               {clarifyRequest.choices.map((c) => (
@@ -529,10 +529,10 @@ export default function ConversationScreen() {
             </TouchableOpacity>
           </View>
           {clarifyError ? <Text style={styles.clarifyError}>{clarifyError}</Text> : null}
-        </View>
+        </Animated.View>
       ) : null}
       {sendError ? (
-        <View style={styles.inlineError}>
+        <Animated.View entering={FadeIn.duration(200)} style={styles.inlineError}>
           <Text style={styles.inlineErrorText}>{sendError}</Text>
           <TouchableOpacity
             onPress={() => {
@@ -543,7 +543,7 @@ export default function ConversationScreen() {
           >
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       ) : null}
 
       {/* Input */}

@@ -228,7 +228,7 @@ export default function MemoryScreen() {
           <GhostText type="subhead" style={styles.inlineError}>{recallError}</GhostText>
         ) : null}
         {recallSummary ? (
-          <GhostText type="callout" style={styles.recallSummary}>{recallSummary}</GhostText>
+          <GhostText type="callout" style={styles.recallSummary} selectable>{recallSummary}</GhostText>
         ) : null}
         {recallSessions.length > 0 && !recallSummary ? (
           <GhostText type="subhead" style={styles.recallMeta}>
@@ -378,6 +378,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Ghost.border.default,
     borderRadius: Radius.lg,
+    borderCurve: "continuous",
     paddingHorizontal: Space.md,
     paddingVertical: Space.sm,
     minHeight: 48,

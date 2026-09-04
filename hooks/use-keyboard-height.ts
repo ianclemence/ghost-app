@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Keyboard, Platform } from "react-native";
+import { Keyboard } from "react-native";
 
 /**
  * Explicit keyboard height for composer positioning.
@@ -13,7 +13,7 @@ export function useKeyboardHeight(): number {
   const [height, setHeight] = useState(0);
 
   useEffect(() => {
-    const show = Platform.OS === "ios"
+    const show = process.env.EXPO_OS === "ios"
       ? Keyboard.addListener("keyboardWillChangeFrame", (e) => {
           setHeight(Math.max(0, e.endCoordinates.height));
         })

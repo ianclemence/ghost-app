@@ -5,13 +5,12 @@ import {
   ScrollView,
   TextInput,
   KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { startPairing } from "@/lib/connection";
 
 /**
@@ -90,7 +89,7 @@ export default function ManualScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={process.env.EXPO_OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
         style={{ flex: 1, backgroundColor: Ghost.bg.base }}
@@ -182,11 +181,11 @@ const styles = StyleSheet.create({
     marginTop: Space.md,
   },
   input: {
+    ...Type.body,
     borderWidth: 1,
     borderColor: Ghost.border.default,
     borderRadius: Radius.md,
-    padding: 12,
-    fontSize: 16,
+    padding: Space.md,
     color: Ghost.text.primary,
     backgroundColor: Ghost.bg.base,
   },

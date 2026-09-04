@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { parsePairingURI } from "@/lib/pairing";
 import { startPairing } from "@/lib/connection";
 
@@ -365,16 +365,13 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerTitle: {
+    ...Type.headline,
     color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-    letterSpacing: -0.3,
     marginTop: Space.sm,
   },
   headerHint: {
+    ...Type.subhead,
     color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
-    fontWeight: "400",
   },
 
   bottomOverlay: {
@@ -388,8 +385,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   invalidText: {
+    ...Type.subhead,
     color: "rgba(255,255,255,0.7)",
-    fontSize: 14,
     fontWeight: "500",
   },
   loadingRow: {
@@ -398,8 +395,8 @@ const styles = StyleSheet.create({
     gap: Space.sm,
   },
   loadingText: {
+    ...Type.subhead,
     color: "rgba(255,255,255,0.8)",
-    fontSize: 14,
     fontWeight: "500",
   },
   cancelButton: {
@@ -409,9 +406,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cancelText: {
+    ...Type.callout,
     color: "rgba(255,255,255,0.5)",
-    fontSize: 15,
-    fontWeight: "400",
   },
 
   // ─── Permission Denied ───────────────────────────────────────────────────

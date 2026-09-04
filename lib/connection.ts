@@ -280,7 +280,7 @@ export async function completePairing(
     };
 
     // Get platform for device metadata.
-    const platform = require("react-native").Platform.OS;
+    const platform = process.env.EXPO_OS ?? "unknown";
 
     const result = await apiCompletePairing(tempConfig, req.token, "Phone", platform);
 

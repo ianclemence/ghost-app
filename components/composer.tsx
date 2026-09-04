@@ -1,4 +1,5 @@
 import { Camera, ImagePlus, Mic, Send, Square, X } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import {
   RecordingPresets,
   getRecordingPermissionsAsync,
@@ -163,6 +164,9 @@ export function Composer({
   const submit = () => {
     const text = value.trim();
     if (!text || busy || voiceOccupied || editable === false) return;
+    if (process.env.EXPO_OS === "ios") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
     onSubmit(text);
   };
 
@@ -282,6 +286,7 @@ const styles = StyleSheet.create({
   bar: {
     backgroundColor: Ghost.bg.base,
     borderRadius: Radius.xl,
+    borderCurve: "continuous",
     borderWidth: 1,
     borderColor: Ghost.border.default,
     paddingHorizontal: Space.md,
