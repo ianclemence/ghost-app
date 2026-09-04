@@ -4,58 +4,43 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 
 ---
 
-## Architecture
+# Features
 
-```text
-┌──────────────────────┐   HTTPS + WebSocket   ┌───────────────┐   tunnel    ┌─────────────────────┐
-│     Ghost Mobile     │ ◄───────────────────► │  Relay server │ ◄─────────► │ Ghost Pod (gateway) │
-│   React Native/Expo  │  client token auth    │    (cloud)    │  localhost  │   127.0.0.1:8766    │
-└──────────────────────┘                       └───────────────┘             └─────────────────────┘
-```
+## 👻 Home
 
-- The Ghost Pod gateway binds to **localhost only**. The phone reaches it through the **relay server**, which tunnels traffic over an outbound WebSocket from the Pod.
-- Relay connections authenticate with `X-Ghost-Client-Id` + `X-Ghost-Client-Token` headers.
-- Paired devices additionally authenticate to the gateway with `X-Ghost-Device-ID` + `X-Ghost-Credential` headers.
-- There is no shared secret. Each device gets its own credential at pairing time; tokens are never placed in URLs.
+| Feature | Description |
+|---------|-------------|
+| Inbox | Proactive Ghost messages grouped by day |
+| Presence | Live connection status and gateway uptime |
+| Ask Ghost | Jump straight into a conversation |
 
----
+## 💬 Chats
 
-## Project Layout
+| Feature | Description |
+|---------|-------------|
+| Streaming AI | Token-by-token responses using SSE |
+| Live tool progress | Shows "Searching… / Running…" while Ghost works |
+| Voice input | Record and transcribe audio |
+| Image and file attachments | Send media with messages |
+| Markdown rendering | Code blocks, headings, links, formatting |
+| Search history | Full-text search across sessions |
+| Cancel generation | Stop a long response mid-stream |
+| Offline queue | Messages are queued and delivered when back online |
 
-```text
-ghost-app/
-├── app/
-│   ├── _layout.tsx           # Root stack, deep links, WS notifications
-│   ├── (tabs)/
-│   │   ├── index.tsx         # 👻 Home — inbox + presence
-│   │   ├── chats.tsx         # 💬 Chats — session list
-│   │   ├── activity.tsx      # 🕒 Activity — cron timeline
-│   │   ├── memory.tsx        # 🧠 Memory — profile + curated memory
-│   │   └── more.tsx          # ⚙️ More — settings hub
-│   ├── conversation.tsx      # Streaming chat (SSE)
-│   ├── onboarding.tsx        # First-launch flow
-│   ├── connect.tsx           # Scan QR / enter manually
-│   ├── scan.tsx              # QR scanner
-│   ├── confirm.tsx           # Pairing progress
-│   ├── manual.tsx            # Manual pairing entry
-│   ├── pairing-success.tsx   # Connected state
-│   ├── auth-failure.tsx      # Credential rejected
-│   ├── revoked.tsx           # Device disconnected
-│   ├── ghost-pod.tsx         # Ghost Pod screen (status, paired devices, system info, diagnostics)
-│   ├── advanced.tsx          # Diagnostics
-│   ├── permissions.tsx
-│   └── about.tsx
-├── lib/
-│   ├── ghostApi.ts           # API client (REST + SSE + WS)
-│   ├── connection.ts         # Connection state machine
-│   ├── credentials.ts        # SecureStore/AsyncStorage credential layer
-│   ├── pairing.ts            # Pairing URI parser
-│   ├── store.ts              # Zustand state
-│   └── format.ts             # Formatting helpers
-├── components/
-├── constants/theme.ts        # Design tokens
-└── docs/
-```
+## 🕒 Activity
+
+- Scheduled jobs on a TODAY / UPCOMING / PAUSED timeline
+- Humanized schedules and run status
+
+## 🧠 Memory
+
+- Read Ghost's memory files (user profile, curated memory)
+
+## ⚙️ More
+
+- Connection status, reconnect, pair another Ghost
+- Ghost Pod device management: list paired devices, see who's connected now, disconnect devices
+- Advanced diagnostics and credential reset
 
 ---
 
@@ -123,43 +108,58 @@ Opening this URI adopts the relay connection through the app's credential system
 
 ---
 
-# Features
+## Architecture
 
-## 👻 Home
+```text
+┌──────────────────────┐   HTTPS + WebSocket   ┌───────────────┐   tunnel    ┌─────────────────────┐
+│     Ghost Mobile     │ ◄───────────────────► │  Relay server │ ◄─────────► │ Ghost Pod (gateway) │
+│   React Native/Expo  │  client token auth    │    (cloud)    │  localhost  │   127.0.0.1:8766    │
+└──────────────────────┘                       └───────────────┘             └─────────────────────┘
+```
 
-| Feature | Description |
-|---------|-------------|
-| Inbox | Proactive Ghost messages grouped by day |
-| Presence | Live connection status and gateway uptime |
-| Ask Ghost | Jump straight into a conversation |
+- The Ghost Pod gateway binds to **localhost only**. The phone reaches it through the **relay server**, which tunnels traffic over an outbound WebSocket from the Pod.
+- Relay connections authenticate with `X-Ghost-Client-Id` + `X-Ghost-Client-Token` headers.
+- Paired devices additionally authenticate to the gateway with `X-Ghost-Device-ID` + `X-Ghost-Credential` headers.
+- There is no shared secret. Each device gets its own credential at pairing time; tokens are never placed in URLs.
 
-## 💬 Chats
+---
 
-| Feature | Description |
-|---------|-------------|
-| Streaming AI | Token-by-token responses using SSE |
-| Live tool progress | Shows "Searching… / Running…" while Ghost works |
-| Voice input | Record and transcribe audio |
-| Image and file attachments | Send media with messages |
-| Markdown rendering | Code blocks, headings, links, formatting |
-| Search history | Full-text search across sessions |
-| Cancel generation | Stop a long response mid-stream |
-| Offline queue | Messages are queued and delivered when back online |
+## Project Layout
 
-## 🕒 Activity
-
-- Scheduled jobs on a TODAY / UPCOMING / PAUSED timeline
-- Humanized schedules and run status
-
-## 🧠 Memory
-
-- Read Ghost's memory files (user profile, curated memory)
-
-## ⚙️ More
-
-- Connection status, reconnect, pair another Ghost
-- Ghost Pod device management: list paired devices, see who's connected now, disconnect devices
-- Advanced diagnostics and credential reset
+```text
+ghost-app/
+├── app/
+│   ├── _layout.tsx           # Root stack, deep links, WS notifications
+│   ├── (tabs)/
+│   │   ├── index.tsx         # 👻 Home — inbox + presence
+│   │   ├── chats.tsx         # 💬 Chats — session list
+│   │   ├── activity.tsx      # 🕒 Activity — cron timeline
+│   │   ├── memory.tsx        # 🧠 Memory — profile + curated memory
+│   │   └── more.tsx          # ⚙️ More — settings hub
+│   ├── conversation.tsx      # Streaming chat (SSE)
+│   ├── onboarding.tsx        # First-launch flow
+│   ├── connect.tsx           # Scan QR / enter manually
+│   ├── scan.tsx              # QR scanner
+│   ├── confirm.tsx           # Pairing progress
+│   ├── manual.tsx            # Manual pairing entry
+│   ├── pairing-success.tsx   # Connected state
+│   ├── auth-failure.tsx      # Credential rejected
+│   ├── revoked.tsx           # Device disconnected
+│   ├── ghost-pod.tsx         # Ghost Pod screen (status, paired devices, system info, diagnostics)
+│   ├── advanced.tsx          # Diagnostics
+│   ├── permissions.tsx
+│   └── about.tsx
+├── lib/
+│   ├── ghostApi.ts           # API client (REST + SSE + WS)
+│   ├── connection.ts         # Connection state machine
+│   ├── credentials.ts        # SecureStore/AsyncStorage credential layer
+│   ├── pairing.ts            # Pairing URI parser
+│   ├── store.ts              # Zustand state
+│   └── format.ts             # Formatting helpers
+├── components/
+├── constants/theme.ts        # Design tokens
+└── docs/
+```
 
 ---
 
