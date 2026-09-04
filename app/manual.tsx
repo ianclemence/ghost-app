@@ -10,7 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
-import { GhostButton, SectionHeader } from "@/components/ghost";
+import { GhostButton } from "@/components/ghost";
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { startPairing } from "@/lib/connection";
 
@@ -105,7 +105,6 @@ export default function ManualScreen() {
           full pairing link.
         </GhostText>
 
-        <SectionHeader title="Connection" />
         <GhostText type="caption" style={styles.label}>
           Ghost Pod address
         </GhostText>
