@@ -4,14 +4,15 @@
  */
 
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export function useThemeColor(
   props: { light?: string; dark?: string },
   colorName: keyof typeof Colors.light & keyof typeof Colors.dark
 ) {
-  const scheme = useColorScheme();
-  const theme = scheme === 'dark' ? 'dark' : 'light';
+  // Ghost is a light-only product: every surface uses the light tokens, so
+  // the OS dark-mode scheme must never leak into text color (it rendered
+  // light text on light surfaces, e.g. invisible sheet titles).
+  const theme = 'light';
   const colorFromProps = props[theme];
 
   if (colorFromProps) {

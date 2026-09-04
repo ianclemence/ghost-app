@@ -25,7 +25,7 @@
       }
     },
     "android": {
-      "softwareKeyboardLayoutMode": "resize",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#FAFAF7",
         "foregroundImage": "./assets/icons/adaptive-icon.png",

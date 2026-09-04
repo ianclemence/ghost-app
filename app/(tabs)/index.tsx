@@ -4,13 +4,12 @@ import { Bell, Camera, Menu, Mic, Sparkles, Upload } from "lucide-react-native";
 import React, { useCallback, useRef, useState } from "react";
 import {
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
@@ -184,12 +183,10 @@ export default function HomeScreen() {
     [openOriginSession, startFreshPrompt],
   );
 
+  const keyboardHeight = useKeyboardHeight();
+
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={0}
-    >
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={[Ghost.accent.soft, "transparent"]}
         style={styles.heroWash}
@@ -324,7 +321,12 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom }]}>
+      <View
+        style={[
+          styles.inputContainer,
+          { paddingBottom: keyboardHeight > 0 ? keyboardHeight + Space.sm : insets.bottom },
+        ]}
+      >
         <Composer
           value={draft}
           onChangeText={setDraft}
@@ -336,7 +338,7 @@ export default function HomeScreen() {
           minHeight={72}
         />
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

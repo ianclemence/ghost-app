@@ -1,4 +1,4 @@
-import { ArrowLeft, Paperclip, Send, X } from "lucide-react-native";
+import { ArrowLeft, Camera, FileText, ImagePlus, Paperclip, Send, X } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -6,7 +6,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Image as RNImage,
-  KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
@@ -15,11 +14,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import Markdown from "react-native-markdown-display";
 
 import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
 import { EmberIndicator } from "@/components/ember";
-import { GhostRow, GhostSheet } from "@/components/ghost";
+import { GhostSheet } from "@/components/ghost";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import { Composer } from "@/components/composer";
 import { cleanTitleText, formatMessageTime, renderTaskLists } from "@/lib/format";
@@ -368,12 +368,10 @@ export default function ConversationScreen() {
     [toolActivity],
   );
 
+  const keyboardHeight = useKeyboardHeight();
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={0}
-    >
+    <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity
@@ -513,7 +511,12 @@ export default function ConversationScreen() {
       ) : null}
 
       {/* Input */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Space.sm }]}>
+      <View
+        style={[
+          styles.inputContainer,
+          { paddingBottom: keyboardHeight > 0 ? keyboardHeight + Space.sm : insets.bottom + Space.sm },
+        ]}
+      >
         {/* Media Preview */}
         {pendingMedia && (
           <View style={styles.previewContainer}>
@@ -565,11 +568,20 @@ export default function ConversationScreen() {
         onClose={() => setAttachSheetOpen(false)}
         title="Attach"
       >
-        <GhostRow title="Take Photo" style={{ paddingHorizontal: 0 }} onPress={() => chooseAttachment("camera")} />
-        <GhostRow title="Choose Photo" style={{ paddingHorizontal: 0 }} onPress={() => chooseAttachment("photo")} />
-        <GhostRow title="Choose File" style={{ paddingHorizontal: 0 }} onPress={() => chooseAttachment("file")} />
+        <TouchableOpacity style={styles.sheetOption} activeOpacity={0.6} onPress={() => chooseAttachment("camera")}>
+          <Camera size={20} color={Ghost.text.secondary} />
+          <Text style={styles.sheetOptionLabel}>Take Photo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.sheetOption} activeOpacity={0.6} onPress={() => chooseAttachment("photo")}>
+          <ImagePlus size={20} color={Ghost.text.secondary} />
+          <Text style={styles.sheetOptionLabel}>Choose Photo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.sheetOption} activeOpacity={0.6} onPress={() => chooseAttachment("file")}>
+          <FileText size={20} color={Ghost.text.secondary} />
+          <Text style={styles.sheetOptionLabel}>Choose File</Text>
+        </TouchableOpacity>
       </GhostSheet>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -777,6 +789,18 @@ const styles = StyleSheet.create({
     borderColor: Ghost.border.subtle,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sheetOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.md,
+    paddingVertical: Space.sm,
+    minHeight: 44,
+  },
+  sheetOptionLabel: {
+    ...Type.body,
+    color: Ghost.text.primary,
+    flex: 1,
   },
 });
 
