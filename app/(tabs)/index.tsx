@@ -330,7 +330,6 @@ export default function HomeScreen() {
           value={draft}
           onChangeText={setDraft}
           onSubmit={handleSubmit}
-          placeholder="Enter a prompt here"
           editable={!drawerOpen}
           minimal
           showMic={false}

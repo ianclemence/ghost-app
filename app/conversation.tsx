@@ -544,7 +544,7 @@ export default function ConversationScreen() {
             if (sendError) setSendError(null);
           }}
           onSubmit={() => handleSend()}
-          placeholder={uploading ? "Uploading..." : "Message Ghost..."}
+          placeholder={uploading ? "Uploading..." : undefined}
           editable={!uploading}
           busy={uploading}
           maxLength={2000}

@@ -38,7 +38,7 @@ export function Composer({
   value,
   onChangeText,
   onSubmit,
-  placeholder = "Message Ghost...",
+  placeholder = "Talk to Ghost…",
   editable = true,
   busy = false,
   leading,
