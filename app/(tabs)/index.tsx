@@ -14,6 +14,7 @@ import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
 import { GhostText } from "@/components/themed-text";
+import { GhostMark } from "@/components/ghost-mark";
 import { EmptyState } from "@/components/ghost";
 import { MenuDrawer } from "@/components/menu-drawer";
 import { formatUptime } from "@/lib/format";
@@ -202,9 +203,7 @@ export default function HomeScreen() {
           <Menu size={22} color={Ghost.text.primary} />
         </TouchableOpacity>
         <View style={styles.avatar}>
-          <GhostText type="headline" style={styles.avatarText}>
-            {(displayName ?? "G").slice(0, 1).toUpperCase()}
-          </GhostText>
+          <GhostMark size={22} />
           <View style={[styles.dot, online ? styles.dotOn : styles.dotOff]} />
         </View>
       </View>
@@ -371,9 +370,6 @@ const styles = StyleSheet.create({
     borderColor: Ghost.border.default,
     alignItems: "center",
     justifyContent: "center",
-  },
-  avatarText: {
-    color: Ghost.text.primary,
   },
   dot: {
     position: "absolute",

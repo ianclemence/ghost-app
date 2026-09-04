@@ -138,7 +138,7 @@ export default function ManualScreen() {
           style={styles.input}
           value={token}
           onChangeText={handleTokenChange}
-          placeholder="Paste token or link from Ghost Pod"
+            placeholder="Paste token from Ghost Pod"
           placeholderTextColor={Ghost.text.tertiary}
           autoCapitalize="none"
           autoCorrect={false}

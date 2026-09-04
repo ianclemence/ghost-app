@@ -47,11 +47,10 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: "center",
-    gap: Space.md,
+    gap: Space.xs,
   },
   title: {
     color: Ghost.text.primary,
-    marginTop: Space.sm,
   },
   tagline: {
     color: Ghost.text.secondary,
