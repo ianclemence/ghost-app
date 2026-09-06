@@ -21,6 +21,8 @@ import {
   deleteSession,
   fetchSessions,
   renameSession,
+  searchMessages,
+  SearchResult,
   SessionSummary,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
@@ -200,6 +202,41 @@ export default function ConversationsScreen() {
       )
     : sessions;
 
+  const [hits, setHits] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!config || q.length < 2) {
+      setHits([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const results = await searchMessages(config, q, "all", 20);
+        if (!cancelled) setHits(results);
+      } catch {
+        if (!cancelled) setHits([]);
+      }
+      if (!cancelled) setSearching(false);
+    }, 450);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [query, config]);
+
+  const titleForSession = useCallback(
+    (id: string) => {
+      const s = sessions.find((x) => x.id === id);
+      return s ? getSessionTitle(s) : "Conversation";
+    },
+    [sessions],
+  );
+
   const sections = groupSessions(filteredSessions);
 
   const renderItem = useCallback(
@@ -307,6 +344,47 @@ export default function ConversationsScreen() {
         <FlatList
           data={sections}
           keyExtractor={(item) => item.title}
+          ListHeaderComponent={
+            query.trim().length >= 2 ? (
+              <View style={styles.section}>
+                <GhostText type="caption" style={styles.sectionTitle}>
+                  {searching ? "SEARCHING MESSAGES…" : `IN MESSAGES${hits.length ? ` (${hits.length})` : ""}`}
+                </GhostText>
+                {searching && hits.length === 0 ? (
+                  <ActivityIndicator color={Ghost.accent.primary} style={styles.hitsLoader} />
+                ) : hits.length === 0 ? (
+                  <GhostText type="subhead" style={styles.noHits}>
+                    No message matches.
+                  </GhostText>
+                ) : (
+                  hits.slice(0, 10).map((h) => (
+                    <TouchableOpacity
+                      key={h.id}
+                      style={styles.row}
+                      activeOpacity={0.6}
+                      onPress={() => {
+                        setCurrentSession(h.session_id);
+                        router.push({
+                          pathname: "/conversation",
+                          params: { sessionId: h.session_id, title: titleForSession(h.session_id) },
+                        } as any);
+                      }}
+                      accessibilityLabel={`Open ${titleForSession(h.session_id)}`}
+                    >
+                      <View style={styles.rowMain}>
+                        <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>
+                          {titleForSession(h.session_id)}
+                        </GhostText>
+                        <GhostText type="footnote" style={styles.rowSubtitle} numberOfLines={2}>
+                          {h.content.slice(0, 140)}
+                        </GhostText>
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            ) : null
+          }
           renderItem={({ item: section }) => (
             <View style={styles.section}>
               <GhostText type="caption" style={styles.sectionTitle}>{section.title}</GhostText>
@@ -494,6 +572,14 @@ const styles = StyleSheet.create({
   rowSubtitle: {
     color: Ghost.text.secondary,
     marginTop: Space.xxs,
+  },
+  hitsLoader: {
+    alignSelf: "flex-start",
+    marginVertical: Space.sm,
+  },
+  noHits: {
+    color: Ghost.text.tertiary,
+    marginBottom: Space.md,
   },
   searchRow: {
     flexDirection: "row",

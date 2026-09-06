@@ -1682,6 +1682,70 @@ export async function deleteCronJob(
   if (!res.ok) throw new Error(`Failed to delete job (HTTP ${res.status})`);
 }
 
+// ─── Scheduled (reminders, events, automations, tasks) ─────────────────────
+// This is the store the agent's `schedule` tool writes to — the one backing
+// real reminders and recurring automations. Same contract as cron above.
+
+export type ScheduledItemType = "reminder" | "event" | "automation" | "task";
+export type ScheduledItemState =
+  | "scheduled"
+  | "due"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "missed"
+  | "paused";
+
+export interface ScheduledItem {
+  id: string;
+  type: ScheduledItemType;
+  title: string;
+  description?: string;
+  state: ScheduledItemState;
+  timezone?: string;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  run_count?: number;
+  last_error?: string;
+}
+
+export async function fetchScheduled(cfg: GhostConfig): Promise<ScheduledItem[]> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/scheduled?limit=100`,
+    {
+      headers: headers(cfg),
+    },
+    10000,
+  );
+  if (!res.ok) throw new Error("Failed to fetch scheduled items");
+  const data = await res.json();
+  return data.items ?? [];
+}
+
+export async function controlScheduledItem(
+  cfg: GhostConfig,
+  id: string,
+  action: "pause" | "resume" | "run",
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/scheduled/${encodeURIComponent(id)}/${action}`, {
+    method: "POST",
+    headers: headers(cfg),
+  });
+  if (!res.ok) throw new Error(`Failed to ${action} scheduled item`);
+}
+
+export async function deleteScheduledItem(
+  cfg: GhostConfig,
+  id: string,
+): Promise<void> {
+  const res = await fetch(
+    `${baseURL(cfg)}/v1/scheduled/${encodeURIComponent(id)}`,
+    { method: "DELETE", headers: headers(cfg) },
+  );
+  if (!res.ok) throw new Error(`Failed to delete scheduled item (HTTP ${res.status})`);
+}
+
 // ─── Skills ─────────────────────────────────────────────────────────────────
 
 export interface GhostSkill {

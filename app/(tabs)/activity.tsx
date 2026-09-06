@@ -12,15 +12,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { EmptyState, GhostButton } from "@/components/ghost";
+import { EmptyState, GhostButton, GhostRow, GhostSheet } from "@/components/ghost";
 import {
   fetchSessions,
   fetchCronJobs,
   fetchMemorySelf,
   fetchTraces,
+  controlScheduledItem,
+  deleteScheduledItem,
+  fetchScheduled,
   SessionSummary,
   CronJob,
   MemoryFact,
+  ScheduledItem,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
@@ -33,6 +37,7 @@ type ActivityItem = {
   title: string;
   meta: string;
   sessionId?: string;
+  scheduledId?: string;
 };
 
 const FILTERS: { key: ActivityKind | "all"; label: string }[] = [
@@ -105,9 +110,46 @@ function memoryEventDate(createdAt?: string): number {
   return Number.isFinite(ts) && ts > 0 ? ts : 0;
 }
 
+function scheduledEventDate(value?: string | null): number {
+  if (!value) return 0;
+  const ts = Math.floor(new Date(value).getTime() / 1000);
+  return Number.isFinite(ts) && ts > 0 ? ts : 0;
+}
+
+function humanNextRun(value?: string | null, timezone?: string): string | null {
+  const ts = scheduledEventDate(value);
+  if (!ts) return null;
+  const d = new Date(ts * 1000);
+  const day = d.toLocaleDateString([], { weekday: "short" });
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const when = ts * 1000 > Date.now() ? "Next" : "Last run";
+  return `${when} ${day} ${time}${timezone ? ` · ${timezone}` : ""}`;
+}
+
+function humanScheduledState(item: ScheduledItem): string {
+  switch (item.state) {
+    case "paused":
+      return "Paused";
+    case "failed":
+      return "Needs attention";
+    case "completed":
+      return "Done";
+    case "missed":
+      return "Missed";
+    case "cancelled":
+      return "Cancelled";
+    case "running":
+    case "due":
+      return "Running now";
+    default:
+      return item.type === "reminder" ? "Reminder" : "Automation";
+  }
+}
+
 function collectItems(
   sessions: SessionSummary[],
   jobs: CronJob[],
+  scheduled: ScheduledItem[],
   memory: MemoryFact[],
   traces: { timestamp: number; message: string; level: string }[],
 ): ActivityItem[] {
@@ -149,6 +191,32 @@ function collectItems(
       ts,
       title: paused ? `${name} (paused)` : name,
       meta: metaParts.join(" · ") || "Scheduled",
+    });
+  }
+
+  // Reminders and automations live in the scheduled store — the same one
+  // the agent's schedule tool writes to. Upcoming items sort first so the
+  // timeline answers "what's next", not just "what happened".
+  for (const item of scheduled) {
+    if (!item.id || seen.has(`s:${item.id}`)) continue;
+    seen.add(`s:${item.id}`);
+    if (item.state === "cancelled") continue;
+    const ts =
+      scheduledEventDate(item.next_run_at) || scheduledEventDate(item.last_run_at);
+    if (!ts) continue;
+    const next = humanNextRun(item.next_run_at, item.timezone);
+    const metaParts = [humanScheduledState(item)];
+    if (next) metaParts.push(next);
+    else if (item.timezone) metaParts.push(item.timezone);
+    if (item.last_error) metaParts.push("Needs attention");
+    const title = (item.title || "Scheduled item").trim() || "Scheduled item";
+    items.push({
+      id: `s:${item.id}`,
+      kind: "automations",
+      ts,
+      title,
+      meta: metaParts.join(" · "),
+      scheduledId: item.id,
     });
   }
 
@@ -200,6 +268,17 @@ export default function ActivityScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<ActivityKind | "all">("all");
+  const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
+  const [manageSheet, setManageSheet] = useState<{ visible: boolean; id: string | null }>({
+    visible: false,
+    id: null,
+  });
+  const [deleteSheet, setDeleteSheet] = useState<{ visible: boolean; id: string | null }>({
+    visible: false,
+    id: null,
+  });
+  const [mutating, setMutating] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const load = useCallback(
     async (silent = false) => {
@@ -217,23 +296,32 @@ export default function ActivityScreen() {
         }
       };
 
-      const [sessions, jobs, memory, traces] = await Promise.all([
+      const [sessions, jobs, sched, memory, traces] = await Promise.all([
         safe("sessions", () => fetchSessions(config)),
         safe("cron", () => fetchCronJobs(config)),
+        safe("scheduled", () => fetchScheduled(config)),
         safe("memory", () => fetchMemorySelf(config).then((self) => self.entries)),
         safe("traces", () => fetchTraces(config)),
       ]);
 
       const s = Array.isArray(sessions) ? (sessions as SessionSummary[]) : [];
       const j = Array.isArray(jobs) ? (jobs as CronJob[]) : [];
+      const sch = Array.isArray(sched) ? (sched as ScheduledItem[]) : [];
       const m = Array.isArray(memory) ? (memory as MemoryFact[]) : [];
       const t = Array.isArray(traces)
         ? (traces as { timestamp: number; message: string; level: string }[])
         : [];
 
       // Failure means every source errored — genuine emptiness is not failure.
-      setFailed(sessions === null && jobs === null && memory === null && traces === null);
-      setItems(collectItems(s, j, m, t));
+      setFailed(
+        sessions === null &&
+          jobs === null &&
+          sched === null &&
+          memory === null &&
+          traces === null,
+      );
+      setScheduled(sch);
+      setItems(collectItems(s, j, sch, m, t));
       setLoading(false);
     },
     [config],
@@ -248,6 +336,32 @@ export default function ActivityScreen() {
     await load(true);
     setRefreshing(false);
   };
+
+  const mutateScheduled = async (
+    id: string,
+    fn: (cfg: NonNullable<typeof config>, itemId: string) => Promise<unknown>,
+    failure: string,
+  ) => {
+    if (!config) return;
+    setMutating(true);
+    setMutationError(null);
+    try {
+      await fn(config, id);
+      setManageSheet({ visible: false, id: null });
+      setDeleteSheet({ visible: false, id: null });
+      await load(true);
+    } catch {
+      setMutationError(failure);
+    }
+    setMutating(false);
+  };
+
+  const managedItem = manageSheet.id
+    ? scheduled.find((x) => x.id === manageSheet.id) ?? null
+    : null;
+  const deleteItem = deleteSheet.id
+    ? scheduled.find((x) => x.id === deleteSheet.id) ?? null
+    : null;
 
   const filtered = useMemo(
     () => (filter === "all" ? items : items.filter((i) => i.kind === filter)),
@@ -331,6 +445,7 @@ export default function ActivityScreen() {
             const showDay = day !== prevDay;
             const openSession = item.kind === "messages" && !!item.sessionId;
             const openMemory = item.kind === "memory";
+            const manageScheduled = item.kind === "automations" && !!item.scheduledId;
             const Row = (
               <View style={styles.row}>
                 <GhostText type="footnote" style={styles.rowTime}>{clockTime(item.ts)}</GhostText>
@@ -351,7 +466,10 @@ export default function ActivityScreen() {
                     accessibilityLabel="Open conversation"
                     onPress={() => {
                       setCurrentSession(item.sessionId!);
-                      router.push("/conversation" as any);
+                      router.push({
+                        pathname: "/conversation",
+                        params: { sessionId: item.sessionId!, title: item.title },
+                      } as any);
                     }}
                   >
                     {Row}
@@ -364,6 +482,17 @@ export default function ActivityScreen() {
                   >
                     {Row}
                   </TouchableOpacity>
+                ) : manageScheduled ? (
+                  <TouchableOpacity
+                    activeOpacity={0.6}
+                    accessibilityLabel={`Manage ${item.title}`}
+                    onPress={() => {
+                      setMutationError(null);
+                      setManageSheet({ visible: true, id: item.scheduledId! });
+                    }}
+                  >
+                    {Row}
+                  </TouchableOpacity>
                 ) : (
                   Row
                 )}
@@ -372,6 +501,100 @@ export default function ActivityScreen() {
           })}
         </ScrollView>
       )}
+
+      <GhostSheet
+        visible={manageSheet.visible}
+        onClose={() => {
+          if (!mutating) {
+            setManageSheet({ visible: false, id: null });
+            setMutationError(null);
+          }
+        }}
+        title={managedItem?.title ?? "Scheduled item"}
+        message={
+          mutationError ??
+          (managedItem
+            ? `${humanScheduledState(managedItem)}${
+                humanNextRun(managedItem.next_run_at, managedItem.timezone)
+                  ? ` · ${humanNextRun(managedItem.next_run_at, managedItem.timezone)}`
+                  : ""
+              }`
+            : undefined)
+        }
+      >
+        {managedItem && !mutating ? (
+          <>
+            {managedItem.state === "paused" ? (
+              <GhostRow
+                title="Resume"
+                style={{ paddingHorizontal: 0 }}
+                onPress={() =>
+                  mutateScheduled(
+                    managedItem.id,
+                    (cfg, id) => controlScheduledItem(cfg, id, "resume"),
+                    "Couldn't resume it.",
+                  )
+                }
+              />
+            ) : (
+              <GhostRow
+                title="Pause"
+                style={{ paddingHorizontal: 0 }}
+                onPress={() =>
+                  mutateScheduled(
+                    managedItem.id,
+                    (cfg, id) => controlScheduledItem(cfg, id, "pause"),
+                    "Couldn't pause it.",
+                  )
+                }
+              />
+            )}
+            <GhostRow
+              title="Run now"
+              style={{ paddingHorizontal: 0 }}
+              onPress={() =>
+                mutateScheduled(
+                  managedItem.id,
+                  (cfg, id) => controlScheduledItem(cfg, id, "run"),
+                  "Couldn't run it.",
+                )
+              }
+            />
+            <GhostRow
+              title="Delete"
+              style={{ paddingHorizontal: 0 }}
+              onPress={() => {
+                setManageSheet({ visible: false, id: null });
+                setDeleteSheet({ visible: true, id: managedItem.id });
+              }}
+            />
+          </>
+        ) : null}
+      </GhostSheet>
+
+      <GhostSheet
+        visible={deleteSheet.visible}
+        onClose={() => {
+          if (!mutating) {
+            setDeleteSheet({ visible: false, id: null });
+            setMutationError(null);
+          }
+        }}
+        title="Delete this?"
+        message={
+          mutationError ??
+          (deleteItem
+            ? `"${deleteItem.title}" won't run again.`
+            : undefined)
+        }
+        confirmTitle={mutating ? "Deleting…" : "Delete"}
+        variant="destructive"
+        onConfirm={() => {
+          if (deleteSheet.id) {
+            mutateScheduled(deleteSheet.id, deleteScheduledItem, "Couldn't delete it.");
+          }
+        }}
+      />
     </View>
   );
 }

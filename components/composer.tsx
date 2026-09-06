@@ -1,5 +1,6 @@
-import { Camera, ImagePlus, Mic, Send, Square, X } from "lucide-react-native";
+import { Camera, ImagePlus, Mic, Pause, Send, Square, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import Animated, { FadeIn } from "react-native-reanimated";
 import {
   RecordingPresets,
   getRecordingPermissionsAsync,
@@ -39,6 +40,8 @@ interface ComposerProps {
   autoFocus?: boolean;
   onTranscribeAudio?: (uri: string) => Promise<string>;
   onVoiceError?: (message: string) => void;
+  streaming?: boolean;
+  onStop?: () => void;
 }
 
 /**
@@ -66,6 +69,8 @@ export function Composer({
   autoFocus,
   onTranscribeAudio,
   onVoiceError,
+  streaming = false,
+  onStop,
 }: ComposerProps) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [recording, setRecording] = useState(false);
@@ -265,18 +270,32 @@ export function Composer({
           </View>
         )
       ) : null}
-      {showSend ? (
-        <TouchableOpacity
-          style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-          activeOpacity={0.7}
-          hitSlop={8}
-          accessibilityLabel="Send message"
-          accessibilityState={{ disabled: !canSend }}
-          onPress={submit}
-          disabled={!canSend}
-        >
-          <Send size={18} color={canSend ? Ghost.text.inverse : Ghost.text.tertiary} />
-        </TouchableOpacity>
+      {streaming && onStop ? (
+        <Animated.View entering={FadeIn.duration(150)}>
+          <TouchableOpacity
+            style={styles.sendBtn}
+            activeOpacity={0.7}
+            hitSlop={8}
+            accessibilityLabel="Pause Ghost's response"
+            onPress={onStop}
+          >
+            <Pause size={18} color={Ghost.text.inverse} fill={Ghost.text.inverse} />
+          </TouchableOpacity>
+        </Animated.View>
+      ) : showSend ? (
+        <Animated.View entering={FadeIn.duration(150)}>
+          <TouchableOpacity
+            style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+            activeOpacity={0.7}
+            hitSlop={8}
+            accessibilityLabel="Send message"
+            accessibilityState={{ disabled: !canSend }}
+            onPress={submit}
+            disabled={!canSend}
+          >
+            <Send size={18} color={canSend ? Ghost.text.inverse : Ghost.text.tertiary} />
+          </TouchableOpacity>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -296,6 +315,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: Space.xs,
+    boxShadow: "0 4px 12px rgba(26, 22, 17, 0.08)",
   },
   input: {
     ...Type.body,

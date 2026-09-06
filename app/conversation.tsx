@@ -1,4 +1,4 @@
-import { ArrowLeft, Camera, FileText, ImagePlus, Paperclip, Send, Square, X } from "lucide-react-native";
+import { ArrowLeft, Camera, FileText, ImagePlus, Paperclip, Send, X } from "lucide-react-native";
 import { WebView } from "react-native-webview";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -22,6 +22,7 @@ import Markdown from "react-native-markdown-display";
 import { Fonts, Ghost, Radius, Space, Type } from "@/constants/theme";
 import { EmberIndicator } from "@/components/ember";
 import { GhostSheet } from "@/components/ghost";
+import { WaveDots } from "@/components/wave-dots";
 import { useGhostStore, ExtendedMessage } from "@/lib/store";
 import { Composer } from "@/components/composer";
 import { cleanTitleText, formatMessageTime, renderTaskLists } from "@/lib/format";
@@ -328,6 +329,16 @@ export default function ConversationScreen() {
     }
   }, [config, input, isStreaming, currentSession, pendingMedia]);
 
+  const stopGenerating = useCallback(() => {
+    const session = currentSession || (config ? normalizeSession(config.session) : "");
+    if (config && session) {
+      sendSteering(config, { sessionKey: session, action: "abort" });
+    }
+    commitStream();
+    setStreaming(false);
+    setToolActivity(null);
+  }, [config, currentSession, commitStream, setStreaming, setToolActivity]);
+
   // Auto-send for Home prompt cards: submit once per session+prompt, never
   // again on remount, and never if the prompt is already in history.
   const handleSendRef = useRef(handleSend);
@@ -371,13 +382,17 @@ export default function ConversationScreen() {
           </View>
         );
       }
+      const streaming = !isUser && item.status === "streaming";
       return (
         <View style={[styles.messageBlock, isUser && index > 0 && styles.turnDivider]}>
           {label}
           {isUser ? (
             <Text selectable style={styles.userText}>{item.content}</Text>
           ) : (
-            <Markdown style={markdownStyles as any}>{renderTaskLists(item.content)}</Markdown>
+            <View>
+              <Markdown style={markdownStyles as any}>{renderTaskLists(item.content)}</Markdown>
+              {streaming ? <WaveDots /> : null}
+            </View>
           )}
         </View>
       );
@@ -407,26 +422,7 @@ export default function ConversationScreen() {
             <EmberIndicator state="thinking" size={6} style={{ marginLeft: Space.xs }} />
           )}
         </View>
-        <View style={styles.headerRight}>
-          {isStreaming ? (
-            <TouchableOpacity
-              style={styles.stopButton}
-              hitSlop={12}
-              accessibilityLabel="Stop generating"
-              onPress={() => {
-                const session = currentSession || (config ? normalizeSession(config.session) : "");
-                if (config && session) {
-                  sendSteering(config, { sessionKey: session, action: "abort" });
-                }
-                commitStream();
-                setStreaming(false);
-                setToolActivity(null);
-              }}
-            >
-              <Square size={14} color={Ghost.status.error} fill={Ghost.status.error} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
+        <View style={styles.headerRight} />
       </View>
 
       {historyError ? (
@@ -550,7 +546,12 @@ export default function ConversationScreen() {
       <View
         style={[
           styles.inputContainer,
-          { paddingBottom: keyboardHeight > 0 ? keyboardHeight + Space.sm : insets.bottom + Space.sm },
+          {
+            paddingBottom:
+              keyboardHeight > 0
+                ? keyboardHeight + Space.xl
+                : insets.bottom + Space.md,
+          },
         ]}
       >
         {/* Media Preview */}
@@ -587,6 +588,8 @@ export default function ConversationScreen() {
           inputRef={inputRef}
           onTranscribeAudio={(uri) => (config ? transcribeAudio(config, uri) : Promise.resolve(""))}
           onVoiceError={(message) => setSendError(message)}
+          streaming={isStreaming}
+          onStop={stopGenerating}
           leading={
             <TouchableOpacity
               style={styles.attachButton}
@@ -668,8 +671,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Space.md,
     paddingVertical: Space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Ghost.border.subtle,
   },
   backButton: {
     padding: Space.sm,
@@ -687,13 +688,6 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 40,
     alignItems: "flex-end",
-    justifyContent: "center",
-  },
-  stopButton: {
-    padding: Space.sm,
-    minHeight: 44,
-    minWidth: 44,
-    alignItems: "center",
     justifyContent: "center",
   },
   messageList: {
@@ -1059,8 +1053,10 @@ const markdownStyles = {
     marginVertical: Space.md,
   },
   table: {
+    borderWidth: 1,
     borderColor: Ghost.border.default,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
+    overflow: "hidden",
     marginVertical: Space.sm,
   },
   thead: {
@@ -1069,13 +1065,22 @@ const markdownStyles = {
   th: {
     color: Ghost.text.primary,
     fontWeight: "700",
-    padding: Space.sm,
-    borderColor: Ghost.border.default,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+    borderColor: Ghost.border.subtle,
+    borderRightWidth: StyleSheet.hairlineWidth,
   },
   td: {
     color: Ghost.text.primary,
-    padding: Space.sm,
-    borderColor: Ghost.border.default,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+    borderColor: Ghost.border.subtle,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   image: {
     borderRadius: Radius.md,

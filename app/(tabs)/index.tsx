@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Bell, Camera, Menu, Mic, Sparkles, Upload } from "lucide-react-native";
+import { Bell, Menu, Sparkles } from "lucide-react-native";
 import React, { useCallback, useRef, useState } from "react";
 import {
   FlatList,
@@ -145,14 +145,6 @@ export default function HomeScreen() {
     [startFreshPrompt],
   );
 
-  const openFreshConversation = useCallback(() => {
-    if (navBusy.current) return;
-    navBusy.current = true;
-    const id = freshSessionId();
-    setCurrentSession(id);
-    router.push({ pathname: "/conversation", params: { sessionId: id } } as any);
-  }, [router, setCurrentSession, freshSessionId]);
-
   const handleSubmit = (text: string) => {
     const q = text.trim();
     if (!q) return;
@@ -278,55 +270,34 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          <View style={styles.sideCol}>
-            <TouchableOpacity
-              style={styles.statusCard}
-              activeOpacity={0.85}
-              onPress={() => {
-                if (latest?.sessionId) openOriginSession(latest.sessionId);
-                else sendCardPrompt("What can you do for me?");
-              }}
-              accessibilityLabel={latest?.sessionId ? "Open the conversation this update came from" : "Send to Ghost now"}
-            >
-              <GhostText type="callout" style={styles.cardText} numberOfLines={3}>
-                {latest ? latest.preview : "No updates right now"}
-              </GhostText>
-              <View style={styles.cardIcon}>
-                <Bell size={16} color={Ghost.text.secondary} />
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.toolsPill}>
-              <TouchableOpacity
-                onPress={() => startFreshPrompt("", "file")}
-                hitSlop={8}
-                accessibilityLabel="Start a new conversation with file picker"
-              >
-                <Upload size={18} color={Ghost.text.secondary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => startFreshPrompt("", "camera")}
-                hitSlop={8}
-                accessibilityLabel="Start a new conversation with camera"
-              >
-                <Camera size={18} color={Ghost.text.secondary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={openFreshConversation}
-                hitSlop={8}
-                accessibilityLabel="Start a new conversation with voice input"
-              >
-                <Mic size={18} color={Ghost.text.secondary} />
-              </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statusCard}
+            activeOpacity={0.85}
+            onPress={() => {
+              if (latest?.sessionId) openOriginSession(latest.sessionId);
+              else sendCardPrompt("What can you do for me?");
+            }}
+            accessibilityLabel={latest?.sessionId ? "Open the conversation this update came from" : "Send to Ghost now"}
+          >
+            <GhostText type="callout" style={styles.cardText} numberOfLines={3}>
+              {latest ? latest.preview : "No updates right now"}
+            </GhostText>
+            <View style={styles.cardIcon}>
+              <Bell size={16} color={Ghost.text.secondary} />
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
 
       <View
         style={[
           styles.inputContainer,
-          { paddingBottom: keyboardHeight > 0 ? keyboardHeight + Space.sm : insets.bottom },
+          {
+            paddingBottom:
+              keyboardHeight > 0
+                ? keyboardHeight + Space.xl
+                : insets.bottom + Space.md,
+          },
         ]}
       >
         <Composer
@@ -433,8 +404,8 @@ const styles = StyleSheet.create({
     gap: Space.xs,
   },
   starterCard: {
-    flex: 1.2,
-    minHeight: 168,
+    flex: 1,
+    minHeight: 152,
     backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.xl,
     borderCurve: "continuous",
@@ -443,19 +414,15 @@ const styles = StyleSheet.create({
     padding: Space.lg,
     justifyContent: "space-between",
   },
-  sideCol: {
-    flex: 1,
-    gap: Space.md,
-  },
   statusCard: {
     flex: 1,
-    minHeight: 108,
+    minHeight: 152,
     backgroundColor: Ghost.bg.raised,
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     borderWidth: 1,
     borderColor: Ghost.border.subtle,
-    padding: Space.md,
+    padding: Space.lg,
     justifyContent: "space-between",
   },
   cardText: {

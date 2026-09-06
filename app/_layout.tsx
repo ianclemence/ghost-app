@@ -89,12 +89,34 @@ export default function RootLayout() {
           : typeof msg.metadata?.type === 'string'
             ? msg.metadata.type
             : '';
-        if (!notifications) return;
         if (!msg.content) return;
+        let isCurrentSession = false;
         try {
           const current = useGhostStore.getState().currentSession;
-          if (msg.session_id && current && msg.session_id === current) return;
+          if (msg.session_id && current && msg.session_id === current) isCurrentSession = true;
         } catch {}
+        if (isCurrentSession) return;
+        // Feed Home's inbox so proactive Ghost messages survive beyond the
+        // notification tray. Timestamps are epoch seconds on the wire. This
+        // runs independently of local notifications (which don't exist in
+        // Expo Go).
+        if (msgType === "assistant_message") {
+          try {
+            const rawTs = typeof msg.timestamp === "number" ? msg.timestamp : 0;
+            const ms = rawTs > 1e12 ? rawTs : rawTs > 0 ? rawTs * 1000 : Date.now();
+            useGhostStore.getState().addInboxItem({
+              id:
+                typeof msg.id === "string" && msg.id
+                  ? msg.id
+                  : `ws-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+              kind: "message",
+              content: msg.content,
+              timestamp: ms,
+              session_id: msg.session_id,
+            });
+          } catch {}
+        }
+        if (!notifications) return;
         if (msgType === 'assistant_message' && msg.content) {
           notifications.scheduleNotificationAsync({
             content: {
