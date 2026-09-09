@@ -132,7 +132,7 @@ ghost-app/
 │   ├── _layout.tsx           # Root stack, deep links, WS notifications
 │   ├── (tabs)/
 │   │   ├── index.tsx         # 👻 Home — inbox + presence
-│   │   ├── chats.tsx         # 💬 Chats — session list
+│   │   │   # (no chats list: one thread, see conversation.tsx below)
 │   │   ├── activity.tsx      # 🕒 Activity — cron timeline
 │   │   ├── memory.tsx        # 🧠 Memory — profile + curated memory
 │   │   └── more.tsx          # ⚙️ More — settings hub

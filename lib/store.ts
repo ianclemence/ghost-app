@@ -134,6 +134,13 @@ export interface ApprovalRequest {
   description: string;
 }
 
+/**
+ * One persistent Ghost conversation. The frozen contract selects
+ * mobile:default when the client never sets a session; we pin it
+ * explicitly so history, chat, and voice share one relationship.
+ */
+export const MAIN_SESSION_ID = "mobile:default";
+
 let nextMessageId = 1;
 
 const isTempId = (id: string) => id.startsWith("temp-");
@@ -144,7 +151,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   setConfig: (cfg) =>
     set({
       config: cfg,
-      currentSession: cfg?.session ?? "mobile:default",
+      currentSession: MAIN_SESSION_ID,
     }),
 
   connectionState: "offline",
@@ -167,7 +174,7 @@ export const useGhostStore = create<GhostStore>((set, get) => ({
   setProfile: (p: ProfileInfo | null) => set({ profile: p }),
   availableTools: [],
   setAvailableTools: (tools: string[]) => set({ availableTools: tools }),
-  currentSession: "mobile:default",
+  currentSession: MAIN_SESSION_ID,
   setCurrentSession: (session: string) => set({ currentSession: session }),
   seenMessageIds: new Set<string>(),
   addSeenMessageId: (id: string) =>

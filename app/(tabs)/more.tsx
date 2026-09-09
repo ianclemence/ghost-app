@@ -1,123 +1,77 @@
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { Ghost, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { GhostRow, StatusDot } from "@/components/ghost";
-import { GhostMark } from "@/components/ghost-mark";
+import { PlusMenu } from "@/components/plus-menu";
 import { useGhostStore } from "@/lib/store";
-import { fetchLearnings, LearningsSummary } from "@/lib/ghostApi";
-
-const CAPABILITIES = [
-  { name: "Research", description: "Web search and browsing" },
-  { name: "Remember", description: "Saves what matters" },
-  { name: "Read", description: "Files, documents, images" },
-  { name: "Organize", description: "Notes, lists, tasks" },
-  { name: "Monitor", description: "Scheduled checks" },
-  { name: "Notify", description: "Reaches you when it matters" },
-];
+import { fetchIdentity } from "@/lib/ghostApi";
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { config, connectionState } = useGhostStore();
-  const [learnings, setLearnings] = useState<LearningsSummary | null>(null);
-
-  const loadLearnings = useCallback(async () => {
-    if (!config) return;
-    setLearnings(await fetchLearnings(config));
-  }, [config]);
+  const { config, connectionState, ghostName, setGhostName } = useGhostStore();
+  const [owner, setOwner] = useState("");
 
   useEffect(() => {
-    loadLearnings();
-  }, [loadLearnings]);
+    if (!config) return;
+    fetchIdentity(config).then((id) => {
+      if (id?.name) setGhostName(id.name);
+      if (id?.owner) setOwner(id.owner);
+    }).catch(() => {});
+  }, [config, setGhostName]);
+
+  const loadIdentity = useCallback(async () => {
+    if (!config) return;
+    const id = await fetchIdentity(config).catch(() => null);
+    if (id?.name) setGhostName(id.name);
+    if (id?.owner) setOwner(id.owner);
+  }, [config, setGhostName]);
+
+  useEffect(() => {
+    loadIdentity();
+  }, [loadIdentity]);
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom + Space.xxxl,
-      }}
+      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + Space.xxxl }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Profile */}
       <View style={styles.profileSection}>
-        <GhostMark size={48} />
+        <View style={styles.avatar}>
+          <GhostText type="title" style={styles.avatarMark}>G</GhostText>
+          <View style={[styles.dot, connectionState === "online" ? styles.dotOn : styles.dotOff]} />
+        </View>
         <View style={styles.profileInfo}>
-          <GhostText type="headline" style={styles.profileName}>Ghost</GhostText>
+          <GhostText type="headline" style={styles.profileName}>{ghostName ?? "Ghost"}</GhostText>
           <View style={styles.profileStatus}>
-            <StatusDot
-              status={
-                connectionState === "online"
-                  ? "online"
-                  : connectionState === "syncing"
-                    ? "warning"
-                    : "offline"
-              }
-            />
+            <StatusDot status={connectionState === "online" ? "online" : connectionState === "syncing" ? "warning" : "offline"} />
             <GhostText type="subhead" style={styles.profileStatusText}>
-              {connectionState === "online"
-                ? "Online"
-                : connectionState === "syncing"
-                  ? "Syncing"
-                  : "Offline"}
+              {connectionState === "online" ? (owner ? `Online · ${owner}'s Ghost` : "Online") : connectionState === "syncing" ? "Syncing" : "Offline"}
             </GhostText>
           </View>
         </View>
       </View>
-
-      {/* Capabilities */}
       <View style={styles.section}>
-        <GhostText type="caption" style={styles.sectionTitle}>Capabilities</GhostText>
-        {CAPABILITIES.map((cap) => (
-          <View key={cap.name} style={styles.capRow}>
-            <GhostText type="headline" style={styles.capName}>{cap.name}</GhostText>
-            <GhostText type="subhead" style={styles.capDesc}>{cap.description}</GhostText>
-          </View>
-        ))}
+        <GhostText type="caption" style={styles.sectionTitle}>Manage</GhostText>
+        <GhostRow title="Routines" subtitle="What Ghost does automatically" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/routines" as never)} />
+        <GhostRow title="Connected Apps" subtitle="Status of connected services" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/connections" as never)} />
+        <GhostRow title="Device" subtitle="Health and attention items" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/device" as never)} />
       </View>
-
-      {/* Improvement */}
-      {learnings && (learnings.records > 0 || learnings.drafts > 0 || learnings.recent.length > 0) ? (
-        <View style={styles.section}>
-          <GhostText type="caption" style={styles.sectionTitle}>Improvement</GhostText>
-          <GhostText type="subhead" style={styles.learnSummary}>
-            {`Ghost has studied ${learnings.records} turn${learnings.records === 1 ? "" : "s"}${
-              learnings.drafts > 0
-                ? ` and drafted ${learnings.drafts} skill improvement${learnings.drafts === 1 ? "" : "s"}`
-                : ""
-            }.`}
-          </GhostText>
-          {learnings.recent.map((r, i) => (
-            <View key={`${r.skill}-${i}`} style={styles.capRow}>
-              <GhostText type="headline" style={styles.capName}>{r.skill}</GhostText>
-              {r.change_kind ? (
-                <GhostText type="subhead" style={styles.capDesc}>{r.change_kind}</GhostText>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      {/* Settings */}
       <View style={styles.section}>
         <GhostText type="caption" style={styles.sectionTitle}>Settings</GhostText>
         <GhostRow title="Ghost Pod" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/ghost-pod")} />
         <GhostRow title="Permissions" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/permissions")} />
       </View>
-
-      {/* About */}
       <View style={styles.section}>
         <GhostText type="caption" style={styles.sectionTitle}>About</GhostText>
         <GhostRow title="About Ghost" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/about")} />
       </View>
+      <View style={{ height: 96 }} />
+      <PlusMenu />
     </ScrollView>
   );
 }
@@ -127,14 +81,41 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Ghost.bg.base,
   },
-
-  // Profile
   profileSection: {
     flexDirection: "row",
     alignItems: "center",
     gap: Space.lg,
     paddingHorizontal: Space.xl,
     paddingVertical: Space.xl,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Ghost.bg.sunken,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarMark: {
+    color: Ghost.text.primary,
+  },
+  dot: {
+    position: "absolute",
+    right: -1,
+    bottom: -1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Ghost.bg.base,
+  },
+  dotOn: {
+    backgroundColor: Ghost.status.success,
+  },
+  dotOff: {
+    backgroundColor: Ghost.text.tertiary,
   },
   profileInfo: {
     gap: Space.xs,
@@ -150,8 +131,6 @@ const styles = StyleSheet.create({
   profileStatusText: {
     color: Ghost.text.secondary,
   },
-
-  // Sections
   section: {
     paddingHorizontal: Space.xl,
     paddingVertical: Space.md,
@@ -161,22 +140,5 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: Space.sm,
     marginTop: Space.sm,
-  },
-
-  learnSummary: {
-    color: Ghost.text.secondary,
-    marginBottom: Space.sm,
-  },
-
-  // Capabilities
-  capRow: {
-    paddingVertical: Space.sm,
-  },
-  capName: {
-    color: Ghost.text.primary,
-  },
-  capDesc: {
-    color: Ghost.text.secondary,
-    marginTop: Space.xxs,
   },
 });

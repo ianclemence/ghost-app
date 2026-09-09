@@ -612,6 +612,19 @@ export async function clearChat(cfg: GhostConfig): Promise<void> {
 
 // ─── Send (streaming SSE) ─────────────────────────────────────────────────
 
+export type ChatOutcome =
+  | "success"
+  | "failed"
+  | "waiting_for_user"
+  | "waiting_for_permission";
+
+export interface ClarifyInfo {
+  questionId: string;
+  question: string;
+  choices: string[];
+  requestId: string;
+}
+
 export interface SendOptions {
   content: string;
   requestId?: string;
@@ -619,9 +632,12 @@ export interface SendOptions {
   mediaType?: string;
   signal?: AbortSignal;
   // Override the session this message belongs to. Defaults to cfg.session.
+  // The contract default conversation is mobile:default. The key is opaque.
   sessionKey?: string;
   onChunk: (chunk: string) => void;
   onLifecycle?: (requestId: string, state: string) => void;
+  onOutcome?: (requestId: string, outcome: ChatOutcome) => void;
+  onClarify?: (info: ClarifyInfo) => void;
   onSanitized?: (reason: string) => void;
   onToolStatus?: (tool: string, label: string) => void;
   onCancelled?: () => void;
@@ -676,34 +692,8 @@ function isLikelyLogOrCorruptChunk(data: string): boolean {
   return false;
 }
 
-type WeatherLocationMeta = {
-  city?: string;
-  region?: string;
-  country?: string;
-  latitude?: string;
-  longitude?: string;
-  timezone?: string;
-  location_source?: string;
-  location_hint?: string;
-};
-
-function isWeatherPrompt(text: string): boolean {
-  const lc = text.toLowerCase();
-  return (
-    lc.includes("weather") ||
-    lc.includes("forecast") ||
-    lc.includes("temperature")
-  );
-}
-
-function hasExplicitLocation(text: string): boolean {
-  const lc = text.toLowerCase();
-  return lc.includes(" in ") || lc.includes(" at ") || lc.includes(" for ");
-}
-
-// Device IANA timezone (e.g. "Europe/London") from the OS locale. This needs
-// no permission, never prompts, and is always sent so scheduling parses
-// "9 AM" in the user's zone. GPS coordinates are separate and gated below.
+// Contract metadata for /v1/chat is timezone-only. No GPS, no IP lookup:
+// the frozen contract accepts metadata.timezone and nothing else mobile-side.
 function getDeviceTimezone(): string {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -713,60 +703,37 @@ function getDeviceTimezone(): string {
   }
 }
 
-// Last-known GPS fix, only when the OS grant is already held. Never prompts:
-// permission is requested exclusively from the Permissions screen. Uses the
-// cached fix (no GPS wake-up, no send latency); rejects fixes older than
-// 15 minutes so a stale city can't leak into weather/scheduling.
-async function resolveDeviceCoords(): Promise<{ latitude: string; longitude: string } | null> {
-  try {
-    const Location = await import("expo-location");
-    const perm = await Location.getForegroundPermissionsAsync();
-    if (!perm.granted) return null;
-    const pos = await Location.getLastKnownPositionAsync();
-    if (!pos) return null;
-    const { latitude, longitude } = pos.coords;
-    if (typeof latitude !== "number" || typeof longitude !== "number") return null;
-    if (typeof pos.timestamp === "number" && Date.now() - pos.timestamp > 15 * 60 * 1000) return null;
-    return { latitude: String(latitude), longitude: String(longitude) };
-  } catch {
-    return null;
+function handleStreamFrame(parsed: Record<string, unknown>, opts: SendOptions): void {
+  const type = typeof parsed.type === "string" ? parsed.type : "";
+  if (type === "lifecycle") {
+    const rid = String(parsed.request_id ?? opts.requestId ?? "");
+    const state = String(parsed.state ?? "");
+    opts.onLifecycle?.(rid, state);
+    if (state === "completed") {
+      const outcome = String(parsed.outcome ?? "");
+      if (
+        outcome === "success" ||
+        outcome === "failed" ||
+        outcome === "waiting_for_user" ||
+        outcome === "waiting_for_permission"
+      ) {
+        opts.onOutcome?.(rid, outcome as ChatOutcome);
+      }
+    }
+    return;
   }
-}
-
-async function resolveApproxLocationMetadata(): Promise<WeatherLocationMeta | null> {
-  try {
-    const res = await fetchWithTimeout("https://ipapi.co/json/", {}, 2500);
-    if (!res.ok) return null;
-    const data = (await res.json()) as Record<string, unknown>;
-    const city = typeof data.city === "string" ? data.city : "";
-    const region = typeof data.region === "string" ? data.region : "";
-    const country =
-      typeof data.country_name === "string" ? data.country_name : "";
-    const latitude =
-      typeof data.latitude === "number"
-        ? String(data.latitude)
-        : typeof data.latitude === "string"
-          ? data.latitude
-          : "";
-    const longitude =
-      typeof data.longitude === "number"
-        ? String(data.longitude)
-        : typeof data.longitude === "string"
-          ? data.longitude
-          : "";
-    const timezone = typeof data.timezone === "string" ? data.timezone : "";
-    if (!city && !latitude) return null;
-    return {
-      city,
-      region,
-      country,
-      latitude,
-      longitude,
-      timezone,
-      location_source: "mobile_ip",
-    };
-  } catch {
-    return null;
+  if (type === "tool_status") {
+    opts.onToolStatus?.(String(parsed.tool ?? ""), String(parsed.label ?? ""));
+    return;
+  }
+  if (type === "clarify_request") {
+    const qid = String(parsed.question_id ?? "");
+    const question = String(parsed.question ?? "");
+    if (!qid || !question) return;
+    const choices = Array.isArray(parsed.choices)
+      ? (parsed.choices as unknown[]).filter((c): c is string => typeof c === "string")
+      : [];
+    opts.onClarify?.({ questionId: qid, question, choices, requestId: String(parsed.request_id ?? opts.requestId ?? "") });
   }
 }
 
@@ -789,31 +756,9 @@ export async function sendMessage(
     channel: "mobile",
     chat_id: "default",
   };
-  if (mediaItems.length > 0) body.media_items = mediaItems;
-  // Timezone always travels (device locale, no permission needed) so
-  // scheduling parses "9 AM" in the user's zone. GPS coordinates only travel
-  // when the OS location grant is held; otherwise weather prompts fall back
-  // to the IP approximation, exactly as before.
+  if (mediaItems.length > 0) body.media = mediaItems;
   const deviceTimezone = getDeviceTimezone();
-  let meta: WeatherLocationMeta | null = null;
-  if (cfg.sendLocation !== false) {
-    const coords = await resolveDeviceCoords();
-    if (coords) {
-      meta = { ...coords, location_source: "mobile_gps" };
-    } else if (isWeatherPrompt(opts.content)) {
-      meta = await resolveApproxLocationMetadata();
-    }
-    if (!meta && isWeatherPrompt(opts.content) && !hasExplicitLocation(opts.content)) {
-      meta = {
-        location_source: "none",
-        location_hint: "ask_or_label_fallback",
-      };
-    }
-  }
-  if (deviceTimezone) {
-    meta = { ...(meta ?? {}), timezone: deviceTimezone };
-  }
-  if (meta && Object.keys(meta).length > 0) body.metadata = meta;
+  if (deviceTimezone) body.metadata = { timezone: deviceTimezone };
 
   const url = `${baseURL(cfg)}/v1/chat`;
   trace("send_start", {
@@ -885,18 +830,10 @@ export async function sendMessage(
 
           try {
             const parsed = JSON.parse(data);
-            // tool_status event — route to badge, NOT to message content
+            // Structured frames ride the same stream. They are never content.
             if (typeof parsed === "object" && parsed !== null) {
-              if (parsed.type === "lifecycle" && opts.onLifecycle) {
-                opts.onLifecycle(
-                  String(parsed.request_id || opts.requestId || ""),
-                  String(parsed.state || ""),
-                );
-              }
-              if (parsed.type === "tool_status" && opts.onToolStatus) {
-                opts.onToolStatus(parsed.tool, parsed.label);
-              }
-              trace("stream_object", { type: parsed.type ?? "unknown" });
+              handleStreamFrame(parsed, opts);
+              trace("stream_object", { type: (parsed as Record<string, unknown>).type ?? "unknown" });
               continue; // Never append objects to message content
             }
             // Plain string chunk
@@ -945,15 +882,7 @@ export async function sendMessage(
       try {
         const parsed = JSON.parse(data);
         if (typeof parsed === "object" && parsed !== null) {
-          if (parsed.type === "lifecycle" && opts.onLifecycle) {
-            opts.onLifecycle(
-              String(parsed.request_id || opts.requestId || ""),
-              String(parsed.state || ""),
-            );
-          }
-          if (parsed.type === "tool_status" && opts.onToolStatus) {
-            opts.onToolStatus(parsed.tool, parsed.label);
-          }
+          handleStreamFrame(parsed, opts);
           continue;
         }
         const text = parsed as string;
@@ -1511,6 +1440,222 @@ export async function fetchSessions(
     message_count: Number(s.message_count ?? 0),
     last_activity: Number(s.last_activity ?? 0),
   }));
+}
+
+// ─── Frozen contract: identity / activity / permissions / routines ──────────
+
+export interface GhostIdentity {
+  ghostId: string;
+  name: string;
+  owner: string;
+}
+
+export async function fetchIdentity(cfg: GhostConfig): Promise<GhostIdentity | null> {
+  try {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/identity`, { headers: headers(cfg) }, 8000);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    const g = data?.ghost ?? {};
+    return {
+      ghostId: String(g.ghost_id ?? ""),
+      name: String(g.name ?? "Ghost"),
+      owner: String(g.owner ?? ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface ActivityChip {
+  id: string;
+  event_id: string;
+  seq: number;
+  title: string;
+  kind: string;
+  state: string;
+  timestamp: string;
+  summary?: string;
+  detail?: string;
+}
+
+export async function fetchActivity(
+  cfg: GhostConfig,
+  opts?: { limit?: number; sinceSeq?: number; conversationId?: string },
+): Promise<ActivityChip[]> {
+  const qs = new URLSearchParams();
+  qs.set("limit", String(opts?.limit ?? 50));
+  if (typeof opts?.sinceSeq === "number" && opts.sinceSeq > 0) qs.set("since_seq", String(opts.sinceSeq));
+  if (opts?.conversationId) qs.set("conversation_id", opts.conversationId);
+  const res = await fetch(`${baseURL(cfg)}/v1/activity?${qs.toString()}`, { headers: headers(cfg) });
+  if (!res.ok) throw new Error(`Activity failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.activity) ? data.activity : [];
+}
+
+export interface ApprovalAction {
+  id: string;
+  label: string;
+  style: string;
+}
+
+export interface ApprovalCard {
+  request_id: string;
+  agent_id: string;
+  title: string;
+  description: string;
+  risk: string;
+  expires_at: string;
+  actions: ApprovalAction[];
+}
+
+export interface PendingApproval {
+  id: string;
+  request_id: string;
+  capability: string;
+  action: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+  card?: ApprovalCard;
+}
+
+export async function fetchPendingApprovals(cfg: GhostConfig): Promise<PendingApproval[]> {
+  const res = await fetch(`${baseURL(cfg)}/v1/permissions/requests?status=pending`, { headers: headers(cfg) });
+  if (!res.ok) return [];
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.requests) ? data.requests : [];
+}
+
+export async function resolveApproval(
+  cfg: GhostConfig,
+  id: string,
+  grant: "allow_once" | "allow_always" | "deny",
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/permissions/resolve`,
+      { method: "POST", headers: headers(cfg), body: JSON.stringify({ id, grant }) },
+      10000,
+    );
+    if (res.ok) return { ok: true };
+    const data = await res.json().catch(() => null);
+    return { ok: false, error: data?.error?.message ?? "That approval is no longer answerable." };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+export interface RoutineItem {
+  id: string;
+  name: string;
+  instruction: string;
+  timezone?: string;
+  status: string;
+  next_run?: string | null;
+  last_run?: string | null;
+}
+
+export async function fetchRoutines(cfg: GhostConfig): Promise<RoutineItem[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/routines`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Routines failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.routines) ? data.routines : [];
+}
+
+export async function controlRoutine(
+  cfg: GhostConfig,
+  id: string,
+  action: "pause" | "resume" | "cancel" | "delete",
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/routines/${encodeURIComponent(id)}/${action}`, {
+    method: "POST",
+    headers: headers(cfg),
+  });
+  if (!res.ok) throw new Error(`Routine ${action} failed (HTTP ${res.status})`);
+}
+
+export interface ConnectionInfo {
+  id: string;
+  provider: string;
+  display_name: string;
+  status: string;
+  capabilities?: string[] | Record<string, unknown>;
+}
+
+export async function fetchConnections(cfg: GhostConfig): Promise<ConnectionInfo[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/connections`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Connections failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.connections) ? data.connections : [];
+}
+
+export interface DoctorCheck {
+  name: string;
+  status: string;
+  message: string;
+}
+
+export interface DoctorStatus {
+  status: string;
+  checks: DoctorCheck[];
+}
+
+export async function fetchDoctorStatus(cfg: GhostConfig): Promise<DoctorStatus | null> {
+  try {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/doctor`, { headers: headers(cfg) }, 10000);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return { status: String(data?.status ?? "unknown"), checks: Array.isArray(data?.checks) ? data.checks : [] };
+  } catch {
+    return null;
+  }
+}
+
+export interface VoiceTurnResult {
+  ok: boolean;
+  transcript?: string;
+  responseText?: string;
+  error?: string;
+}
+
+export async function voiceTurn(
+  cfg: GhostConfig,
+  audioBase64: string,
+  mime: string,
+  sessionKey: string,
+): Promise<VoiceTurnResult> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/voice/turn`,
+      {
+        method: "POST",
+        headers: headers(cfg),
+        body: JSON.stringify({ audio_base64: audioBase64, mime, session_key: sessionKey }),
+      },
+      60000,
+    );
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      return { ok: false, error: data?.error?.message ?? "Voice input isn't set up yet." };
+    }
+    return { ok: true, transcript: String(data?.transcript ?? ""), responseText: String(data?.response_text ?? "") };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+export async function voiceTranscribeUri(cfg: GhostConfig, uri: string, sessionKey: string): Promise<string> {
+  try {
+    const FS = await import("expo-file-system");
+    const read = (FS as unknown as { readAsStringAsync?: (u: string, o?: unknown) => Promise<string> }).readAsStringAsync;
+    if (!read) return "";
+    const b64 = await read(uri, { encoding: "base64" });
+    if (!b64) return "";
+    const out = await voiceTurn(cfg, b64, "audio/m4a", sessionKey);
+    return out.ok ? (out.transcript ?? "") : "";
+  } catch {
+    return "";
+  }
 }
 
 // ─── Cron ──────────────────────────────────────────────────────────────────

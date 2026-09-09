@@ -195,6 +195,18 @@ export default function RootLayout() {
 
         {/* Settings */}
         <Stack.Screen
+          name="routines"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="connections"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="device"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
           name="ghost-pod"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />

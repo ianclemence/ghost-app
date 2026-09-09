@@ -11,7 +11,6 @@ export default function TabLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="chats" />
       <Stack.Screen name="activity" />
       <Stack.Screen name="memory" />
       <Stack.Screen name="more" />

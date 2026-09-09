@@ -1,324 +1,244 @@
-import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useRouter } from "expo-router";
-import { Bell, Menu, Sparkles } from "lucide-react-native";
-import React, { useCallback, useRef, useState } from "react";
-import {
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
-
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
-import { GhostText } from "@/components/themed-text";
-import { GhostMark } from "@/components/ghost-mark";
-import { EmptyState } from "@/components/ghost";
-import { MenuDrawer } from "@/components/menu-drawer";
-import { formatUptime } from "@/lib/format";
-import { transcribeAudio } from "@/lib/ghostApi";
-import { useGhostStore } from "@/lib/store";
+import { PlusMenu } from "@/components/plus-menu";
+import { PermissionCard } from "@/components/permission-card";
+import { WaveDots } from "@/components/wave-dots";
+import {
+  fetchHistory,
+  fetchIdentity,
+  fetchPendingApprovals,
+  onWSMessage,
+  sendMessage,
+  voiceTranscribeUri,
+  type ChatOutcome,
+  type PendingApproval,
+} from "@/lib/ghostApi";
+import { MAIN_SESSION_ID, useGhostStore, type ExtendedMessage } from "@/lib/store";
 
-interface HomeItem {
-  id: string;
-  title: string;
-  preview: string;
-  full: string;
-  timestamp: number;
-  sessionId: string | null;
-}
-
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
   return "Good evening";
 }
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function dateHeader(d = new Date()): { top: string; sub: string } {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return { top: `${months[d.getMonth()]}'${String(d.getFullYear()).slice(2)}`, sub: d.toLocaleDateString([], { weekday: "long" }) };
 }
 
-function groupByDay(items: HomeItem[]): { title: string; data: HomeItem[] }[] {
-  const now = new Date();
-  const today = now.toDateString();
-  const yesterday = new Date(now.getTime() - 86400000).toDateString();
-
-  const groups: Record<string, HomeItem[]> = {};
-  for (const item of items) {
-    const d = new Date(item.timestamp);
-    const key = d.toDateString();
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(item);
+function outcomeLine(outcome: ChatOutcome | null): string | null {
+  switch (outcome) {
+    case "waiting_for_user":
+      return "Waiting for your reply.";
+    case "waiting_for_permission":
+      return "Waiting for your approval.";
+    case "failed":
+      return "That run failed.";
+    default:
+      return null;
   }
-
-  const result: { title: string; data: HomeItem[] }[] = [];
-  if (groups[today]) result.push({ title: "TODAY", data: groups[today] });
-  if (groups[yesterday]) result.push({ title: "YESTERDAY", data: groups[yesterday] });
-
-  const sortedKeys = Object.keys(groups)
-    .filter((k) => k !== today && k !== yesterday)
-    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-
-  for (const key of sortedKeys) {
-    const d = new Date(key);
-    const label = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
-    result.push({ title: label.toUpperCase(), data: groups[key] });
-  }
-
-  return result;
 }
 
-const STARTER_PROMPT = "Catch me up on what I missed today";
-
-export default function HomeScreen() {
+export default function ConversationHome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { config, connectionState, inbox, ghostName, profile, uptimeSeconds, setCurrentSession } = useGhostStore();
-  const [greeting] = useState(getGreeting);
+  const keyboardHeight = useKeyboardHeight();
+  const { config, messages, setMessages, appendMessage, removeMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
   const [draft, setDraft] = useState("");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-  const navBusy = useRef(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<ChatOutcome | null>(null);
+  const [clarify, setClarify] = useState<{ questionId: string; question: string } | null>(null);
+  const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const listRef = useRef<FlatList>(null);
+  const nearBottom = useRef(true);
+  const { top, sub } = dateHeader();
+  const greet = greeting();
 
-  useFocusEffect(
-    useCallback(() => {
-      navBusy.current = false;
-      return () => {
-        navBusy.current = true;
-      };
-    }, []),
-  );
+  useEffect(() => {
+    if (!config) return;
+    let cancelled = false;
+    clearStreamBuffer();
+    setOutcome(null);
+    setClarify(null);
+    fetchIdentity(config).then((id) => {
+      if (!cancelled && id?.name) setGhostName(id.name);
+    }).catch(() => {});
+    fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+      .then(({ messages: h }) => {
+        if (!cancelled) setMessages(h);
+      })
+      .catch(() => {
+        if (!cancelled) setHistoryError("Couldn't load history. Pull to retry.");
+      });
+    const loadApprovals = () => {
+      fetchPendingApprovals(config).then((r) => {
+        if (!cancelled) setApprovals(r);
+      }).catch(() => {});
+    };
+    loadApprovals();
+    const off = onWSMessage((msg) => {
+      const t = typeof msg.type === "string" ? msg.type : (msg.metadata as Record<string, unknown> | undefined)?.type;
+      if (t === "clarify_request" && typeof msg.content === "string" && msg.content) {
+        const meta = (msg.metadata ?? {}) as Record<string, unknown>;
+        const qid = typeof meta.question_id === "string" ? meta.question_id : typeof msg.id === "string" ? msg.id : "";
+        if (qid) setClarify({ questionId: qid, question: msg.content });
+      }
+    });
+    const t = setInterval(loadApprovals, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      off();
+    };
+  }, [config, setMessages, clearStreamBuffer, setGhostName]);
 
-  const displayName = ghostName ?? profile?.name ?? null;
-
-  const items: HomeItem[] = inbox.map((item) => ({
-    id: item.id,
-    title: "Ghost noticed",
-    preview: item.content.slice(0, 120),
-    full: item.content,
-    timestamp: item.timestamp,
-    sessionId: item.session_id ?? null,
-  }));
-
-  const sections = groupByDay(items);
-  const latest = items[0] ?? null;
-  const online = connectionState === "online";
-
-  const freshSessionId = useCallback(
-    () => `mobile:home:${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    [],
-  );
-
-  const openOriginSession = useCallback(
-    (sessionId: string | null) => {
-      if (!sessionId) return false;
-      setCurrentSession(sessionId);
-      router.push({ pathname: "/conversation", params: { sessionId } } as any);
-      return true;
-    },
-    [router, setCurrentSession],
-  );
-
-  const startFreshPrompt = useCallback(
-    (prompt: string, attach?: "camera" | "photo" | "file", autoSend?: boolean) => {
-      if (navBusy.current) return;
-      const q = prompt.trim();
-      if (!q && !attach) return;
-      navBusy.current = true;
-      const id = freshSessionId();
-      setCurrentSession(id);
-      const params: Record<string, string> = { sessionId: id };
-      if (q) params.prompt = q;
-      if (attach) params.attach = attach;
-      if (autoSend && q) params.autoSend = "1";
-      router.push({ pathname: "/conversation", params } as any);
-    },
-    [router, setCurrentSession, freshSessionId],
-  );
-
-  const sendCardPrompt = useCallback(
-    (prompt: string) => startFreshPrompt(prompt, undefined, true),
-    [startFreshPrompt],
-  );
-
-  const handleSubmit = (text: string) => {
+  const send = useCallback(async (text: string) => {
+    if (!config || isStreaming) return;
     const q = text.trim();
     if (!q) return;
     setDraft("");
-    setVoiceError(null);
-    startFreshPrompt(q, undefined, true);
-  };
+    setSendError(null);
+    setOutcome(null);
+    setClarify(null);
+    appendMessage({ id: `temp-${Date.now()}`, role: "user", content: q, timestamp: Date.now(), status: "sending" });
+    const asstId = `temp-a-${Date.now()}`;
+    appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
+    setStreaming(true);
+    setToolActivity(null);
+    const requestId = `m-${Date.now()}`;
+    await sendMessage(config, {
+      content: q,
+      requestId,
+      sessionKey: MAIN_SESSION_ID,
+      onChunk: (c) => appendStream(c),
+      onToolStatus: (_t, label) => setToolActivity(label),
+      onLifecycle: () => {},
+      onOutcome: (_rid, o) => setOutcome(o),
+      onClarify: (info) => setClarify({ questionId: info.questionId, question: info.question }),
+      onDone: (full) => {
+        // Dropped streams are not resumable per contract: history is the
+        // resume path, so reload it to converge on persisted truth.
+        fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+          .then(({ messages: h }) => setMessages(h))
+          .catch(() => commitStream());
+        if (!full.trim() && !clarify) {
+          removeMessage(asstId);
+          setSendError("Ghost didn't respond. Try rephrasing.");
+        }
+        setStreaming(false);
+        setToolActivity(null);
+        fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+      },
+      onError: (e) => {
+        removeMessage(asstId);
+        setStreaming(false);
+        setToolActivity(null);
+        if (e.kind === "auth") router.replace("/auth-failure" as never);
+        else setSendError(e.message);
+      },
+    });
+  }, [config, isStreaming, appendMessage, removeMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router]);
 
-  const renderItem = useCallback(
-    ({ item }: { item: HomeItem }) => (
-      <TouchableOpacity
-        style={styles.row}
-        activeOpacity={0.6}
-        onPress={() => {
-          if (!openOriginSession(item.sessionId)) startFreshPrompt(item.full);
-        }}
-        accessibilityLabel="Open origin conversation"
-      >
-        <View style={styles.rowTop}>
-          <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>
-            {item.title}
-          </GhostText>
-          <GhostText type="footnote" style={styles.rowTime}>
-            {formatTime(item.timestamp)}
-          </GhostText>
+  const renderItem = useCallback(({ item }: { item: ExtendedMessage }) => {
+    if (item.role === "user") {
+      return (
+        <View style={styles.msgBlock}>
+          <Text style={styles.userText}>{item.content}</Text>
         </View>
-        <GhostText type="callout" style={styles.rowPreview} numberOfLines={2}>
-          {item.preview}
-        </GhostText>
-      </TouchableOpacity>
-    ),
-    [openOriginSession, startFreshPrompt],
-  );
+      );
+    }
+    return (
+      <View style={styles.msgBlock}>
+        {!item.content.trim() ? (
+          <Text style={styles.thinking}>{toolActivity ?? "Thinking"}</Text>
+        ) : (
+          <>
+            <Text style={styles.ghostText} selectable>{item.content}</Text>
+            {item.status === "streaming" ? <WaveDots /> : null}
+          </>
+        )}
+      </View>
+    );
+  }, [toolActivity]);
 
-  const keyboardHeight = useKeyboardHeight();
+  const empty = messages.length === 0;
+  const statusLine = outcomeLine(outcome);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <LinearGradient
-        colors={[Ghost.accent.soft, "transparent"]}
-        style={styles.heroWash}
-        pointerEvents="none"
-      />
-      <MenuDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          accessibilityLabel="Menu"
-          onPress={() => setDrawerOpen(true)}
-          hitSlop={12}
-        >
-          <Menu size={22} color={Ghost.text.primary} />
-        </TouchableOpacity>
-        <View style={styles.avatar}>
-          <GhostMark size={22} />
-          <View style={[styles.dot, online ? styles.dotOn : styles.dotOff]} />
-        </View>
+      <View style={styles.dateWrap}>
+        <Text style={styles.dateTop}>{top}</Text>
+        <Text style={styles.dateSub}>{sub}</Text>
       </View>
-
-      <FlatList
-        data={sections}
-        keyExtractor={(s, i) => `${s.title}-${i}`}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        ListHeaderComponent={
-          <View style={styles.greetingWrap}>
-            <GhostText type="largeTitle" style={styles.hello}>
-              {greeting},{displayName ? ` ${displayName}` : ""}
-            </GhostText>
-            <GhostText type="largeTitle" style={styles.help}>
-              How may I help you?
-            </GhostText>
-            <GhostText type="subhead" style={styles.presence}>
-              {online
-                ? `Ghost is running${uptimeSeconds ? ` · Up ${formatUptime(uptimeSeconds)}` : ""}`
-                : connectionState === "syncing"
-                  ? "Ghost is syncing..."
-                  : "Ghost is offline."}
-            </GhostText>
-            {items.length === 0 ? null : (
-              <GhostText type="caption" style={styles.inboxLabel}>
-                INBOX
-              </GhostText>
-            )}
-          </View>
-        }
-        renderItem={({ item: section }) => (
-          <View>
-            <GhostText type="caption" style={styles.sectionTitle}>
-              {section.title}
-            </GhostText>
-            {section.data.map((row) => (
-              <View key={row.id}>{renderItem({ item: row })}</View>
-            ))}
-          </View>
-        )}
-        ListEmptyComponent={
-          items.length === 0 ? (
-            <View style={styles.emptyCenter}>
-              <EmptyState
-                title="Nothing new right now."
-                subtitle="Ghost will let you know when something comes up."
-              />
-            </View>
-          ) : null
-        }
-      />
-
-      <View style={styles.bottomDock}>
-        <View style={styles.cardsRow}>
-          <TouchableOpacity
-            style={styles.starterCard}
-            activeOpacity={0.85}
-            onPress={() => sendCardPrompt(STARTER_PROMPT)}
-            accessibilityLabel="Send briefing prompt to Ghost now"
-          >
-            <GhostText type="callout" style={styles.cardText}>
-              {STARTER_PROMPT}
-            </GhostText>
-            <View style={styles.cardIcon}>
-              <Sparkles size={16} color={Ghost.text.secondary} />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.statusCard}
-            activeOpacity={0.85}
-            onPress={() => {
-              if (latest?.sessionId) openOriginSession(latest.sessionId);
-              else sendCardPrompt("What can you do for me?");
+      {connectionState !== "online" ? (
+        <Text style={styles.offline}>{connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}</Text>
+      ) : null}
+      {empty ? (
+        <View style={styles.center}>
+          <Text style={styles.hello}>
+            <Text style={styles.muted}>{greet},{`\n`}</Text>
+            <Text style={styles.ink}>{ghostName ?? "Ghost"}. </Text>
+            <Text style={styles.muted}>I am ready.{`\n`}What should we do first?</Text>
+          </Text>
+          {historyError ? <Text style={styles.error}>{historyError}</Text> : null}
+        </View>
+      ) : (
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={(m) => m.id}
+          renderItem={renderItem}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onScroll={(e) => {
+            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+            nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
+          }}
+          onContentSizeChange={() => {
+            if (nearBottom.current) listRef.current?.scrollToEnd({ animated: true });
+          }}
+        />
+      )}
+      {config && approvals.slice(0, 2).map((a) => (
+        <View key={a.id} style={styles.approvalWrap}>
+          <PermissionCard
+            item={a}
+            config={config}
+            onResolved={() => {
+              if (config) fetchPendingApprovals(config).then(setApprovals).catch(() => {});
             }}
-            accessibilityLabel={latest?.sessionId ? "Open the conversation this update came from" : "Send to Ghost now"}
-          >
-            <GhostText type="callout" style={styles.cardText} numberOfLines={3}>
-              {latest ? latest.preview : "No updates right now"}
-            </GhostText>
-            <View style={styles.cardIcon}>
-              <Bell size={16} color={Ghost.text.secondary} />
-            </View>
-          </TouchableOpacity>
+          />
         </View>
-      </View>
-
-      <View
-        style={[
-          styles.inputContainer,
-          {
-            paddingBottom:
-              keyboardHeight > 0
-                ? keyboardHeight + Space.xl
-                : insets.bottom + Space.md,
-          },
-        ]}
-      >
+      ))}
+      {clarify ? <Text style={styles.status}>{clarify.question}</Text> : null}
+      {statusLine && !clarify ? <Text style={styles.status}>{statusLine}</Text> : null}
+      {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
+      <View style={[styles.dock, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + Space.md : 96 }]}>
         <Composer
           value={draft}
-          onChangeText={(t) => {
-            setDraft(t);
-            if (voiceError) setVoiceError(null);
-          }}
-          onSubmit={handleSubmit}
-          editable={!drawerOpen}
+          onChangeText={setDraft}
+          onSubmit={send}
           minimal
-          minHeight={72}
-          onTranscribeAudio={(uri) => (config ? transcribeAudio(config, uri) : Promise.resolve(""))}
-          onVoiceError={(message) => setVoiceError(message)}
+          onTranscribeAudio={(uri) => (config ? voiceTranscribeUri(config, uri, MAIN_SESSION_ID) : Promise.resolve(""))}
+          onVoiceError={(m) => setSendError(m)}
+          streaming={isStreaming}
+          onStop={() => {
+            commitStream();
+            setStreaming(false);
+            setToolActivity(null);
+          }}
         />
-        {voiceError ? (
-          <GhostText type="footnote" style={styles.voiceError}>
-            {voiceError}
-          </GhostText>
-        ) : null}
       </View>
+      <PlusMenu />
     </View>
   );
 }
@@ -326,164 +246,92 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Ghost.bg.base,
+    backgroundColor: "#FAFAF7",
   },
-  heroWash: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 280,
-  },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  dateWrap: {
     alignItems: "center",
-    paddingHorizontal: Space.xl,
-    paddingTop: Space.sm,
-    paddingBottom: Space.sm,
+    marginTop: Space.xl,
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Ghost.bg.sunken,
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    alignItems: "center",
+  dateTop: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1A1611",
+  },
+  dateSub: {
+    fontSize: 15,
+    color: "#9C9590",
+  },
+  offline: {
+    textAlign: "center",
+    fontSize: 12,
+    color: "#9C9590",
+    marginTop: 4,
+  },
+  center: {
+    flex: 1,
     justifyContent: "center",
-  },
-  dot: {
-    position: "absolute",
-    right: -1,
-    bottom: -1,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: Ghost.bg.base,
-  },
-  dotOn: {
-    backgroundColor: Ghost.status.success,
-  },
-  dotOff: {
-    backgroundColor: Ghost.text.tertiary,
-  },
-  listContent: {
-    paddingHorizontal: Space.xl,
-    paddingBottom: Space.lg,
-    flexGrow: 1,
-  },
-  greetingWrap: {
-    marginTop: Space.xxxl + Space.sm,
+    paddingHorizontal: 44,
   },
   hello: {
-    color: Ghost.text.secondary,
+    fontSize: 21,
+    lineHeight: 30,
+    textAlign: "center",
+    letterSpacing: -0.2,
   },
-  help: {
-    color: Ghost.text.primary,
+  muted: {
+    color: "#B8B2AA",
   },
-  presence: {
-    color: Ghost.text.tertiary,
-    marginTop: Space.sm,
+  ink: {
+    color: "#1A1611",
+    fontWeight: "700",
   },
-  bottomDock: {
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 28,
+    paddingTop: Space.xl,
+    paddingBottom: Space.xl,
+    gap: Space.lg,
+  },
+  msgBlock: {
+    paddingVertical: 6,
+  },
+  userText: {
+    fontSize: 17,
+    lineHeight: 25,
+    color: "#1A1611",
+    fontWeight: "600",
+    textAlign: "right",
+  },
+  ghostText: {
+    fontSize: 17,
+    lineHeight: 26,
+    color: "#1A1611",
+  },
+  thinking: {
+    fontSize: 15,
+    color: "#9C9590",
+  },
+  approvalWrap: {
+    paddingHorizontal: 28,
+  },
+  status: {
+    textAlign: "center",
+    fontSize: 13,
+    color: "#6B6560",
+    paddingHorizontal: 28,
+    marginBottom: 4,
+  },
+  error: {
+    textAlign: "center",
+    fontSize: 13,
+    color: "#C24B3C",
+    paddingHorizontal: 28,
+    marginBottom: 8,
+  },
+  dock: {
     paddingHorizontal: Space.xl,
-    paddingTop: Space.md,
-    gap: Space.md,
-  },
-  cardsRow: {
-    flexDirection: "row",
-    gap: Space.md,
-  },
-  emptyCenter: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: Space.xxxl,
-    gap: Space.xs,
-  },
-  starterCard: {
-    flex: 1,
-    minHeight: 152,
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1,
-    borderColor: Ghost.border.subtle,
-    padding: Space.lg,
-    justifyContent: "space-between",
-  },
-  statusCard: {
-    flex: 1,
-    minHeight: 152,
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1,
-    borderColor: Ghost.border.subtle,
-    padding: Space.lg,
-    justifyContent: "space-between",
-  },
-  cardText: {
-    color: Ghost.text.primary,
-    lineHeight: 20,
-  },
-  cardIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Ghost.bg.sunken,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Space.sm,
-  },
-  toolsPill: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Ghost.border.subtle,
-    paddingVertical: Space.sm,
-  },
-  inboxLabel: {
-    color: Ghost.text.tertiary,
-    marginTop: Space.xxxl,
-  },
-  sectionTitle: {
-    color: Ghost.text.tertiary,
-    marginTop: Space.xl,
-    marginBottom: Space.sm,
-  },
-  row: {
-    paddingVertical: Space.md,
-    gap: Space.xs,
-  },
-  rowTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  rowTitle: {
-    color: Ghost.text.primary,
-    flex: 1,
-  },
-  rowTime: {
-    color: Ghost.text.tertiary,
-    marginLeft: Space.sm,
-  },
-  rowPreview: {
-    color: Ghost.text.secondary,
-    lineHeight: 20,
-  },
-  inputContainer: {
-    paddingHorizontal: Space.xl,
-    paddingTop: Space.md,
-  },
-  voiceError: {
-    color: Ghost.status.error,
-    marginTop: Space.xs,
+    paddingTop: Space.sm,
   },
 });
