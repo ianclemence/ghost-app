@@ -2,12 +2,12 @@ import { useState, useCallback } from "react";
 import { TouchableOpacity, View, StyleSheet, ScrollView, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
-import * as Notifications from "expo-notifications";
 import * as Location from "expo-location";
 import { Camera } from "expo-camera";
 import { GhostText } from "@/components/themed-text";
 import { GhostToggle } from "@/components/ghost";
 import { Ghost, Space, Type } from "@/constants/theme";
+import { capability } from "@/lib/capabilities";
 
 /**
  * Permissions screen.
@@ -21,10 +21,17 @@ export default function PermissionsScreen() {
   const [cameraEnabled, setCameraEnabled] = useState(false);
 
   const checkPermissions = async () => {
-    try {
-      const notif = await Notifications.getPermissionsAsync();
-      setNotifEnabled(notif.granted);
-    } catch {}
+    // expo-notifications throws at import time inside Expo Go on newer
+    // SDKs, so only touch it when the capability is available.
+    if (!capability("notifications").supported) {
+      setNotifEnabled(false);
+    } else {
+      try {
+        const Notifications = await import("expo-notifications");
+        const notif = await Notifications.getPermissionsAsync();
+        setNotifEnabled(notif.granted);
+      } catch {}
+    }
     try {
       const loc = await Location.getForegroundPermissionsAsync();
       setLocationEnabled(loc.granted);
@@ -46,11 +53,13 @@ export default function PermissionsScreen() {
   );
 
   const toggleNotifications = async () => {
+    if (!capability("notifications").supported) return;
     if (notifEnabled) {
       await Linking.openSettings();
       return;
     }
     try {
+      const Notifications = await import("expo-notifications");
       const { status } = await Notifications.requestPermissionsAsync();
       setNotifEnabled(status === "granted");
     } catch {}
@@ -93,7 +102,9 @@ export default function PermissionsScreen() {
             Push notifications
           </GhostText>
           <GhostText type="caption" style={styles.hint}>
-            Ghost can reach you when something needs your attention.
+            {capability("notifications").supported
+              ? "Ghost can reach you when something needs your attention."
+              : "Notifications aren't available in this test environment."}
           </GhostText>
         </View>
         <GhostToggle value={notifEnabled} onValueChange={toggleNotifications} />

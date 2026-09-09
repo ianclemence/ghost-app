@@ -6,10 +6,7 @@ import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import { Ghost, Space } from "@/constants/theme";
-import * as Notifications from "expo-notifications";
-import Constants, { AppOwnership } from "expo-constants";
-
-const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
+import { capability } from "@/lib/capabilities";
 
 /**
  * Pairing success screen.
@@ -30,9 +27,17 @@ export default function PairingSuccessScreen() {
       return;
     }
 
+    // Notifications need a dev build; in Expo Go skip straight through.
+    // The module throws at import time on newer SDKs, so load it lazily.
+    if (!capability("notifications").supported) {
+      router.replace("/(tabs)");
+      return;
+    }
+
     // Check notification status
     setBusy(true);
     try {
+      const Notifications = await import("expo-notifications");
       const { status } = await Notifications.getPermissionsAsync();
       if (status === "granted") {
         setNotifStatus("granted");
