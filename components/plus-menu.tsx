@@ -49,6 +49,15 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
   const pathname = usePathname() ?? "";
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
+  const fabRot = useSharedValue(0);
+  useEffect(() => {
+    fabRot.value = withTiming(open ? 45 : 0, {
+      duration: reduceMotion ? 0 : 340,
+      easing: SPRING_EASE,
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [open, fabRot, reduceMotion]);
+  const fabSpin = useAnimatedStyle(() => ({ transform: [{ rotate: `${fabRot.value}deg` }] }));
   if (hidden) return null;
   const go = (route: string) => {
     setOpen(false);
@@ -90,14 +99,16 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
         </Animated.View>
       ) : null}
       <ScreenGlow />
-      <Pressable
-        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-        onPress={() => setOpen((v) => !v)}
-        accessibilityLabel={open ? "Close menu" : "Open menu"}
-        accessibilityRole="button"
-      >
-        <FabGlyph open={open} />
-      </Pressable>
+      <Animated.View style={fabSpin}>
+        <Pressable
+          style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+          onPress={() => setOpen((v) => !v)}
+          accessibilityLabel={open ? "Close menu" : "Open menu"}
+          accessibilityRole="button"
+        >
+          <FabGlyph open={open} />
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
@@ -114,7 +125,7 @@ const styles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(250,250,247,0.94)",
+    backgroundColor: "rgba(250,250,247,0.97)",
     justifyContent: "center",
     paddingHorizontal: Space.xxxl,
   },

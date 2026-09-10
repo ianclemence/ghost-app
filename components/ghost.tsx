@@ -97,7 +97,7 @@ export function GhostButton({
 }) {
   const palette = {
     primary: {
-      bg: Ghost.accent.primary,
+      bg: Ghost.text.primary,
       fg: Ghost.text.inverse,
       border: "transparent",
     },
