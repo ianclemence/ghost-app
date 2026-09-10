@@ -559,15 +559,25 @@ export function EmptyState({
     >
       <View style={{ gap: Space.sm, alignItems: "center" }}>
         <GhostText
-          type="headline"
-          style={{ textAlign: "center", color: Ghost.text.primary }}
+          style={{
+            textAlign: "center",
+            color: Ghost.text.primary,
+            fontSize: 21,
+            lineHeight: 30,
+            fontWeight: "600",
+            letterSpacing: -0.2,
+          }}
         >
           {title}
         </GhostText>
         {subtitle ? (
           <GhostText
-            type="body"
-            style={{ textAlign: "center", color: Ghost.text.secondary }}
+            style={{
+              textAlign: "center",
+              color: Ghost.text.secondary,
+              fontSize: 15,
+              lineHeight: 22,
+            }}
           >
             {subtitle}
           </GhostText>

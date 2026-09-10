@@ -1,24 +1,13 @@
-import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
+import Animated, { Easing, FadeInUp } from "react-native-reanimated";
 import { Space } from "@/constants/theme";
-import { Composer } from "@/components/composer";
 import { PlusMenu } from "@/components/plus-menu";
-import { PermissionCard } from "@/components/permission-card";
-import { WaveDots } from "@/components/wave-dots";
-import {
-  fetchHistory,
-  fetchIdentity,
-  fetchPendingApprovals,
-  onWSMessage,
-  sendMessage,
-  voiceTranscribeUri,
-  type ChatOutcome,
-  type PendingApproval,
-} from "@/lib/ghostApi";
-import { MAIN_SESSION_ID, useGhostStore, type ExtendedMessage } from "@/lib/store";
+import { fetchIdentity, fetchPendingApprovals } from "@/lib/ghostApi";
+import { useGhostStore } from "@/lib/store";
+
+const EASE = Easing.bezier(0.32, 0.72, 0, 1);
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -32,212 +21,60 @@ function dateHeader(d = new Date()): { top: string; sub: string } {
   return { top: `${months[d.getMonth()]}'${String(d.getFullYear()).slice(2)}`, sub: d.toLocaleDateString([], { weekday: "long" }) };
 }
 
-function outcomeLine(outcome: ChatOutcome | null): string | null {
-  switch (outcome) {
-    case "waiting_for_user":
-      return "Waiting for your reply.";
-    case "waiting_for_permission":
-      return "Waiting for your approval.";
-    case "failed":
-      return "That run failed.";
-    default:
-      return null;
-  }
-}
-
-export default function ConversationHome() {
+export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const keyboardHeight = useKeyboardHeight();
-  const { config, messages, setMessages, appendMessage, removeMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
-  const [draft, setDraft] = useState("");
-  const [sendError, setSendError] = useState<string | null>(null);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<ChatOutcome | null>(null);
-  const [clarify, setClarify] = useState<{ questionId: string; question: string } | null>(null);
-  const [approvals, setApprovals] = useState<PendingApproval[]>([]);
-  const listRef = useRef<FlatList>(null);
-  const nearBottom = useRef(true);
+  const { config, setGhostName, connectionState } = useGhostStore();
+  const [userName, setUserName] = useState("");
+  const [waitingApproval, setWaitingApproval] = useState(false);
   const { top, sub } = dateHeader();
   const greet = greeting();
 
   useEffect(() => {
     if (!config) return;
     let cancelled = false;
-    clearStreamBuffer();
-    setOutcome(null);
-    setClarify(null);
     fetchIdentity(config).then((id) => {
-      if (!cancelled && id?.name) setGhostName(id.name);
+      if (cancelled || !id) return;
+      if (id.name) setGhostName(id.name);
+      if (id.owner.trim()) setUserName(id.owner.trim());
     }).catch(() => {});
-    fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
-      .then(({ messages: h }) => {
-        if (!cancelled) setMessages(h);
-      })
-      .catch(() => {
-        if (!cancelled) setHistoryError("Couldn't load history. Pull to retry.");
-      });
-    const loadApprovals = () => {
-      fetchPendingApprovals(config).then((r) => {
-        if (!cancelled) setApprovals(r);
-      }).catch(() => {});
-    };
-    loadApprovals();
-    const off = onWSMessage((msg) => {
-      const t = typeof msg.type === "string" ? msg.type : (msg.metadata as Record<string, unknown> | undefined)?.type;
-      if (t === "clarify_request" && typeof msg.content === "string" && msg.content) {
-        const meta = (msg.metadata ?? {}) as Record<string, unknown>;
-        const qid = typeof meta.question_id === "string" ? meta.question_id : typeof msg.id === "string" ? msg.id : "";
-        if (qid) setClarify({ questionId: qid, question: msg.content });
-      }
-    });
-    const t = setInterval(loadApprovals, 15000);
+    fetchPendingApprovals(config).then((r) => {
+      if (!cancelled) setWaitingApproval(r.length > 0);
+    }).catch(() => {});
     return () => {
       cancelled = true;
-      clearInterval(t);
-      off();
     };
-  }, [config, setMessages, clearStreamBuffer, setGhostName]);
-
-  const send = useCallback(async (text: string) => {
-    if (!config || isStreaming) return;
-    const q = text.trim();
-    if (!q) return;
-    setDraft("");
-    setSendError(null);
-    setOutcome(null);
-    setClarify(null);
-    appendMessage({ id: `temp-${Date.now()}`, role: "user", content: q, timestamp: Date.now(), status: "sending" });
-    const asstId = `temp-a-${Date.now()}`;
-    appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
-    setStreaming(true);
-    setToolActivity(null);
-    const requestId = `m-${Date.now()}`;
-    await sendMessage(config, {
-      content: q,
-      requestId,
-      sessionKey: MAIN_SESSION_ID,
-      onChunk: (c) => appendStream(c),
-      onToolStatus: (_t, label) => setToolActivity(label),
-      onLifecycle: () => {},
-      onOutcome: (_rid, o) => setOutcome(o),
-      onClarify: (info) => setClarify({ questionId: info.questionId, question: info.question }),
-      onDone: (full) => {
-        // Dropped streams are not resumable per contract: history is the
-        // resume path, so reload it to converge on persisted truth.
-        fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
-          .then(({ messages: h }) => setMessages(h))
-          .catch(() => commitStream());
-        if (!full.trim() && !clarify) {
-          removeMessage(asstId);
-          setSendError("Ghost didn't respond. Try rephrasing.");
-        }
-        setStreaming(false);
-        setToolActivity(null);
-        fetchPendingApprovals(config).then(setApprovals).catch(() => {});
-      },
-      onError: (e) => {
-        removeMessage(asstId);
-        setStreaming(false);
-        setToolActivity(null);
-        if (e.kind === "auth") router.replace("/auth-failure" as never);
-        else setSendError(e.message);
-      },
-    });
-  }, [config, isStreaming, appendMessage, removeMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router]);
-
-  const renderItem = useCallback(({ item }: { item: ExtendedMessage }) => {
-    if (item.role === "user") {
-      return (
-        <View style={styles.msgBlock}>
-          <Text style={styles.userText}>{item.content}</Text>
-        </View>
-      );
-    }
-    return (
-      <View style={styles.msgBlock}>
-        {!item.content.trim() ? (
-          <Text style={styles.thinking}>{toolActivity ?? "Thinking"}</Text>
-        ) : (
-          <>
-            <Text style={styles.ghostText} selectable>{item.content}</Text>
-            {item.status === "streaming" ? <WaveDots /> : null}
-          </>
-        )}
-      </View>
-    );
-  }, [toolActivity]);
-
-  const empty = messages.length === 0;
-  const statusLine = outcomeLine(outcome);
+  }, [config, setGhostName]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.dateWrap}>
+      <Animated.View entering={FadeInUp.duration(500).easing(EASE)} style={styles.dateWrap}>
         <Text style={styles.dateTop}>{top}</Text>
         <Text style={styles.dateSub}>{sub}</Text>
-      </View>
+      </Animated.View>
       {connectionState !== "online" ? (
         <Text style={styles.offline}>{connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}</Text>
       ) : null}
-      {empty ? (
-        <View style={styles.center}>
-          <Text style={styles.hello}>
-            <Text style={styles.muted}>{greet},{`\n`}</Text>
-            <Text style={styles.ink}>{ghostName ?? "Ghost"}. </Text>
-            <Text style={styles.muted}>I am ready.{`\n`}What should we do first?</Text>
-          </Text>
-          {historyError ? <Text style={styles.error}>{historyError}</Text> : null}
-        </View>
-      ) : (
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          renderItem={renderItem}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          onScroll={(e) => {
-            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-            nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
-          }}
-          onContentSizeChange={() => {
-            if (nearBottom.current) listRef.current?.scrollToEnd({ animated: true });
-          }}
-        />
-      )}
-      {config && approvals.slice(0, 2).map((a) => (
-        <View key={a.id} style={styles.approvalWrap}>
-          <PermissionCard
-            item={a}
-            config={config}
-            onResolved={() => {
-              if (config) fetchPendingApprovals(config).then(setApprovals).catch(() => {});
-            }}
-          />
-        </View>
-      ))}
-      {clarify ? <Text style={styles.status}>{clarify.question}</Text> : null}
-      {statusLine && !clarify ? <Text style={styles.status}>{statusLine}</Text> : null}
-      {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
-      <View style={[styles.dock, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + Space.md : 96 }]}>
-        <Composer
-          value={draft}
-          onChangeText={setDraft}
-          onSubmit={send}
-          minimal
-          onTranscribeAudio={(uri) => (config ? voiceTranscribeUri(config, uri, MAIN_SESSION_ID) : Promise.resolve(""))}
-          onVoiceError={(m) => setSendError(m)}
-          streaming={isStreaming}
-          onStop={() => {
-            commitStream();
-            setStreaming(false);
-            setToolActivity(null);
-          }}
-        />
-      </View>
+      <Animated.View
+        entering={FadeInUp.duration(560).delay(120).easing(EASE)}
+        style={styles.center}
+      >
+        <Text style={styles.hello}>
+          {userName ? (
+            <>
+              <Text style={styles.muted}>{greet},{`\n`}</Text>
+              <Text style={styles.ink}>{userName}. </Text>
+              <Text style={styles.muted}>I am ready.{`\n`}What should we do first?</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.muted}>{greet}. {`\n`}I am ready.{`\n`}What should we do first?</Text>
+            </>
+          )}
+        </Text>
+        {waitingApproval ? (
+          <Text style={styles.nudge}>Ghost is waiting for your approval.</Text>
+        ) : null}
+      </Animated.View>
       <PlusMenu />
     </View>
   );
@@ -268,7 +105,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   center: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
     paddingHorizontal: 44,
   },
@@ -285,53 +122,11 @@ const styles = StyleSheet.create({
     color: "#1A1611",
     fontWeight: "700",
   },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingHorizontal: 28,
-    paddingTop: Space.xl,
-    paddingBottom: Space.xl,
-    gap: Space.lg,
-  },
-  msgBlock: {
-    paddingVertical: 6,
-  },
-  userText: {
-    fontSize: 17,
-    lineHeight: 25,
+  nudge: {
+    marginTop: Space.lg,
+    fontSize: 14,
+    textAlign: "center",
     color: "#1A1611",
     fontWeight: "600",
-    textAlign: "right",
-  },
-  ghostText: {
-    fontSize: 17,
-    lineHeight: 26,
-    color: "#1A1611",
-  },
-  thinking: {
-    fontSize: 15,
-    color: "#9C9590",
-  },
-  approvalWrap: {
-    paddingHorizontal: 28,
-  },
-  status: {
-    textAlign: "center",
-    fontSize: 13,
-    color: "#6B6560",
-    paddingHorizontal: 28,
-    marginBottom: 4,
-  },
-  error: {
-    textAlign: "center",
-    fontSize: 13,
-    color: "#C24B3C",
-    paddingHorizontal: 28,
-    marginBottom: 8,
-  },
-  dock: {
-    paddingHorizontal: Space.xl,
-    paddingTop: Space.sm,
   },
 });

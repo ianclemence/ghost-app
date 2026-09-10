@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { EmptyState, GhostButton } from "@/components/ghost";
 import { PlusMenu } from "@/components/plus-menu";
 import { fetchActivity, type ActivityChip } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
@@ -107,18 +106,32 @@ export default function ActivityScreen() {
         </GhostText>
       </View>
       {!config ? (
-        <EmptyState title="Not connected" subtitle="Connect to your Ghost to see activity." />
+        <View style={styles.emptyWrap}>
+          <Text style={styles.emptyHello}>
+            <Text style={styles.emptyInk}>Not connected. </Text>
+            <Text style={styles.emptyMuted}>Connect to see what Ghost has been doing.</Text>
+          </Text>
+        </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={Ghost.accent.primary} size="large" />
         </View>
       ) : failed && items.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <EmptyState title="No activity yet" subtitle="Ghost hasn't recorded anything visible yet." action={<GhostButton title="Retry" onPress={() => load()} />} />
+          <Text style={styles.emptyHello}>
+            <Text style={styles.emptyInk}>No activity yet. </Text>
+            <Text style={styles.emptyMuted}>Ghost has not recorded anything visible.</Text>
+          </Text>
+          <TouchableOpacity onPress={() => load()} hitSlop={12} accessibilityLabel="Retry loading activity">
+            <Text style={styles.retry}>Retry</Text>
+          </TouchableOpacity>
         </View>
       ) : items.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <EmptyState title="Nothing here yet" subtitle="This fills in as Ghost works for you." />
+          <Text style={styles.emptyHello}>
+            <Text style={styles.emptyInk}>Nothing here yet. </Text>
+            <Text style={styles.emptyMuted}>This fills in as Ghost works for you.</Text>
+          </Text>
         </View>
       ) : (
         <ScrollView
@@ -175,8 +188,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyWrap: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 44,
+  },
+  emptyHello: {
+    fontSize: 21,
+    lineHeight: 30,
+    textAlign: "center",
+    letterSpacing: -0.2,
+  },
+  emptyMuted: {
+    color: "#B8B2AA",
+  },
+  emptyInk: {
+    color: "#1A1611",
+    fontWeight: "700",
+  },
+  retry: {
+    marginTop: Space.lg,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1A1611",
   },
   timeline: {
     flex: 1,

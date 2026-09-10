@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { EmptyState, GhostButton, GhostSheet } from "@/components/ghost";
+import { GhostButton, GhostSheet } from "@/components/ghost";
 import { controlRoutine, fetchRoutines, type RoutineItem } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
@@ -55,13 +55,31 @@ export default function RoutinesScreen() {
         <GhostText type="subhead" style={styles.sub}>What Ghost does automatically. Create them by talking to Ghost.</GhostText>
       </View>
       {!config ? (
-        <EmptyState title="Not connected" subtitle="Connect to manage routines." />
+        <View style={styles.center}>
+          <Text style={styles.emptyHello}>
+            <Text style={styles.emptyInk}>Not connected. </Text>
+            <Text style={styles.emptyMuted}>Connect to manage routines.</Text>
+          </Text>
+        </View>
       ) : loading ? (
         <View style={styles.center}><ActivityIndicator color={Ghost.accent.primary} size="large" /></View>
       ) : error && items.length === 0 ? (
-        <View style={styles.center}><EmptyState title="Couldn't load routines." subtitle={error} action={<GhostButton title="Retry" onPress={() => load()} />} /></View>
+        <View style={styles.center}>
+          <Text style={styles.emptyHello}>
+            <Text style={styles.emptyInk}>Routines would not load. </Text>
+            <Text style={styles.emptyMuted}>Check your connection and try again.</Text>
+          </Text>
+          <TouchableOpacity onPress={() => load()} hitSlop={12} accessibilityLabel="Retry loading routines">
+            <Text style={styles.retry}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : items.length === 0 ? (
-        <View style={styles.center}><EmptyState title="No routines yet." subtitle="Say: every weekday morning, tell me what's on my calendar." /></View>
+        <View style={styles.center}>
+          <Text style={styles.emptyHello}>
+            <Text style={styles.emptyInk}>No routines yet. </Text>
+            <Text style={styles.emptyMuted}>Just ask Ghost to do something regularly.</Text>
+          </Text>
+        </View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.list}
@@ -115,8 +133,29 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   center: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 44,
+  },
+  emptyHello: {
+    fontSize: 21,
+    lineHeight: 30,
+    textAlign: "center",
+    letterSpacing: -0.2,
+  },
+  emptyMuted: {
+    color: "#B8B2AA",
+  },
+  emptyInk: {
+    color: "#1A1611",
+    fontWeight: "700",
+  },
+  retry: {
+    marginTop: Space.lg,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1A1611",
   },
   list: {
     paddingHorizontal: Space.xl,

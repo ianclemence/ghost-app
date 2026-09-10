@@ -35,15 +35,15 @@ export default function MoreScreen() {
   }, [loadIdentity]);
 
   return (
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + Space.xxxl }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.profileSection}>
         <View style={styles.avatar}>
           <GhostText type="title" style={styles.avatarMark}>G</GhostText>
-          <View style={[styles.dot, connectionState === "online" ? styles.dotOn : styles.dotOff]} />
         </View>
         <View style={styles.profileInfo}>
           <GhostText type="headline" style={styles.profileName}>{ghostName ?? "Ghost"}</GhostText>
@@ -59,24 +59,24 @@ export default function MoreScreen() {
         <GhostText type="caption" style={styles.sectionTitle}>Manage</GhostText>
         <GhostRow title="Routines" subtitle="What Ghost does automatically" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/routines" as never)} />
         <GhostRow title="Connected Apps" subtitle="Status of connected services" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/connections" as never)} />
-        <GhostRow title="Device" subtitle="Health and attention items" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/device" as never)} />
-      </View>
-      <View style={styles.section}>
-        <GhostText type="caption" style={styles.sectionTitle}>Settings</GhostText>
-        <GhostRow title="Ghost Pod" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/ghost-pod")} />
-        <GhostRow title="Permissions" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/permissions")} />
+        <GhostRow title="Ghost Pod" subtitle="Health and attention items" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/device" as never)} />
+        <GhostRow title="Permissions" subtitle="What Ghost may access" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/permissions")} />
       </View>
       <View style={styles.section}>
         <GhostText type="caption" style={styles.sectionTitle}>About</GhostText>
         <GhostRow title="About Ghost" chevron style={{ paddingHorizontal: 0 }} onPress={() => router.push("/about")} />
       </View>
-      <View style={{ height: 96 }} />
+      </ScrollView>
       <PlusMenu />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: Ghost.bg.base,
+  },
   container: {
     flex: 1,
     backgroundColor: Ghost.bg.base,
@@ -100,22 +100,6 @@ const styles = StyleSheet.create({
   },
   avatarMark: {
     color: Ghost.text.primary,
-  },
-  dot: {
-    position: "absolute",
-    right: -1,
-    bottom: -1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: Ghost.bg.base,
-  },
-  dotOn: {
-    backgroundColor: Ghost.status.success,
-  },
-  dotOff: {
-    backgroundColor: Ghost.text.tertiary,
   },
   profileInfo: {
     gap: Space.xs,

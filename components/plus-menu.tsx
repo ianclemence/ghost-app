@@ -1,16 +1,41 @@
 import { usePathname, useRouter } from "expo-router";
-import { Plus, X } from "lucide-react-native";
-import React, { useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { Activity, Brain, MessageCircle, SlidersHorizontal } from "lucide-react-native";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInUp,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { Space } from "@/constants/theme";
 
 const ITEMS = [
-  { route: "/(tabs)" as const, label: "Conversation", match: "index" },
-  { route: "/(tabs)/activity" as const, label: "Activity", match: "activity" },
-  { route: "/(tabs)/memory" as const, label: "Memory", match: "memory" },
-  { route: "/(tabs)/more" as const, label: "More", match: "more" },
+  { route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
+  { route: "/(tabs)/activity" as const, label: "Activity", match: "activity", Icon: Activity },
+  { route: "/(tabs)/memory" as const, label: "Memory", match: "memory", Icon: Brain },
+  { route: "/(tabs)/more" as const, label: "More", match: "more", Icon: SlidersHorizontal },
 ];
+
+const SPRING_EASE = Easing.bezier(0.32, 0.72, 0, 1);
+
+function FabGlyph({ open }: { open: boolean }) {
+  const rot = useSharedValue(0);
+  useEffect(() => {
+    rot.value = withTiming(open ? 45 : 0, { duration: 340, easing: SPRING_EASE });
+  }, [open, rot]);
+  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot.value}deg` }] }));
+  return (
+    <Animated.View style={[styles.glyph, style]} pointerEvents="none">
+      <View style={styles.barH} />
+      <View style={styles.barV} />
+    </Animated.View>
+  );
+}
 
 export function PlusMenu({ hidden }: { hidden?: boolean }) {
   const router = useRouter();
@@ -24,35 +49,50 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
   return (
     <View style={styles.wrap} pointerEvents="box-none">
       {open ? (
-        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(150)} style={styles.scrim}>
+        <Animated.View
+          entering={FadeIn.duration(220).easing(SPRING_EASE)}
+          exiting={FadeOut.duration(160)}
+          style={styles.scrim}
+        >
           <Pressable style={styles.scrimTouch} onPress={() => setOpen(false)} accessibilityLabel="Close menu" />
           <View style={styles.list}>
-            {ITEMS.map((item) => {
-              const active = pathname.endsWith(item.match) || (item.match === "index" && pathname.endsWith("(tabs)"));
+            {ITEMS.map((item, i) => {
+              const active = pathname.includes(item.match);
+              const Icon = item.Icon;
               return (
-                <Pressable
+                <Animated.View
                   key={item.label}
-                  style={styles.row}
-                  onPress={() => go(item.route)}
-                  accessibilityLabel={`Go to ${item.label}`}
-                  accessibilityState={{ selected: active }}
+                  entering={FadeInUp.duration(420).delay(90 + i * 75).easing(SPRING_EASE)}
                 >
-                  <View style={[styles.dot, active && styles.dotActive]} />
-                  <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
-                </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    onPress={() => go(item.route)}
+                    accessibilityLabel={`Go to ${item.label}`}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <View style={[styles.iconWell, active && styles.iconWellActive]}>
+                      <Icon size={18} color={active ? "#FAFAF6" : "#1A1611"} strokeWidth={1.5} />
+                    </View>
+                    <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
+                  </Pressable>
+                </Animated.View>
               );
             })}
           </View>
         </Animated.View>
       ) : null}
-      <View style={styles.glow} pointerEvents="none" />
+      <LinearGradient
+        colors={["rgba(255,190,90,0)", "rgba(255,190,90,0.16)"]}
+        style={styles.glow}
+        pointerEvents="none"
+      />
       <Pressable
-        style={styles.fab}
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
         onPress={() => setOpen((v) => !v)}
         accessibilityLabel={open ? "Close menu" : "Open menu"}
         accessibilityRole="button"
       >
-        {open ? <X size={20} color="#FAFAF6" /> : <Plus size={20} color="#FAFAF6" />}
+        <FabGlyph open={open} />
       </Pressable>
     </View>
   );
@@ -70,7 +110,7 @@ const styles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(250,250,247,0.92)",
+    backgroundColor: "rgba(250,250,247,0.94)",
     justifyContent: "center",
     paddingHorizontal: Space.xxxl,
   },
@@ -78,24 +118,28 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
   },
   list: {
-    gap: Space.xl,
+    gap: Space.lg,
     marginBottom: 120,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: Space.lg,
-    minHeight: 44,
+    minHeight: 48,
   },
-  dot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  rowPressed: {
+    opacity: 0.55,
+  },
+  iconWell: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#EDEBE6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconWellActive: {
     backgroundColor: "#1A1611",
-    opacity: 0.92,
-  },
-  dotActive: {
-    opacity: 1,
   },
   label: {
     fontSize: 17,
@@ -111,8 +155,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 140,
-    backgroundColor: "rgba(255,196,92,0.10)",
+    height: 170,
   },
   fab: {
     width: 48,
@@ -122,6 +165,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#1A1611",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 34,
+    marginBottom: Space.edge,
+  },
+  fabPressed: {
+    transform: [{ scale: 0.92 }],
+    opacity: 0.9,
+  },
+  glyph: {
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  barH: {
+    position: "absolute",
+    width: 18,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "#FAFAF6",
+  },
+  barV: {
+    position: "absolute",
+    width: 2,
+    height: 18,
+    borderRadius: 1,
+    backgroundColor: "#FAFAF6",
   },
 });

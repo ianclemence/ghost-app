@@ -160,6 +160,10 @@ export const Space = {
   xxxl: 32,
   huge: 48,
   section: 64,
+  // Canonical edge rhythm: distance from the safe-area top to any screen
+  // title, mirrored by the FAB distance from the screen bottom. One value
+  // so the button and headers sit identically on every screen.
+  edge: 52,
 } as const;
 
 // ─── Radius ────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
@@ -138,19 +138,28 @@ export default function MemoryScreen() {
         </GhostText>
       </View>
       {!config ? (
-        <EmptyState title="Not connected" subtitle="Connect to your Ghost to see what it remembers." />
+        <View style={styles.emptyFill}>
+          <EmptyState title="Not connected" subtitle="Connect to your Ghost to see what it remembers." />
+        </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={Ghost.accent.primary} size="large" />
         </View>
       ) : loadError && rows.length === 0 ? (
-        <EmptyState
-          title="Couldn't load memory."
-          subtitle={offline ? "Ghost looks offline. Reconnect and try again." : "Check your connection and try again."}
-          action={<GhostButton title="Retry" onPress={loadMemory} />}
-        />
+        <View style={styles.emptyFill}>
+          <EmptyState
+            title="Couldn't load memory."
+            subtitle={offline ? "Ghost looks offline. Reconnect and try again." : "Check your connection and try again."}
+            action={<GhostButton title="Retry" onPress={loadMemory} />}
+          />
+        </View>
       ) : rows.length === 0 ? (
-        <EmptyState title="Ghost is still getting to know you." subtitle="Talk to Ghost and it will remember what matters here." />
+        <View style={styles.emptyCenter}>
+          <Text style={styles.emptyHello}>
+            <Text style={styles.emptyInk}>Nothing remembered yet. </Text>
+            <Text style={styles.emptyMuted}>Talk to Ghost and what matters will live here.</Text>
+          </Text>
+        </View>
       ) : (
         <FlatList
           data={rows}
@@ -224,6 +233,28 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  emptyCenter: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: "center",
+    paddingHorizontal: 44,
+  },
+  emptyFill: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: "center",
+  },
+  emptyHello: {
+    fontSize: 21,
+    lineHeight: 30,
+    textAlign: "center",
+    letterSpacing: -0.2,
+  },
+  emptyMuted: {
+    color: "#B8B2AA",
+  },
+  emptyInk: {
+    color: "#1A1611",
+    fontWeight: "700",
   },
   listContent: {
     paddingHorizontal: Space.xl,
