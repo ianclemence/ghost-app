@@ -994,6 +994,282 @@ export async function voiceTranscribeUri(cfg: GhostConfig, uri: string, sessionK
   }
 }
 
+// ─── Live surfaces (browser + computer observation / takeover) ────────────
+// The runtime owns every surface. The client renders snapshots, requests
+// explicit leased control, and releases it. Observation never grants
+// control; a failed or conflicting request never becomes local state.
+
+export type SurfaceKind = "browser" | "computer";
+export type SurfaceState =
+  | "created" | "starting" | "active" | "waiting" | "user_control"
+  | "paused" | "completed" | "failed" | "disconnected" | "expired";
+export type SurfaceControl = "ghost" | "user" | "none";
+
+export interface SurfaceLease {
+  device_id: string;
+  lease_id: string;
+  expires_at: string;
+}
+
+export interface SurfaceObservation {
+  timestamp?: string;
+  title?: string;
+  url?: string;
+  domain?: string;
+  text?: string;
+  control?: SurfaceControl;
+  state?: SurfaceState;
+}
+
+export interface LiveSurface {
+  id: string;
+  kind: SurfaceKind;
+  state: SurfaceState;
+  control: SurfaceControl;
+  lease?: SurfaceLease | null;
+  observation?: SurfaceObservation;
+  updated?: string;
+  sequence?: number;
+}
+
+export interface SurfaceObservationResult {
+  observation: SurfaceObservation;
+  imageBase64?: string;
+  mimeType?: string;
+}
+
+function livePath(cfg: GhostConfig, kind: SurfaceKind, id: string, action?: string): string {
+  const base = `${baseURL(cfg)}/v1/live/surfaces/${kind}/${encodeURIComponent(id)}`;
+  return action ? `${base}/${action}` : base;
+}
+
+export async function fetchLiveSurfaces(cfg: GhostConfig, kind?: SurfaceKind): Promise<LiveSurface[]> {
+  const qs = kind ? `?kind=${kind}` : "";
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/live/surfaces${qs}`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) return [];
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.surfaces) ? data.surfaces : [];
+}
+
+export async function fetchLiveSurface(cfg: GhostConfig, kind: SurfaceKind, id: string): Promise<LiveSurface | null> {
+  try {
+    const res = await fetchWithTimeout(livePath(cfg, kind, id), { headers: headers(cfg) }, 10000);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return (data?.surface as LiveSurface | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchSurfaceObservation(
+  cfg: GhostConfig,
+  kind: SurfaceKind,
+  id: string,
+): Promise<SurfaceObservationResult | null> {
+  try {
+    const res = await fetchWithTimeout(livePath(cfg, kind, id, "observation"), { headers: headers(cfg) }, 15000);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (!data?.observation) return null;
+    return {
+      observation: data.observation,
+      imageBase64: typeof data?.image_base64 === "string" ? data.image_base64 : undefined,
+      mimeType: typeof data?.mime_type === "string" ? data.mime_type : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface SurfaceControlResult {
+  ok: boolean;
+  surface?: LiveSurface | null;
+  error?: string;
+}
+
+async function postSurfaceAction(
+  cfg: GhostConfig,
+  kind: SurfaceKind,
+  id: string,
+  action: "takeover" | "release" | "resume",
+): Promise<SurfaceControlResult> {
+  try {
+    const res = await fetchWithTimeout(
+      livePath(cfg, kind, id, action),
+      { method: "POST", headers: headers(cfg) },
+      15000,
+    );
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      return { ok: false, error: data?.error?.message ?? `Couldn't ${action} that surface.` };
+    }
+    return { ok: true, surface: (data?.surface as LiveSurface | undefined) ?? null };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+export function requestSurfaceTakeover(cfg: GhostConfig, kind: SurfaceKind, id: string): Promise<SurfaceControlResult> {
+  return postSurfaceAction(cfg, kind, id, "takeover");
+}
+
+export function releaseSurfaceControl(cfg: GhostConfig, kind: SurfaceKind, id: string): Promise<SurfaceControlResult> {
+  return postSurfaceAction(cfg, kind, id, "release");
+}
+
+export function resumeSurfaceGhost(cfg: GhostConfig, kind: SurfaceKind, id: string): Promise<SurfaceControlResult> {
+  return postSurfaceAction(cfg, kind, id, "resume");
+}
+
+export interface SurfaceWatchEvent {
+  type: "surface" | "surface_closed";
+  surface?: LiveSurface | null;
+}
+
+export interface WatchSurfaceOptions {
+  signal?: AbortSignal;
+  onUpdate: (surface: LiveSurface) => void;
+  onClosed?: () => void;
+  onError?: (message: string) => void;
+}
+
+// watchSurface consumes the read-only SSE stream with the same framing
+// discipline as chat: JSON object frames only, additive tolerance.
+export async function watchSurface(cfg: GhostConfig, kind: SurfaceKind, id: string, opts: WatchSurfaceOptions): Promise<void> {
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const onAbort = () => ctrl?.abort();
+  if (opts.signal) {
+    if (opts.signal.aborted) return;
+    opts.signal.addEventListener("abort", onAbort, { once: true });
+  }
+  try {
+    const res = await fetch(livePath(cfg, kind, id, "stream"), {
+      headers: headers(cfg),
+      signal: ctrl?.signal,
+    });
+    if (!res.ok || !res.body) {
+      opts.onError?.("Live updates aren't available right now.");
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line.slice(6).trim());
+        } catch {
+          continue;
+        }
+        if (typeof parsed !== "object" || parsed === null) continue;
+        const ev = parsed as { type?: unknown; surface?: unknown };
+        if (ev.type === "surface_closed") {
+          opts.onClosed?.();
+          return;
+        }
+        if (ev.type === "surface" && typeof ev.surface === "object" && ev.surface !== null) {
+          opts.onUpdate(ev.surface as LiveSurface);
+        }
+      }
+    }
+  } catch (e: unknown) {
+    if (opts.signal?.aborted) return;
+    opts.onError?.(e instanceof Error ? e.message : "Live updates aren't available right now.");
+  } finally {
+    opts.signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+// ─── Artifacts (runtime-validated handoffs) ─────────────────────────────────
+// The backend owns artifact truth: validated existence, states, and
+// actions. File bytes preview through the bounded workspace endpoint.
+
+export type ArtifactKind = "file" | "text" | "link";
+export type ArtifactState = "available" | "unavailable";
+
+export interface ArtifactAction {
+  id: string;
+  label: string;
+  kind: "preview" | "open" | "download";
+}
+
+export interface Artifact {
+  id: string;
+  session_key?: string;
+  kind: ArtifactKind;
+  title: string;
+  summary?: string;
+  path?: string;
+  text?: string;
+  url?: string;
+  state: ArtifactState;
+  reason?: string;
+  actions: ArtifactAction[];
+  evidence_request_id?: string;
+  created_at?: string;
+}
+
+export async function fetchArtifacts(cfg: GhostConfig, conversationId: string, limit = 50): Promise<Artifact[]> {
+  try {
+    const qs = new URLSearchParams({ conversation_id: conversationId, limit: String(limit) });
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/artifacts?${qs.toString()}`, { headers: headers(cfg) }, 10000);
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => null);
+    return Array.isArray(data?.artifacts) ? data.artifacts : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchArtifact(cfg: GhostConfig, id: string): Promise<Artifact | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/artifacts/${encodeURIComponent(id)}`,
+      { headers: headers(cfg) },
+      10000,
+    );
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return (data?.artifact as Artifact | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export interface WorkspacePreview {
+  previewable: boolean;
+  kind?: "text" | "image" | "binary";
+  mime_type?: string;
+  reason?: string;
+  size?: number;
+  truncated?: boolean;
+  content?: string;
+  image_base64?: string;
+}
+
+// Narrow file-preview client used only for artifact preview rendering.
+export async function fetchWorkspacePreview(cfg: GhostConfig, name: string): Promise<WorkspacePreview | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/workspace/file?name=${encodeURIComponent(name)}`,
+      { headers: headers(cfg) },
+      15000,
+    );
+    if (!res.ok) return null;
+    return (await res.json().catch(() => null)) as WorkspacePreview | null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Cron / scheduled / skills: intentionally absent ───────────────────────
 // These backend capabilities have no mobile product surface. Routines are
 // managed through /v1/routines. (Removed to prevent contract drift.)

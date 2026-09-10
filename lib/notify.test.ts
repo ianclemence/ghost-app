@@ -22,6 +22,12 @@ describe("notificationCopyFor", () => {
     expect(notificationCopyFor({ type: "lifecycle", content: "x" })).toBeNull();
     expect(notificationCopyFor({ content: "x" })).toBeNull();
   });
+
+  test("surface and artifact flows stay out of the tray", () => {
+    expect(
+      notificationCopyFor({ type: "surface_update", metadata: { surface_id: "s1" } }),
+    ).toBeNull();
+  });
 });
 
 describe("notificationKeyFor", () => {

@@ -8,19 +8,28 @@ import { Ghost, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
 import { ScreenGlow } from "@/components/screen-glow";
 import { PermissionCard } from "@/components/permission-card";
+import { ArtifactCard } from "@/components/artifact-card";
+import { LiveSurfaceCard } from "@/components/live-surface-card";
 import { WaveDots } from "@/components/wave-dots";
 import {
+  fetchArtifacts,
   fetchHistory,
   fetchIdentity,
+  fetchLiveSurface,
   fetchPendingApprovals,
   onWSMessage,
   sendMessage,
   sendSteering,
   voiceTranscribeUri,
+  type Artifact,
   type ChatOutcome,
+  type GhostConfig,
   type PendingApproval,
+  type SurfaceKind,
 } from "@/lib/ghostApi";
 import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
+import { mergeArtifacts } from "@/lib/artifacts";
+import { parseSurfaceAnnouncement } from "@/lib/surfaces";
 import { MAIN_SESSION_ID, useGhostStore, type ExtendedMessage } from "@/lib/store";
 
 function outcomeLine(outcome: ChatOutcome | null): string | null {
@@ -36,6 +45,37 @@ function outcomeLine(outcome: ChatOutcome | null): string | null {
   }
 }
 
+function ThreadExtras({
+  config,
+  surfaces,
+  artifacts,
+  onSurfaceGone,
+}: {
+  config: GhostConfig | null;
+  surfaces: { id: string; kind: SurfaceKind }[];
+  artifacts: Artifact[];
+  onSurfaceGone: (id: string) => void;
+}) {
+  if (!config || (surfaces.length === 0 && artifacts.length === 0)) return null;
+  return (
+    <View style={styles.extras}>
+      {surfaces.map((s) => (
+        <LiveSurfaceCard
+          key={s.id}
+          config={config}
+          kind={s.kind}
+          surfaceId={s.id}
+          ownDeviceId={config.deviceID}
+          onGone={onSurfaceGone}
+        />
+      ))}
+      {artifacts.map((a) => (
+        <ArtifactCard key={a.id} config={config} artifact={a} />
+      ))}
+    </View>
+  );
+}
+
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -47,6 +87,8 @@ export default function ConversationScreen() {
   const [clarify, setClarify] = useState<{ questionId: string; question: string } | null>(null);
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [cancelPhase, setCancelPhase] = useState<CancelPhase>("idle");
+  const [surfaces, setSurfaces] = useState<{ id: string; kind: SurfaceKind }[]>([]);
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const listRef = useRef<FlatList>(null);
   const nearBottom = useRef(true);
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
@@ -72,13 +114,31 @@ export default function ConversationScreen() {
         if (!cancelled) setApprovals(r);
       }).catch(() => {});
     };
+    const loadArtifacts = () => {
+      fetchArtifacts(config, MAIN_SESSION_ID).then((fresh) => {
+        if (!cancelled) setArtifacts((prev) => mergeArtifacts(prev, fresh));
+      }).catch(() => {});
+    };
     loadApprovals();
+    loadArtifacts();
     const off = onWSMessage((msg) => {
       const t = typeof msg.type === "string" ? msg.type : (msg.metadata as Record<string, unknown> | undefined)?.type;
       if (t === "clarify_request" && typeof msg.content === "string" && msg.content) {
         const meta = (msg.metadata ?? {}) as Record<string, unknown>;
         const qid = typeof meta.question_id === "string" ? meta.question_id : typeof msg.id === "string" ? msg.id : "";
         if (qid) setClarify({ questionId: qid, question: msg.content });
+      }
+      // A surface announcement carries identity only; confirm it exists
+      // before rendering so forged or stale ids never become UI.
+      const announced = parseSurfaceAnnouncement(msg, MAIN_SESSION_ID);
+      if (announced) {
+        const { surfaceId, kind } = announced;
+        fetchLiveSurface(config, kind, surfaceId).then((s) => {
+          if (cancelled || !s) return;
+          setSurfaces((prev) =>
+            prev.some((x) => x.id === surfaceId) ? prev : [...prev, { id: surfaceId, kind }],
+          );
+        }).catch(() => {});
       }
     });
     const t = setInterval(loadApprovals, 15000);
@@ -127,6 +187,9 @@ export default function ConversationScreen() {
         setStreaming(false);
         setToolActivity(null);
         fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+        fetchArtifacts(config, MAIN_SESSION_ID)
+          .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
+          .catch(() => {});
       },
       onError: (e) => {
         setCancelPhase((p) => nextCancelState(p, "settled"));
@@ -215,6 +278,14 @@ export default function ConversationScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          ListFooterComponent={
+            <ThreadExtras
+              config={config}
+              surfaces={surfaces}
+              artifacts={artifacts}
+              onSurfaceGone={(id) => setSurfaces((prev) => prev.filter((x) => x.id !== id))}
+            />
+          }
           onScroll={(e) => {
             const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
             nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
@@ -358,6 +429,9 @@ const styles = StyleSheet.create({
   },
   approvalWrap: {
     paddingHorizontal: 28,
+  },
+  extras: {
+    paddingVertical: Space.xs,
   },
   status: {
     textAlign: "center",
