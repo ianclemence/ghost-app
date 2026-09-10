@@ -89,6 +89,8 @@ export default function ConversationScreen() {
   const [cancelPhase, setCancelPhase] = useState<CancelPhase>("idle");
   const [surfaces, setSurfaces] = useState<{ id: string; kind: SurfaceKind }[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const surfacesRef = useRef<{ id: string; kind: SurfaceKind }[]>([]);
+  surfacesRef.current = surfaces;
   const listRef = useRef<FlatList>(null);
   const nearBottom = useRef(true);
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
@@ -190,6 +192,13 @@ export default function ConversationScreen() {
         fetchArtifacts(config, MAIN_SESSION_ID)
           .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
           .catch(() => {});
+        // Reconcile tracked surfaces with runtime truth: refresh each,
+        // drop the ones the runtime no longer knows.
+        surfacesRef.current.forEach((s) => {
+          fetchLiveSurface(config, s.kind, s.id).then((live) => {
+            if (!live) setSurfaces((cur) => cur.filter((x) => x.id !== s.id));
+          }).catch(() => {});
+        });
       },
       onError: (e) => {
         setCancelPhase((p) => nextCancelState(p, "settled"));

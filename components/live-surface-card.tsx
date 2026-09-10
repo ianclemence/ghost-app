@@ -32,6 +32,9 @@ export function LiveSurfaceCard({ config, kind, surfaceId, ownDeviceId, onGone }
   const [error, setError] = useState<string | null>(null);
   const [streamFailed, setStreamFailed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const retriedRef = useRef(false);
+  const watchingRef = useRef(false);
+  watchingRef.current = watching;
 
   const load = useCallback(async () => {
     const s = await fetchLiveSurface(config, kind, surfaceId);
@@ -59,6 +62,7 @@ export function LiveSurfaceCard({ config, kind, surfaceId, ownDeviceId, onGone }
   const startWatch = useCallback(async () => {
     setError(null);
     setStreamFailed(false);
+    retriedRef.current = false;
     const obs = await fetchSurfaceObservation(config, kind, surfaceId);
     if (!obs) {
       setError("Nothing to show yet. Ghost hasn't recorded an observation.");
@@ -77,7 +81,26 @@ export function LiveSurfaceCard({ config, kind, surfaceId, ownDeviceId, onGone }
       signal: ctrl.signal,
       onUpdate: (s) => setSurface(s),
       onClosed: () => onGone(surfaceId),
-      onError: () => setStreamFailed(true),
+      onError: () => {
+        // One automatic reconnect: transient network loss must not strand
+        // a watching user. A second failure surfaces honestly instead.
+        if (!retriedRef.current && watchingRef.current) {
+          retriedRef.current = true;
+          setTimeout(() => {
+            if (!watchingRef.current || ctrl.signal.aborted) return;
+            const retry = new AbortController();
+            abortRef.current = retry;
+            void watchSurface(config, kind, surfaceId, {
+              signal: retry.signal,
+              onUpdate: (s) => setSurface(s),
+              onClosed: () => onGone(surfaceId),
+              onError: () => setStreamFailed(true),
+            });
+          }, 3000);
+          return;
+        }
+        setStreamFailed(true);
+      },
     });
   }, [config, kind, surfaceId, onGone]);
 
