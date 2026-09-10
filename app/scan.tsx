@@ -49,13 +49,13 @@ export default function QrScannerScreen() {
         Animated.timing(scanLineAnim, {
           toValue: 1,
           duration: 1800,
-          easing: Easing.inOut(Easing.ease),
+          easing: Easing.linear,
           useNativeDriver: true,
         }),
         Animated.timing(scanLineAnim, {
           toValue: 0,
           duration: 1800,
-          easing: Easing.inOut(Easing.ease),
+          easing: Easing.linear,
           useNativeDriver: true,
         }),
       ]),

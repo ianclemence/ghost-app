@@ -5,8 +5,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
+import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
 import { capability } from "@/lib/capabilities";
+
+const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
 /**
  * Pairing success screen.
@@ -19,6 +22,7 @@ export default function PairingSuccessScreen() {
   const [askedNotifications, setAskedNotifications] = useState(false);
   const [notifStatus, setNotifStatus] = useState<"granted" | "denied" | "undetermined">("undetermined");
   const [busy, setBusy] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const handleContinue = async () => {
     if (busy) return;
@@ -66,7 +70,9 @@ export default function PairingSuccessScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 100 }]}>
         <View style={styles.content}>
-          <GhostMark size={48} />
+          <Animated.View entering={reduceMotion ? undefined : SUCCESS_ENTER} style={styles.successMark}>
+            <GhostMark size={48} />
+          </Animated.View>
           <GhostText type="largeTitle" style={styles.title}>
             Ghost connected.
           </GhostText>
@@ -128,6 +134,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: Space.md,
+  },
+  successMark: {
+    alignItems: "center",
   },
   title: {
     color: Ghost.text.primary,

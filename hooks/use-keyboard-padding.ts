@@ -26,12 +26,12 @@ export function useKeyboardPadding(base: number) {
         Platform.OS === "ios" && typeof e.duration === "number" && e.duration > 0
           ? e.duration
           : 220;
-      kb.value = withTiming(target, { duration, reduceMotion: ReduceMotion.System });
+      kb.set(withTiming(target, { duration, reduceMotion: ReduceMotion.System }));
     };
     const onHide = () => {
       hiddenRef.current = true;
       baseHRef.current = Dimensions.get("window").height;
-      kb.value = withTiming(0, { duration: 200, reduceMotion: ReduceMotion.System });
+      kb.set(withTiming(0, { duration: 200, reduceMotion: ReduceMotion.System }));
     };
     const showName = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const showSub = Keyboard.addListener(showName, onShow);
@@ -40,7 +40,7 @@ export function useKeyboardPadding(base: number) {
       if (hiddenRef.current) {
         baseHRef.current = window.height;
       } else if (window.height < baseHRef.current - 100) {
-        kb.value = withTiming(0, { duration: 200, reduceMotion: ReduceMotion.System });
+        kb.set(withTiming(0, { duration: 200, reduceMotion: ReduceMotion.System }));
       }
     });
     return () => {
@@ -50,5 +50,5 @@ export function useKeyboardPadding(base: number) {
     };
   }, [kb]);
 
-  return useAnimatedStyle(() => ({ paddingBottom: base + kb.value }));
+  return useAnimatedStyle(() => ({ paddingBottom: base + kb.get() }));
 }

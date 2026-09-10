@@ -3,9 +3,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
+import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
 import { completePairing } from "@/lib/connection";
 import { useEffect, useRef, useState } from "react";
+
+const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
 /**
  * Pairing progress screen.
@@ -26,6 +29,7 @@ export default function PairingProgressScreen() {
   const [status, setStatus] = useState<"connecting" | "success" | "error">("connecting");
   const [error, setError] = useState<string | null>(null);
   const hasStarted = useRef(false);
+  const reduceMotion = useReducedMotion();
 
   const startPairing = async () => {
     if (!params.token || (!params.host && params.transport !== "relay")) {
@@ -64,7 +68,9 @@ export default function PairingProgressScreen() {
   if (status === "success") {
     return (
       <View style={[styles.container, styles.center]}>
-        <GhostMark size={48} />
+        <Animated.View entering={reduceMotion ? undefined : SUCCESS_ENTER} style={styles.successMark}>
+          <GhostMark size={48} />
+        </Animated.View>
         <GhostText type="largeTitle" style={styles.title}>
           Ghost connected.
         </GhostText>
@@ -134,6 +140,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Space.xxxl,
     gap: Space.md,
+  },
+  successMark: {
+    alignItems: "center",
   },
   title: {
     color: Ghost.text.primary,

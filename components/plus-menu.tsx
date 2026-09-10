@@ -29,13 +29,13 @@ function FabGlyph({ open }: { open: boolean }) {
   const rot = useSharedValue(0);
   const reduceMotion = useReducedMotion();
   useEffect(() => {
-    rot.value = withTiming(open ? 45 : 0, {
+    rot.set(withTiming(open ? 45 : 0, {
       duration: reduceMotion ? 0 : 340,
       easing: SPRING_EASE,
       reduceMotion: ReduceMotion.System,
-    });
+    }));
   }, [open, rot, reduceMotion]);
-  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot.value}deg` }] }));
+  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot.get()}deg` }] }));
   return (
     <Animated.View style={[styles.glyph, style]} pointerEvents="none">
       <View style={styles.barH} />
@@ -51,13 +51,13 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
   const [open, setOpen] = useState(false);
   const fabRot = useSharedValue(0);
   useEffect(() => {
-    fabRot.value = withTiming(open ? 45 : 0, {
+    fabRot.set(withTiming(open ? 45 : 0, {
       duration: reduceMotion ? 0 : 340,
       easing: SPRING_EASE,
       reduceMotion: ReduceMotion.System,
-    });
+    }));
   }, [open, fabRot, reduceMotion]);
-  const fabSpin = useAnimatedStyle(() => ({ transform: [{ rotate: `${fabRot.value}deg` }] }));
+  const fabSpin = useAnimatedStyle(() => ({ transform: [{ rotate: `${fabRot.get()}deg` }] }));
   if (hidden) return null;
   const go = (route: string) => {
     setOpen(false);
@@ -79,10 +79,11 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
               return (
                 <Animated.View
                   key={item.label}
-                  entering={reduceMotion ? undefined : FadeInUp.duration(420).delay(90 + i * 75).easing(SPRING_EASE)}
+                  entering={reduceMotion ? undefined : FadeInUp.duration(260).delay(90 + i * 70).easing(SPRING_EASE)}
                 >
                   <Pressable
                     style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    pressRetentionOffset={16}
                     onPress={() => go(item.route)}
                     accessibilityLabel={`Go to ${item.label}`}
                     accessibilityState={{ selected: active }}

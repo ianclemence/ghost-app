@@ -27,10 +27,10 @@ function WaveDot({ index }: { index: number }) {
 
   useEffect(() => {
     if (reduceMotion) {
-      progress.value = 0.5;
+      progress.set(0.5);
       return;
     }
-    progress.value = withDelay(
+    progress.set(withDelay(
       index * (CYCLE_MS / DOT_COUNT / 2),
       withRepeat(
         withSequence(
@@ -40,12 +40,12 @@ function WaveDot({ index }: { index: number }) {
         -1,
         false,
       ),
-    );
+    ));
   }, [index, progress, reduceMotion]);
 
   const style = useAnimatedStyle(() => ({
-    opacity: 0.25 + progress.value * 0.75,
-    transform: [{ translateY: -3 * progress.value }],
+    opacity: 0.25 + progress.get() * 0.75,
+    transform: [{ translateY: -3 * progress.get() }],
   }));
 
   return <Animated.View style={[styles.dot, style]} />;

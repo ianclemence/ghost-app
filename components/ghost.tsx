@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import Reanimated, { useReducedMotion } from "react-native-reanimated";
 import {
   ActivityIndicator,
   Animated,
@@ -18,6 +19,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Fonts, Radius, Space, UI } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { GhostMark } from "@/components/ghost-mark";
+
+const AnimatedTouchableOpacity = Reanimated.createAnimatedComponent(TouchableOpacity);
 
 export { GhostMark };
 
@@ -117,15 +120,23 @@ export function GhostButton({
       border: Ghost.border.default,
     },
   }[variant];
+  const [pressed, setPressed] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const interactive = !disabled && !loading;
 
   return (
-    <TouchableOpacity
+    <AnimatedTouchableOpacity
       activeOpacity={disabled || loading ? 1 : 0.7}
       accessibilityLabel={title}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!(disabled || loading) }}
       onPress={disabled || loading ? undefined : onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      pressRetentionOffset={16}
       style={[
+        pressTransition.base,
+        pressed && interactive && !reduceMotion && pressTransition.pressed,
         {
           flexDirection: "row",
           alignItems: "center",
@@ -164,9 +175,24 @@ export function GhostButton({
           {rightIcon}
         </>
       )}
-    </TouchableOpacity>
+    </AnimatedTouchableOpacity>
   );
 }
+
+// Press feedback: near-imperceptible 120ms scale, the ceiling for
+// tens-of-times-a-day controls. Opacity dip (activeOpacity) stays as the
+// reduced-motion path.
+const pressTransition = StyleSheet.create({
+  base: {
+    transform: [{ scale: 1 }],
+    transitionProperty: "transform",
+    transitionDuration: "120ms",
+    transitionTimingFunction: "ease-out",
+  },
+  pressed: {
+    transform: [{ scale: 0.97 }],
+  },
+});
 
 /* ------------------------------------------------------------------ */
 /* GhostSheet (bottom sheet / modal)                                   */

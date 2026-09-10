@@ -49,7 +49,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Animated.View
-        entering={reduceMotion ? undefined : FadeInUp.duration(500).easing(EASE)}
+        entering={reduceMotion ? undefined : FadeInUp.duration(300).easing(EASE)}
         style={styles.dateWrap}
         accessible
         accessibilityLabel={`Today is ${sub}, ${top}`}
@@ -62,7 +62,7 @@ export default function HomeScreen() {
         <Text style={styles.offline} accessibilityLiveRegion="polite">{connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}</Text>
       ) : null}
       <Animated.View
-        entering={reduceMotion ? undefined : FadeInUp.duration(560).delay(120).easing(EASE)}
+        entering={reduceMotion ? undefined : FadeInUp.duration(320).delay(80).easing(EASE)}
         style={styles.center}
       >
         <Text style={styles.hello}>

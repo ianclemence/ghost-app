@@ -1,6 +1,14 @@
 import { Camera, ImagePlus, Mic, Pause, Send, Square, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import {
   RecordingPresets,
   getRecordingPermissionsAsync,
@@ -15,10 +23,71 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type StyleProp,
   type TextInput as RNTextInput,
+  type ViewStyle,
 } from "react-native";
 
 import { Ghost, Radius, Space, Type } from "@/constants/theme";
+
+const AnimatedActionButton = Animated.createAnimatedComponent(TouchableOpacity);
+
+function ActionPressButton({
+  children,
+  style,
+  ...rest
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+} & React.ComponentProps<typeof TouchableOpacity>) {
+  const [pressed, setPressed] = useState(false);
+  const reduceMotion = useReducedMotion();
+  return (
+    <AnimatedActionButton
+      activeOpacity={0.7}
+      hitSlop={8}
+      pressRetentionOffset={16}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={[
+        pressTransition.base,
+        pressed && !reduceMotion && pressTransition.pressed,
+        style,
+      ]}
+      {...rest}
+    >
+      {children}
+    </AnimatedActionButton>
+  );
+}
+
+function RecDot() {
+  const opacity = useSharedValue(1);
+  const reduceMotion = useReducedMotion();
+  useEffect(() => {
+    if (reduceMotion) {
+      opacity.set(1);
+      return;
+    }
+    opacity.set(
+      withRepeat(withSequence(withTiming(0.35, { duration: 500 }), withTiming(1, { duration: 500 })), -1, false),
+    );
+  }, [opacity, reduceMotion]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  return <Animated.View style={[styles.recDot, style]} />;
+}
+
+const pressTransition = StyleSheet.create({
+  base: {
+    transform: [{ scale: 1 }],
+    transitionProperty: "transform",
+    transitionDuration: "120ms",
+    transitionTimingFunction: "ease-out",
+  },
+  pressed: {
+    transform: [{ scale: 0.97 }],
+  },
+});
 
 const MAX_VOICE_MS = 120_000;
 
@@ -225,7 +294,7 @@ export function Composer({
         onTranscribeAudio ? (
           recording ? (
             <View style={styles.voiceRow} accessible accessibilityLabel={`Recording voice message, ${voiceClock}`} accessibilityLiveRegion="polite">
-              <View style={styles.recDot} />
+              <RecDot />
               <Text style={styles.voiceClock}>{voiceClock}</Text>
               <TouchableOpacity
                 style={styles.iconBtn}
@@ -273,29 +342,25 @@ export function Composer({
       ) : null}
       {streaming && onStop ? (
         <Animated.View entering={FadeIn.duration(150)}>
-          <TouchableOpacity
+          <ActionPressButton
             style={styles.sendBtn}
-            activeOpacity={0.7}
-            hitSlop={8}
             accessibilityLabel="Pause Ghost's response"
             onPress={onStop}
           >
             <Pause size={18} color={Ghost.text.inverse} fill={Ghost.text.inverse} />
-          </TouchableOpacity>
+          </ActionPressButton>
         </Animated.View>
       ) : showSend ? (
         <Animated.View entering={FadeIn.duration(150)}>
-          <TouchableOpacity
+          <ActionPressButton
             style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-            activeOpacity={0.7}
-            hitSlop={8}
             accessibilityLabel="Send message"
             accessibilityState={{ disabled: !canSend }}
             onPress={submit}
             disabled={!canSend}
           >
             <Send size={18} color={canSend ? Ghost.text.inverse : Ghost.text.tertiary} />
-          </TouchableOpacity>
+          </ActionPressButton>
         </Animated.View>
       ) : null}
     </View>

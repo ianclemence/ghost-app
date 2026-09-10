@@ -1,11 +1,15 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
 import { isValidGrant, resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
+
+const CARD_ENTER = FadeInUp.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
 export function PermissionCard({ item, config, onResolved }: { item: PendingApproval; config: GhostConfig; onResolved: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
   const card = item.card;
   const title = card?.title ?? "Ghost needs approval";
   const desc = card?.description ?? "Ghost is waiting for your approval to continue.";
@@ -23,7 +27,12 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
     else setError(r.error ?? "That approval is no longer answerable.");
   };
   return (
-    <View style={styles.card} accessibilityLabel="Permission request from Ghost" accessibilityLiveRegion="polite">
+    <Animated.View
+      entering={reduceMotion ? undefined : CARD_ENTER}
+      style={styles.card}
+      accessibilityLabel="Permission request from Ghost"
+      accessibilityLiveRegion="polite"
+    >
       <Text style={styles.kicker}>Needs your approval</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.desc}>{desc}</Text>
@@ -45,7 +54,7 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
         ))}
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-    </View>
+    </Animated.View>
   );
 }
 
