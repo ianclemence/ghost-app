@@ -1,8 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import { Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
 import { PermissionCard } from "@/components/permission-card";
@@ -35,7 +34,6 @@ function outcomeLine(outcome: ChatOutcome | null): string | null {
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const keyboardHeight = useKeyboardHeight();
   const { config, messages, setMessages, appendMessage, removeMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
@@ -154,7 +152,11 @@ export default function ConversationScreen() {
   const statusLine = outcomeLine(outcome);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { paddingTop: insets.top }]}
+      behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={0}
+    >
       <View style={styles.header}>
         <Pressable
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
@@ -176,12 +178,15 @@ export default function ConversationScreen() {
       </View>
       {historyError ? <Text style={styles.error}>{historyError}</Text> : null}
       {messages.length === 0 ? (
-        <View style={styles.emptyCenter}>
-          <Text style={styles.emptyHello}>
-            <Text style={styles.emptyInk}>Talk to Ghost. </Text>
-            <Text style={styles.emptyMuted}>Say anything to begin.</Text>
-          </Text>
-        </View>
+        <>
+          <View style={{ flex: 1 }} />
+          <View style={styles.emptyCenter}>
+            <Text style={styles.emptyHello}>
+              <Text style={styles.emptyInk}>Talk to Ghost. </Text>
+              <Text style={styles.emptyMuted}>Say anything to begin.</Text>
+            </Text>
+          </View>
+        </>
       ) : (
         <FlatList
           ref={listRef}
@@ -215,7 +220,7 @@ export default function ConversationScreen() {
       {clarify ? <Text style={styles.status}>{clarify.question}</Text> : null}
       {statusLine && !clarify ? <Text style={styles.status}>{statusLine}</Text> : null}
       {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
-      <View style={[styles.dock, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + Space.md : insets.bottom + Space.md }]}>
+      <View style={[styles.dock, { paddingBottom: insets.bottom + Space.md }]}>
         <Composer
           value={draft}
           onChangeText={setDraft}
@@ -231,7 +236,7 @@ export default function ConversationScreen() {
           }}
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

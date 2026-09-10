@@ -18,7 +18,7 @@ function greeting(): string {
 
 function dateHeader(d = new Date()): { top: string; sub: string } {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return { top: `${months[d.getMonth()]}'${String(d.getFullYear()).slice(2)}`, sub: d.toLocaleDateString([], { weekday: "long" }) };
+  return { top: `${months[d.getMonth()]} ${d.getDate()}`, sub: d.toLocaleDateString([], { weekday: "long" }) };
 }
 
 export default function HomeScreen() {
@@ -90,12 +90,12 @@ const styles = StyleSheet.create({
     marginTop: Space.xl,
   },
   dateTop: {
-    fontSize: 15,
+    fontSize: 19,
     fontWeight: "700",
     color: "#1A1611",
   },
   dateSub: {
-    fontSize: 15,
+    fontSize: 17,
     color: "#9C9590",
   },
   offline: {
