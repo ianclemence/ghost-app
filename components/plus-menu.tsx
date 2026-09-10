@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import { Activity, Brain, MessageCircle, SlidersHorizontal } from "lucide-react-native";
+import { ScreenGlow } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -81,11 +81,7 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
           </View>
         </Animated.View>
       ) : null}
-      <LinearGradient
-        colors={["rgba(255,190,90,0)", "rgba(255,190,90,0.16)"]}
-        style={styles.glow}
-        pointerEvents="none"
-      />
+      <ScreenGlow />
       <Pressable
         style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
         onPress={() => setOpen((v) => !v)}
@@ -149,13 +145,6 @@ const styles = StyleSheet.create({
   },
   labelActive: {
     fontWeight: "700",
-  },
-  glow: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 170,
   },
   fab: {
     width: 48,

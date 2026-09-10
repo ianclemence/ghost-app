@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import { GhostText } from "@/components/themed-text";
+import { ScreenGlow } from "@/components/screen-glow";
 import { GhostSheet, StatusDot } from "@/components/ghost";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { timeAgo, formatUptime } from "@/lib/format";
@@ -54,9 +55,10 @@ export default function GhostPodScreen() {
   };
 
   return (
+    <View style={{ flex: 1, backgroundColor: Ghost.bg.base }}>
     <ScrollView
-      style={{ flex: 1, backgroundColor: Ghost.bg.base }}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl }]}
+      style={{ flex: 1 }}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + Space.xxxl }]}
     >
       <GhostText type="title" style={styles.title}>
         Ghost Pod
@@ -113,6 +115,8 @@ export default function GhostPodScreen() {
         onConfirm={() => {}}
       />
     </ScrollView>
+    <ScreenGlow />
+    </View>
   );
 }
 

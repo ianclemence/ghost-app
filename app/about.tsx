@@ -2,6 +2,7 @@ import { View, StyleSheet, ScrollView, Linking, TouchableOpacity } from "react-n
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import { GhostText } from "@/components/themed-text";
+import { ScreenGlow } from "@/components/screen-glow";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostMark } from "@/components/ghost-mark";
 import { useGhostStore } from "@/lib/store";
@@ -12,8 +13,9 @@ export default function AboutScreen() {
   const name = ghostName || "Ghost";
 
   return (
+    <View style={{ flex: 1, backgroundColor: Ghost.bg.base }}>
     <ScrollView
-      style={{ flex: 1, backgroundColor: Ghost.bg.base }}
+      style={{ flex: 1 }}
       contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl }]}
     >
       <View style={styles.brand}>
@@ -94,6 +96,8 @@ export default function AboutScreen() {
         Open source under the MIT License.
       </GhostText>
     </ScrollView>
+    <ScreenGlow />
+    </View>
   );
 }
 

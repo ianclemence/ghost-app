@@ -5,6 +5,7 @@ import { useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
 import { Camera } from "expo-camera";
 import { GhostText } from "@/components/themed-text";
+import { ScreenGlow } from "@/components/screen-glow";
 import { GhostToggle } from "@/components/ghost";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { capability } from "@/lib/capabilities";
@@ -88,9 +89,10 @@ export default function PermissionsScreen() {
   };
 
   return (
+    <View style={{ flex: 1, backgroundColor: Ghost.bg.base }}>
     <ScrollView
-      style={{ flex: 1, backgroundColor: Ghost.bg.base }}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl }]}
+      style={{ flex: 1 }}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + Space.xxxl }]}
     >
       <GhostText type="title" style={styles.title}>
         Permissions
@@ -134,6 +136,8 @@ export default function PermissionsScreen() {
         <GhostToggle value={cameraEnabled} onValueChange={toggleCamera} />
       </TouchableOpacity>
     </ScrollView>
+    <ScreenGlow />
+    </View>
   );
 }
 

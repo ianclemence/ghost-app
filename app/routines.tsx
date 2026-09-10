@@ -3,6 +3,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, Toucha
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
+import { ScreenGlow } from "@/components/screen-glow";
 import { GhostButton, GhostSheet } from "@/components/ghost";
 import { controlRoutine, fetchRoutines, type RoutineItem } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
@@ -110,6 +111,7 @@ export default function RoutinesScreen() {
         <GhostButton title="Resume" variant="secondary" fullWidth onPress={() => void act("resume")} disabled={mutating} />
         <GhostButton title="Cancel" variant="danger" fullWidth onPress={() => void act("cancel")} disabled={mutating} />
       </GhostSheet>
+      <ScreenGlow />
     </View>
   );
 }

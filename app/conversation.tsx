@@ -1,9 +1,12 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated from "react-native-reanimated";
+import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
 import { Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
+import { ScreenGlow } from "@/components/screen-glow";
 import { PermissionCard } from "@/components/permission-card";
 import { WaveDots } from "@/components/wave-dots";
 import {
@@ -43,6 +46,7 @@ export default function ConversationScreen() {
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const listRef = useRef<FlatList>(null);
   const nearBottom = useRef(true);
+  const dockPad = useKeyboardPadding(insets.bottom + Space.md);
 
   useEffect(() => {
     if (!config) return;
@@ -152,11 +156,7 @@ export default function ConversationScreen() {
   const statusLine = outcomeLine(outcome);
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top }]}
-      behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={0}
-    >
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Pressable
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
@@ -220,7 +220,7 @@ export default function ConversationScreen() {
       {clarify ? <Text style={styles.status}>{clarify.question}</Text> : null}
       {statusLine && !clarify ? <Text style={styles.status}>{statusLine}</Text> : null}
       {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
-      <View style={[styles.dock, { paddingBottom: insets.bottom + Space.md }]}>
+      <Animated.View style={[styles.dock, dockPad]}>
         <Composer
           value={draft}
           onChangeText={setDraft}
@@ -235,8 +235,9 @@ export default function ConversationScreen() {
             setToolActivity(null);
           }}
         />
-      </View>
-    </KeyboardAvoidingView>
+      </Animated.View>
+      <ScreenGlow />
+    </View>
   );
 }
 

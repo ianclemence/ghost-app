@@ -3,6 +3,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
+import { ScreenGlow } from "@/components/screen-glow";
 import { EmptyState, GhostButton } from "@/components/ghost";
 import { fetchConnections, type ConnectionInfo } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
@@ -81,6 +82,7 @@ export default function ConnectionsScreen() {
           <GhostText type="footnote" style={styles.note}>To connect or repair an app, use the Ghost web console.</GhostText>
         </ScrollView>
       )}
+      <ScreenGlow />
     </View>
   );
 }
