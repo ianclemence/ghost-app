@@ -52,7 +52,7 @@ export const Ghost = {
   text: {
     primary: "#1A1611",
     secondary: "#6B6560",
-    tertiary: "#9C9590",
+    tertiary: "#6F6A63",
     inverse: "#FAFAF7",
   },
 

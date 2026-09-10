@@ -54,7 +54,7 @@ export default function ConnectionsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <GhostText type="largeTitle" style={styles.title}>Connected Apps</GhostText>
+        <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">Connected Apps</GhostText>
         <GhostText type="subhead" style={styles.sub}>What Ghost can reach. Connecting happens in the web console for now.</GhostText>
       </View>
       {!config ? (

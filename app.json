@@ -67,8 +67,7 @@
         }
       ],
       "expo-asset",
-      "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

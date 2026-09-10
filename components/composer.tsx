@@ -187,6 +187,7 @@ export function Composer({
         style={[styles.input, minHeight ? { minHeight } : null]}
         value={value}
         onChangeText={onChangeText}
+        accessibilityLabel="Message Ghost"
         placeholder={placeholder}
         placeholderTextColor={Ghost.text.tertiary}
         multiline
@@ -223,7 +224,7 @@ export function Composer({
       {showMic ? (
         onTranscribeAudio ? (
           recording ? (
-            <View style={styles.voiceRow}>
+            <View style={styles.voiceRow} accessible accessibilityLabel={`Recording voice message, ${voiceClock}`} accessibilityLiveRegion="polite">
               <View style={styles.recDot} />
               <Text style={styles.voiceClock}>{voiceClock}</Text>
               <TouchableOpacity

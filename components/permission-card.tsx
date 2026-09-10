@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ghost, Space } from "@/constants/theme";
-import { resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
+import { isValidGrant, resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
 
 export function PermissionCard({ item, config, onResolved }: { item: PendingApproval; config: GhostConfig; onResolved: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -14,7 +14,7 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
     { id: "deny", label: "Deny", style: "danger" },
   ];
   const act = async (id: string) => {
-    if (id !== "allow_once" && id !== "allow_always" && id !== "deny") return;
+    if (!isValidGrant(id)) return;
     setBusy(id);
     setError(null);
     const r = await resolveApproval(config, item.id, id);
@@ -23,20 +23,21 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
     else setError(r.error ?? "That approval is no longer answerable.");
   };
   return (
-    <View style={styles.card} accessibilityLabel="Permission request from Ghost">
+    <View style={styles.card} accessibilityLabel="Permission request from Ghost" accessibilityLiveRegion="polite">
       <Text style={styles.kicker}>Needs your approval</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.desc}>{desc}</Text>
       <View style={styles.row}>
         {actions.map((a) => (
-          <TouchableOpacity
-            key={a.id}
-            style={[styles.btn, a.style === "danger" && styles.btnDanger, busy === a.id && styles.btnBusy]}
-            onPress={() => void act(a.id)}
-            disabled={busy !== null}
-            accessibilityLabel={a.label}
-            accessibilityRole="button"
-          >
+            <TouchableOpacity
+              key={a.id}
+              style={[styles.btn, a.style === "danger" && styles.btnDanger, busy === a.id && styles.btnBusy]}
+              onPress={() => void act(a.id)}
+              disabled={busy !== null}
+              accessibilityLabel={a.label}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy !== null, busy: busy === a.id }}
+            >
             <Text style={[styles.btnText, a.style === "danger" && styles.btnTextDanger]}>
               {busy === a.id ? "Working" : a.label}
             </Text>

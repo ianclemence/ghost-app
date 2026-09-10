@@ -111,6 +111,7 @@ export default function ManualScreen() {
           style={styles.input}
           value={host}
           onChangeText={setHost}
+          accessibilityLabel="Ghost Pod address"
           placeholder="192.168.1.42"
           placeholderTextColor={Ghost.text.tertiary}
           autoCapitalize="none"
@@ -125,6 +126,7 @@ export default function ManualScreen() {
           style={styles.input}
           value={port}
           onChangeText={setPort}
+          accessibilityLabel="Port"
           placeholder="8766"
           placeholderTextColor={Ghost.text.tertiary}
           keyboardType="number-pad"
@@ -137,6 +139,7 @@ export default function ManualScreen() {
           style={styles.input}
           value={token}
           onChangeText={handleTokenChange}
+          accessibilityLabel="Pairing token"
             placeholder="Paste token from Ghost Pod"
           placeholderTextColor={Ghost.text.tertiary}
           autoCapitalize="none"

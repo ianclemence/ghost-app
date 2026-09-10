@@ -35,11 +35,9 @@ import {
   checkHealthInfo,
   connectWebSocket,
   disconnectWebSocket,
-  listPairedDevices,
   setAuthFailureHandler,
   resetAuthFailureState,
   HealthStatus,
-  PairedDevice,
 } from "./ghostApi";
 import { parsePairingURI } from "./pairing";
 import { useGhostStore } from "./store";
@@ -388,17 +386,6 @@ export async function reconnect(): Promise<void> {
 /** Start pairing flow. */
 export function startPairing(): void {
   useGhostStore.getState().setConnectionState("syncing");
-}
-
-/** Fetch paired devices list. */
-export async function refreshDevices(): Promise<PairedDevice[]> {
-  const config = await buildConfig();
-  if (!config) return [];
-  try {
-    return await listPairedDevices(config);
-  } catch {
-    return [];
-  }
 }
 
 /**

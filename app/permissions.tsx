@@ -109,7 +109,7 @@ export default function PermissionsScreen() {
               : "Notifications aren't available in this test environment."}
           </GhostText>
         </View>
-        <GhostToggle value={notifEnabled} onValueChange={toggleNotifications} />
+        <GhostToggle value={notifEnabled} onValueChange={toggleNotifications} accessibilityLabel="Push notifications" />
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.row} activeOpacity={0.6} onPress={toggleLocation} accessibilityLabel="Location access">
@@ -121,7 +121,7 @@ export default function PermissionsScreen() {
             Used for weather context and schedules in your timezone. Coordinates stay on your Ghost.
           </GhostText>
         </View>
-        <GhostToggle value={locationEnabled} onValueChange={toggleLocation} />
+        <GhostToggle value={locationEnabled} onValueChange={toggleLocation} accessibilityLabel="Location access" />
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.row} activeOpacity={0.6} onPress={toggleCamera} accessibilityLabel="Camera access">
@@ -133,7 +133,7 @@ export default function PermissionsScreen() {
             Used to scan Ghost pairing codes.
           </GhostText>
         </View>
-        <GhostToggle value={cameraEnabled} onValueChange={toggleCamera} />
+        <GhostToggle value={cameraEnabled} onValueChange={toggleCamera} accessibilityLabel="Camera access" />
       </TouchableOpacity>
     </ScrollView>
     <ScreenGlow />

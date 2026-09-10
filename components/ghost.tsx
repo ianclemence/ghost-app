@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -122,6 +121,9 @@ export function GhostButton({
   return (
     <TouchableOpacity
       activeOpacity={disabled || loading ? 1 : 0.7}
+      accessibilityLabel={title}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!(disabled || loading) }}
       onPress={disabled || loading ? undefined : onPress}
       style={[
         {
@@ -256,12 +258,13 @@ export function GhostSheet({
               >
                 <GhostText
                   type="title"
+                  accessibilityRole="header"
                   style={variant === "destructive" ? { color: Ghost.status.error } : undefined}
                 >
                   {title}
                 </GhostText>
                 {!isAlert && (
-                  <TouchableOpacity onPress={onClose} hitSlop={8}>
+                  <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel="Close dialog" accessibilityRole="button">
                     <GhostText type="headline" style={{ color: Ghost.accent.primary }}>
                       Done
                     </GhostText>
@@ -450,7 +453,12 @@ export function GhostRow({
 
   if (onPress) {
     return (
-      <TouchableOpacity activeOpacity={0.6} onPress={onPress}>
+      <TouchableOpacity
+        activeOpacity={0.6}
+        onPress={onPress}
+        accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+        accessibilityRole="button"
+      >
         {content}
       </TouchableOpacity>
     );
@@ -466,16 +474,19 @@ export function GhostToggle({
   value,
   onValueChange,
   disabled,
+  accessibilityLabel,
 }: {
   value: boolean;
   onValueChange: (v: boolean) => void;
   disabled?: boolean;
+  accessibilityLabel?: string;
 }) {
   return (
     <Switch
       value={value}
       onValueChange={onValueChange}
       disabled={disabled}
+      accessibilityLabel={accessibilityLabel}
       trackColor={{ false: Ghost.bg.sunken, true: Ghost.accent.medium }}
       thumbColor={value ? Ghost.accent.primary : Ghost.text.tertiary}
       style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}

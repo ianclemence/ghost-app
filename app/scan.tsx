@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Space, Type } from "@/constants/theme";
 import { parsePairingURI } from "@/lib/pairing";
 import { startPairing } from "@/lib/connection";
 

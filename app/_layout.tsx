@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Constants, { AppOwnership } from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { onWSMessage } from '../lib/ghostApi';
+import { notificationCopyFor, notificationKeyFor } from '../lib/notify';
 import { parsePairingURI } from '../lib/pairing';
 import {
   initializeConnection,
@@ -14,6 +15,11 @@ import {
 import { useGhostStore } from '../lib/store';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
+
+// Stable dedup for runtime events already notified this session. The
+// conversation (reloaded from backend history) is the source of truth;
+// this set only suppresses repeat tray noise for the same canonical event.
+const notifiedEventIds = new Set<string>();
 
 export default function RootLayout() {
   const router = useRouter();
@@ -81,64 +87,51 @@ export default function RootLayout() {
         handleDeepLink(url);
       });
 
-      // Listen for WS push and send local notification
-      // Skip messages for the session the user is currently viewing.
+      // Runtime event → tray notification → canonical conversation.
+      // The tray carries fixed product copy only (never message content).
+      // Tapping returns to the normal Ghost conversation, which reloads
+      // authoritative history from the backend. No second message store.
       const unsub = onWSMessage((msg) => {
-        const msgType = typeof msg.type === 'string'
-          ? msg.type
-          : typeof msg.metadata?.type === 'string'
-            ? msg.metadata.type
-            : '';
-        if (!msg.content) return;
         let isCurrentSession = false;
         try {
           const current = useGhostStore.getState().currentSession;
           if (msg.session_id && current && msg.session_id === current) isCurrentSession = true;
         } catch {}
         if (isCurrentSession) return;
-        // Feed Home's inbox so proactive Ghost messages survive beyond the
-        // notification tray. Timestamps are epoch seconds on the wire. This
-        // runs independently of local notifications (which don't exist in
-        // Expo Go).
-        if (msgType === "assistant_message") {
-          try {
-            const rawTs = typeof msg.timestamp === "number" ? msg.timestamp : 0;
-            const ms = rawTs > 1e12 ? rawTs : rawTs > 0 ? rawTs * 1000 : Date.now();
-            useGhostStore.getState().addInboxItem({
-              id:
-                typeof msg.id === "string" && msg.id
-                  ? msg.id
-                  : `ws-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-              kind: "message",
-              content: msg.content,
-              timestamp: ms,
-              session_id: msg.session_id,
-            });
-          } catch {}
+        const copy = notificationCopyFor(msg);
+        if (!copy || !notifications) return;
+        const key = notificationKeyFor(msg);
+        if (!key || notifiedEventIds.has(key)) return;
+        notifiedEventIds.add(key);
+        if (notifiedEventIds.size > 200) {
+          const oldest = notifiedEventIds.values().next().value;
+          if (oldest) notifiedEventIds.delete(oldest);
         }
-        if (!notifications) return;
-        if (msgType === 'assistant_message' && msg.content) {
-          notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Ghost',
-              body: msg.content.slice(0, 100),
-            },
-            trigger: null,
-          });
-        } else if (msgType === 'clarify_request' && msg.content) {
-          notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Ghost has a question',
-              body: msg.content.slice(0, 100),
-            },
-            trigger: null,
-          });
-        }
+        notifications.scheduleNotificationAsync({
+          content: {
+            title: copy.title,
+            body: copy.body,
+          },
+          trigger: null,
+        });
       });
+
+      // Tapping a Ghost notification opens the canonical conversation.
+      let tapSub: { remove: () => void } | undefined;
+      if (notifications) {
+        try {
+          tapSub = notifications.addNotificationResponseReceivedListener(() => {
+            router.replace('/conversation' as never);
+          });
+        } catch {}
+      }
 
       cleanup = () => {
         unsub();
         sub.remove();
+        try {
+          tapSub?.remove();
+        } catch {}
       };
     })();
     return () => cleanup?.();
@@ -204,10 +197,6 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="device"
-          options={{ presentation: 'card', animation: 'slide_from_right' }}
-        />
-        <Stack.Screen
-          name="ghost-pod"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen

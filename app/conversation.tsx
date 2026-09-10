@@ -4,7 +4,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
-import { Space } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
 import { ScreenGlow } from "@/components/screen-glow";
 import { PermissionCard } from "@/components/permission-card";
@@ -15,10 +15,12 @@ import {
   fetchPendingApprovals,
   onWSMessage,
   sendMessage,
+  sendSteering,
   voiceTranscribeUri,
   type ChatOutcome,
   type PendingApproval,
 } from "@/lib/ghostApi";
+import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
 import { MAIN_SESSION_ID, useGhostStore, type ExtendedMessage } from "@/lib/store";
 
 function outcomeLine(outcome: ChatOutcome | null): string | null {
@@ -44,6 +46,7 @@ export default function ConversationScreen() {
   const [outcome, setOutcome] = useState<ChatOutcome | null>(null);
   const [clarify, setClarify] = useState<{ questionId: string; question: string } | null>(null);
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const [cancelPhase, setCancelPhase] = useState<CancelPhase>("idle");
   const listRef = useRef<FlatList>(null);
   const nearBottom = useRef(true);
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
@@ -94,6 +97,7 @@ export default function ConversationScreen() {
     setSendError(null);
     setOutcome(null);
     setClarify(null);
+    setCancelPhase((p) => nextCancelState(p, "settled"));
     appendMessage({ id: `temp-${Date.now()}`, role: "user", content: q, timestamp: Date.now(), status: "sending" });
     const asstId = `temp-a-${Date.now()}`;
     appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
@@ -110,6 +114,9 @@ export default function ConversationScreen() {
       onOutcome: (_rid, o) => setOutcome(o),
       onClarify: (info) => setClarify({ questionId: info.questionId, question: info.question }),
       onDone: (full) => {
+        // The runtime's terminal state wins over any local assumption,
+        // including a pending cancellation request.
+        setCancelPhase((p) => nextCancelState(p, "settled"));
         fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
           .then(({ messages: h }) => setMessages(h))
           .catch(() => commitStream());
@@ -122,6 +129,7 @@ export default function ConversationScreen() {
         fetchPendingApprovals(config).then(setApprovals).catch(() => {});
       },
       onError: (e) => {
+        setCancelPhase((p) => nextCancelState(p, "settled"));
         removeMessage(asstId);
         setStreaming(false);
         setToolActivity(null);
@@ -130,6 +138,15 @@ export default function ConversationScreen() {
       },
     });
   }, [config, isStreaming, appendMessage, removeMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router]);
+
+  const stopTurn = useCallback(async () => {
+    if (!config || !isStreaming) return;
+    setCancelPhase((p) => nextCancelState(p, "request"));
+    // The stream UI stays exactly as it is: nothing is committed, hidden,
+    // or marked stopped until the runtime answers or terminates the turn.
+    const sent = await sendSteering(config, { sessionKey: MAIN_SESSION_ID, action: "abort" });
+    setCancelPhase((p) => nextCancelState(p, sent ? "sent" : "failed"));
+  }, [config, isStreaming]);
 
   const renderItem = useCallback(({ item }: { item: ExtendedMessage }) => {
     if (item.role === "user") {
@@ -142,7 +159,7 @@ export default function ConversationScreen() {
     return (
       <View style={styles.msgBlock}>
         {!item.content.trim() ? (
-          <Text style={styles.thinking}>{toolActivity ?? "Thinking"}</Text>
+          <Text style={styles.thinking} accessibilityLiveRegion="polite">{toolActivity ?? "Thinking"}</Text>
         ) : (
           <>
             <Text style={styles.ghostText} selectable>{item.content}</Text>
@@ -154,6 +171,7 @@ export default function ConversationScreen() {
   }, [toolActivity]);
 
   const statusLine = outcomeLine(outcome);
+  const cancelLine = cancelStatusLine(cancelPhase);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -169,7 +187,7 @@ export default function ConversationScreen() {
           <View style={styles.chevDown} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{ghostName ?? "Ghost"}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{ghostName ?? "Ghost"}</Text>
           <Text style={styles.headerSub}>
             {connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"}
           </Text>
@@ -217,9 +235,10 @@ export default function ConversationScreen() {
           />
         </View>
       ))}
-      {clarify ? <Text style={styles.status}>{clarify.question}</Text> : null}
-      {statusLine && !clarify ? <Text style={styles.status}>{statusLine}</Text> : null}
-      {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
+      {clarify ? <Text style={styles.status} accessibilityLiveRegion="polite">{clarify.question}</Text> : null}
+      {cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{cancelLine}</Text> : null}
+      {statusLine && !clarify && !cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{statusLine}</Text> : null}
+      {sendError ? <Text style={styles.error} accessibilityLiveRegion="polite">{sendError}</Text> : null}
       <Animated.View style={[styles.dock, dockPad]}>
         <Composer
           value={draft}
@@ -229,11 +248,7 @@ export default function ConversationScreen() {
           onTranscribeAudio={(uri) => (config ? voiceTranscribeUri(config, uri, MAIN_SESSION_ID) : Promise.resolve(""))}
           onVoiceError={(m) => setSendError(m)}
           streaming={isStreaming}
-          onStop={() => {
-            commitStream();
-            setStreaming(false);
-            setToolActivity(null);
-          }}
+          onStop={() => void stopTurn()}
         />
       </Animated.View>
       <ScreenGlow />
@@ -288,7 +303,7 @@ const styles = StyleSheet.create({
   },
   headerSub: {
     fontSize: 12,
-    color: "#9C9590",
+    color: Ghost.text.tertiary,
   },
   headerRight: {
     width: 44,
@@ -316,7 +331,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   emptyMuted: {
-    color: "#B8B2AA",
+    color: "#7A746C",
   },
   emptyInk: {
     color: "#1A1611",
@@ -339,7 +354,7 @@ const styles = StyleSheet.create({
   },
   thinking: {
     fontSize: 15,
-    color: "#9C9590",
+    color: Ghost.text.tertiary,
   },
   approvalWrap: {
     paddingHorizontal: 28,

@@ -8,7 +8,9 @@ import Animated, {
   FadeIn,
   FadeInUp,
   FadeOut,
+  ReduceMotion,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
@@ -25,9 +27,14 @@ const SPRING_EASE = Easing.bezier(0.32, 0.72, 0, 1);
 
 function FabGlyph({ open }: { open: boolean }) {
   const rot = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
-    rot.value = withTiming(open ? 45 : 0, { duration: 340, easing: SPRING_EASE });
-  }, [open, rot]);
+    rot.value = withTiming(open ? 45 : 0, {
+      duration: reduceMotion ? 0 : 340,
+      easing: SPRING_EASE,
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [open, rot, reduceMotion]);
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot.value}deg` }] }));
   return (
     <Animated.View style={[styles.glyph, style]} pointerEvents="none">
@@ -40,6 +47,7 @@ function FabGlyph({ open }: { open: boolean }) {
 export function PlusMenu({ hidden }: { hidden?: boolean }) {
   const router = useRouter();
   const pathname = usePathname() ?? "";
+  const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
   if (hidden) return null;
   const go = (route: string) => {
@@ -50,8 +58,8 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
     <View style={styles.wrap} pointerEvents="box-none">
       {open ? (
         <Animated.View
-          entering={FadeIn.duration(220).easing(SPRING_EASE)}
-          exiting={FadeOut.duration(160)}
+          entering={reduceMotion ? undefined : FadeIn.duration(220).easing(SPRING_EASE)}
+          exiting={reduceMotion ? undefined : FadeOut.duration(160)}
           style={styles.scrim}
         >
           <Pressable style={styles.scrimTouch} onPress={() => setOpen(false)} accessibilityLabel="Close menu" />
@@ -62,7 +70,7 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
               return (
                 <Animated.View
                   key={item.label}
-                  entering={FadeInUp.duration(420).delay(90 + i * 75).easing(SPRING_EASE)}
+                  entering={reduceMotion ? undefined : FadeInUp.duration(420).delay(90 + i * 75).easing(SPRING_EASE)}
                 >
                   <Pressable
                     style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}

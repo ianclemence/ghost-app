@@ -5,6 +5,7 @@ import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { PlusMenu } from "@/components/plus-menu";
 import { fetchActivity, type ActivityChip } from "@/lib/ghostApi";
+import { maxActivitySeq, mergeActivityChips } from "@/lib/activity";
 import { useGhostStore } from "@/lib/store";
 
 function dayLabel(iso: string): string {
@@ -41,7 +42,7 @@ export default function ActivityScreen() {
     try {
       const chips = await fetchActivity(config, { limit: 50 });
       setItems(chips);
-      lastSeq.current = chips.reduce((m, c) => Math.max(m, c.seq ?? 0), 0);
+      lastSeq.current = maxActivitySeq(chips);
     } catch {
       setFailed(true);
     }
@@ -58,8 +59,8 @@ export default function ActivityScreen() {
       try {
         const fresh = await fetchActivity(config, { limit: 50, sinceSeq: lastSeq.current });
         if (fresh.length > 0) {
-          setItems((prev) => [...fresh, ...prev]);
-          lastSeq.current = fresh.reduce((m, c) => Math.max(m, c.seq ?? 0), lastSeq.current);
+          setItems((prev) => mergeActivityChips(prev, fresh));
+          lastSeq.current = Math.max(lastSeq.current, maxActivitySeq(fresh));
         }
       } catch {}
     }, 20000);
@@ -72,8 +73,8 @@ export default function ActivityScreen() {
     try {
       const fresh = await fetchActivity(config, { limit: 50, sinceSeq: lastSeq.current });
       if (fresh.length > 0) {
-        setItems((prev) => [...fresh, ...prev]);
-        lastSeq.current = fresh.reduce((m, c) => Math.max(m, c.seq ?? 0), lastSeq.current);
+        setItems((prev) => mergeActivityChips(prev, fresh));
+        lastSeq.current = Math.max(lastSeq.current, maxActivitySeq(fresh));
       } else {
         await load(true);
       }
@@ -92,7 +93,7 @@ export default function ActivityScreen() {
     try {
       const chips = await fetchActivity(config, { limit: 100 });
       setItems(chips);
-      lastSeq.current = chips.reduce((m, c) => Math.max(m, c.seq ?? 0), 0);
+      lastSeq.current = maxActivitySeq(chips);
     } catch {}
     setLoadingMore(false);
   };
@@ -100,7 +101,7 @@ export default function ActivityScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <GhostText type="largeTitle" style={styles.headerTitle}>Activity</GhostText>
+        <GhostText type="largeTitle" style={styles.headerTitle} accessibilityRole="header">Activity</GhostText>
         <GhostText type="subhead" style={styles.headerSubtitle}>
           What Ghost has been doing.
         </GhostText>
@@ -200,7 +201,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   emptyMuted: {
-    color: "#B8B2AA",
+    color: "#7A746C",
   },
   emptyInk: {
     color: "#1A1611",

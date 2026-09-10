@@ -132,7 +132,7 @@ export default function MemoryScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <GhostText type="largeTitle" style={styles.headerTitle}>Memory</GhostText>
+        <GhostText type="largeTitle" style={styles.headerTitle} accessibilityRole="header">Memory</GhostText>
         <GhostText type="subhead" style={styles.headerSubtitle}>
           What Ghost knows about you.
         </GhostText>
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   emptyMuted: {
-    color: "#B8B2AA",
+    color: "#7A746C",
   },
   emptyInk: {
     color: "#1A1611",

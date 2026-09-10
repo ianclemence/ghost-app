@@ -52,7 +52,7 @@ export default function RoutinesScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <GhostText type="largeTitle" style={styles.title}>Routines</GhostText>
+        <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">Routines</GhostText>
         <GhostText type="subhead" style={styles.sub}>What Ghost does automatically. Create them by talking to Ghost.</GhostText>
       </View>
       {!config ? (
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   emptyMuted: {
-    color: "#B8B2AA",
+    color: "#7A746C",
   },
   emptyInk: {
     color: "#1A1611",

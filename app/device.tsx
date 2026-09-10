@@ -84,7 +84,7 @@ export default function DeviceScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <GhostText type="largeTitle" style={styles.title}>Ghost Pod</GhostText>
+        <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">Ghost Pod</GhostText>
         <GhostText type="subhead" style={styles.sub}>The hardware your Ghost runs on.</GhostText>
       </View>
       {!config ? (
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   emptyMuted: {
-    color: "#B8B2AA",
+    color: "#7A746C",
   },
   emptyInk: {
     color: "#1A1611",

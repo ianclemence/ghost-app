@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withDelay,
   withRepeat,
@@ -22,8 +23,13 @@ const CYCLE_MS = 900;
  */
 function WaveDot({ index }: { index: number }) {
   const progress = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      progress.value = 0.5;
+      return;
+    }
     progress.value = withDelay(
       index * (CYCLE_MS / DOT_COUNT / 2),
       withRepeat(
@@ -35,7 +41,7 @@ function WaveDot({ index }: { index: number }) {
         false,
       ),
     );
-  }, [index, progress]);
+  }, [index, progress, reduceMotion]);
 
   const style = useAnimatedStyle(() => ({
     opacity: 0.25 + progress.value * 0.75,
@@ -47,7 +53,7 @@ function WaveDot({ index }: { index: number }) {
 
 export function WaveDots() {
   return (
-    <View style={styles.row} accessibilityLabel="Ghost is writing">
+    <View style={styles.row} accessibilityLabel="Ghost is writing" accessibilityLiveRegion="polite">
       {Array.from({ length: DOT_COUNT }, (_, i) => (
         <WaveDot key={i} index={i} />
       ))}

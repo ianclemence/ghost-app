@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 
 /**
  * Connect to Ghost screen.

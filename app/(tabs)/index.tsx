@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { Easing, FadeInUp } from "react-native-reanimated";
-import { Space } from "@/constants/theme";
+import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reanimated";
+import { Ghost, Space } from "@/constants/theme";
 import { PlusMenu } from "@/components/plus-menu";
 import { fetchIdentity, fetchPendingApprovals } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
@@ -28,6 +28,7 @@ export default function HomeScreen() {
   const [waitingApproval, setWaitingApproval] = useState(false);
   const { top, sub } = dateHeader();
   const greet = greeting();
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!config) return;
@@ -47,15 +48,21 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Animated.View entering={FadeInUp.duration(500).easing(EASE)} style={styles.dateWrap}>
+      <Animated.View
+        entering={reduceMotion ? undefined : FadeInUp.duration(500).easing(EASE)}
+        style={styles.dateWrap}
+        accessible
+        accessibilityLabel={`Today is ${sub}, ${top}`}
+        accessibilityRole="header"
+      >
         <Text style={styles.dateTop}>{top}</Text>
         <Text style={styles.dateSub}>{sub}</Text>
       </Animated.View>
       {connectionState !== "online" ? (
-        <Text style={styles.offline}>{connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}</Text>
+        <Text style={styles.offline} accessibilityLiveRegion="polite">{connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}</Text>
       ) : null}
       <Animated.View
-        entering={FadeInUp.duration(560).delay(120).easing(EASE)}
+        entering={reduceMotion ? undefined : FadeInUp.duration(560).delay(120).easing(EASE)}
         style={styles.center}
       >
         <Text style={styles.hello}>
@@ -96,12 +103,12 @@ const styles = StyleSheet.create({
   },
   dateSub: {
     fontSize: 17,
-    color: "#9C9590",
+    color: Ghost.text.tertiary,
   },
   offline: {
     textAlign: "center",
     fontSize: 12,
-    color: "#9C9590",
+    color: Ghost.text.tertiary,
     marginTop: 4,
   },
   center: {
@@ -116,7 +123,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   muted: {
-    color: "#B8B2AA",
+    color: "#7A746C",
   },
   ink: {
     color: "#1A1611",
