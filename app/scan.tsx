@@ -124,7 +124,7 @@ export default function QrScannerScreen() {
   if (!permission) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={Ghost.accent.primary} />
+        <ActivityIndicator color={Ghost.text.primary} />
       </View>
     );
   }

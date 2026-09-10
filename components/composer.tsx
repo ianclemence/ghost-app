@@ -317,7 +317,7 @@ export function Composer({
             </View>
           ) : transcribing ? (
             <View style={styles.iconBtn} accessibilityLabel="Transcribing voice">
-              <ActivityIndicator size="small" color={Ghost.accent.primary} />
+              <ActivityIndicator size="small" color={Ghost.text.primary} />
             </View>
           ) : (
             <TouchableOpacity

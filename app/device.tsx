@@ -95,7 +95,7 @@ export default function DeviceScreen() {
           </Text>
         </View>
       ) : loading ? (
-        <View style={styles.center}><ActivityIndicator color={Ghost.accent.primary} size="large" /></View>
+        <View style={styles.center}><ActivityIndicator color={Ghost.text.primary} size="large" /></View>
       ) : error && !stats && !doctor ? (
         <View style={styles.center}>
           <Text style={styles.emptyHello}>
@@ -110,7 +110,7 @@ export default function DeviceScreen() {
         <ScrollView
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.accent.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.primary} />}
         >
           <GhostText type="caption" style={styles.group}>System</GhostText>
           <InfoRow label="Version" value={version} />

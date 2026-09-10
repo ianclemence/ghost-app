@@ -143,7 +143,7 @@ export default function MemoryScreen() {
         </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={Ghost.accent.primary} size="large" />
+          <ActivityIndicator color={Ghost.text.primary} size="large" />
         </View>
       ) : loadError && rows.length === 0 ? (
         <View style={styles.emptyFill}>
@@ -194,7 +194,7 @@ export default function MemoryScreen() {
           }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Ghost.accent.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Ghost.text.primary} />}
         />
       )}
       <PlusMenu />

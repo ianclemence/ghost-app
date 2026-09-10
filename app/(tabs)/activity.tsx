@@ -115,7 +115,7 @@ export default function ActivityScreen() {
         </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={Ghost.accent.primary} size="large" />
+          <ActivityIndicator color={Ghost.text.primary} size="large" />
         </View>
       ) : failed && items.length === 0 ? (
         <View style={styles.emptyWrap}>
@@ -139,7 +139,7 @@ export default function ActivityScreen() {
           style={styles.timeline}
           contentContainerStyle={styles.timelineContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Ghost.accent.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Ghost.text.primary} />}
           onScrollEndDrag={loadOlder}
         >
           {items.map((item, idx) => {

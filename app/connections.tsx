@@ -60,7 +60,7 @@ export default function ConnectionsScreen() {
       {!config ? (
         <EmptyState title="Not connected" subtitle="Connect to see app status." />
       ) : loading ? (
-        <View style={styles.center}><ActivityIndicator color={Ghost.accent.primary} size="large" /></View>
+        <View style={styles.center}><ActivityIndicator color={Ghost.text.primary} size="large" /></View>
       ) : error && items.length === 0 ? (
         <View style={styles.center}><EmptyState title="Couldn't load apps." subtitle={error} action={<GhostButton title="Retry" onPress={() => load()} />} /></View>
       ) : items.length === 0 ? (
@@ -69,7 +69,7 @@ export default function ConnectionsScreen() {
         <ScrollView
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.accent.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.primary} />}
         >
           {items.map((c) => (
             <View key={c.id} style={styles.row}>

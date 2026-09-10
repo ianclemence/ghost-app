@@ -158,7 +158,7 @@ export function GhostButton({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === "primary" ? Ghost.text.inverse : Ghost.accent.primary}
+          color={variant === "primary" ? Ghost.text.inverse : Ghost.text.primary}
         />
       ) : (
         <>
@@ -513,8 +513,8 @@ export function GhostToggle({
       onValueChange={onValueChange}
       disabled={disabled}
       accessibilityLabel={accessibilityLabel}
-      trackColor={{ false: Ghost.bg.sunken, true: Ghost.accent.medium }}
-      thumbColor={value ? Ghost.accent.primary : Ghost.text.tertiary}
+      trackColor={{ false: Ghost.bg.sunken, true: Ghost.bg.sunken }}
+      thumbColor={value ? Ghost.text.primary : Ghost.text.tertiary}
       style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
     />
   );

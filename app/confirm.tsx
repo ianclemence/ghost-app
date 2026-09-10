@@ -118,7 +118,7 @@ export default function PairingProgressScreen() {
         Ghost
       </GhostText>
       <View style={styles.connectingRow}>
-        <ActivityIndicator color={Ghost.accent.primary} size="small" />
+        <ActivityIndicator color={Ghost.text.primary} size="small" />
         <GhostText type="body" style={styles.connectingText}>
           Connecting…
         </GhostText>
