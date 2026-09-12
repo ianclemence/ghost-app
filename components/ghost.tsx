@@ -217,11 +217,21 @@ export function GhostSheet({
   variant?: "default" | "destructive";
   children?: React.ReactNode;
 }) {
-  const isAlert = !!message || !!confirmTitle;
+  // Alert mode is confirm/cancel only. When children are provided the sheet
+  // is a form: an optional message renders as a description and the children
+  // (inputs, buttons) always stay visible.
+  const isAlert = !children && (!!message || !!confirmTitle);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
+  const bottomPad = Space.xxxl + 20 + insets.bottom;
 
   useEffect(() => {
     if (visible) {
+      if (reduceMotion) {
+        slideAnim.setValue(1);
+        return;
+      }
       slideAnim.setValue(0);
       Animated.spring(slideAnim, {
         toValue: 1,
@@ -230,7 +240,7 @@ export function GhostSheet({
         stiffness: 300,
       }).start();
     }
-  }, [visible, slideAnim]);
+  }, [visible, slideAnim, reduceMotion]);
 
   const sheetTranslateY = slideAnim.interpolate({
     inputRange: [0, 1],
@@ -291,7 +301,7 @@ export function GhostSheet({
                 </GhostText>
                 {!isAlert && (
                   <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel="Close dialog" accessibilityRole="button">
-                    <GhostText type="headline" style={{ color: Ghost.accent.primary }}>
+                    <GhostText type="headline" style={{ color: Ghost.text.secondary }}>
                       Done
                     </GhostText>
                   </TouchableOpacity>
@@ -299,8 +309,17 @@ export function GhostSheet({
               </View>
             )}
 
+            {!isAlert && message ? (
+              <GhostText
+                type="subhead"
+                style={{ color: Ghost.text.secondary, paddingHorizontal: Space.xl, paddingBottom: Space.sm }}
+              >
+                {message}
+              </GhostText>
+            ) : null}
+
             {isAlert ? (
-              <View style={{ paddingHorizontal: Space.xl, paddingBottom: Space.xxxl + 20 }}>
+              <View style={{ paddingHorizontal: Space.xl, paddingBottom: bottomPad }}>
                 {message ? (
                   <GhostText type="body" style={{ color: Ghost.text.secondary, marginBottom: Space.xl }}>
                     {message}
@@ -329,7 +348,7 @@ export function GhostSheet({
             ) : (
               <ScrollView
                 style={{ paddingHorizontal: Space.xl }}
-                contentContainerStyle={{ gap: Space.lg, paddingBottom: Space.xxxl + 20 }}
+                contentContainerStyle={{ gap: Space.lg, paddingBottom: bottomPad }}
                 keyboardShouldPersistTaps="handled"
               >
                 {children}
