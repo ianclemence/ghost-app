@@ -7,7 +7,8 @@ export type MessageStatus =
   | "streaming"
   | "completed"
   | "failed"
-  | "retrying";
+  | "retrying"
+  | "queued";
 
 export interface ExtendedMessage extends Message {
   status?: MessageStatus;
@@ -36,6 +37,7 @@ interface GhostStore {
   setMessages: (msgs: ExtendedMessage[]) => void;
   appendMessage: (msg: ExtendedMessage) => void;
   removeMessage: (id: string) => void;
+  updateMessage: (id: string, patch: Partial<ExtendedMessage>) => void;
 
   // Streaming state
   isStreaming: boolean;
@@ -128,6 +130,10 @@ export const useGhostStore = create<GhostStore>((set) => ({
   removeMessage: (id) =>
     set((s) => ({
       messages: s.messages.filter((m) => m.id !== id),
+    })),
+  updateMessage: (id, patch) =>
+    set((s) => ({
+      messages: s.messages.map((m) => (m.id === id ? { ...m, ...patch } : m)),
     })),
 
   isStreaming: false,

@@ -30,6 +30,16 @@ import {
 import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
+import { statusPhaseForTool } from "@/lib/statusPhase";
+import { reconcileHistory } from "@/lib/reconcile";
+import { MarkdownBubble } from "@/components/markdown-bubble";
+import {
+  enqueueOutbox,
+  isRetryableSendError,
+  loadOutbox,
+  makeOutboxId,
+  removeOutboxEntry,
+} from "@/lib/outbox";
 import { MAIN_SESSION_ID, useGhostStore, type ExtendedMessage } from "@/lib/store";
 
 function outcomeLine(outcome: ChatOutcome | null): string | null {
@@ -79,7 +89,7 @@ function ThreadExtras({
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { config, messages, setMessages, appendMessage, removeMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
+  const { config, messages, setMessages, appendMessage, removeMessage, updateMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -91,6 +101,56 @@ export default function ConversationScreen() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const surfacesRef = useRef<{ id: string; kind: SurfaceKind }[]>([]);
   surfacesRef.current = surfaces;
+  const flushingRef = useRef(false);
+
+  // Flush the offline outbox FIFO: oldest queued message sends first.
+  // A failed flush stops and leaves the entry queued; a non-retryable
+  // failure drops the entry and surfaces the error like a normal send.
+  // The runtime remains the authority on what was received — history is
+  // refetched after every delivered turn.
+  const flushOutbox = useCallback(async () => {
+    if (!config || flushingRef.current) return;
+    flushingRef.current = true;
+    try {
+      for (;;) {
+        const pending = await loadOutbox().catch(() => []);
+        if (pending.length === 0) return;
+        const entry = pending[0];
+        setStreaming(true);
+        setToolActivity(null);
+        const result = await new Promise<{ ok: boolean; auth: boolean }>((resolve) => {
+          void sendMessage(config, {
+            content: entry.content,
+            sessionKey: entry.sessionKey,
+            onChunk: (c) => appendStream(c),
+            onToolStatus: (_t, label) => setToolActivity(label),
+            onDone: () => resolve({ ok: true, auth: false }),
+            onError: (e) => resolve({ ok: false, auth: e.kind === "auth" }),
+          });
+        });
+        clearStreamBuffer();
+        if (!result.ok) {
+          if (result.auth) {
+            await removeOutboxEntry(entry.id).catch(() => {});
+            removeMessage(entry.messageId);
+            router.replace("/auth-failure" as never);
+          }
+          return;
+        }
+        await removeOutboxEntry(entry.id).catch(() => {});
+        removeMessage(entry.messageId);
+        await fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+          .then(({ messages: h }) =>
+            setMessages(reconcileHistory(useGhostStore.getState().messages, h)),
+          )
+          .catch(() => {});
+      }
+    } finally {
+      setStreaming(false);
+      setToolActivity(null);
+      flushingRef.current = false;
+    }
+  }, [config, appendStream, clearStreamBuffer, removeMessage, setMessages, setStreaming, setToolActivity, router]);
   const listRef = useRef<FlatList>(null);
   const nearBottom = useRef(true);
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
@@ -106,7 +166,10 @@ export default function ConversationScreen() {
     }).catch(() => {});
     fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
       .then(({ messages: h }) => {
-        if (!cancelled) setMessages(h);
+        if (cancelled) return;
+        setMessages(h);
+        // Deliver anything queued while offline.
+        void flushOutbox().catch(() => {});
       })
       .catch(() => {
         if (!cancelled) setHistoryError("Couldn't load history.");
@@ -149,7 +212,7 @@ export default function ConversationScreen() {
       clearInterval(t);
       off();
     };
-  }, [config, setMessages, clearStreamBuffer, setGhostName]);
+  }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox]);
 
   const send = useCallback(async (text: string) => {
     if (!config || isStreaming) return;
@@ -160,7 +223,8 @@ export default function ConversationScreen() {
     setOutcome(null);
     setClarify(null);
     setCancelPhase((p) => nextCancelState(p, "settled"));
-    appendMessage({ id: `temp-${Date.now()}`, role: "user", content: q, timestamp: Date.now(), status: "sending" });
+    const tempUserId = `temp-${Date.now()}`;
+    appendMessage({ id: tempUserId, role: "user", content: q, timestamp: Date.now(), status: "sending" });
     const asstId = `temp-a-${Date.now()}`;
     appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
     setStreaming(true);
@@ -171,17 +235,24 @@ export default function ConversationScreen() {
       requestId,
       sessionKey: MAIN_SESSION_ID,
       onChunk: (c) => appendStream(c),
-      onToolStatus: (_t, label) => setToolActivity(label),
+      onToolStatus: (t, label) => setToolActivity(statusPhaseForTool(t) ?? label),
       onLifecycle: () => {},
       onOutcome: (_rid, o) => setOutcome(o),
       onClarify: (info) => setClarify({ questionId: info.questionId, question: info.question }),
       onDone: (full) => {
-        // The runtime's terminal state wins over any local assumption,
-        // including a pending cancellation request.
+        // Commit-stream-first: the streamed text stays on screen. History
+        // is reconciled underneath (matched rows keep local content, new
+        // server rows append) instead of replacing the thread — so a just
+        // watched message never visibly rewrites itself.
+        // The runtime's terminal state still wins over any local
+        // assumption, including a pending cancellation request.
         setCancelPhase((p) => nextCancelState(p, "settled"));
+        commitStream();
         fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
-          .then(({ messages: h }) => setMessages(h))
-          .catch(() => commitStream());
+          .then(({ messages: h }) =>
+            setMessages(reconcileHistory(useGhostStore.getState().messages, h)),
+          )
+          .catch(() => {});
         if (!full.trim() && !clarify) {
           removeMessage(asstId);
           setSendError("Ghost didn't respond. Try rephrasing.");
@@ -189,6 +260,8 @@ export default function ConversationScreen() {
         setStreaming(false);
         setToolActivity(null);
         fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+        // A successful send means connectivity is back: drain the outbox.
+        void flushOutbox().catch(() => {});
         fetchArtifacts(config, MAIN_SESSION_ID)
           .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
           .catch(() => {});
@@ -205,11 +278,29 @@ export default function ConversationScreen() {
         removeMessage(asstId);
         setStreaming(false);
         setToolActivity(null);
-        if (e.kind === "auth") router.replace("/auth-failure" as never);
-        else setSendError(e.message);
+        if (e.kind === "auth") {
+          router.replace("/auth-failure" as never);
+          return;
+        }
+        if (isRetryableSendError(e.kind)) {
+          // Offline, not failed: queue for FIFO delivery on reconnect.
+          // The message stays visible, marked queued — never silently lost.
+          enqueueOutbox({
+            id: makeOutboxId(),
+            messageId: tempUserId,
+            content: q,
+            sessionKey: MAIN_SESSION_ID,
+            createdAt: Date.now(),
+            attempts: 0,
+          }).catch(() => {});
+          updateMessage(tempUserId, { status: "queued" });
+          setSendError(null);
+          return;
+        }
+        setSendError(e.message);
       },
     });
-  }, [config, isStreaming, appendMessage, removeMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router]);
+  }, [config, isStreaming, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox]);
 
   const stopTurn = useCallback(async () => {
     if (!config || !isStreaming) return;
@@ -225,6 +316,11 @@ export default function ConversationScreen() {
       return (
         <View style={styles.msgBlock}>
           <Text style={styles.userText}>{item.content}</Text>
+          {item.status === "queued" ? (
+            <Text style={styles.queuedNote} accessibilityLiveRegion="polite">
+              Queued — will send when you&apos;re back online
+            </Text>
+          ) : null}
         </View>
       );
     }
@@ -233,11 +329,9 @@ export default function ConversationScreen() {
         {!item.content.trim() ? (
           <Text style={styles.thinking} accessibilityLiveRegion="polite">{toolActivity ?? "Thinking"}</Text>
         ) : (
-          <>
-            <Text style={styles.ghostText} selectable>{item.content}</Text>
-            {item.status === "streaming" ? <WaveDots /> : null}
-          </>
+          <MarkdownBubble content={item.content} streaming={item.status === "streaming"} />
         )}
+        {item.status === "streaming" && item.content.trim() ? <WaveDots /> : null}
       </View>
     );
   }, [toolActivity]);
@@ -426,6 +520,13 @@ const styles = StyleSheet.create({
     color: "#1A1611",
     fontWeight: "600",
     textAlign: "right",
+  },
+  queuedNote: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#7A746C",
+    textAlign: "right",
+    marginTop: 2,
   },
   ghostText: {
     fontSize: 17,

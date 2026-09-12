@@ -23,9 +23,9 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 | Voice input | Record and transcribe audio |
 | Image and file attachments | Send media with messages |
 | Markdown rendering | Code blocks, headings, links, formatting |
-| Search history | Full-text search across sessions |
+| Conversation history | Latest 50 messages, reconciled against the server after every turn |
 | Cancel generation | Stop a long response mid-stream |
-| Offline queue | Messages are queued and delivered when back online |
+| Offline outbox | Messages typed while unreachable are queued on-device (persisted FIFO, network/timeout failures only) and sent in order when connectivity returns |
 
 ## 🕒 Activity
 
