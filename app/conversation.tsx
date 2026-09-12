@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
@@ -153,6 +154,11 @@ export default function ConversationScreen() {
   }, [config, appendStream, clearStreamBuffer, removeMessage, setMessages, setStreaming, setToolActivity, router]);
   const listRef = useRef<FlatList>(null);
   const nearBottom = useRef(true);
+  const openedRef = useRef(false);
+  // Measured chrome heights so the thread pads exactly around the floating
+  // header and composer. Defaults are close; onLayout corrects on mount.
+  const [headerH, setHeaderH] = useState(76);
+  const [dockH, setDockH] = useState(120);
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
 
   useEffect(() => {
@@ -168,6 +174,11 @@ export default function ConversationScreen() {
       .then(({ messages: h }) => {
         if (cancelled) return;
         setMessages(h);
+        // Open on the latest message even if layout settles late.
+        if (!openedRef.current) {
+          openedRef.current = true;
+          setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 60);
+        }
         // Deliver anything queued while offline.
         void flushOutbox().catch(() => {});
       })
@@ -227,6 +238,9 @@ export default function ConversationScreen() {
     appendMessage({ id: tempUserId, role: "user", content: q, timestamp: Date.now(), status: "sending" });
     const asstId = `temp-a-${Date.now()}`;
     appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
+    // Sending always returns the eye to the bottom, even from mid-thread.
+    nearBottom.current = true;
+    listRef.current?.scrollToEnd({ animated: true });
     setStreaming(true);
     setToolActivity(null);
     const requestId = `m-${Date.now()}`;
@@ -340,27 +354,8 @@ export default function ConversationScreen() {
   const cancelLine = cancelStatusLine(cancelPhase);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable
-          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-        >
-          <View style={styles.chevUp} />
-          <View style={styles.chevDown} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{ghostName ?? "Ghost"}</Text>
-          <Text style={styles.headerSub}>
-            {connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"}
-          </Text>
-        </View>
-        <View style={styles.headerRight} />
-      </View>
-      {historyError ? <Text style={styles.error}>{historyError}</Text> : null}
+    <View style={styles.container}>
+      {historyError ? <Text style={[styles.error, { marginTop: headerH }]}>{historyError}</Text> : null}
       {messages.length === 0 ? (
         <>
           <View style={{ flex: 1 }} />
@@ -378,7 +373,10 @@ export default function ConversationScreen() {
           keyExtractor={(m) => m.id}
           renderItem={renderItem}
           style={styles.list}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingTop: headerH + Space.sm, paddingBottom: dockH + Space.lg },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={
@@ -398,22 +396,30 @@ export default function ConversationScreen() {
           }}
         />
       )}
-      {config && approvals.slice(0, 2).map((a) => (
-        <View key={a.id} style={styles.approvalWrap}>
-          <PermissionCard
-            item={a}
-            config={config}
-            onResolved={() => {
-              if (config) fetchPendingApprovals(config).then(setApprovals).catch(() => {});
-            }}
-          />
-        </View>
-      ))}
-      {clarify ? <Text style={styles.status} accessibilityLiveRegion="polite">{clarify.question}</Text> : null}
-      {cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{cancelLine}</Text> : null}
-      {statusLine && !clarify && !cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{statusLine}</Text> : null}
-      {sendError ? <Text style={styles.error} accessibilityLiveRegion="polite">{sendError}</Text> : null}
-      <Animated.View style={[styles.dock, dockPad]}>
+      <View style={{ marginBottom: dockH }}>
+        {config && approvals.slice(0, 2).map((a) => (
+          <View key={a.id} style={styles.approvalWrap}>
+            <PermissionCard
+              item={a}
+              config={config}
+              onResolved={() => {
+                if (config) fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+              }}
+            />
+          </View>
+        ))}
+        {clarify ? <Text style={styles.status} accessibilityLiveRegion="polite">{clarify.question}</Text> : null}
+        {cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{cancelLine}</Text> : null}
+        {statusLine && !clarify && !cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{statusLine}</Text> : null}
+        {sendError ? <Text style={styles.error} accessibilityLiveRegion="polite">{sendError}</Text> : null}
+      </View>
+      <Animated.View
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (Math.abs(h - dockH) > 2) setDockH(h);
+        }}
+        style={[styles.dockFloating, dockPad]}
+      >
         <Composer
           value={draft}
           onChangeText={setDraft}
@@ -425,6 +431,37 @@ export default function ConversationScreen() {
           onStop={() => void stopTurn()}
         />
       </Animated.View>
+      <LinearGradient
+        colors={["#FAFAF7", "rgba(250,250,247,0)"]}
+        style={[styles.topFade, { height: headerH + 80 }]}
+        pointerEvents="none"
+      />
+      <View
+        style={[styles.headerFloating, { paddingTop: insets.top }]}
+        pointerEvents="box-none"
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (Math.abs(h - headerH) > 2) setHeaderH(h);
+        }}
+      >
+        <Pressable
+          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+        >
+          <View style={styles.chevUp} />
+          <View style={styles.chevDown} />
+        </Pressable>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{ghostName ?? "Ghost"}</Text>
+          <Text style={styles.headerSub}>
+            {connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"}
+          </Text>
+        </View>
+        <View style={styles.headerRight} />
+      </View>
       <ScreenGlow />
     </View>
   );
@@ -435,11 +472,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FAFAF7",
   },
-  header: {
+  headerFloating: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Space.md,
     paddingVertical: Space.sm,
+    zIndex: 3,
+    elevation: 3,
+  },
+  topFade: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    elevation: 2,
   },
   back: {
     width: 44,
@@ -557,8 +608,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     marginBottom: 8,
   },
-  dock: {
+  dockFloating: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
     paddingHorizontal: Space.xl,
     paddingTop: Space.sm,
+    zIndex: 3,
+    elevation: 3,
   },
 });
