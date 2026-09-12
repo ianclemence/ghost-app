@@ -51,15 +51,26 @@ export function reconcileHistory(
   const matchedServer = new Set<string>();
   const matchedLocal = new Set<string>();
 
-  for (const s of server) {
+  const tryMatch = (s: Message, unmatchedOnly: boolean): boolean => {
     for (const m of local) {
-      if (matchedLocal.has(m.id)) continue;
+      if (unmatchedOnly && matchedLocal.has(m.id)) continue;
       if (corresponds(m, s)) {
         matchedServer.add(s.id);
         matchedLocal.add(m.id);
-        break;
+        return true;
       }
     }
+    return false;
+  };
+
+  // Pass 1: exact ids and one-to-one fuzzy matches.
+  for (const s of server) tryMatch(s, true);
+  // Pass 2: absorb leftovers into an already-matched bubble whose text
+  // contains them. This is the multi-iteration turn: one streamed bubble
+  // holds iterations A+B while the server stores rows A and B. Without
+  // this pass, B would append as a visible duplicate.
+  for (const s of server) {
+    if (!matchedServer.has(s.id)) tryMatch(s, false);
   }
 
   const out: ExtendedMessage[] = [...local];

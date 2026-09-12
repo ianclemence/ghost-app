@@ -67,3 +67,37 @@ describe("reconcileHistory", () => {
     expect(out).toHaveLength(2);
   });
 });
+
+describe("multi-iteration turns", () => {
+  test("concatenated bubble absorbs all its server rows, no duplicates", () => {
+    const both =
+      "Nice to meet you, Ian. I'll remember that.Got it, Ian — your name is saved.";
+    const local = [
+      msg({ id: "temp-u", role: "user", content: "My name is Ian" }),
+      msg({ id: "msg-a", content: both }),
+    ];
+    const server = [
+      srv({ id: "srv-u", role: "user", content: "My name is Ian" }),
+      srv({ id: "srv-a1", content: "Nice to meet you, Ian. I'll remember that." }),
+      srv({ id: "srv-a2", content: "Got it, Ian — your name is saved." }),
+    ];
+    const out = reconcileHistory(local, server);
+    expect(out).toHaveLength(2);
+    expect(out[1].id).toBe("msg-a");
+    expect(out[1].content).toBe(both);
+  });
+
+  test("two identical rapid turns stay separate", () => {
+    const local = [
+      msg({ id: "msg-1", content: "ok", timestamp: 1_000_000 }),
+      msg({ id: "temp-2", content: "ok", timestamp: 1_005_000 }),
+    ];
+    const server = [
+      srv({ id: "srv-1", content: "ok", timestamp: 1_000_100 }),
+      srv({ id: "srv-2", content: "ok", timestamp: 1_005_100 }),
+    ];
+    const out = reconcileHistory(local, server);
+    expect(out).toHaveLength(2);
+    expect(out.map((m) => m.id)).toEqual(["msg-1", "temp-2"]);
+  });
+});
