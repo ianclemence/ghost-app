@@ -188,7 +188,7 @@ export default function RootLayout() {
 
         {/* Settings */}
         <Stack.Screen
-          name="routines"
+          name="intelligence"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen

@@ -40,9 +40,9 @@ export interface PiStats {
 }
 
 // Device-facing contracts (health/doctor/stats/identity/activity/permissions/
-// routines/connections/voice) live further below. Removed surface (sessions,
-// search, models, exec, workspace, skills, cron, channels, traces) is
-// intentionally absent: the mobile product does not expose those concepts.
+// routines/connections/voice/model-presets) live further below. Removed
+// surface (sessions, search, exec, workspace, skills, cron, channels, traces)
+// is intentionally absent: the mobile product does not expose those concepts.
 
 type DebugMeta = Record<string, unknown>;
 function trace(event: string, meta?: DebugMeta): void {
@@ -923,6 +923,196 @@ export async function fetchConnections(cfg: GhostConfig): Promise<ConnectionInfo
   if (!res.ok) throw new Error(`Connections failed (HTTP ${res.status})`);
   const data = await res.json().catch(() => null);
   return Array.isArray(data?.connections) ? data.connections : [];
+}
+
+// ─── Intelligence: default model + presets ─────────────────────────────────
+// Mirrors the web console's AI section to the extent the gateway exposes it:
+// GET /v1/model lists configured presets with a capabilities gate
+// (local engines always available; cloud needs its key present), and
+// POST /v1/model switches the active model immediately. Provider keys and
+// local-model installs stay in the web console (ghost-web admin endpoints
+// are not reachable over the device relay).
+
+export interface ModelPreset {
+  name: string;
+  provider: string;
+  model: string;
+  available: boolean;
+  unavailable_reason?: string;
+}
+
+export interface ModelState {
+  active: string;
+  provider: string;
+  presets: ModelPreset[];
+}
+
+export async function fetchModelState(cfg: GhostConfig): Promise<ModelState> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/model`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Model state failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return {
+    active: typeof data?.active === "string" ? data.active : "",
+    provider: typeof data?.provider === "string" ? data.provider : "",
+    presets: Array.isArray(data?.presets) ? data.presets : [],
+  };
+}
+
+export async function switchModel(cfg: GhostConfig, model: string): Promise<string> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/model`,
+    { method: "POST", headers: headers(cfg), body: JSON.stringify({ model }) },
+    15000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(body || `Model switch failed (HTTP ${res.status})`);
+  }
+  const data = await res.json().catch(() => null);
+  return typeof data?.active === "string" ? data.active : model;
+}
+
+// ─── Intelligence: providers, owner config, local models ───────────────────
+// Device-facing equivalents of the web console's AI section. Keys are masked
+// server-side; blank key fields leave the saved value untouched.
+
+export interface ProviderInfo {
+  configured: boolean;
+  models: string[];
+  local: boolean;
+}
+
+export interface ProvidersState {
+  provider: string;
+  model: string;
+  providers: Record<string, ProviderInfo>;
+}
+
+export interface RoutingPrefs {
+  prefer_local: boolean;
+  allow_cloud: boolean;
+  cloud_when_local_fails: boolean;
+}
+
+export interface ProviderCredential {
+  has_key: boolean;
+  key_masked: string;
+  api_base: string;
+}
+
+export interface IntelligenceConfig {
+  provider: string;
+  model: string;
+  ollama_url: string;
+  routing: RoutingPrefs;
+  providers: Record<string, ProviderCredential>;
+}
+
+function asProviderInfo(v: unknown): ProviderInfo {
+  const o = (v ?? {}) as Record<string, unknown>;
+  return {
+    configured: o.configured === true,
+    models: Array.isArray(o.models) ? (o.models as unknown[]).filter((m): m is string => typeof m === "string") : [],
+    local: o.local === true,
+  };
+}
+
+export async function fetchProviders(cfg: GhostConfig): Promise<ProvidersState> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/providers`, { headers: headers(cfg) }, 15000);
+  if (!res.ok) throw new Error(`Providers failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  const raw = (data?.providers ?? {}) as Record<string, unknown>;
+  const providers: Record<string, ProviderInfo> = {};
+  for (const [k, v] of Object.entries(raw)) providers[k] = asProviderInfo(v);
+  return {
+    provider: typeof data?.provider === "string" ? data.provider : "",
+    model: typeof data?.model === "string" ? data.model : "",
+    providers,
+  };
+}
+
+export async function testProviderConnection(
+  cfg: GhostConfig,
+  provider: string,
+  apiKey?: string,
+): Promise<{ ok: boolean; message: string }> {
+  const body: Record<string, string> = { provider };
+  if (apiKey && apiKey.trim() !== "") body.api_key = apiKey.trim();
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/providers/test`,
+    { method: "POST", headers: headers(cfg), body: JSON.stringify(body) },
+    40000,
+  );
+  if (!res.ok) throw new Error(`Provider test failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return {
+    ok: data?.ok === true,
+    message: typeof data?.message === "string" && data.message !== "" ? data.message : data?.ok === true ? "Connected successfully" : "Failed",
+  };
+}
+
+export async function fetchIntelligenceConfig(cfg: GhostConfig): Promise<IntelligenceConfig> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/intelligence/config`, { headers: headers(cfg) }, 15000);
+  if (!res.ok) throw new Error(`AI config failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  const raw = (data?.providers ?? {}) as Record<string, Record<string, unknown>>;
+  const providers: Record<string, ProviderCredential> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    providers[k] = {
+      has_key: v?.has_key === true,
+      key_masked: typeof v?.key_masked === "string" ? (v.key_masked as string) : "",
+      api_base: typeof v?.api_base === "string" ? (v.api_base as string) : "",
+    };
+  }
+  const routing = (data?.routing ?? {}) as Record<string, unknown>;
+  return {
+    provider: typeof data?.provider === "string" ? data.provider : "",
+    model: typeof data?.model === "string" ? data.model : "",
+    ollama_url: typeof data?.ollama_url === "string" ? data.ollama_url : "",
+    routing: {
+      prefer_local: routing.prefer_local === true,
+      allow_cloud: routing.allow_cloud !== false,
+      cloud_when_local_fails: routing.cloud_when_local_fails !== false,
+    },
+    providers,
+  };
+}
+
+export interface IntelligenceConfigPatch {
+  api_keys?: Record<string, string>;
+  ollama_url?: string;
+  routing?: RoutingPrefs;
+}
+
+export async function saveIntelligenceConfig(cfg: GhostConfig, patch: IntelligenceConfigPatch): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/intelligence/config`,
+    { method: "POST", headers: headers(cfg), body: JSON.stringify(patch) },
+    15000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(body || `AI config save failed (HTTP ${res.status})`);
+  }
+}
+
+export async function fetchOllamaModels(cfg: GhostConfig): Promise<string[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/ollama/models`, { headers: headers(cfg) }, 15000);
+  if (!res.ok) throw new Error(`Local models failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.models) ? (data.models as unknown[]).filter((m): m is string => typeof m === "string") : [];
+}
+
+export async function pullOllamaModel(cfg: GhostConfig, model: string): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/ollama/pull`,
+    { method: "POST", headers: headers(cfg), body: JSON.stringify({ model }) },
+    15000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(body || `Model install failed (HTTP ${res.status})`);
+  }
 }
 
 export interface DoctorCheck {

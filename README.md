@@ -30,7 +30,7 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 ## 🔀 Plus menu
 
 - Conversation — jump straight into a chat
-- Routines — what Ghost does automatically
+- Intelligence — which AI Ghost runs on
 - Connected Apps — status of connected services
 - Ghost Pod — device health and attention items
 - About — what Ghost is and how it works
@@ -127,7 +127,7 @@ ghost-app/
 │   │   └── index.tsx         # 👻 Home — inbox + presence
 │   │   │   # (no chats list: one thread, see conversation.tsx below)
 │   ├── conversation.tsx      # Streaming chat (SSE)
-│   ├── routines.tsx          # Routines — automations (Plus menu)
+│   ├── intelligence.tsx      # Intelligence — default model + AI health (Plus menu)
 │   ├── connections.tsx       # Connected Apps — service status (Plus menu)
 │   ├── device.tsx            # Ghost Pod — health, system info, diagnostics (Plus menu)
 │   ├── about.tsx             # About Ghost (Plus menu)
@@ -198,6 +198,11 @@ Pairing and auth errors return `{ "error": { "code", "message" } }`:
 | POST | `/v1/steering` | Mid-turn steering |
 | POST | `/v1/clarify/respond` | Answer a clarify request |
 | GET/POST | `/v1/model` | Model presets and switching |
+| GET | `/v1/providers` | Provider directory (configured flags, recommended models) |
+| POST | `/v1/providers/test` | Test a provider connection (key never persisted) |
+| GET/POST | `/v1/intelligence/config` | Owner AI config: masked keys, routing, Ollama URL |
+| GET | `/v1/ollama/models` | Installed local models |
+| POST | `/v1/ollama/pull` | Start a local model download |
 | WS | `/v1/ws` | Proactive push (`assistant_message`, `clarify_request`, `cron_update`, `progress_event`) |
 
 ---

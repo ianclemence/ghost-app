@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { Blocks, Cpu, House, Info, MessageCircle, Repeat } from "lucide-react-native";
+import { Blocks, Cpu, House, Info, MessageCircle, Sparkles } from "lucide-react-native";
 import { ScreenGlow } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -19,7 +19,7 @@ import { Space } from "@/constants/theme";
 const ITEMS = [
   { route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
   { route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
-  { route: "/routines" as const, label: "Routines", match: "routines", Icon: Repeat },
+  { route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
   { route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },
   { route: "/device" as const, label: "Ghost Pod", match: "device", Icon: Cpu },
   { route: "/about" as const, label: "About", match: "about", Icon: Info },
