@@ -27,20 +27,13 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 | Cancel generation | Stop a long response mid-stream |
 | Offline outbox | Messages typed while unreachable are queued on-device (persisted FIFO, network/timeout failures only) and sent in order when connectivity returns |
 
-## 🕒 Activity
+## 🔀 Plus menu
 
-- Scheduled jobs on a TODAY / UPCOMING / PAUSED timeline
-- Humanized schedules and run status
-
-## 🧠 Memory
-
-- Read Ghost's memory files (user profile, curated memory)
-
-## ⚙️ More
-
-- Connection status, reconnect, pair another Ghost
-- Ghost Pod device management: list paired devices, see who's connected now, disconnect devices
-- Advanced diagnostics and credential reset
+- Conversation — jump straight into a chat
+- Routines — what Ghost does automatically
+- Connected Apps — status of connected services
+- Ghost Pod — device health and attention items
+- About — what Ghost is and how it works
 
 ---
 
@@ -131,12 +124,13 @@ ghost-app/
 ├── app/
 │   ├── _layout.tsx           # Root stack, deep links, WS notifications
 │   ├── (tabs)/
-│   │   ├── index.tsx         # 👻 Home — inbox + presence
+│   │   └── index.tsx         # 👻 Home — inbox + presence
 │   │   │   # (no chats list: one thread, see conversation.tsx below)
-│   │   ├── activity.tsx      # 🕒 Activity — cron timeline
-│   │   ├── memory.tsx        # 🧠 Memory — profile + curated memory
-│   │   └── more.tsx          # ⚙️ More — settings hub
 │   ├── conversation.tsx      # Streaming chat (SSE)
+│   ├── routines.tsx          # Routines — automations (Plus menu)
+│   ├── connections.tsx       # Connected Apps — service status (Plus menu)
+│   ├── device.tsx            # Ghost Pod — health, system info, diagnostics (Plus menu)
+│   ├── about.tsx             # About Ghost (Plus menu)
 │   ├── onboarding.tsx        # First-launch flow
 │   ├── connect.tsx           # Scan QR / enter manually
 │   ├── scan.tsx              # QR scanner
@@ -145,10 +139,6 @@ ghost-app/
 │   ├── pairing-success.tsx   # Connected state
 │   ├── auth-failure.tsx      # Credential rejected
 │   ├── revoked.tsx           # Device disconnected
-│   ├── ghost-pod.tsx         # Ghost Pod screen (status, paired devices, system info, diagnostics)
-│   ├── advanced.tsx          # Diagnostics
-│   ├── permissions.tsx
-│   └── about.tsx
 ├── lib/
 │   ├── ghostApi.ts           # API client (REST + SSE + WS)
 │   ├── connection.ts         # Connection state machine

@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { Activity, Brain, MessageCircle, SlidersHorizontal } from "lucide-react-native";
+import { Blocks, Cpu, House, Info, MessageCircle, Repeat } from "lucide-react-native";
 import { ScreenGlow } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -17,10 +17,12 @@ import Animated, {
 import { Space } from "@/constants/theme";
 
 const ITEMS = [
+  { route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
   { route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
-  { route: "/(tabs)/activity" as const, label: "Activity", match: "activity", Icon: Activity },
-  { route: "/(tabs)/memory" as const, label: "Memory", match: "memory", Icon: Brain },
-  { route: "/(tabs)/more" as const, label: "More", match: "more", Icon: SlidersHorizontal },
+  { route: "/routines" as const, label: "Routines", match: "routines", Icon: Repeat },
+  { route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },
+  { route: "/device" as const, label: "Ghost Pod", match: "device", Icon: Cpu },
+  { route: "/about" as const, label: "About", match: "about", Icon: Info },
 ];
 
 const SPRING_EASE = Easing.bezier(0.32, 0.72, 0, 1);
@@ -74,7 +76,9 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
           <Pressable style={styles.scrimTouch} onPress={() => setOpen(false)} accessibilityLabel="Close menu" />
           <View style={styles.list}>
             {ITEMS.map((item, i) => {
-              const active = pathname.includes(item.match);
+              const active = item.route === "/(tabs)"
+                ? (pathname === "/" || pathname.includes("(tabs)"))
+                : pathname.includes(item.match);
               const Icon = item.Icon;
               return (
                 <Animated.View

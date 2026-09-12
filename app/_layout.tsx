@@ -200,10 +200,6 @@ export default function RootLayout() {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
-          name="permissions"
-          options={{ presentation: 'card', animation: 'slide_from_right' }}
-        />
-        <Stack.Screen
           name="about"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />

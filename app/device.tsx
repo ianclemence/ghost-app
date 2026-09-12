@@ -3,7 +3,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, Toucha
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { ScreenGlow } from "@/components/screen-glow";
+import { PlusMenu } from "@/components/plus-menu";
 import { GhostButton, StatusDot } from "@/components/ghost";
 import { formatUptime } from "@/lib/format";
 import {
@@ -178,7 +178,7 @@ export default function DeviceScreen() {
           </View>
         </ScrollView>
       )}
-      <ScreenGlow />
+      <PlusMenu />
     </View>
   );
 }
