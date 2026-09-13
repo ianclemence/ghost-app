@@ -8,6 +8,7 @@ import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
 import { Ghost, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
 import { ScreenGlow } from "@/components/screen-glow";
+import { StatusDot } from "@/components/ghost";
 import { PermissionCard } from "@/components/permission-card";
 import { ArtifactCard } from "@/components/artifact-card";
 import { LiveSurfaceCard } from "@/components/live-surface-card";
@@ -456,9 +457,12 @@ export default function ConversationScreen() {
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{ghostName ?? "Ghost"}</Text>
-          <Text style={styles.headerSub}>
-            {connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"}
-          </Text>
+          <View style={styles.headerStatus}>
+            <StatusDot status={connectionState === "online" ? "online" : connectionState === "syncing" ? "warning" : "offline"} />
+            <Text style={styles.headerSub}>
+              {connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"}
+            </Text>
+          </View>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -529,6 +533,11 @@ const styles = StyleSheet.create({
   headerSub: {
     fontSize: 12,
     color: Ghost.text.tertiary,
+  },
+  headerStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
   },
   headerRight: {
     width: 44,
