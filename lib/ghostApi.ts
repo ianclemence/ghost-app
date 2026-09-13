@@ -910,6 +910,24 @@ export async function controlRoutine(
   if (!res.ok) throw new Error(`Routine ${action} failed (HTTP ${res.status})`);
 }
 
+export interface ConnectedAppInfo {
+  id: string;
+  provider: string;
+  display_name: string;
+  category?: string;
+  auth_kind?: "oauth" | "api_key" | "token" | string;
+  setup?: "console_oauth" | "paste_key" | "paste_pair" | string;
+  capabilities?: string[];
+  read_scopes?: string[];
+  write_scopes?: string[];
+  status: string;
+  needs_reauth?: boolean;
+  help?: string;
+}
+
+/** @deprecated Use ConnectedAppInfo + fetchConnectedApps. Channels are message
+ * transports (see /v1/channels/status); connected apps are external systems
+ * Ghost acts on (see /v1/connected-apps). */
 export interface ConnectionInfo {
   id: string;
   provider: string;
@@ -918,11 +936,45 @@ export interface ConnectionInfo {
   capabilities?: string[] | Record<string, unknown>;
 }
 
-export async function fetchConnections(cfg: GhostConfig): Promise<ConnectionInfo[]> {
-  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/connections`, { headers: headers(cfg) }, 10000);
-  if (!res.ok) throw new Error(`Connections failed (HTTP ${res.status})`);
+export async function fetchConnectedApps(cfg: GhostConfig): Promise<ConnectedAppInfo[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/connected-apps`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Connected apps failed (HTTP ${res.status})`);
   const data = await res.json().catch(() => null);
-  return Array.isArray(data?.connections) ? data.connections : [];
+  const list = Array.isArray(data?.connected_apps) ? data.connected_apps : [];
+  // Defensive: channel transports and model providers must never appear here.
+  // If the backend ever regresses, filter client-side by known channel ids.
+  const channelIds = new Set(["telegram", "slack", "discord", "whatsapp", "line", "sms", "wechat", "email-channel"]);
+  return list.filter((a: ConnectedAppInfo) => !channelIds.has(a?.id));
+}
+
+/** @deprecated Compat shim for older screens. New code must use fetchConnectedApps. */
+export async function fetchConnections(cfg: GhostConfig): Promise<ConnectionInfo[]> {
+  const apps = await fetchConnectedApps(cfg);
+  return apps.map((a) => ({ id: a.id, provider: a.provider, display_name: a.display_name, status: a.status, capabilities: a.capabilities }));
+}
+
+export async function connectConnectedApp(cfg: GhostConfig, id: string, value: string, extra?: string): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/connected-apps/${encodeURIComponent(id)}`,
+    { method: "POST", headers: headers(cfg), body: JSON.stringify(extra ? { value, extra } : { value }) },
+    15000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(body || `Connect failed (HTTP ${res.status})`);
+  }
+}
+
+export async function disconnectConnectedApp(cfg: GhostConfig, id: string): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/connected-apps/${encodeURIComponent(id)}/disconnect`,
+    { method: "POST", headers: headers(cfg) },
+    15000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(body || `Disconnect failed (HTTP ${res.status})`);
+  }
 }
 
 // ─── Intelligence: default model + presets ─────────────────────────────────
