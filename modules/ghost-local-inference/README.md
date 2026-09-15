@@ -29,7 +29,7 @@ git clone --depth 1 --branch <PINNED_TAG> https://github.com/ggerganov/llama.cpp
 ```
 
 - `android/CMakeLists.txt` links the shared core + JNI bridge against it.
-- `arm64-v8a` only; minSdk 26.
+- `arm64-v8a` only; minSdk follows the app (root project) minSdk.
 - GGUF validation (magic bytes) happens before `nativeLoad`; corrupt files
   are rejected with an actionable error, never a crash.
 

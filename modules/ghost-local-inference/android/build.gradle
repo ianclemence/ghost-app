@@ -1,12 +1,23 @@
-apply plugin: 'com.android.library'
-apply plugin: 'org.jetbrains.kotlin.android'
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.ghost.localinference'
+version = '1.0.0'
+
+expoModule {
+  canBePublished false
+}
 
 android {
   namespace 'com.ghost.localinference'
-  compileSdk 35
+
+  if (rootProject.hasProperty("ndkVersion")) {
+    ndkVersion rootProject.ext.ndkVersion
+  }
 
   defaultConfig {
-    minSdk 26
     externalNativeBuild {
       cmake {
         cppFlags '-std=c++17 -O2'
@@ -30,14 +41,4 @@ android {
       path 'CMakeLists.txt'
     }
   }
-
-  compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-  }
-  kotlinOptions { jvmTarget = '17' }
-}
-
-dependencies {
-  implementation 'expo-modules-core:3.0.0'
 }

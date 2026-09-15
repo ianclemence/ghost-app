@@ -8,10 +8,10 @@
     "build": "expo-module build"
   },
   "dependencies": {
-    "expo-modules-core": "~3.0.0"
+    "expo-modules-core": "~56.0.0"
   },
   "devDependencies": {
-    "expo-module-scripts": "~5.0.0"
+    "expo-module-scripts": "~56.0.0"
   },
   "expo-module": {
     "jsEngine": "hermes"
