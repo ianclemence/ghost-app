@@ -163,7 +163,7 @@ function resolveTransport(cfg: GhostConfig): "lan" | "relay" {
   return cfg.transport ?? "relay";
 }
 
-function baseURL(cfg: GhostConfig): string {
+export function baseURL(cfg: GhostConfig): string {
   if (resolveTransport(cfg) === "relay" && cfg.relayServer) {
     return cfg.relayServer.replace(/\/+$/, "");
   }
@@ -202,7 +202,7 @@ export function normalizeSession(session?: string): string {
   return value === "" ? "mobile:default" : value;
 }
 
-function authHeaders(cfg: GhostConfig): Record<string, string> {
+export function authHeaders(cfg: GhostConfig): Record<string, string> {
   // Per-hop credentials: the relay authenticates the client token, and the
   // gateway (behind the tunnel) validates the device credential. A paired
   // device connecting remotely sends both.

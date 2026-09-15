@@ -43,6 +43,7 @@ import {
   removeOutboxEntry,
 } from "@/lib/outbox";
 import { MAIN_SESSION_ID, useGhostStore, type ExtendedMessage } from "@/lib/store";
+import { runLocalTurn } from "@/lib/localTurn";
 
 function outcomeLine(outcome: ChatOutcome | null): string | null {
   switch (outcome) {
@@ -104,6 +105,7 @@ export default function ConversationScreen() {
   const surfacesRef = useRef<{ id: string; kind: SurfaceKind }[]>([]);
   surfacesRef.current = surfaces;
   const flushingRef = useRef(false);
+  const localAbort = useRef<AbortController | null>(null);
 
   // Flush the offline outbox FIFO: oldest queued message sends first.
   // A failed flush stops and leaves the entry queued; a non-retryable
@@ -245,10 +247,19 @@ export default function ConversationScreen() {
     setStreaming(true);
     setToolActivity(null);
     const requestId = `m-${Date.now()}`;
-    await sendMessage(config, {
+    const ctrl = new AbortController();
+    localAbort.current = ctrl;
+    const hist = useGhostStore.getState().messages
+      .filter((m) => m.id !== tempUserId && m.id !== asstId && m.content)
+      .slice(-20)
+      .map((m) => ({ role: m.role, content: m.content }));
+    // Execution-planned send: phone-local pipeline when the planner selects
+    // it, otherwise the original Pod SSE path with full Pod semantics.
+    await runLocalTurn(config, q, hist, {
       content: q,
       requestId,
       sessionKey: MAIN_SESSION_ID,
+      signal: ctrl.signal,
       onChunk: (c) => appendStream(c),
       onToolStatus: (t, label) => setToolActivity(statusPhaseForTool(t) ?? label),
       onLifecycle: () => {},
@@ -262,6 +273,7 @@ export default function ConversationScreen() {
         // The runtime's terminal state still wins over any local
         // assumption, including a pending cancellation request.
         setCancelPhase((p) => nextCancelState(p, "settled"));
+        localAbort.current = null;
         commitStream();
         fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
           .then(({ messages: h }) =>
@@ -293,6 +305,7 @@ export default function ConversationScreen() {
         removeMessage(asstId);
         setStreaming(false);
         setToolActivity(null);
+        localAbort.current = null;
         if (e.kind === "auth") {
           router.replace("/auth-failure" as never);
           return;
@@ -314,12 +327,24 @@ export default function ConversationScreen() {
         }
         setSendError(e.message);
       },
+    }).catch((e: unknown) => {
+      // runLocalTurn itself threw (e.g. no cached catalog while offline).
+      localAbort.current = null;
+      setCancelPhase((p) => nextCancelState(p, "settled"));
+      removeMessage(asstId);
+      setStreaming(false);
+      setToolActivity(null);
+      setSendError(e instanceof Error ? e.message : String(e));
     });
   }, [config, isStreaming, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox]);
 
   const stopTurn = useCallback(async () => {
     if (!config || !isStreaming) return;
     setCancelPhase((p) => nextCancelState(p, "request"));
+    // Cancel whichever runtime is actually generating: the local abort
+    // propagates to the native runtime; Pod turns still steer server-side.
+    localAbort.current?.abort();
+    localAbort.current = null;
     // The stream UI stays exactly as it is: nothing is committed, hidden,
     // or marked stopped until the runtime answers or terminates the turn.
     const sent = await sendSteering(config, { sessionKey: MAIN_SESSION_ID, action: "abort" });

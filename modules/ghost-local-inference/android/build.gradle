@@ -1,0 +1,43 @@
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+android {
+  namespace 'com.ghost.localinference'
+  compileSdk 35
+
+  defaultConfig {
+    minSdk 26
+    externalNativeBuild {
+      cmake {
+        cppFlags '-std=c++17 -O2'
+        // LLAMA_CPP_DIR points at a pinned llama.cpp checkout (see module
+        // README "Android build"). Unset => core compiles in stub mode and
+        // reports "backend not bundled" at runtime instead of failing blind.
+        def llamaDir = System.getenv('LLAMA_CPP_DIR') ?: project.findProperty('LLAMA_CPP_DIR')
+        if (llamaDir) {
+          arguments "-DLLAMA_CPP_DIR=${llamaDir}"
+        }
+        arguments '-DANDROID_STL=c++_shared'
+      }
+    }
+    ndk {
+      abiFilters 'arm64-v8a'
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path 'CMakeLists.txt'
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  kotlinOptions { jvmTarget = '17' }
+}
+
+dependencies {
+  implementation 'expo-modules-core:3.0.0'
+}
