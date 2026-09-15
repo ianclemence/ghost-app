@@ -115,9 +115,9 @@ export function GhostButton({
       border: "transparent",
     },
     danger: {
-      bg: "transparent",
+      bg: "rgba(194,75,60,0.10)",
       fg: Ghost.status.error,
-      border: Ghost.border.default,
+      border: "transparent",
     },
   }[variant];
   const [pressed, setPressed] = useState(false);
@@ -339,7 +339,7 @@ export function GhostSheet({
                   )}
                   <GhostButton
                     title="Cancel"
-                    variant="ghost"
+                    variant="danger"
                     fullWidth
                     onPress={onClose}
                   />

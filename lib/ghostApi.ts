@@ -898,6 +898,72 @@ export async function fetchRoutines(cfg: GhostConfig): Promise<RoutineItem[]> {
   return Array.isArray(data?.routines) ? data.routines : [];
 }
 
+// ─── Goals: standing owner intents the heartbeat evaluates ───────────────
+
+export interface GoalItem {
+  id: string;
+  text: string;
+  scope?: string;
+  success?: string;
+  capabilities?: string[];
+  status: string;
+}
+
+export async function fetchGoals(cfg: GhostConfig): Promise<GoalItem[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/goals`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Goals failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.goals) ? data.goals : [];
+}
+
+export async function createGoal(cfg: GhostConfig, text: string, scope?: string): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/goals`,
+    { method: "POST", headers: headers(cfg), body: JSON.stringify({ text, scope }) },
+    15000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(body || `Create goal failed (HTTP ${res.status})`);
+  }
+}
+
+export async function goalAction(cfg: GhostConfig, id: string, op: "pause" | "resume" | "complete"): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/goals/${encodeURIComponent(id)}/${op}`,
+    { method: "POST", headers: headers(cfg) },
+    15000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(body || `Goal ${op} failed (HTTP ${res.status})`);
+  }
+}
+
+// ─── Cards: rich payloads (fetch-on-open; pushes arrive over WS) ──────────
+
+export interface CardPayload {
+  id: string;
+  kind: string;
+  title: string;
+  body?: string;
+  topic?: string;
+  request_id?: string;
+  data?: Record<string, unknown>;
+  actions?: { id: string; label: string; style?: string; request_id?: string }[];
+}
+
+export async function fetchCards(cfg: GhostConfig, channel = "mobile"): Promise<CardPayload[]> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/cards?channel=${encodeURIComponent(channel)}`,
+    { headers: headers(cfg) },
+    10000,
+  );
+  if (!res.ok) return [];
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.cards) ? data.cards : [];
+}
+
 export async function controlRoutine(
   cfg: GhostConfig,
   id: string,

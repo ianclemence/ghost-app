@@ -199,7 +199,7 @@ export default function ConnectionsScreen() {
               </View>
             );
           })}
-          <GhostText type="footnote" style={styles.note}>OAuth apps (Gmail, Outlook, Calendar, Spotify) connect via browser sign-in. Keys never leave your Ghost.</GhostText>
+          <GhostText type="footnote" style={styles.note}>OAuth apps (Gmail, Outlook, Calendar, Spotify) connect via browser sign-in. GitHub, Notion, and provider keys can be pasted here. Keys never leave your Ghost.</GhostText>
         </ScrollView>
       )}
       <PlusMenu />

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import { Image, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, StyleSheet, Text, View } from "react-native";
 import { Ghost, Space } from "@/constants/theme";
+import { GhostButton } from "@/components/ghost";
+import { MarkdownBubble } from "@/components/markdown-bubble";
 import {
   fetchWorkspacePreview,
   type Artifact,
@@ -118,35 +120,32 @@ export function ArtifactCard({ config, artifact }: Props) {
       <Text style={styles.title} numberOfLines={2}>{artifact.title}</Text>
       {artifact.summary ? <Text style={styles.summary} numberOfLines={expanded ? undefined : 3}>{artifact.summary}</Text> : null}
       {artifact.kind === "text" && artifact.text ? (
-        <Text style={styles.body} numberOfLines={expanded ? undefined : 6} selectable>{artifact.text.slice(0, 4000)}</Text>
+        expanded ? (
+          <MarkdownBubble content={artifact.text.slice(0, 4000)} streaming={false} />
+        ) : (
+          <Text style={styles.body} numberOfLines={6}>{artifact.text.slice(0, 4000)}</Text>
+        )
       ) : null}
       {artifact.kind === "link" && artifact.url ? (
         <Text style={styles.url} numberOfLines={1}>{artifact.url}</Text>
       ) : null}
       <View style={styles.actions}>
         {actions.some((a) => a.kind === "preview" || a.kind === "open") ? (
-          <TouchableOpacity
-            style={styles.btn}
+          <GhostButton
+            title={expanded ? "Collapse" : "Preview"}
+            variant="secondary"
             onPress={() => {
               const next = !expanded;
               setExpanded(next);
               if (next && artifact.kind === "file" && preview === null && previewImage === null) void loadPreview();
             }}
-            accessibilityLabel={expanded ? "Collapse preview" : "Preview"}
-            accessibilityRole="button"
-          >
-            <Text style={styles.btnText}>{expanded ? "Collapse" : "Preview"}</Text>
-          </TouchableOpacity>
+          />
         ) : null}
         {artifact.kind === "link" ? (
-          <TouchableOpacity style={styles.btn} onPress={openLink} accessibilityLabel={`Open ${artifact.title}`} accessibilityRole="link">
-            <Text style={styles.btnText}>Open</Text>
-          </TouchableOpacity>
+          <GhostButton title="Open" variant="primary" onPress={openLink} />
         ) : null}
         {actions.some((a) => a.kind === "download") && artifact.kind === "file" ? (
-          <TouchableOpacity style={styles.btn} onPress={() => void download()} accessibilityLabel={`Download ${artifact.title}`} accessibilityRole="button">
-            <Text style={styles.btnText}>Download</Text>
-          </TouchableOpacity>
+          <GhostButton title="Download" variant="primary" onPress={() => void download()} />
         ) : null}
       </View>
       {previewBusy ? <Text style={styles.status}>Loading preview…</Text> : null}
@@ -155,7 +154,7 @@ export function ArtifactCard({ config, artifact }: Props) {
         <Image source={{ uri: previewImage }} style={styles.image} accessibilityLabel={`Preview of ${artifact.title}`} />
       ) : null}
       {expanded && preview ? (
-        <Text style={styles.previewText} selectable>{preview}</Text>
+        <MarkdownBubble content={preview} streaming={false} />
       ) : null}
     </View>
   );
@@ -206,20 +205,6 @@ const styles = StyleSheet.create({
     gap: Space.sm,
     marginTop: Space.xs,
   },
-  btn: {
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    borderRadius: 999,
-    paddingHorizontal: Space.md,
-    paddingVertical: Space.sm,
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  btnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Ghost.text.primary,
-  },
   status: {
     fontSize: 13,
     color: Ghost.text.tertiary,
@@ -233,15 +218,6 @@ const styles = StyleSheet.create({
     height: 240,
     borderRadius: 10,
     backgroundColor: Ghost.bg.sunken,
-    marginTop: Space.xs,
-  },
-  previewText: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: Ghost.text.secondary,
-    backgroundColor: Ghost.bg.sunken,
-    borderRadius: 10,
-    padding: Space.md,
     marginTop: Space.xs,
   },
 });

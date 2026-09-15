@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from "expo-router";
-import { Blocks, Cpu, House, Info, MessageCircle, Smartphone, Sparkles } from "lucide-react-native";
-import { ScreenGlow } from "@/components/screen-glow";
+import { Blocks, Cpu, Flag, House, Info, MessageCircle, Smartphone, Sparkles } from "lucide-react-native";
+import { ScreenBackground } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -22,6 +22,7 @@ const ITEMS = [
   { route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
   { route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
   { route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },
+  { route: "/goals" as const, label: "Goals", match: "goals", Icon: Flag },
   { route: "/device" as const, label: "Ghost Pod", match: "device", Icon: Cpu },
   { route: "/about" as const, label: "About", match: "about", Icon: Info },
 ];
@@ -74,6 +75,7 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
           exiting={reduceMotion ? undefined : FadeOut.duration(160)}
           style={styles.scrim}
         >
+          <ScreenBackground />
           <Pressable style={styles.scrimTouch} onPress={() => setOpen(false)} accessibilityLabel="Close menu" />
           <View style={styles.list}>
             {ITEMS.map((item, i) => {
@@ -104,7 +106,6 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
           </View>
         </Animated.View>
       ) : null}
-      <ScreenGlow />
       <Animated.View style={fabSpin}>
         <Pressable
           style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(250,250,247,0.97)",
+    backgroundColor: "rgba(250,250,247,0.92)",
     justifyContent: "center",
     paddingHorizontal: Space.xxxl,
   },

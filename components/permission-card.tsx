@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
+import { GhostButton } from "@/components/ghost";
 import { isValidGrant, resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
 
 const CARD_ENTER = FadeInUp.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
@@ -37,21 +38,19 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.desc}>{desc}</Text>
       <View style={styles.row}>
-        {actions.map((a) => (
-            <TouchableOpacity
+        {actions.map((a) => {
+          const destructive = a.style === "danger" || /deny|reject/i.test(a.id);
+          return (
+            <GhostButton
               key={a.id}
-              style={[styles.btn, a.style === "danger" && styles.btnDanger, busy === a.id && styles.btnBusy]}
-              onPress={() => void act(a.id)}
+              title={busy === a.id ? "Working" : a.label}
+              variant={destructive ? "danger" : "primary"}
               disabled={busy !== null}
-              accessibilityLabel={a.label}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: busy !== null, busy: busy === a.id }}
-            >
-            <Text style={[styles.btnText, a.style === "danger" && styles.btnTextDanger]}>
-              {busy === a.id ? "Working" : a.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              loading={busy === a.id}
+              onPress={() => void act(a.id)}
+            />
+          );
+        })}
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </Animated.View>
@@ -88,29 +87,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: Space.sm,
     marginTop: Space.sm,
-  },
-  btn: {
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    borderRadius: 999,
-    paddingHorizontal: Space.md,
-    paddingVertical: Space.sm,
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  btnDanger: {
-    borderColor: Ghost.status.error,
-  },
-  btnBusy: {
-    opacity: 0.6,
-  },
-  btnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Ghost.text.primary,
-  },
-  btnTextDanger: {
-    color: Ghost.status.error,
   },
   error: {
     fontSize: 13,

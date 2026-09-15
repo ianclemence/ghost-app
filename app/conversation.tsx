@@ -7,7 +7,7 @@ import Animated from "react-native-reanimated";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
 import { Ghost, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
-import { ScreenGlow } from "@/components/screen-glow";
+import { ScreenBackground } from "@/components/screen-glow";
 import { StatusDot } from "@/components/ghost";
 import { PermissionCard } from "@/components/permission-card";
 import { ArtifactCard } from "@/components/artifact-card";
@@ -15,6 +15,7 @@ import { LiveSurfaceCard } from "@/components/live-surface-card";
 import { WaveDots } from "@/components/wave-dots";
 import {
   fetchArtifacts,
+  fetchCards,
   fetchHistory,
   fetchIdentity,
   fetchLiveSurface,
@@ -32,9 +33,11 @@ import {
 import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
+import { parseCardMessage, type RichCard } from "@/lib/cards";
 import { statusPhaseForTool } from "@/lib/statusPhase";
 import { reconcileHistory } from "@/lib/reconcile";
 import { MarkdownBubble } from "@/components/markdown-bubble";
+import { RichCardView } from "@/components/cards";
 import {
   enqueueOutbox,
   isRetryableSendError,
@@ -62,14 +65,18 @@ function ThreadExtras({
   config,
   surfaces,
   artifacts,
+  cards,
   onSurfaceGone,
+  onCardDone,
 }: {
   config: GhostConfig | null;
   surfaces: { id: string; kind: SurfaceKind }[];
   artifacts: Artifact[];
+  cards: RichCard[];
   onSurfaceGone: (id: string) => void;
+  onCardDone: (id: string) => void;
 }) {
-  if (!config || (surfaces.length === 0 && artifacts.length === 0)) return null;
+  if (!config || (surfaces.length === 0 && artifacts.length === 0 && cards.length === 0)) return null;
   return (
     <View style={styles.extras}>
       {surfaces.map((s) => (
@@ -84,6 +91,9 @@ function ThreadExtras({
       ))}
       {artifacts.map((a) => (
         <ArtifactCard key={a.id} config={config} artifact={a} />
+      ))}
+      {cards.map((c) => (
+        <RichCardView key={c.id} card={c} config={config} onDone={onCardDone} />
       ))}
     </View>
   );
@@ -102,6 +112,7 @@ export default function ConversationScreen() {
   const [cancelPhase, setCancelPhase] = useState<CancelPhase>("idle");
   const [surfaces, setSurfaces] = useState<{ id: string; kind: SurfaceKind }[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [cards, setCards] = useState<RichCard[]>([]);
   const surfacesRef = useRef<{ id: string; kind: SurfaceKind }[]>([]);
   surfacesRef.current = surfaces;
   const flushingRef = useRef(false);
@@ -198,8 +209,30 @@ export default function ConversationScreen() {
         if (!cancelled) setArtifacts((prev) => mergeArtifacts(prev, fresh));
       }).catch(() => {});
     };
+    const loadCards = () => {
+      fetchCards(config).then((fresh) => {
+        if (cancelled) return;
+        const parsed: RichCard[] = [];
+        for (const c of fresh) {
+          const kind = (c.kind ?? "") as RichCard["kind"];
+          if (kind !== "suggestion" && kind !== "goal_update" && kind !== "cart" && kind !== "browser_view") continue;
+          if (!c.id || !c.title) continue;
+          parsed.push({
+            id: c.id, kind, title: c.title, body: c.body, topic: c.topic,
+            request_id: c.request_id, data: c.data, actions: c.actions,
+          });
+        }
+        if (parsed.length > 0) {
+          setCards((prev) => {
+            const seen = new Set(prev.map((x) => x.id));
+            return [...prev, ...parsed.filter((x) => !seen.has(x.id))].slice(-20);
+          });
+        }
+      }).catch(() => {});
+    };
     loadApprovals();
     loadArtifacts();
+    loadCards();
     const off = onWSMessage((msg) => {
       const t = typeof msg.type === "string" ? msg.type : (msg.metadata as Record<string, unknown> | undefined)?.type;
       if (t === "clarify_request" && typeof msg.content === "string" && msg.content) {
@@ -218,6 +251,13 @@ export default function ConversationScreen() {
             prev.some((x) => x.id === surfaceId) ? prev : [...prev, { id: surfaceId, kind }],
           );
         }).catch(() => {});
+      }
+      // A card frame carries the full payload; kind-gated by the parser.
+      const card = parseCardMessage(msg, MAIN_SESSION_ID);
+      if (card) {
+        setCards((prev) =>
+          prev.some((x) => x.id === card.id) ? prev : [...prev, card].slice(-20),
+        );
       }
     });
     const t = setInterval(loadApprovals, 15000);
@@ -381,6 +421,7 @@ export default function ConversationScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenBackground />
       {historyError ? <Text style={[styles.error, { marginTop: headerH }]}>{historyError}</Text> : null}
       {messages.length === 0 ? (
         <>
@@ -405,14 +446,16 @@ export default function ConversationScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ListFooterComponent={
-            <ThreadExtras
-              config={config}
-              surfaces={surfaces}
-              artifacts={artifacts}
-              onSurfaceGone={(id) => setSurfaces((prev) => prev.filter((x) => x.id !== id))}
-            />
-          }
+            ListFooterComponent={
+              <ThreadExtras
+                config={config}
+                surfaces={surfaces}
+                artifacts={artifacts}
+                cards={cards}
+                onSurfaceGone={(id) => setSurfaces((prev) => prev.filter((x) => x.id !== id))}
+                onCardDone={(id) => setCards((prev) => prev.filter((x) => x.id !== id))}
+              />
+            }
           onScroll={(e) => {
             const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
             nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
@@ -491,7 +534,6 @@ export default function ConversationScreen() {
         </View>
         <View style={styles.headerRight} />
       </View>
-      <ScreenGlow />
     </View>
   );
 }
