@@ -12,6 +12,7 @@ import {
   isPaired,
   handlePairingDeepLink,
 } from '../lib/connection';
+import { modelManager } from '../lib/local/modelManager';
 import { useGhostStore } from '../lib/store';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
@@ -43,13 +44,16 @@ export default function RootLayout() {
         } catch {}
       }
 
-      // Check if paired
+      // Check if paired. A phone with an active local model is a Ghost in its
+      // own right — it does not need a Pod to reach the main app.
       const paired = await isPaired();
+      const localReady = (await modelManager.activeModelId()) !== null;
+      useGhostStore.getState().setLocalReady(localReady);
 
-      if (!paired) {
-        // First launch — show connect flow
+      if (!paired && !localReady) {
+        // First launch — show the front door
         router.replace('/onboarding');
-      } else {
+      } else if (paired) {
         // Paired — initialize connection in background, load Home immediately
         initializeConnection();
       }

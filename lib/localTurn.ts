@@ -2,55 +2,47 @@
 // shared planner, then drives EITHER the offline phone-local pipeline OR the
 // original Pod SSE path with its full semantics (outcomes, clarification,
 // lifecycle, tool phases) — one common Ghost event model in the UI.
+//
+// cfg is nullable: a phone with an active local model is a complete Ghost and
+// must be able to answer with no Pod and no network.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authHeaders, baseURL, sendMessage, type GhostConfig } from "./ghostApi";
 import { GhostTransport } from "./local/transport";
 import { runLocalPipeline } from "./local/pipeline";
 import { modelManager } from "./local/modelManager";
-import { fetchCatalog, type ModelManifest } from "./local/registry";
+import { loadCatalog } from "./local/catalog";
 import { classifyEffort, plan, type Privacy } from "./local/planner";
 import { fetchPodCapabilities } from "./podClient";
 
 const PRIVACY_KEY = "ghost:privacy";
-const CATALOG_CACHE_KEY = "ghost:models:catalog";
 
 type SendArgs = Parameters<typeof sendMessage>[1];
 
 const HARDWARE_HINT = /\b(lamp|light|gpio|esp32|thermostat|sensor|lock\b|smart plug|switch\b|heater|fan\b|garage|sprinkler)\b/i;
 
-async function loadCatalog(cfg: GhostConfig): Promise<ModelManifest[]> {
-  try {
-    const cat = await fetchCatalog(baseURL(cfg), authHeaders(cfg));
-    await AsyncStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(cat.models));
-    return cat.models;
-  } catch {
-    // Offline-first: a cached catalog still allows phone-local turns.
-    const raw = await AsyncStorage.getItem(CATALOG_CACHE_KEY);
-    if (raw) return JSON.parse(raw) as ModelManifest[];
-    throw new Error("Can't reach Ghost and no cached model catalog");
-  }
-}
-
 export async function runLocalTurn(
-  cfg: GhostConfig,
+  cfg: GhostConfig | null,
   content: string,
   history: { role: string; content: string }[],
-  args: SendArgs & { signal?: AbortSignal },
+  args: SendArgs,
 ): Promise<void> {
   const privacy = ((await AsyncStorage.getItem(PRIVACY_KEY)) ?? "balanced") as Privacy;
-  const manifests = await loadCatalog(cfg);
-  const transport = new GhostTransport({
-    baseUrl: baseURL(cfg),
-    headers: authHeaders(cfg),
-    session: "mobile:default",
-  });
+  const pod = cfg ? { baseUrl: baseURL(cfg), headers: authHeaders(cfg) } : null;
+  const manifests = await loadCatalog(pod);
+  const transport = new GhostTransport(
+    cfg ? { baseUrl: baseURL(cfg), headers: authHeaders(cfg), session: "mobile:default" } : null,
+  );
+
   let podModelKnown = false;
-  try {
-    const caps = await fetchPodCapabilities(cfg);
-    podModelKnown = (caps.tools?.length ?? 0) > 0;
-  } catch {
-    podModelKnown = false; // Pod unreachable: planner falls back to phone-local
+  if (cfg) {
+    try {
+      const caps = await fetchPodCapabilities(cfg);
+      podModelKnown = (caps.tools?.length ?? 0) > 0;
+    } catch {
+      podModelKnown = false; // Pod unreachable: planner falls back to phone-local
+    }
   }
+
   const active = await modelManager.activeModel(manifests).catch(() => null);
   const decision = plan({
     effort: classifyEffort(content),
@@ -66,7 +58,7 @@ export async function runLocalTurn(
     },
   });
 
-  if (decision.target !== "phone") {
+  if (decision.target !== "phone" && cfg) {
     // Pod/cloud path: byte-identical Pod semantics (keys stay on appliance).
     await sendMessage(cfg, args);
     return;
@@ -122,13 +114,4 @@ export async function runLocalTurn(
       },
     },
   );
-}
-
-// runPodTurn preserves the exact pre-existing Pod SSE behavior for callers
-// that explicitly want the Pod path.
-export async function runPodTurn(
-  cfg: GhostConfig,
-  args: Parameters<typeof sendMessage>[1],
-): Promise<void> {
-  await sendMessage(cfg, args);
 }

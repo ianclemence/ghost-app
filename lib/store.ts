@@ -22,6 +22,10 @@ interface GhostStore {
   // Connection (3-state)
   connectionState: ConnectionState;
   setConnectionState: (v: ConnectionState) => void;
+  // Phone-local Ghost is ready: a model is installed and active. Independent
+  // of Pod pairing — Ghost can run with this true and config null.
+  localReady: boolean;
+  setLocalReady: (v: boolean) => void;
   // Identity of the paired Ghost (from the pairing response)
   ghostName: string | null;
   setGhostName: (name: string | null) => void;
@@ -80,6 +84,9 @@ export const useGhostStore = create<GhostStore>((set) => ({
 
   connectionState: "offline",
   setConnectionState: (v) => set({ connectionState: v }),
+
+  localReady: false,
+  setLocalReady: (v) => set({ localReady: v }),
 
   ghostName: null,
   setGhostName: (name) => set({ ghostName: name }),

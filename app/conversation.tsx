@@ -102,7 +102,7 @@ function ThreadExtras({
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { config, messages, setMessages, appendMessage, removeMessage, updateMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
+  const { config, messages, setMessages, appendMessage, removeMessage, updateMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState, localReady } = useGhostStore();
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -269,7 +269,9 @@ export default function ConversationScreen() {
   }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox]);
 
   const send = useCallback(async (text: string) => {
-    if (!config || isStreaming) return;
+    if (isStreaming) return;
+    // A paired Pod or an active local model — either makes Ghost reachable.
+    if (!config && !useGhostStore.getState().localReady) return;
     const q = text.trim();
     if (!q) return;
     setDraft("");
@@ -315,30 +317,34 @@ export default function ConversationScreen() {
         setCancelPhase((p) => nextCancelState(p, "settled"));
         localAbort.current = null;
         commitStream();
-        fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
-          .then(({ messages: h }) =>
-            setMessages(reconcileHistory(useGhostStore.getState().messages, h)),
-          )
-          .catch(() => {});
+        if (config) {
+          fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+            .then(({ messages: h }) =>
+              setMessages(reconcileHistory(useGhostStore.getState().messages, h)),
+            )
+            .catch(() => {});
+        }
         if (!full.trim() && !clarify) {
           removeMessage(asstId);
           setSendError("Ghost didn't respond. Try rephrasing.");
         }
         setStreaming(false);
         setToolActivity(null);
-        fetchPendingApprovals(config).then(setApprovals).catch(() => {});
-        // A successful send means connectivity is back: drain the outbox.
-        void flushOutbox().catch(() => {});
-        fetchArtifacts(config, MAIN_SESSION_ID)
-          .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
-          .catch(() => {});
-        // Reconcile tracked surfaces with runtime truth: refresh each,
-        // drop the ones the runtime no longer knows.
-        surfacesRef.current.forEach((s) => {
-          fetchLiveSurface(config, s.kind, s.id).then((live) => {
-            if (!live) setSurfaces((cur) => cur.filter((x) => x.id !== s.id));
-          }).catch(() => {});
-        });
+        if (config) {
+          fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+          // A successful send means connectivity is back: drain the outbox.
+          void flushOutbox().catch(() => {});
+          fetchArtifacts(config, MAIN_SESSION_ID)
+            .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
+            .catch(() => {});
+          // Reconcile tracked surfaces with runtime truth: refresh each,
+          // drop the ones the runtime no longer knows.
+          surfacesRef.current.forEach((s) => {
+            fetchLiveSurface(config, s.kind, s.id).then((live) => {
+              if (!live) setSurfaces((cur) => cur.filter((x) => x.id !== s.id));
+            }).catch(() => {});
+          });
+        }
       },
       onError: (e) => {
         setCancelPhase((p) => nextCancelState(p, "settled"));
@@ -350,7 +356,7 @@ export default function ConversationScreen() {
           router.replace("/auth-failure" as never);
           return;
         }
-        if (isRetryableSendError(e.kind)) {
+        if (config && isRetryableSendError(e.kind)) {
           // Offline, not failed: queue for FIFO delivery on reconnect.
           // The message stays visible, marked queued — never silently lost.
           enqueueOutbox({
@@ -379,7 +385,7 @@ export default function ConversationScreen() {
   }, [config, isStreaming, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox]);
 
   const stopTurn = useCallback(async () => {
-    if (!config || !isStreaming) return;
+    if (!isStreaming) return;
     setCancelPhase((p) => nextCancelState(p, "request"));
     // Cancel whichever runtime is actually generating: the local abort
     // propagates to the native runtime; Pod turns still steer server-side.
@@ -387,8 +393,12 @@ export default function ConversationScreen() {
     localAbort.current = null;
     // The stream UI stays exactly as it is: nothing is committed, hidden,
     // or marked stopped until the runtime answers or terminates the turn.
-    const sent = await sendSteering(config, { sessionKey: MAIN_SESSION_ID, action: "abort" });
-    setCancelPhase((p) => nextCancelState(p, sent ? "sent" : "failed"));
+    if (config) {
+      const sent = await sendSteering(config, { sessionKey: MAIN_SESSION_ID, action: "abort" });
+      setCancelPhase((p) => nextCancelState(p, sent ? "sent" : "failed"));
+    } else {
+      setCancelPhase((p) => nextCancelState(p, "settled"));
+    }
   }, [config, isStreaming]);
 
   const renderItem = useCallback(({ item }: { item: ExtendedMessage }) => {
@@ -526,9 +536,17 @@ export default function ConversationScreen() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{ghostName ?? "Ghost"}</Text>
           <View style={styles.headerStatus}>
-            <StatusDot status={connectionState === "online" ? "online" : connectionState === "syncing" ? "warning" : "offline"} />
+            <StatusDot
+              status={
+                config
+                  ? connectionState === "online" ? "online" : connectionState === "syncing" ? "warning" : "offline"
+                  : localReady ? "online" : "offline"
+              }
+            />
             <Text style={styles.headerSub}>
-              {connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"}
+              {config
+                ? connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"
+                : localReady ? "Local" : "Offline"}
             </Text>
           </View>
         </View>

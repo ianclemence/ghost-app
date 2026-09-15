@@ -1,5 +1,19 @@
 import { describe, expect, mock, test } from "bun:test";
 
+const asyncBacking = new Map<string, string>();
+
+mock.module("@react-native-async-storage/async-storage", () => ({
+  default: {
+    getItem: async (k: string) => asyncBacking.get(k) ?? null,
+    setItem: async (k: string, v: string) => {
+      asyncBacking.set(k, v);
+    },
+    removeItem: async (k: string) => {
+      asyncBacking.delete(k);
+    },
+  },
+}));
+
 mock.module("expo-device", () => ({
   osName: "Android",
   osVersion: "15",
@@ -16,6 +30,8 @@ const { evaluate, manifestNeed } = await import("./devcap");
 const { plan } = await import("./planner");
 const { validateManifest } = await import("./registry");
 const { validateOp } = await import("./memsync");
+const { SEED_CATALOG } = await import("./seedCatalog");
+const { loadCatalog } = await import("./catalog");
 
 describe("devcap verdicts", () => {
   const device = { platform: "android", osVersion: "15", arch: "arm64", totalRamMb: 8192, freeDiskMb: 14000, accelerator: "nnapi", runtime: "mobile-local" };
@@ -68,5 +84,30 @@ describe("sync op validation", () => {
   });
   test("accepts well-formed ops", () => {
     expect(validateOp({ op_id: "a", origin_device: "a", entity_id: "e", entity_kind: "fact", entity_version: 1, scope: "shared_durable", type: "upsert", origin_clock: 1 })).toBeNull();
+  });
+});
+
+describe("bundled seed catalog", () => {
+  test("every seed manifest is valid", () => {
+    expect(SEED_CATALOG.length).toBeGreaterThan(0);
+    for (const m of SEED_CATALOG) {
+      expect(validateManifest(m)).toBeNull();
+    }
+  });
+
+  test("loadCatalog falls back to the seed with no Pod and no cache", async () => {
+    asyncBacking.clear();
+    const models = await loadCatalog(null);
+    expect(models.map((m) => m.id)).toEqual(SEED_CATALOG.map((m) => m.id));
+  });
+
+  test("loadCatalog prefers a cached catalog over the seed", async () => {
+    asyncBacking.set(
+      "ghost:models:catalog",
+      JSON.stringify([{ ...SEED_CATALOG[0], id: "ghost-cached-1" }]),
+    );
+    const models = await loadCatalog(null);
+    expect(models[0].id).toBe("ghost-cached-1");
+    asyncBacking.clear();
   });
 });

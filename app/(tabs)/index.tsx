@@ -23,7 +23,7 @@ function dateHeader(d = new Date()): { top: string; sub: string } {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { config, setGhostName, connectionState } = useGhostStore();
+  const { config, setGhostName, connectionState, localReady } = useGhostStore();
   const [userName, setUserName] = useState("");
   const [waitingApproval, setWaitingApproval] = useState(false);
   const { top, sub } = dateHeader();
@@ -58,8 +58,11 @@ export default function HomeScreen() {
         <Text style={styles.dateTop}>{top}</Text>
         <Text style={styles.dateSub}>{sub}</Text>
       </Animated.View>
-      {connectionState !== "online" ? (
+      {config && connectionState !== "online" ? (
         <Text style={styles.offline} accessibilityLiveRegion="polite">{connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}</Text>
+      ) : null}
+      {!config && localReady ? (
+        <Text style={styles.offline} accessibilityLiveRegion="polite">Ghost is on this phone</Text>
       ) : null}
       <Animated.View
         entering={reduceMotion ? undefined : FadeInUp.duration(320).delay(80).easing(EASE)}

@@ -162,7 +162,6 @@ export class ModelManager {
       meta.pinnedHashes[manifest.id] = manifest.sha256;
     }
     meta.versions[manifest.id] = manifest.version;
-    if (!meta.activeId) meta.activeId = manifest.id;
     await saveMeta(meta);
   }
 
@@ -218,6 +217,14 @@ export class ModelManager {
     const meta = await loadMeta();
     if (!meta.activeId) return null;
     return manifests.find((m) => m.id === meta.activeId) ?? null;
+  }
+
+  // activeModelId is the cheap boot-time check: "is phone-local Ghost ready?"
+  // It does not read the catalog, so the app can decide between onboarding and
+  // the main app without a Pod or a network call.
+  async activeModelId(): Promise<string | null> {
+    const meta = await loadMeta();
+    return meta.activeId ?? null;
   }
 
   async storageUsage(manifests: ModelManifest[]): Promise<StorageUsage> {

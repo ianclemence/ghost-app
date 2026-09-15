@@ -15,6 +15,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { Space } from "@/constants/theme";
+import { useGhostStore } from "@/lib/store";
 
 const ITEMS = [
   { route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
@@ -53,6 +54,19 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
   const pathname = usePathname() ?? "";
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
+  const config = useGhostStore((s) => s.config);
+  // Without a Pod, Pod-only destinations have nothing to show, so they are
+  // replaced by the one action that matters: adding a Pod later. A Pod stays
+  // optional and can be connected at any time.
+  const items = config
+    ? ITEMS
+    : [
+        { route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
+        { route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
+        { route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
+        { route: "/connect" as const, label: "Connect a Ghost Pod", match: "connect", Icon: Cpu },
+        { route: "/about" as const, label: "About", match: "about", Icon: Info },
+      ];
   const fabRot = useSharedValue(0);
   useEffect(() => {
     fabRot.set(withTiming(open ? 45 : 0, {
@@ -78,7 +92,7 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
           <ScreenBackground />
           <Pressable style={styles.scrimTouch} onPress={() => setOpen(false)} accessibilityLabel="Close menu" />
           <View style={styles.list}>
-            {ITEMS.map((item, i) => {
+            {items.map((item, i) => {
               const active = item.route === "/(tabs)"
                 ? (pathname === "/" || pathname.includes("(tabs)"))
                 : pathname.includes(item.match);

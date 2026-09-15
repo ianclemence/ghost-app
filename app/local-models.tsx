@@ -1,8 +1,11 @@
-// Ghost · Local — on-device intelligence: recommended model, download with
-// progress, activation, switching, removal, storage accounting, privacy mode,
-// and runtime health. Models are data from the Pod catalog, never invented.
-import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+// Ghost · Local — the phone as a Ghost runtime.
+//
+// One screen, two states. First run: a focused recommendation and a single
+// download. After a model is active: management (models, storage, privacy).
+// Deliberately no wizard: setup is one decision and one progress bar.
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ghost, Space } from "@/constants/theme";
@@ -10,9 +13,10 @@ import { GhostText } from "@/components/themed-text";
 import { PlusMenu } from "@/components/plus-menu";
 import { GhostButton, StatusDot } from "@/components/ghost";
 import { useGhostStore } from "@/lib/store";
-import { evaluate, formatBytes, inspectDevice, type DeviceInfo } from "@/lib/local/devcap";
-import { fetchCatalog, isVerifiedPublisher, type ModelManifest } from "@/lib/local/registry";
-import { modelManager, type ModelState } from "@/lib/local/modelManager";
+import { evaluate, formatBytes, inspectDevice, manifestNeed, type DeviceInfo } from "@/lib/local/devcap";
+import { loadCatalog } from "@/lib/local/catalog";
+import { isVerifiedPublisher, type ModelManifest } from "@/lib/local/registry";
+import { modelManager, type ModelState, type StorageUsage } from "@/lib/local/modelManager";
 import { mobileLocalRuntime } from "@/lib/local/localRuntime";
 import type { Privacy } from "@/lib/local/planner";
 import { baseURL, authHeaders } from "@/lib/ghostApi";
@@ -20,68 +24,108 @@ import { baseURL, authHeaders } from "@/lib/ghostApi";
 const PRIVACY_KEY = "ghost:privacy";
 
 const VERDICT_LABEL: Record<string, string> = {
-  compatible: "Ready for this phone",
+  compatible: "Recommended for this phone",
   compatible_not_recommended: "Works, but slow",
-  incompatible: "Not supported",
-  temporarily_unavailable: "Try again later",
+  incompatible: "Not supported on this phone",
+  temporarily_unavailable: "Available again shortly",
 };
+
+function modelLabel(id: string): string {
+  if (id.startsWith("ghost-mini")) return "Ghost Mini";
+  if (id.startsWith("ghost-balanced")) return "Ghost Balanced";
+  return id;
+}
+
+type Phase = "idle" | "downloading" | "verifying";
 
 export default function LocalModelsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ firstRun?: string }>();
+  const firstRun = params.firstRun === "1";
   const config = useGhostStore((s) => s.config);
+  const setLocalReady = useGhostStore((s) => s.setLocalReady);
+
   const [device, setDevice] = useState<DeviceInfo | null>(null);
   const [catalog, setCatalog] = useState<ModelManifest[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [states, setStates] = useState<Record<string, ModelState>>({});
-  const [progress, setProgress] = useState<Record<string, number>>({});
-  const [privacy, setPrivacy] = useState<Privacy>("balanced");
-  const [health, setHealth] = useState<{ available: boolean; reason?: string; loadedModel?: string } | null>(null);
-  const [storage, setStorage] = useState<{ appPrivateModels: number; modelCache: number; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState<Phase>("idle");
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [storage, setStorage] = useState<StorageUsage | null>(null);
+  const [privacy, setPrivacy] = useState<Privacy>("balanced");
+  const [health, setHealth] = useState<{ available: boolean; reason?: string } | null>(null);
+
+  const pod = useMemo(
+    () => (config ? { baseUrl: baseURL(config), headers: authHeaders(config) } : null),
+    [config],
+  );
 
   const refresh = useCallback(async () => {
-    setError(null);
-    try {
-      const d = await inspectDevice();
-      setDevice(d);
-      const p = await AsyncStorage.getItem(PRIVACY_KEY);
-      if (p === "local_only" || p === "balanced" || p === "cloud_capable") setPrivacy(p);
-      setHealth(await mobileLocalRuntime.health());
-      if (config) {
-        const cat = await fetchCatalog(baseURL(config), authHeaders(config));
-        setCatalog(cat.models);
-        const next: Record<string, ModelState> = {};
-        for (const m of cat.models) next[m.id] = await modelManager.state(m);
-        setStates(next);
-        await modelManager.repair(cat.models);
-        setStorage(await modelManager.storageUsage(cat.models));
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [config]);
+    const d = await inspectDevice();
+    setDevice(d);
+    const stored = await AsyncStorage.getItem(PRIVACY_KEY);
+    if (stored === "local_only" || stored === "balanced" || stored === "cloud_capable") setPrivacy(stored);
+    setHealth(await mobileLocalRuntime.health());
+    const models = await loadCatalog(pod);
+    setCatalog(models);
+    setActiveId(await modelManager.activeModelId());
+    const next: Record<string, ModelState> = {};
+    for (const m of models) next[m.id] = await modelManager.state(m);
+    setStates(next);
+    await modelManager.repair(models).catch(() => {});
+    setStorage(await modelManager.storageUsage(models).catch(() => null));
+  }, [pod]);
 
   useEffect(() => {
-    refresh();
+    refresh().catch(() => {});
   }, [refresh]);
 
-  const setPrivacyMode = async (p: Privacy) => {
-    setPrivacy(p);
-    await AsyncStorage.setItem(PRIVACY_KEY, p);
-  };
+  const evaluated = useMemo(
+    () => catalog.map((m) => ({ m, verdict: device ? evaluate(device, manifestNeed(m)) : null })),
+    [catalog, device],
+  );
 
-  const download = async (m: ModelManifest) => {
+  const recommended = useMemo(() => {
+    const bySize = (a: { m: ModelManifest }, b: { m: ModelManifest }) => a.m.size_bytes - b.m.size_bytes;
+    const ready = evaluated.filter((x) => x.verdict?.verdict === "compatible").sort(bySize);
+    if (ready[0]) return ready[0];
+    const ok = evaluated.filter((x) => x.verdict?.verdict === "compatible_not_recommended").sort(bySize);
+    return ok[0] ?? null;
+  }, [evaluated]);
+
+  const runSetup = async (m: ModelManifest) => {
     setBusy(m.id);
     setError(null);
+    setProgress(0);
     try {
-      await modelManager.download(m, {
-        onProgress: (w, t) => setProgress((prev) => ({ ...prev, [m.id]: t > 0 ? w / t : 0 })),
-      });
-      const refreshed = await modelManager.state(m);
-      setStates((prev) => ({ ...prev, [m.id]: refreshed }));
-      setStorage(await modelManager.storageUsage(catalog));
-      setHealth(await mobileLocalRuntime.health());
+      // A verified artifact already on disk is never re-downloaded; setup just
+      // finishes by loading and activating it.
+      const alreadyInstalled = states[m.id]?.status === "installed" || states[m.id]?.status === "active";
+      if (!alreadyInstalled) {
+        setPhase("downloading");
+        await modelManager.download(m, {
+          onProgress: (w, t) => setProgress(t > 0 ? w / t : 0),
+        });
+      }
+      setPhase("verifying");
+      await modelManager.activate(m.id, catalog);
+      setLocalReady(true);
+      setActiveId(m.id);
+      setPhase("idle");
+      setProgress(0);
+      if (firstRun) {
+        // Setup complete. Land on Home — the same destination pairing uses —
+        // where Ghost confirms it is running on this phone.
+        router.replace("/(tabs)");
+      } else {
+        await refresh();
+      }
     } catch (e) {
+      setPhase("idle");
+      setProgress(0);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
@@ -90,12 +134,12 @@ export default function LocalModelsScreen() {
 
   const activate = async (m: ModelManifest) => {
     setBusy(m.id);
+    setError(null);
     try {
       await modelManager.activate(m.id, catalog);
-      const next: Record<string, ModelState> = {};
-      for (const x of catalog) next[x.id] = await modelManager.state(x);
-      setStates(next);
-      setHealth(await mobileLocalRuntime.health());
+      setLocalReady(true);
+      setActiveId(m.id);
+      await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -107,10 +151,8 @@ export default function LocalModelsScreen() {
     setBusy(m.id);
     try {
       await modelManager.remove(m);
-      const next: Record<string, ModelState> = {};
-      for (const x of catalog) next[x.id] = await modelManager.state(x);
-      setStates(next);
-      setStorage(await modelManager.storageUsage(catalog));
+      if (activeId === m.id) setLocalReady(false);
+      await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -118,37 +160,152 @@ export default function LocalModelsScreen() {
     }
   };
 
-  const activeId = Object.entries(states).find(([, s]) => s.status === "active")?.[0] ?? null;
+  const setPrivacyMode = async (p: Privacy) => {
+    setPrivacy(p);
+    await AsyncStorage.setItem(PRIVACY_KEY, p);
+  };
 
+  // ─── First run: one recommendation, one action ─────────────────────────
+  if (firstRun && !activeId) {
+    const unavailable = health && !health.available;
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <ScrollView contentContainerStyle={styles.firstRunBody} showsVerticalScrollIndicator={false}>
+          <GhostText type="largeTitle" style={styles.title}>Set up Ghost</GhostText>
+          <GhostText type="body" style={styles.sub}>
+            Ghost runs on this phone. Download a model once, then it works without a connection.
+          </GhostText>
+
+          {unavailable ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>On-device models aren’t available in this build</Text>
+              <Text style={styles.meta}>{health?.reason ?? "Use a development build to run models locally."}</Text>
+            </View>
+          ) : !device ? (
+            <View style={styles.card}>
+              <ActivityIndicator />
+              <Text style={styles.meta}>Checking what this phone can run…</Text>
+            </View>
+          ) : !recommended ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>This phone can’t run a local model</Text>
+              <Text style={styles.meta}>
+                Connect a Ghost Pod to use Ghost on this phone.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{modelLabel(recommended.m.id)}</Text>
+              <Text style={styles.recommend}>{VERDICT_LABEL[recommended.verdict!.verdict] ?? recommended.verdict!.verdict}</Text>
+              <Text style={styles.meta}>
+                {recommended.m.size_estimated ? "~" : ""}{formatBytes(recommended.m.size_bytes)} · {recommended.m.quantization}
+              </Text>
+              <Text style={styles.meta}>Runs entirely on this device after download.</Text>
+              {recommended.verdict!.reason ? <Text style={styles.meta}>{recommended.verdict!.reason}</Text> : null}
+
+              {phase !== "idle" ? (
+                <View style={styles.progressWrap}>
+                  <View style={styles.bar}>
+                    <View style={[styles.fill, { flex: Math.max(0.02, progress) }]} />
+                    <View style={{ flex: 1 - Math.min(1, progress) }} />
+                  </View>
+                  <Text style={styles.meta}>
+                    {phase === "verifying" ? "Verifying…" : `Downloading… ${Math.round(progress * 100)}%`}
+                  </Text>
+                </View>
+              ) : (
+                <GhostButton
+                  title={states[recommended.m.id]?.status === "installed" ? "Finish setup" : "Download"}
+                  onPress={() => runSetup(recommended.m)}
+                  disabled={busy === recommended.m.id}
+                  loading={busy === recommended.m.id}
+                  fullWidth
+                />
+              )}
+            </View>
+          )}
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+        </ScrollView>
+
+        <View style={[styles.firstRunBottom, { paddingBottom: insets.bottom + Space.xxl }]}>
+          <TouchableOpacity onPress={() => router.replace("/connect")} activeOpacity={0.6}>
+            <GhostText type="callout" style={styles.quiet}>Connect a Ghost Pod instead</GhostText>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ─── Manage: models, storage, privacy ──────────────────────────────────
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <ScrollView contentContainerStyle={styles.body}>
-        <GhostText type="title">Ghost · Local</GhostText>
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <GhostText type="largeTitle" style={styles.title}>Ghost · Local</GhostText>
         <Text style={styles.sub}>
-          {health?.available ? "On-device intelligence ready" : (health?.reason ?? "Checking local runtime…")}
+          {health?.available
+            ? activeId
+              ? "Running on this phone"
+              : "No model active"
+            : (health?.reason ?? "Checking local runtime…")}
         </Text>
-
-        {activeId === null ? (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>
-              No local model yet. Download Ghost Mini to use Ghost fully offline — after the download, inference needs no network.
-            </Text>
-          </View>
-        ) : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
+        {evaluated.map(({ m, verdict }) => {
+          const isActive = activeId === m.id;
+          const status = states[m.id]?.status ?? "not_installed";
+          const installed = status === "active" || status === "installed";
+          const loading = busy === m.id;
+          return (
+            <View key={m.id} style={styles.card}>
+              <View style={styles.row}>
+                <StatusDot status={isActive ? "online" : "offline"} />
+                <Text style={styles.cardTitle}>{modelLabel(m.id)}</Text>
+              </View>
+              <Text style={styles.meta}>
+                {m.size_estimated ? "~" : ""}{formatBytes(m.size_bytes)} · {m.quantization} · v{m.version}
+              </Text>
+              {verdict ? <Text style={styles.meta}>{VERDICT_LABEL[verdict.verdict] ?? verdict.verdict}{verdict.reason ? ` — ${verdict.reason}` : ""}</Text> : null}
+              <Text style={styles.meta}>
+                {isVerifiedPublisher(m) ? "Signed publisher" : "HTTPS · hash pinned on install"}
+              </Text>
+              {phase !== "idle" && busy === m.id ? (
+                <View style={styles.bar}>
+                  <View style={[styles.fill, { flex: Math.max(0.02, progress) }]} />
+                  <View style={{ flex: 1 - Math.min(1, progress) }} />
+                </View>
+              ) : null}
+              <View style={styles.actions}>
+                {installed ? (
+                  <>
+                    {!isActive ? (
+                      <GhostButton title="Use" onPress={() => activate(m)} disabled={loading} loading={loading} />
+                    ) : null}
+                    <GhostButton title="Remove" variant="danger" onPress={() => remove(m)} disabled={loading} />
+                  </>
+                ) : (
+                  <GhostButton
+                    title="Download"
+                    onPress={() => runSetup(m)}
+                    disabled={loading}
+                    loading={loading}
+                  />
+                )}
+              </View>
+            </View>
+          );
+        })}
+
         <View style={styles.card}>
-          <View style={styles.row}>
-            <StatusDot status={health?.available ? "online" : "offline"} />
-            <Text style={styles.cardTitle}>Local runtime</Text>
-          </View>
-          <Text style={styles.meta}>Backend: llama.cpp (GGUF) · app-private model storage</Text>
+          <Text style={styles.cardTitle}>Storage</Text>
           {storage ? (
             <Text style={styles.meta}>
-              Models {formatBytes(storage.appPrivateModels)} · Cache {formatBytes(storage.modelCache)}
+              Models {formatBytes(storage.appPrivateModels)} · Temporary {formatBytes(storage.modelCache)}
             </Text>
-          ) : null}
+          ) : (
+            <Text style={styles.meta}>Not measured yet.</Text>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -161,60 +318,7 @@ export default function LocalModelsScreen() {
               onPress={() => setPrivacyMode(p)}
             />
           ))}
-          <Text style={styles.meta}>Local-only blocks cloud even when a local model is missing.</Text>
         </View>
-
-        {catalog.map((m) => {
-          const st = states[m.id];
-          const v = device
-            ? evaluate(device, {
-                modelId: m.id, runtime: m.runtime, platforms: m.platforms, archs: m.architectures,
-                minRamMb: m.minimum_ram_mb ?? 0, recRamMb: m.recommended_ram_mb ?? 0,
-                sizeMb: Math.ceil(m.size_bytes / (1024 * 1024)),
-              })
-            : null;
-          const pct = progress[m.id] ?? 0;
-          const loading = busy === m.id;
-          return (
-            <View key={m.id} style={styles.card}>
-              <Text style={styles.cardTitle}>{m.id}</Text>
-              <Text style={styles.meta}>
-                {m.quantization} · {m.size_estimated ? "~" : ""}{formatBytes(m.size_bytes)}
-                {m.size_estimated ? " (publisher estimate)" : ""} · v{m.version}
-              </Text>
-              <Text style={styles.meta}>
-                Capabilities: {m.capabilities.join(", ")}
-              </Text>
-              <Text style={styles.meta}>
-                {v ? VERDICT_LABEL[v.verdict] ?? v.verdict : "Checking compatibility…"}
-                {v?.reason ? ` — ${v.reason}` : ""}
-              </Text>
-              <Text style={styles.meta}>
-                {isVerifiedPublisher(m) ? "Signed publisher" : "HTTPS download · hash pinned on install"}
-              </Text>
-              <Text style={styles.meta}>Status: {st?.status ?? "…"}</Text>
-              {pct > 0 && pct < 1 ? (
-                <View style={styles.bar}>
-                  <View style={[styles.fill, { flex: pct }]} />
-                  <View style={{ flex: 1 - pct }} />
-                </View>
-              ) : null}
-              <View style={styles.actions}>
-                {st?.status === "not_installed" || st?.status === "paused" ? (
-                  <GhostButton title={st?.status === "paused" ? "Resume" : "Download"} onPress={() => download(m)} disabled={loading} loading={loading} />
-                ) : null}
-                {st?.status === "installed" ? (
-                  <GhostButton title="Activate" onPress={() => activate(m)} disabled={loading} loading={loading} />
-                ) : null}
-                {st?.status === "installed" || st?.status === "active" ? (
-                  <GhostButton title="Remove" variant="danger" onPress={() => remove(m)} disabled={loading} />
-                ) : null}
-              </View>
-            </View>
-          );
-        })}
-
-        {busy ? <ActivityIndicator /> : null}
       </ScrollView>
       <PlusMenu />
     </View>
@@ -223,16 +327,20 @@ export default function LocalModelsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Ghost.bg.base },
-  body: { padding: Space.edge, gap: Space.md, paddingBottom: 120 },
-  sub: { color: Ghost.text.secondary, fontSize: 14 },
-  banner: { backgroundColor: Ghost.bg.raised, borderRadius: 12, padding: Space.md },
-  bannerText: { color: Ghost.text.primary, fontSize: 14 },
-  error: { color: Ghost.status.error, fontSize: 13 },
-  card: { backgroundColor: Ghost.bg.raised, borderRadius: 12, padding: Space.md, gap: 6 },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  body: { padding: Space.edge, gap: Space.md, paddingBottom: 140 },
+  firstRunBody: { paddingHorizontal: Space.xl, paddingTop: Space.section, gap: Space.lg },
+  firstRunBottom: { alignItems: "center", paddingTop: Space.md },
+  title: { color: Ghost.text.primary },
+  sub: { color: Ghost.text.secondary, fontSize: 15, lineHeight: 21 },
+  recommend: { color: Ghost.text.primary, fontSize: 14, fontWeight: "600" },
+  card: { backgroundColor: Ghost.bg.raised, borderRadius: 14, padding: Space.lg, gap: Space.sm },
+  row: { flexDirection: "row", alignItems: "center", gap: Space.sm },
   cardTitle: { color: Ghost.text.primary, fontSize: 16, fontWeight: "600" },
-  meta: { color: Ghost.text.secondary, fontSize: 13 },
-  actions: { flexDirection: "row", gap: 8, marginTop: 4 },
+  meta: { color: Ghost.text.secondary, fontSize: 13, lineHeight: 18 },
+  actions: { flexDirection: "row", gap: Space.sm, marginTop: Space.xs },
+  progressWrap: { gap: Space.sm },
   bar: { flexDirection: "row", height: 6, borderRadius: 3, backgroundColor: Ghost.border.default, overflow: "hidden" },
   fill: { backgroundColor: Ghost.text.primary },
+  quiet: { color: Ghost.text.tertiary },
+  error: { color: Ghost.status.error, fontSize: 13 },
 });
