@@ -9,11 +9,11 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_library(ghost_llama SHARED
   src/main/cpp/ghost_jni.cpp
-  ../../cpp/ghost_llama.cpp
+  ../cpp/ghost_llama.cpp
 )
 
 target_include_directories(ghost_llama PRIVATE
-  ../../cpp
+  ../cpp
 )
 
 if(DEFINED LLAMA_CPP_DIR)

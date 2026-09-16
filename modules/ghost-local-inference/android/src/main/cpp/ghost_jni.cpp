@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "../cpp/ghost_llama.h"
+#include "ghost_llama.h"
 
 static std::string jstr(JNIEnv *env, jstring s) {
   if (!s) return {};
