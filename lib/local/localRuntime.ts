@@ -55,15 +55,21 @@ export class MobileLocalRuntime implements InferenceRuntime {
     return [];
   }
 
+  // Travel-cache contract: chat only. The phone collects via the deterministic
+  // remember path (not model tool calls), so tool_calling/structured_output
+  // are deliberately NOT advertised — any planner trusting those would route
+  // tool work to a phone that refuses it. Wire-compatible narrowing: peers
+  // negotiate via ghostproto Version/MinSupportedVersion (=1); fewer caps is
+  // a valid older-peer view, so old Pods simply route tool work to the Pod.
   async capabilities(): Promise<Capability[]> {
-    return ["chat", "tool_calling", "structured_output"];
+    return ["chat"];
   }
 
   async satisfies(_modelId: string, req: Requirements): Promise<{ ok: boolean; reason?: string }> {
     if (req.localOnly === false) { /* local runtime always satisfies locality */ }
     for (const c of req.capabilities) {
-      if (c === "vision" || c === "speech" || c === "embeddings") {
-        return { ok: false, reason: `capability ${c} not in the phone text model` };
+      if (c !== "chat") {
+        return { ok: false, reason: `capability ${c} not in the phone travel cache (chat only)` };
       }
     }
     const health = await this.health();

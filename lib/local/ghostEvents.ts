@@ -20,8 +20,10 @@ export function clarifyRequest(question: string): GhostEvent {
   return { kind: "clarify_request", text: question };
 }
 
-export function progressEvent(text: string): GhostEvent {
-  return { kind: "progress_event", text };
+export type RoutingTarget = "phone" | "pod" | "cloud";
+
+export function progressEvent(text: string, data?: { target?: RoutingTarget; reason?: string; willSync?: boolean }): GhostEvent {
+  return { kind: "progress_event", text, data };
 }
 
 // parsePodSSELine maps one Pod SSE data line onto the common model, reusing

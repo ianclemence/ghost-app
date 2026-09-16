@@ -1,10 +1,10 @@
-// runLocalTurn: execution-planned send. Decides phone/pod/cloud via the
-// shared planner, then drives EITHER the offline phone-local pipeline OR the
-// original Pod SSE path with its full semantics (outcomes, clarification,
-// lifecycle, tool phases) — one common Ghost event model in the UI.
+// runLocalTurn: execution-planned send. Travel-cache contract: the phone
+// ANSWERS (local Mini) and COLLECTS (remember + outbox). The Pod is the only
+// brain for routines, hardware, files, notifications, and durable memory.
 //
-// cfg is nullable: a phone with an active local model is a complete Ghost and
-// must be able to answer with no Pod and no network.
+// cfg is nullable: a phone with an active Mini is a useful offline Ghost and
+// must answer with no Pod and no network. Pod/cloud turns use the original
+// Pod SSE path with full semantics (keys stay on the appliance).
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authHeaders, baseURL, sendMessage, type GhostConfig } from "./ghostApi";
 import { GhostTransport } from "./local/transport";
@@ -13,6 +13,7 @@ import { modelManager } from "./local/modelManager";
 import { loadCatalog } from "./local/catalog";
 import { classifyEffort, plan, type Privacy } from "./local/planner";
 import { fetchPodCapabilities } from "./podClient";
+import { recordLocalMetric } from "./local/metrics";
 
 const PRIVACY_KEY = "ghost:privacy";
 
@@ -60,11 +61,15 @@ export async function runLocalTurn(
 
   if (decision.target !== "phone" && cfg) {
     // Pod/cloud path: byte-identical Pod semantics (keys stay on appliance).
+    // Honest routing: surface where this ran.
+    args.onToolStatus?.("ghost", decision.target === "cloud" ? "Answered via Pod cloud · keys stayed on Pod" : "Answered by home Pod");
+    await recordLocalMetric("pod_turns").catch(() => undefined);
     await sendMessage(cfg, args);
     return;
   }
 
-  // Phone-local path through the shared Ghost pipeline.
+  // Phone-local path through the travel-cache pipeline.
+  await recordLocalMetric("phone_turns").catch(() => undefined);
   let last = "";
   await runLocalPipeline(
     {
@@ -94,10 +99,14 @@ export async function runLocalTurn(
           }
           case "tool_status":
             args.onToolStatus?.(e.tool ?? "tool", e.text ?? "working");
+            if (e.tool === "local_memory.write") void recordLocalMetric("remember_captures").catch(() => undefined);
             break;
-          case "progress_event":
-            if (e.text) args.onToolStatus?.("ghost", e.text);
+          case "progress_event": {
+            const d = (e.data ?? {}) as { target?: string; reason?: string };
+            const label = e.text ?? (d.target === "phone" ? "Answering on this phone · will sync when Pod is back" : "Answered by home Pod");
+            args.onToolStatus?.("ghost", label);
             break;
+          }
           case "clarify_request":
             args.onClarify?.({ questionId: `q-${Date.now()}`, question: e.text ?? "", choices: [], requestId: "" });
             break;

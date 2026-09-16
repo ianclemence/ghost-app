@@ -47,6 +47,7 @@ import {
 } from "@/lib/outbox";
 import { MAIN_SESSION_ID, useGhostStore, type ExtendedMessage } from "@/lib/store";
 import { runLocalTurn } from "@/lib/localTurn";
+import { loadLocalThread, saveLocalThread } from "@/lib/local/threadCache";
 
 function outcomeLine(outcome: ChatOutcome | null): string | null {
   switch (outcome) {
@@ -174,6 +175,40 @@ export default function ConversationScreen() {
   const [headerH, setHeaderH] = useState(76);
   const [dockH, setDockH] = useState(120);
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
+
+  // Offline thread durability: without a Pod there is no server history, so
+  // restore the on-device thread cache (phone-local turns persist across
+  // restarts). With a Pod, server history stays authoritative.
+  useEffect(() => {
+    if (config) return;
+    let cancelled = false;
+    loadLocalThread().then((cached) => {
+      if (cancelled || cached.length === 0) return;
+      const cur = useGhostStore.getState().messages;
+      if (cur.length === 0) {
+        setMessages(
+          cached.map((m) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            timestamp: m.timestamp,
+          })),
+        );
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [config, setMessages]);
+
+  // Persist the visible thread for offline durability (capped, best-effort).
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const t = setTimeout(() => {
+      void saveLocalThread(
+        messages.filter((m) => m.content).map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
+      ).catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
+  }, [messages]);
 
   useEffect(() => {
     if (!config) return;
@@ -504,7 +539,14 @@ export default function ConversationScreen() {
           onChangeText={setDraft}
           onSubmit={send}
           minimal
-          onTranscribeAudio={(uri) => (config ? voiceTranscribeUri(config, uri, MAIN_SESSION_ID) : Promise.resolve(""))}
+          // Voice transcription runs on the Pod (POST /v1/voice/turn). Offline
+          // or local-only there is no transcriber, so no handler: Composer
+          // renders the mic visibly disabled ("Voice needs Pod — type instead").
+          onTranscribeAudio={
+            config && connectionState === "online"
+              ? (uri) => voiceTranscribeUri(config, uri, MAIN_SESSION_ID)
+              : undefined
+          }
           onVoiceError={(m) => setSendError(m)}
           streaming={isStreaming}
           onStop={() => void stopTurn()}

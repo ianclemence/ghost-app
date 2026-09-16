@@ -1,8 +1,9 @@
-// Ghost · Local — the phone as a Ghost runtime.
+// Ghost · Local — travel cache setup.
 //
-// One screen, two states. First run: a focused recommendation and a single
-// download. After a model is active: management (models, storage, privacy).
-// Deliberately no wizard: setup is one decision and one progress bar.
+// One screen, two states. First run: one recommendation (Mini) and a single
+// download. After a model is active: management (storage, privacy, legacy
+// cleanup). The phone answers + collects offline; the Pod remains the only
+// brain for routines, hardware, and durable memory.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,9 +16,10 @@ import { GhostButton, StatusDot } from "@/components/ghost";
 import { useGhostStore } from "@/lib/store";
 import { evaluate, formatBytes, inspectDevice, manifestNeed, type DeviceInfo } from "@/lib/local/devcap";
 import { loadCatalog } from "@/lib/local/catalog";
-import { isVerifiedPublisher, type ModelManifest } from "@/lib/local/registry";
+import { SUPPORTED_PHONE_MODEL_IDS, isSupportedPhoneModel, isVerifiedPublisher, type ModelManifest } from "@/lib/local/registry";
 import { modelManager, type ModelState, type StorageUsage } from "@/lib/local/modelManager";
 import { mobileLocalRuntime } from "@/lib/local/localRuntime";
+import { recordLocalMetric } from "@/lib/local/metrics";
 import type { Privacy } from "@/lib/local/planner";
 import { baseURL, authHeaders } from "@/lib/ghostApi";
 
@@ -32,7 +34,7 @@ const VERDICT_LABEL: Record<string, string> = {
 
 function modelLabel(id: string): string {
   if (id.startsWith("ghost-mini")) return "Ghost Mini";
-  if (id.startsWith("ghost-balanced")) return "Ghost Balanced";
+  if (id.startsWith("ghost-balanced")) return "Ghost Balanced (legacy)";
   return id;
 }
 
@@ -69,7 +71,9 @@ export default function LocalModelsScreen() {
     const stored = await AsyncStorage.getItem(PRIVACY_KEY);
     if (stored === "local_only" || stored === "balanced" || stored === "cloud_capable") setPrivacy(stored);
     setHealth(await mobileLocalRuntime.health());
-    const models = await loadCatalog(pod);
+    // Display includes legacy (removable-only) so retired Balanced downloads
+    // can still be reclaimed; planner/catalog defaults stay Mini-only.
+    const models = await loadCatalog(pod, { includeLegacy: true });
     setCatalog(models);
     setActiveId(await modelManager.activeModelId());
     const next: Record<string, ModelState> = {};
@@ -97,9 +101,16 @@ export default function LocalModelsScreen() {
   }, [evaluated]);
 
   const runSetup = async (m: ModelManifest) => {
+    // Travel-cache policy: Mini only. Legacy Balanced is removable, never
+    // (re)downloadable — it doubled support cost for Pod-inferior quality.
+    if (!isSupportedPhoneModel(m.id)) {
+      setError("Ghost Balanced is retired — Ghost Mini is the supported offline model. Remove Balanced to reclaim space.");
+      return;
+    }
     setBusy(m.id);
     setError(null);
     setProgress(0);
+    await recordLocalMetric("download_started").catch(() => undefined);
     try {
       // A verified artifact already on disk is never re-downloaded; setup just
       // finishes by loading and activating it.
@@ -112,6 +123,7 @@ export default function LocalModelsScreen() {
       }
       setPhase("verifying");
       await modelManager.activate(m.id, catalog);
+      await recordLocalMetric("download_completed").catch(() => undefined);
       setLocalReady(true);
       setActiveId(m.id);
       setPhase("idle");
@@ -124,6 +136,7 @@ export default function LocalModelsScreen() {
         await refresh();
       }
     } catch (e) {
+      await recordLocalMetric("download_failed").catch(() => undefined);
       setPhase("idle");
       setProgress(0);
       setError(e instanceof Error ? e.message : String(e));
@@ -133,12 +146,34 @@ export default function LocalModelsScreen() {
   };
 
   const activate = async (m: ModelManifest) => {
+    if (!isSupportedPhoneModel(m.id)) {
+      setError("Ghost Balanced is retired — activate Ghost Mini instead.");
+      return;
+    }
     setBusy(m.id);
     setError(null);
     try {
       await modelManager.activate(m.id, catalog);
       setLocalReady(true);
       setActiveId(m.id);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const cleanupLegacy = async () => {
+    setBusy("legacy-cleanup");
+    setError(null);
+    try {
+      const removed = await modelManager.cleanupLegacyModels(SUPPORTED_PHONE_MODEL_IDS);
+      if (removed.length > 0) await recordLocalMetric("legacy_cleaned", removed.length).catch(() => undefined);
+      if (activeId && !isSupportedPhoneModel(activeId)) {
+        setLocalReady(false);
+        setActiveId(null);
+      }
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -173,7 +208,7 @@ export default function LocalModelsScreen() {
         <ScrollView contentContainerStyle={styles.firstRunBody} showsVerticalScrollIndicator={false}>
           <GhostText type="largeTitle" style={styles.title}>Set up Ghost</GhostText>
           <GhostText type="body" style={styles.sub}>
-            Ghost runs on this phone. Download a model once, then it works without a connection.
+            Download Ghost Mini once — chat and note-taking work offline. Routines, home control, and full memory stay on your Pod.
           </GhostText>
 
           {unavailable ? (
@@ -254,6 +289,7 @@ export default function LocalModelsScreen() {
 
         {evaluated.map(({ m, verdict }) => {
           const isActive = activeId === m.id;
+          const supported = isSupportedPhoneModel(m.id);
           const status = states[m.id]?.status ?? "not_installed";
           const installed = status === "active" || status === "installed";
           const loading = busy === m.id;
@@ -266,7 +302,9 @@ export default function LocalModelsScreen() {
               <Text style={styles.meta}>
                 {m.size_estimated ? "~" : ""}{formatBytes(m.size_bytes)} · {m.quantization} · v{m.version}
               </Text>
-              {verdict ? <Text style={styles.meta}>{VERDICT_LABEL[verdict.verdict] ?? verdict.verdict}{verdict.reason ? ` — ${verdict.reason}` : ""}</Text> : null}
+              {!supported ? (
+                <Text style={styles.meta}>Legacy — retired. Remove to reclaim space; Mini is the supported offline model.</Text>
+              ) : verdict ? <Text style={styles.meta}>{VERDICT_LABEL[verdict.verdict] ?? verdict.verdict}{verdict.reason ? ` — ${verdict.reason}` : ""}</Text> : null}
               <Text style={styles.meta}>
                 {isVerifiedPublisher(m) ? "Signed publisher" : "HTTPS · hash pinned on install"}
               </Text>
@@ -279,23 +317,30 @@ export default function LocalModelsScreen() {
               <View style={styles.actions}>
                 {installed ? (
                   <>
-                    {!isActive ? (
+                    {!isActive && supported ? (
                       <GhostButton title="Use" onPress={() => activate(m)} disabled={loading} loading={loading} />
                     ) : null}
                     <GhostButton title="Remove" variant="danger" onPress={() => remove(m)} disabled={loading} />
                   </>
-                ) : (
+                ) : supported ? (
                   <GhostButton
                     title="Download"
                     onPress={() => runSetup(m)}
                     disabled={loading}
                     loading={loading}
                   />
-                )}
+                ) : null}
               </View>
             </View>
           );
         })}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Legacy downloads</Text>
+          <Text style={styles.meta}>Retired Balanced files (~1.25GB) can be reclaimed in one tap. Mini is untouched.</Text>
+          <View style={styles.actions}>
+            <GhostButton title="Remove legacy downloads" onPress={cleanupLegacy} disabled={busy === "legacy-cleanup"} loading={busy === "legacy-cleanup"} />
+          </View>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Storage</Text>

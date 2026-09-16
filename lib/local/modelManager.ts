@@ -254,6 +254,34 @@ export class ModelManager {
       return null;
     }
   }
+
+  // cleanupLegacyModels deletes on-disk artifacts for retired model ids
+  // (e.g. ghost-balanced-1) to reclaim ~1.25GB. Never touches supported ids.
+  // Returns the removed ids. Clears activeId if it pointed at legacy.
+  async cleanupLegacyModels(supportedIds: readonly string[]): Promise<string[]> {
+    const removed: string[] = [];
+    const meta = await loadMeta();
+    const ids = new Set<string>([...Object.keys(meta.versions), ...(meta.activeId ? [meta.activeId] : [])]);
+    // Also probe the known retired id even if meta forgot it (crashed install).
+    ids.add("ghost-balanced-1");
+    for (const id of ids) {
+      if ((supportedIds as readonly string[]).includes(id)) continue;
+      try {
+        const dir = new Directory(Paths.document, "models", id);
+        if (dir.exists) {
+          dir.delete();
+          removed.push(id);
+        } else if (meta.versions[id] !== undefined || meta.activeId === id) {
+          removed.push(id);
+        }
+      } catch { /* best effort per id */ }
+      delete meta.versions[id];
+      delete meta.pinnedHashes[id];
+      if (meta.activeId === id) meta.activeId = null;
+    }
+    if (removed.length > 0) await saveMeta(meta);
+    return removed;
+  }
 }
 
 export const modelManager = new ModelManager();

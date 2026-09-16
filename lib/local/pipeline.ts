@@ -1,10 +1,13 @@
-// Local-Ghost execution pipeline. Same Ghost semantics as the Pod:
-// user → reflex → context planner → effort → memory → execution planner →
-// runtime → tool execution → memory update → response. No "mobile special
-// chat pipeline": stages are shared concepts with runtime-aware storage.
+// Travel-cache pipeline. The phone ANSWERS (local model) and COLLECTS (one
+// deterministic remember + chat outbox). It does not act: no model-invoked
+// tools, no routines, no hardware. The Pod is the only brain for those.
+//
+// Flow: reflex → bounded context → local inference (tools: none) →
+// deterministic remember capture → done. Pod/cloud turns stream Pod SSE
+// unchanged (keys stay on the appliance).
 import { classifyEffort, plan, type Availability, type Privacy } from "./planner";
-import { executeLocalTool, toToolSchemas } from "./toolsLocal";
-import { assistantMessage, clarifyRequest, progressEvent, type GhostEvent } from "./ghostEvents";
+import { extractRememberText, queueRememberFact, recentRememberedFacts } from "./toolsLocal";
+import { assistantMessage, progressEvent, type GhostEvent, type RoutingTarget } from "./ghostEvents";
 import type { ChatMessage } from "./runtime";
 import { GhostTransport } from "./transport";
 import type { ModelManifest } from "./registry";
@@ -34,27 +37,22 @@ function reflexAnswer(msg: string): string | null {
   return null;
 }
 
-// buildContext bounds what enters the model: current message + recent history
-// + active task handled by caller. Never dumps whole memory stores.
+// buildContext bounds what enters the model: current message + recent history.
+// Never dumps whole memory stores.
 export function buildContext(message: string, history: ChatMessage[], maxTurns = 10): ChatMessage[] {
   const recent = history.slice(-maxTurns * 2);
   return [...recent, { role: "user", content: message }];
 }
 
-function parseToolCallJson(text: string): { tool: string; args: Record<string, unknown> } | null {
-  const i = text.indexOf("{");
-  const j = text.lastIndexOf("}");
-  if (i < 0 || j <= i) return null;
-  try {
-    const obj = JSON.parse(text.slice(i, j + 1)) as { tool?: string; args?: Record<string, unknown> };
-    if (obj.tool) return { tool: obj.tool, args: obj.args ?? {} };
-    return null;
-  } catch {
-    return null;
+export function routingLabel(target: RoutingTarget, podReachable: boolean): string {
+  if (target === "phone") {
+    return podReachable
+      ? "Answering on this phone · Pod reachable, will sync"
+      : "Answering on this phone · will sync when Pod is back";
   }
+  if (target === "cloud") return "Answered via Pod cloud · keys stayed on Pod";
+  return "Answered by home Pod";
 }
-
-const CLARIFY_RE = /\b(which|what kind|clarify|do you mean|need more)\b/i;
 
 export async function runLocalPipeline(input: PipelineInput, h: PipelineHandlers): Promise<void> {
   const effort = classifyEffort(input.message);
@@ -62,7 +60,7 @@ export async function runLocalPipeline(input: PipelineInput, h: PipelineHandlers
     phone: true,
     pod: input.transport.podAvailable,
     cloud: input.transport.podAvailable && input.cloudAllowed,
-    phoneModel: (await input.transport.podAvailable) ? true : true, // refined below
+    phoneModel: true, // refined below
     podModel: input.podModelKnown,
     cloudModel: input.transport.podAvailable && input.cloudAllowed,
     needsHardware: input.needsHardware,
@@ -73,26 +71,40 @@ export async function runLocalPipeline(input: PipelineInput, h: PipelineHandlers
   avail.phoneModel = active !== null;
 
   const decision = plan({ effort, privacy: input.privacy, avail, podPreferred: input.podPreferred });
-  h.onEvent(progressEvent(`Ghost · ${decision.target === "phone" ? "Local" : decision.target === "pod" ? "Home" : "Cloud"}`));
+  const target = decision.target as RoutingTarget;
+  h.onEvent(progressEvent(routingLabel(target, input.transport.podAvailable), { target, reason: decision.reason, willSync: target === "phone" }));
 
-  if (decision.target !== "phone") {
+  if (target !== "phone") {
     // Pod/cloud path: same UX, Pod gateway executes (keys stay on appliance).
     await input.transport.streamPod(input.message, { onEvent: (e) => h.onEvent(e) }, input.signal);
     return;
   }
 
-  // Phone-local path.
+  // Phone-local path: answer only. No tool schemas are offered to the small
+  // model — past JSON tool-call parsing hallucinated; collection below is
+  // deterministic and never model-invoked.
   const quick = reflexAnswer(input.message);
   if (quick) {
     h.onEvent(assistantMessage(quick));
-    h.onEvent({ kind: "done", text: quick });
+    h.onEvent({ kind: "done", text: quick, data: { target: "phone" as RoutingTarget } });
     return;
   }
   const messages = buildContext(input.message, input.history);
+  // Deterministic recall: inject collected facts as a system note so the
+  // small model answers from the notebook without any tool-call round-trip.
+  try {
+    const facts = await recentRememberedFacts(5);
+    if (facts.length > 0) {
+      messages.unshift({
+        role: "system",
+        content: `Saved on this phone (syncs to Pod when reachable):\n${facts.map((f) => `- ${f}`).join("\n")}`,
+      });
+    }
+  } catch { /* recall never breaks answers */ }
   let acc = "";
   await input.transport.streamLocal(
     input.manifests,
-    { messages, tools: toToolSchemas() },
+    { messages, tools: [] },
     {
       onEvent: (e) => {
         if (e.kind === "assistant_message") acc = e.text ?? acc;
@@ -101,22 +113,17 @@ export async function runLocalPipeline(input: PipelineInput, h: PipelineHandlers
     },
     input.signal,
   );
-  // Tool execution: model-requested local tools run on the phone.
-  const call = parseToolCallJson(acc);
-  if (call) {
-    h.onEvent({ kind: "tool_status", tool: call.tool, text: "running on this phone" });
+  // Deterministic collector: "remember ..." queues a sync op + outbox-style
+  // durability without trusting model output.
+  const remember = extractRememberText(input.message);
+  if (remember) {
     try {
-      const result = await executeLocalTool(call.tool, call.args);
-      h.onEvent(assistantMessage(`Done: ${JSON.stringify(result)}`));
+      await queueRememberFact(remember);
+      h.onEvent({ kind: "tool_status", tool: "local_memory.write", text: "Saved on this phone · will sync to Pod" });
     } catch (e) {
       h.onEvent({ kind: "error", text: e instanceof Error ? e.message : String(e) });
       return;
     }
   }
-  // Clarification continues the same task regardless of runtime.
-  if (CLARIFY_RE.test(acc) && acc.length < 400) {
-    h.onEvent(clarifyRequest(acc));
-    return;
-  }
-  h.onEvent({ kind: "done", text: acc });
+  h.onEvent({ kind: "done", text: acc, data: { target: "phone" as RoutingTarget, willSync: true } });
 }

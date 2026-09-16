@@ -27,6 +27,17 @@ export interface ModelManifest {
 
 export const MANIFEST_VERSION = 1;
 
+// Travel-cache policy: Mini only. Balanced (1.7B) doubled QA/storage/support
+// for marginal quality that still loses to the Pod. Registry stays generic so
+// future models can be re-added deliberately; the catalog layer filters to
+// this allowlist. Legacy Balanced artifacts on disk are orphaned (removable,
+// never auto-downloaded).
+export const SUPPORTED_PHONE_MODEL_IDS: readonly string[] = ["ghost-mini-1"];
+
+export function isSupportedPhoneModel(id: string): boolean {
+  return (SUPPORTED_PHONE_MODEL_IDS as readonly string[]).includes(id);
+}
+
 export function validateManifest(m: ModelManifest): string | null {
   if (m.manifest_version !== MANIFEST_VERSION) return `unsupported manifest_version ${m.manifest_version}`;
   if (!m.id || !m.version || !m.runtime || !m.format) return "id, version, runtime, format required";

@@ -10,30 +10,42 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 
 | Feature | Description |
 |---------|-------------|
-| Inbox | Proactive Ghost messages grouped by day |
-| Presence | Live connection status and gateway uptime |
-| Ask Ghost | Jump straight into a conversation |
+| Greeting | Owner name from Pod identity, date header |
+| Approval nudge | Pending permission requests needing you |
+| Plus menu | Entry to every screen |
 
 ## 💬 Chats
 
 | Feature | Description |
 |---------|-------------|
-| Streaming AI | Token-by-token responses using SSE |
+| Streaming AI | Token-by-token responses (Pod SSE, or on-device Mini when offline) |
+| Routing label | Every answer says where it ran: phone vs home Pod |
 | Live tool progress | Shows "Searching… / Running…" while Ghost works |
-| Voice input | Record and transcribe audio |
-| Image and file attachments | Send media with messages |
+| Voice input | Record and transcribe via the Pod (`POST /v1/voice/turn`); disabled offline with an honest label |
 | Markdown rendering | Code blocks, headings, links, formatting |
-| Conversation history | Latest 50 messages, reconciled against the server after every turn |
+| Conversation history | Latest 50 messages, reconciled against the server after every turn; on-device thread cache when there is no Pod |
 | Cancel generation | Stop a long response mid-stream |
 | Offline outbox | Messages typed while unreachable are queued on-device (persisted FIFO, network/timeout failures only) and sent in order when connectivity returns |
+
+Media attachments are not wired in the chat UI. The send path supports them;
+the Composer exposes no attach buttons on the conversation screen.
 
 ## 🔀 Plus menu
 
 - Conversation — jump straight into a chat
 - Intelligence — which AI Ghost runs on
+- Ghost Local — on-device Mini model, storage, privacy
 - Connected Apps — status of connected services
-- Ghost Pod — device health and attention items
+- Goals — create and track goals
+- Ghost Pod — device health, attention items, offline-phone metrics
 - About — what Ghost is and how it works
+
+## 📴 Offline (travel cache)
+
+With Ghost Mini downloaded, the phone answers and collects offline: chat plus
+`remember ...` notes, queued for sync. Routines, home control, and full memory
+stay on the Pod. The phone never executes actions offline — it answers,
+collects, and syncs.
 
 ---
 
@@ -106,14 +118,19 @@ Opening this URI adopts the relay connection through the app's credential system
 ```text
 ┌──────────────────────┐   HTTPS + WebSocket   ┌───────────────┐   tunnel    ┌─────────────────────┐
 │     Ghost Mobile     │ ◄───────────────────► │  Relay server │ ◄─────────► │ Ghost Pod (gateway) │
-│   React Native/Expo  │  client token auth    │    (cloud)    │  localhost  │   127.0.0.1:8766    │
+│   React Native/Expo  │  client token auth    │    (cloud)    │  localhost  │   0.0.0.0:8766      │
 └──────────────────────┘                       └───────────────┘             └─────────────────────┘
+        │ direct LAN (same Wi-Fi / Tailscale)                              ▲
+        └──────────────────────────────────────────────────────────────────┘
 ```
 
-- The Ghost Pod gateway binds to **localhost only**. The phone reaches it through the **relay server**, which tunnels traffic over an outbound WebSocket from the Pod.
+- The gateway listens on the LAN (`0.0.0.0:8766`). Same-network and Tailscale
+  connections reach it directly with device credentials; the **relay server**
+  (outbound WebSocket tunnel from the Pod) is for off-network access, and is
+  the app's default transport.
 - Relay connections authenticate with `X-Ghost-Client-Id` + `X-Ghost-Client-Token` headers.
-- Paired devices additionally authenticate to the gateway with `X-Ghost-Device-ID` + `X-Ghost-Credential` headers.
-- There is no shared secret. Each device gets its own credential at pairing time; tokens are never placed in URLs.
+- Paired devices authenticate to the gateway with `X-Ghost-Device-ID` + `X-Ghost-Credential` headers (loopback callers need none).
+- There is no shared secret. Each device gets its own credential at pairing time; device credentials and client tokens are never placed in URLs (the short-lived **pairing token** is — it lives in the QR code by design).
 
 ---
 
@@ -124,28 +141,35 @@ ghost-app/
 ├── app/
 │   ├── _layout.tsx           # Root stack, deep links, WS notifications
 │   ├── (tabs)/
-│   │   └── index.tsx         # 👻 Home — inbox + presence
+│   │   └── index.tsx         # 👻 Home — greeting + approval nudge + Plus menu
 │   │   │   # (no chats list: one thread, see conversation.tsx below)
-│   ├── conversation.tsx      # Streaming chat (SSE)
+│   ├── conversation.tsx      # Chat (Pod SSE or on-device Mini via runLocalTurn)
 │   ├── intelligence.tsx      # Intelligence — default model + AI health (Plus menu)
+│   ├── local-models.tsx      # Ghost Local — Mini download, storage, privacy (Plus menu)
+│   ├── goals.tsx             # Goals CRUD (Plus menu)
 │   ├── connections.tsx       # Connected Apps — service status (Plus menu)
-│   ├── device.tsx            # Ghost Pod — health, system info, diagnostics (Plus menu)
+│   ├── device.tsx            # Ghost Pod — health, diagnostics, offline-phone metrics
 │   ├── about.tsx             # About Ghost (Plus menu)
 │   ├── onboarding.tsx        # First-launch flow
 │   ├── connect.tsx           # Scan QR / enter manually
 │   ├── scan.tsx              # QR scanner
 │   ├── confirm.tsx           # Pairing progress
-│   ├── manual.tsx            # Manual pairing entry
+│   ├── manual.tsx            # Manual pairing entry (LAN only)
 │   ├── pairing-success.tsx   # Connected state
 │   ├── auth-failure.tsx      # Credential rejected
 │   ├── revoked.tsx           # Device disconnected
 ├── lib/
 │   ├── ghostApi.ts           # API client (REST + SSE + WS)
+│   ├── localTurn.ts          # Execution-planned send (phone/Pod/cloud)
+│   ├── local/                # Travel cache: pipeline, planner, Mini catalog,
+│   │                         # modelManager, memsync, metrics, threadCache
 │   ├── connection.ts         # Connection state machine
 │   ├── credentials.ts        # SecureStore/AsyncStorage credential layer
-│   ├── pairing.ts            # Pairing URI parser
+│   ├── pairing.ts            # Pairing URI parser (ghost://pair + legacy connect)
+│   ├── outbox.ts             # Offline message queue (FIFO, persisted)
 │   ├── store.ts              # Zustand state
 │   └── format.ts             # Formatting helpers
+├── modules/ghost-local-inference/  # On-device runtime (llama.cpp, Mini only)
 ├── components/
 ├── constants/theme.ts        # Design tokens
 └── docs/
@@ -160,7 +184,7 @@ ghost-app/
 | Relay client token | `X-Ghost-Client-Id` + `X-Ghost-Client-Token` | App ↔ relay server |
 | Device credential | `X-Ghost-Device-ID` + `X-Ghost-Credential` | App ↔ Ghost gateway (paired devices) |
 
-Message endpoints also send `X-Ghost-Session`. Pairing redemption (`POST /v1/pairing/complete`) is a public endpoint — the short-lived pairing token is the authorization.
+Message endpoints also send `X-Ghost-Session`. Pairing redemption (`POST /v1/pairing/complete`) is a public endpoint — the short-lived pairing token is the authorization. Gateway auth failures return `401` only (never `403` for device credentials); the app routes `device_revoked` to the revoked screen. `/v1/ws` is opened without auth headers (React Native WebSockets can't set them).
 
 ### Structured errors
 
@@ -176,43 +200,46 @@ Pairing and auth errors return `{ "error": { "code", "message" } }`:
 
 | Method | Endpoint | Description |
 |---------|----------|-------------|
-| GET | `/v1/health` | Connection test (`uptime_s` included) |
-| POST | `/v1/pairing/invitations` | Create pairing invitation (Pod side) |
+| GET | `/v1/health` | Connection test (`uptime_s` included; authed, loopback bypass) |
 | POST | `/v1/pairing/complete` | Redeem pairing token (public) |
-| GET | `/v1/pairing/devices` | List paired devices |
-| POST | `/v1/pairing/revoke` | Disconnect a device |
-| POST | `/v1/pairing/cancel` | Cancel a pending invitation |
 | POST | `/v1/chat` | Streaming AI chat (SSE) |
 | GET | `/v1/history` | Conversation history |
-| GET | `/v1/search` | Search messages |
-| GET | `/v1/sessions` | Session list |
-| POST | `/v1/upload` | Upload files |
-| POST | `/v1/transcribe` | Audio transcription |
-| GET | `/v1/memory/files` / `/v1/memory/file` | Memory files |
-| GET | `/v1/workspace/files` / `/v1/workspace/file` | Workspace files |
-| GET/POST/PATCH/DELETE | `/v1/cron/jobs` | Scheduled jobs |
-| GET | `/v1/skills` | List installed skills |
-| GET | `/v1/skills/read` | Read a skill's files |
-| POST | `/v1/skills/toggle` | Enable/disable a skill |
-| POST | `/v1/skills/install` | Install a skill from GitHub |
-| POST | `/v1/steering` | Mid-turn steering |
-| POST | `/v1/clarify/respond` | Answer a clarify request |
+| GET | `/v1/identity` | Owner/Ghost identity |
+| GET | `/v1/activity` | User-safe activity |
+| GET/POST | `/v1/permissions/requests` + `/v1/permissions/resolve` | Pending approvals |
+| GET/POST | `/v1/routines` | Routines |
+| GET/POST | `/v1/goals` | Goals |
+| GET | `/v1/cards` | Rich cards |
+| GET/POST | `/v1/connected-apps` | Connected services |
+| POST | `/v1/voice/turn` | Voice message transcription + reply |
+| POST | `/v1/steering` | Mid-turn steering (incl. abort) |
 | GET/POST | `/v1/model` | Model presets and switching |
 | GET | `/v1/providers` | Provider directory (configured flags, recommended models) |
 | POST | `/v1/providers/test` | Test a provider connection (key never persisted) |
 | GET/POST | `/v1/intelligence/config` | Owner AI config: masked keys, routing, Ollama URL |
 | GET | `/v1/ollama/models` | Installed local models |
 | POST | `/v1/ollama/pull` | Start a local model download |
+| GET | `/v1/models/catalog` | Phone-local model catalog (Mini only) |
+| GET/POST | `/v1/sync/ops` | Memory-sync op push/pull |
+| GET | `/v1/doctor` (+ `/v1/doctor/local`) | Diagnostics and service health checks |
+| GET | `/v1/live/surfaces` | Live surfaces |
+| GET | `/v1/artifacts` | Artifacts |
+| GET | `/v1/memory/self` | Phone-visible memory fact |
+| GET | `/v1/stats` | Pod stats (version, CPU, memory, disk) |
 | WS | `/v1/ws` | Proactive push (`assistant_message`, `clarify_request`, `cron_update`, `progress_event`) |
+
+Not called by the app: `/v1/upload`, `/v1/transcribe`, `/v1/search`,
+`/v1/sessions`, `/v1/cron/jobs`, `/v1/skills*`, `/v1/memory/files`,
+`/v1/workspace/files`.
 
 ---
 
 # Security
 
-- Credentials live only in platform secure storage (iOS Keychain / Android Keystore via expo-secure-store)
+- Credentials live only in platform secure storage (iOS Keychain / Android Keystore via expo-secure-store); connection metadata (host, transport) lives in AsyncStorage
 - No shared secret exists — each device authenticates individually and can be disconnected independently from the Pod
-- Credentials are never placed in URLs, including WebSocket connections
-- The gateway is never exposed to the internet; remote access goes through the relay with per-client tokens
+- Device credentials and client tokens are never placed in URLs, including WebSocket connections (the short-lived pairing token is, by design, in the QR code)
+- The gateway listens on the LAN with device-credential auth; remote access goes through the relay with per-client tokens
 
 ---
 

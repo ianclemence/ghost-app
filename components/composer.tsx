@@ -333,7 +333,7 @@ export function Composer({
         ) : (
           <View
             style={[styles.iconBtn, styles.micDisabled]}
-            accessibilityLabel="Voice input coming soon"
+            accessibilityLabel="Voice needs Pod connection — type instead"
             accessibilityState={{ disabled: true }}
           >
             <Mic size={18} color={Ghost.text.secondary} />

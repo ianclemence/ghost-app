@@ -13,6 +13,7 @@ import {
   type DoctorStatus,
   type PiStats,
 } from "@/lib/ghostApi";
+import { downloadCompletionRate, getLocalMetrics, type LocalMetrics } from "@/lib/local/metrics";
 import { useGhostStore } from "@/lib/store";
 
 function fmtBytes(n?: number): string {
@@ -40,17 +41,20 @@ export default function DeviceScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [diagRunning, setDiagRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localMetrics, setLocalMetrics] = useState<LocalMetrics | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!config) return;
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const [health, s, d] = await Promise.all([
+      const [health, s, d, m] = await Promise.all([
         checkHealthInfo(config),
         fetchStats(config).catch(() => null),
         fetchDoctorStatus(config),
+        getLocalMetrics().catch(() => null),
       ]);
+      setLocalMetrics(m);
       if (health.uptimeS != null) setUptime(formatUptime(health.uptimeS));
       else if (s?.uptime) setUptime(s.uptime);
       setVersion(s?.version ?? "—");
@@ -176,6 +180,26 @@ export default function DeviceScreen() {
               style={{ alignSelf: "center" }}
             />
           </View>
+
+          <GhostText type="caption" style={styles.group}>Offline phone</GhostText>
+          {(() => {
+            const phone = localMetrics?.phone_turns ?? 0;
+            const pod = localMetrics?.pod_turns ?? 0;
+            const rate = localMetrics ? downloadCompletionRate(localMetrics) : null;
+            const remembered = localMetrics?.remember_captures ?? 0;
+            const synced = localMetrics?.remember_sync_confirmed ?? 0;
+            return (
+              <>
+                <InfoRow label="Phone answers" value={String(phone)} />
+                <InfoRow label="Pod answers" value={String(pod)} />
+                <InfoRow label="Notes saved offline" value={`${remembered} · synced ${synced}`} />
+                <InfoRow
+                  label="Mini downloads"
+                  value={rate == null ? "—" : `${Math.round(rate * 100)}% completed`}
+                />
+              </>
+            );
+          })()}
         </ScrollView>
       )}
       <PlusMenu />
