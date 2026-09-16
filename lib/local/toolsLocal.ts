@@ -81,6 +81,70 @@ export function readRememberedFact(key: string): string | null {
   return memCache.get(key) ?? null;
 }
 
+// resetMemoryCacheForTests drops the in-memory notebook. Test-only: it lets
+// the suite simulate a process restart (memCache is process memory; the sync
+// DB and thread cache survive). Never called in production code.
+export function resetMemoryCacheForTests(): void {
+  memCache.clear();
+}
+
+// readFactPayloads lists durable fact texts in the sync DB. Best-effort:
+// SQLite is unavailable in unit tests, where the caller falls back to the
+// session cache.
+async function readFactPayloads(): Promise<string[]> {
+  try {
+    const { openSyncDb } = await import("./memsync");
+    const db = await openSyncDb();
+    const rows = await db.getAllAsync<{ payload: string | null }>(
+      "SELECT payload FROM sync_ops WHERE entity_kind='fact' AND type='upsert'",
+    );
+    const out: string[] = [];
+    for (const r of rows ?? []) {
+      if (!r.payload) continue;
+      try {
+        const obj = JSON.parse(r.payload) as { text?: string };
+        if (obj.text) out.push(obj.text.trim().slice(0, 200));
+      } catch {
+        out.push(r.payload.trim().slice(0, 200));
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// requeueFromThread closes the kill-before-sync hole: if the process died
+// after the thread cache persisted a "remember ..." message but before its
+// sync op reached the DB, the Pod would never learn the fact while the thread
+// shows it. Re-deriving ops from the durable thread cache makes the thread
+// the fallback source of truth. Idempotent: facts already live (session) or
+// durable (DB) are skipped, so re-running never duplicates. Returns the
+// number of ops requeued.
+export async function requeueFromThread(): Promise<number> {
+  let thread: { role: string; content: string }[];
+  try {
+    const { loadLocalThread } = await import("./threadCache");
+    thread = await loadLocalThread();
+  } catch {
+    return 0;
+  }
+  const live = new Set<string>([...memCache.values()].map((v) => v.trim().slice(0, 200)));
+  for (const t of await readFactPayloads()) live.add(t);
+  let requeued = 0;
+  for (const m of thread) {
+    if (m.role !== "user") continue;
+    const text = extractRememberText(m.content ?? "");
+    if (!text) continue;
+    const norm = text.trim().slice(0, 200);
+    if (live.has(norm)) continue;
+    await queueRememberFact(text);
+    live.add(norm);
+    requeued++;
+  }
+  return requeued;
+}
+
 // recentRememberedFacts is the deterministic recall path. No model tool call:
 // the pipeline injects these into context so offline Ghost can answer from
 // its own notebook ("what's my bike size?"). memCache covers this session

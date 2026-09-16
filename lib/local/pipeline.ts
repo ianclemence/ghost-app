@@ -6,7 +6,7 @@
 // deterministic remember capture → done. Pod/cloud turns stream Pod SSE
 // unchanged (keys stay on the appliance).
 import { classifyEffort, plan, type Availability, type Privacy } from "./planner";
-import { extractRememberText, queueRememberFact, recentRememberedFacts } from "./toolsLocal";
+import { extractRememberText, queueRememberFact, recentRememberedFacts, requeueFromThread } from "./toolsLocal";
 import { assistantMessage, progressEvent, type GhostEvent, type RoutingTarget } from "./ghostEvents";
 import type { ChatMessage } from "./runtime";
 import { GhostTransport } from "./transport";
@@ -90,6 +90,12 @@ export async function runLocalPipeline(input: PipelineInput, h: PipelineHandlers
     return;
   }
   const messages = buildContext(input.message, input.history);
+  // Restart recovery: re-derive any sync ops lost to a kill-before-sync from
+  // the durable thread cache before recalling, so the notebook is whole even
+  // when the process died mid-turn. Best-effort; never breaks answers.
+  try {
+    await requeueFromThread();
+  } catch { /* recovery never breaks answers */ }
   // Deterministic recall: inject collected facts as a system note so the
   // small model answers from the notebook without any tool-call round-trip.
   try {

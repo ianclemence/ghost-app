@@ -275,4 +275,21 @@ describe("remember→recall→sync integration (stubbed transport)", () => {
     expect(turn2.some((e) => e.kind === "tool_status")).toBe(false);
     asyncBacking.delete("ghost:models:meta");
   });
+
+  test("restart recovery: thread cache requeues ops lost to kill-before-sync", async () => {
+    const { requeueFromThread, recentRememberedFacts, resetMemoryCacheForTests } = await import("./toolsLocal");
+    const { saveLocalThread } = await import("./threadCache");
+    // Persist a thread containing a remember the session cache never saw.
+    await saveLocalThread([
+      { id: "u9", role: "user", content: "remember restart-probe gamma", timestamp: 9 },
+      { id: "a9", role: "assistant", content: "Noted.", timestamp: 10 },
+    ]);
+    resetMemoryCacheForTests(); // simulate process restart: session memory gone
+    expect(await recentRememberedFacts(20)).not.toContain("restart-probe gamma");
+    const requeued = await requeueFromThread();
+    expect(requeued).toBe(1);
+    expect((await recentRememberedFacts(20)).some((f) => f.includes("restart-probe gamma"))).toBe(true);
+    // Idempotent: a second pass requeues nothing.
+    expect(await requeueFromThread()).toBe(0);
+  });
 });

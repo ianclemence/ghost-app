@@ -57,9 +57,15 @@ export async function evaluateDevice(cfg: GhostConfig, device: Record<string, un
 // syncNow pushes local shared ops then pulls Pod ops. Returns counts.
 // Travel-cache eval: confirmed pushes feed remember_sync_confirmed so the
 // CTO gate (Mini precision, sync health) is observable, not aspirational.
+// Requeues thread-derived ops first so a restart-then-online sequence cannot
+// strand a remembered fact on the phone.
 export async function syncNow(cfg: GhostConfig): Promise<{ pushed: number; pulled: number }> {
   const base = baseURL(cfg);
   const headers = authHeaders(cfg);
+  try {
+    const { requeueFromThread } = await import("./local/toolsLocal");
+    await requeueFromThread();
+  } catch { /* recovery never breaks sync */ }
   const cursor = await getCursor();
   const pending = await pendingOps(cursor);
   const pushed = await pushOps(base, headers, pending).catch(() => 0);
