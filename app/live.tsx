@@ -1,8 +1,8 @@
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ghost, Midnight, Space, Type } from "@/constants/theme";
+import { Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { PlusMenu } from "@/components/plus-menu";
 import { LiveOrb, LiveWaveform } from "@/components/live-waveform";
@@ -67,15 +67,32 @@ export default function LiveVoiceScreen() {
   const listening = connected && !snapshot.muted && !speaking;
 
   const start = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     void live?.start(voice).catch(() => {});
   };
+  const toggleMute = () => {
+    void Haptics.selectionAsync().catch(() => {});
+    live?.toggleMute();
+  };
+  const end = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    void live?.stop().catch(() => {});
+  };
+
+  const transcript = [...snapshot.transcript].reverse();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScreenBackground />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} accessibilityLabel="Go back" hitSlop={12}>
-          <Text style={styles.back}>‹ Back</Text>
+        <Pressable
+          onPress={() => router.back()}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          hitSlop={12}
+          style={styles.backHit}
+        >
+          <Text style={styles.back}>{"‹ Back"}</Text>
         </Pressable>
         <Text style={styles.title}>Live voice</Text>
         <Text style={styles.route}>{config ? "via home Pod" : "no Pod"}</Text>
@@ -86,7 +103,7 @@ export default function LiveVoiceScreen() {
         <Text style={styles.state}>
           {snapshot.status === "connected"
             ? speaking
-              ? "Ghost is speaking — talk over me"
+              ? "Ghost is speaking, jump in anytime"
               : snapshot.muted
                 ? "Mic muted"
                 : "Listening"
@@ -102,38 +119,44 @@ export default function LiveVoiceScreen() {
           <Text style={styles.elapsed}>{fmtElapsed(snapshot.elapsedSeconds)} / 10:00</Text>
         ) : null}
         {snapshot.error ? <Text style={styles.error}>{snapshot.error}</Text> : null}
+        {!status.checked ? (
+          <Text style={styles.honest}>Checking live voice…</Text>
+        ) : null}
         {offline ? (
           <Text style={styles.honest}>
-            {config ? "Your Ghost is offline — live voice needs the Pod." : "Pair your Ghost Pod to use live voice. Text chat works on this phone."}
+            {config
+              ? "Your Ghost is offline, so live voice is paused. Text still works."
+              : "Pair your Ghost Pod for live voice. Text chat works on this phone."}
           </Text>
         ) : null}
-        {!status.checked ? null : !status.enabled && !offline ? (
+        {status.checked && !status.enabled && !offline ? (
           <Text style={styles.honest}>
-            {"Live voice isn't configured. Add an OpenAI key in Intelligence settings."}
+            {"Live voice needs an OpenAI key. Add one under Intelligence."}
           </Text>
         ) : null}
 
-        <LiveWaveform level={Math.max(snapshot.inputLevel, snapshot.outputLevel)} live={speaking} />
+        <LiveWaveform
+          level={Math.max(snapshot.inputLevel, snapshot.outputLevel)}
+          speaking={speaking}
+        />
 
         <View style={styles.controls}>
           <Pressable
             style={[styles.mute, snapshot.muted && styles.muteOn, !connected && styles.disabled]}
             disabled={!connected}
-            onPress={() => live?.toggleMute()}
+            onPress={toggleMute}
             accessibilityLabel={snapshot.muted ? "Unmute" : "Mute"}
             accessibilityRole="button"
           >
-            <Text style={[styles.muteText, snapshot.muted && styles.muteTextOn]}>
+            <Text style={styles.muteText}>
               {snapshot.muted ? "Unmute" : "Mute"}
             </Text>
           </Pressable>
           {connected || busy ? (
             <Pressable
-              style={[styles.end]}
+              style={[styles.end, busy && styles.disabled]}
               disabled={busy}
-              onPress={() => {
-                void live?.stop().catch(() => {});
-              }}
+              onPress={end}
               accessibilityLabel="End call"
               accessibilityRole="button"
             >
@@ -157,7 +180,12 @@ export default function LiveVoiceScreen() {
         </View>
 
         <Text style={styles.section}>Voice</Text>
-        <View style={styles.voices}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.voiceRow}
+          style={styles.voiceScroll}
+        >
           {VOICES.map((v) => {
             const active = v.id === voice;
             return (
@@ -167,31 +195,30 @@ export default function LiveVoiceScreen() {
                 onPress={() => setVoice(v.id)}
                 style={[styles.chip, active && styles.chipActive, voiceLocked && styles.disabled]}
                 accessibilityLabel={`Voice ${v.label}`}
+                accessibilityRole="button"
                 accessibilityState={{ selected: active, disabled: voiceLocked }}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{v.label}</Text>
               </Pressable>
             );
           })}
-        </View>
-        {voiceLocked ? <Text style={styles.lock}>Voice is fixed for this call.</Text> : null}
+        </ScrollView>
+        {voiceLocked ? <Text style={styles.lock}>Voice stays fixed for this call.</Text> : null}
 
         <Text style={styles.section}>Transcript</Text>
-        {snapshot.transcript.length === 0 ? (
-          <Text style={styles.empty}>What you both say appears here, live.</Text>
+        {transcript.length === 0 ? (
+          <Text style={styles.empty}>What you both say appears here while you talk.</Text>
         ) : (
-          <FlatList
-            data={[...snapshot.transcript].reverse()}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            renderItem={({ item }) => (
-              <View style={[styles.bubble, item.role === "user" ? styles.user : styles.ghost]}>
-                <Text style={[styles.bubbleText, item.role === "user" && styles.userText]}>
-                  {item.text}
-                </Text>
+          <View style={styles.thread}>
+            {transcript.map((item) => (
+              <View
+                key={item.id}
+                style={[styles.bubble, item.role === "user" ? styles.user : styles.ghost]}
+              >
+                <Text style={styles.bubbleText}>{item.text}</Text>
               </View>
-            )}
-          />
+            ))}
+          </View>
         )}
         <View style={{ height: 120 }} />
       </ScrollView>
@@ -207,45 +234,68 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Space.xl,
-    paddingVertical: Space.md,
+    paddingVertical: Space.sm,
+    minHeight: 52,
   },
-  back: { fontSize: 16, color: Ghost.accent.primary, minWidth: 72 },
+  backHit: { minWidth: 72, minHeight: 44, justifyContent: "center" },
+  back: { fontSize: 16, color: Ghost.accent.primary },
   title: { ...Type.headline, color: Ghost.text.primary },
   route: { fontSize: 12, color: Ghost.text.secondary, minWidth: 72, textAlign: "right" },
-  body: { alignItems: "center", paddingHorizontal: Space.xl, paddingTop: Space.lg },
+  body: { alignItems: "stretch", paddingHorizontal: Space.xl, paddingTop: Space.md },
   state: { ...Type.headline, color: Ghost.text.primary, marginTop: Space.md, textAlign: "center" },
-  elapsed: { fontSize: 13, color: Ghost.text.secondary, marginTop: 4, fontVariant: ["tabular-nums"] },
+  elapsed: {
+    fontSize: 13,
+    color: Ghost.text.secondary,
+    marginTop: 4,
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
+  },
   error: { fontSize: 13, color: Ghost.status.error, marginTop: Space.sm, textAlign: "center" },
-  honest: { fontSize: 13, color: Ghost.text.secondary, marginTop: Space.sm, textAlign: "center" },
-  controls: { flexDirection: "row", gap: Space.md, marginTop: Space.lg, alignItems: "center" },
+  honest: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: Ghost.text.secondary,
+    marginTop: Space.sm,
+    textAlign: "center",
+    maxWidth: 480,
+    alignSelf: "center",
+  },
+  controls: {
+    flexDirection: "row",
+    gap: Space.md,
+    marginTop: Space.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   mute: {
+    minHeight: 48,
+    justifyContent: "center",
     paddingHorizontal: Space.xl,
-    paddingVertical: Space.md,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: Ghost.border.default,
     backgroundColor: Ghost.bg.raised,
   },
-  muteOn: { backgroundColor: Midnight.surface, borderColor: Midnight.lineStrong },
+  muteOn: { backgroundColor: Ghost.accent.soft, borderColor: Ghost.accent.primary },
   muteText: { fontSize: 16, fontWeight: "600", color: Ghost.text.primary },
-  muteTextOn: { color: Midnight.ink },
   start: {
+    minHeight: 48,
+    justifyContent: "center",
     paddingHorizontal: Space.xxxl,
-    paddingVertical: Space.md,
     borderRadius: 999,
     backgroundColor: Ghost.accent.primary,
   },
   startText: { fontSize: 16, fontWeight: "700", color: "#FAFAF7" },
   end: {
+    minHeight: 48,
+    justifyContent: "center",
     paddingHorizontal: Space.xxxl,
-    paddingVertical: Space.md,
     borderRadius: 999,
     backgroundColor: Ghost.status.error,
   },
   endText: { fontSize: 16, fontWeight: "700", color: "#FAFAF7" },
   disabled: { opacity: 0.45 },
   section: {
-    alignSelf: "flex-start",
     fontSize: 13,
     fontWeight: "700",
     color: Ghost.text.secondary,
@@ -254,10 +304,12 @@ const styles = StyleSheet.create({
     marginTop: Space.xxl,
     marginBottom: Space.sm,
   },
-  voices: { flexDirection: "row", flexWrap: "wrap", gap: Space.sm, alignSelf: "stretch" },
+  voiceScroll: { marginHorizontal: -Space.xl },
+  voiceRow: { gap: Space.sm, paddingHorizontal: Space.xl, paddingVertical: 4 },
   chip: {
-    paddingHorizontal: Space.md,
-    paddingVertical: Space.sm,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: Space.lg,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: Ghost.border.default,
@@ -266,20 +318,19 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: Ghost.accent.primary, borderColor: Ghost.accent.primary },
   chipText: { fontSize: 14, color: Ghost.text.primary },
   chipTextActive: { color: "#FAFAF7", fontWeight: "600" },
-  lock: { alignSelf: "flex-start", fontSize: 12, color: Ghost.text.tertiary, marginTop: Space.sm },
-  empty: { alignSelf: "flex-start", fontSize: 14, color: Ghost.text.tertiary },
+  lock: { fontSize: 12, color: Ghost.text.tertiary, marginTop: Space.sm },
+  empty: { fontSize: 14, lineHeight: 20, color: Ghost.text.tertiary, maxWidth: 480 },
+  thread: { gap: Space.sm },
   bubble: {
-    alignSelf: "stretch",
     borderRadius: 14,
     paddingHorizontal: Space.md,
     paddingVertical: Space.sm,
-    marginBottom: Space.sm,
     backgroundColor: Ghost.bg.raised,
     borderWidth: 1,
     borderColor: Ghost.border.subtle,
+    maxWidth: "92%",
   },
-  user: { backgroundColor: "#E4E2DC", borderColor: "transparent" },
-  ghost: { backgroundColor: Ghost.bg.raised },
+  user: { alignSelf: "flex-end", backgroundColor: "#E4E2DC", borderColor: "transparent" },
+  ghost: { alignSelf: "flex-start", backgroundColor: Ghost.bg.raised },
   bubbleText: { fontSize: 15, lineHeight: 21, color: Ghost.text.primary },
-  userText: { color: Ghost.text.primary },
 });

@@ -6,11 +6,11 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { Ghost, Midnight, Space } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 
 const BARS = 24;
 
-function Bar({ value, index }: { value: number; index: number }) {
+function Bar({ value, index, speaking }: { value: number; index: number; speaking: boolean }) {
   const height = useSharedValue(6);
   const reduceMotion = useReducedMotion();
   useEffect(() => {
@@ -22,14 +22,14 @@ function Bar({ value, index }: { value: number; index: number }) {
     height: height.get(),
     opacity: 0.35 + Math.min(1, value * 1.4) * 0.65,
   }));
-  return <Animated.View style={[styles.bar, style]} />;
+  return <Animated.View style={[styles.bar, speaking && styles.barSpeaking, style]} />;
 }
 
-export function LiveWaveform({ level, live }: { level: number; live: boolean }) {
+export function LiveWaveform({ level, speaking }: { level: number; speaking: boolean }) {
   return (
-    <View style={styles.row} accessibilityLabel={live ? "Ghost is speaking" : "Listening"}>
+    <View style={styles.row} accessibilityLabel={speaking ? "Ghost is speaking" : "Listening"}>
       {Array.from({ length: BARS }, (_, i) => (
-        <Bar key={i} index={i} value={live ? level : 0} />
+        <Bar key={i} index={i} value={speaking ? level : 0} speaking={speaking} />
       ))}
     </View>
   );
@@ -47,7 +47,7 @@ export function LiveOrb({ speaking, listening }: { speaking: boolean; listening:
   return (
     <View style={styles.orbWrap}>
       <Animated.View style={[styles.orb, speaking && styles.orbSpeaking, style]} />
-      <View style={styles.orbCore} />
+      <View style={[styles.orbCore, speaking && styles.orbCoreSpeaking]} />
     </View>
   );
 }
@@ -64,7 +64,10 @@ const styles = StyleSheet.create({
   bar: {
     width: 3,
     borderRadius: 2,
-    backgroundColor: Midnight.ink,
+    backgroundColor: Ghost.accent.primary,
+  },
+  barSpeaking: {
+    backgroundColor: Ghost.emberDeep,
   },
   orbWrap: {
     width: 120,
@@ -90,5 +93,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: Ghost.accent.primary,
+  },
+  orbCoreSpeaking: {
+    backgroundColor: Ghost.emberDeep,
   },
 });

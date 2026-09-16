@@ -2,7 +2,7 @@ import { usePathname, useRouter } from "expo-router";
 import { Blocks, Cpu, Flag, House, Info, MessageCircle, PhoneCall, Smartphone, Sparkles } from "lucide-react-native";
 import { ScreenBackground } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   FadeIn,
@@ -92,7 +92,11 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
         >
           <ScreenBackground />
           <Pressable style={styles.scrimTouch} onPress={() => setOpen(false)} accessibilityLabel="Close menu" />
-          <View style={styles.list}>
+          <ScrollView
+            style={styles.listScroll}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+          >
             {items.map((item, i) => {
               const active = item.route === "/(tabs)"
                 ? (pathname === "/" || pathname.includes("(tabs)"))
@@ -118,7 +122,7 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
                 </Animated.View>
               );
             })}
-          </View>
+          </ScrollView>
         </Animated.View>
       ) : null}
       <Animated.View style={fabSpin}>
@@ -154,9 +158,13 @@ const styles = StyleSheet.create({
   scrimTouch: {
     ...StyleSheet.absoluteFill,
   },
+  listScroll: {
+    maxHeight: "72%",
+    marginBottom: 120,
+  },
   list: {
     gap: Space.lg,
-    marginBottom: 120,
+    paddingVertical: Space.sm,
   },
   row: {
     flexDirection: "row",
