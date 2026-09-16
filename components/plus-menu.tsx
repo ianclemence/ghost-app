@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { Blocks, Cpu, Flag, House, Info, MessageCircle, Smartphone, Sparkles } from "lucide-react-native";
+import { Blocks, Cpu, Flag, House, Info, MessageCircle, PhoneCall, Smartphone, Sparkles } from "lucide-react-native";
 import { ScreenBackground } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -20,6 +20,7 @@ import { useGhostStore } from "@/lib/store";
 const ITEMS = [
   { route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
   { route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
+  { route: "/live" as const, label: "Live voice", match: "live", Icon: PhoneCall },
   { route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
   { route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
   { route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },

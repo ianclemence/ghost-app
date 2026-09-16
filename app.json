@@ -16,9 +16,10 @@
       },
       "bundleIdentifier": "com.ianclemence.ghost",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Ghost needs microphone access for voice messages",
+        "NSMicrophoneUsageDescription": "Ghost needs microphone access for voice messages and live voice calls",
         "NSPhotoLibraryUsageDescription": "Ghost needs photo library access to send images",
         "NSCameraUsageDescription": "Ghost needs camera access to capture images",
+        "UIBackgroundModes": ["audio"],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -43,6 +44,13 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "Ghost needs microphone access for live voice calls.",
+          "cameraPermission": false
+        }
+      ],
       [
         "expo-notifications",
         {

@@ -154,6 +154,12 @@ export default function RootLayout() {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
 
+        {/* Live voice */}
+        <Stack.Screen
+          name="live"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+
         {/* First launch / connect flow */}
         <Stack.Screen
           name="onboarding"
