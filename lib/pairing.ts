@@ -5,6 +5,7 @@
  *
  *   ghost://pair?v=1&pod=...&transport=lan&host=...&port=...&token=...  (device pairing, v1)
  *   ghost://pair?v=1&transport=relay&relay=...&ghost=...&token=...      (relay pairing, v1)
+ *   ghost://setup?v=1&host=...&port=...&pod=...                         (first-run setup handoff)
  *   ghost://connect?transport=relay&relay=...&ghost=...&token=...       (legacy relay, deprecated)
  *
  * Shared-secret URIs (ghost://connect?host=...&secret=...) are no longer
@@ -41,7 +42,17 @@ export interface LegacyPairingPayload {
   config: GhostConfig;
 }
 
-export type PairingPayload = SecurePairingPayload | LegacyPairingPayload;
+// Setup handoff: the console (or a printed label) shows a QR that carries only
+// the Pod address — never the setup code, which stays a device-only secret.
+export interface SetupPayload {
+  type: "setup";
+  version: number;
+  host: string;
+  port: string;
+  podId?: string;
+}
+
+export type PairingPayload = SecurePairingPayload | LegacyPairingPayload | SetupPayload;
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -72,6 +83,7 @@ function getQueryParams(url: string): Record<string, string> {
     } else if (
       parsed.hostname !== "connect" &&
       parsed.hostname !== "pair" &&
+      parsed.hostname !== "setup" &&
       parsed.hostname !== "localhost"
     ) {
       result._host = parsed.hostname;
@@ -132,6 +144,21 @@ export function parsePairingURI(url: string): PairingPayload | null {
       host,
       port,
       podId,
+    };
+  }
+
+  // ── Setup handoff (v1): ghost://setup?v=1&host=...&port=...&pod=... ──
+  if (url.includes("://setup?")) {
+    const version = parseInt(qp.v || "0", 10);
+    if (version !== SUPPORTED_VERSION) return null;
+    const host = qp.host ?? qp._host;
+    if (!host || host === "setup") return null;
+    return {
+      type: "setup",
+      version,
+      host,
+      port: qp.port ?? qp._port ?? "80",
+      podId: qp.pod || undefined,
     };
   }
 

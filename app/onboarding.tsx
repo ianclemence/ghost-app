@@ -4,6 +4,7 @@ import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import { Ghost, Space } from "@/constants/theme";
+import { dismissFirstRun } from "@/lib/firstRun";
 
 /**
  * First launch screen.
@@ -14,6 +15,14 @@ import { Ghost, Space } from "@/constants/theme";
  */
 export default function FirstLaunchScreen() {
   const router = useRouter();
+
+  // Explore without setting anything up: the phone can still reach the app,
+  // and local setup or a Pod can be added later from the plus menu. This is
+  // what keeps first-run from being a dead end.
+  const explore = async () => {
+    await dismissFirstRun();
+    router.replace("/(tabs)");
+  };
 
   return (
     <View style={styles.container}>
@@ -41,6 +50,15 @@ export default function FirstLaunchScreen() {
         >
           <GhostText type="callout" style={styles.secondaryText}>
             Connect a Ghost Pod
+          </GhostText>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quiet}
+          onPress={explore}
+          activeOpacity={0.6}
+        >
+          <GhostText type="footnote" style={styles.quietText}>
+            Explore without setting up
           </GhostText>
         </TouchableOpacity>
       </View>
@@ -80,5 +98,13 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     color: Ghost.text.tertiary,
+  },
+  quiet: {
+    alignItems: "center",
+    paddingVertical: Space.sm,
+  },
+  quietText: {
+    color: Ghost.text.tertiary,
+    opacity: 0.7,
   },
 });

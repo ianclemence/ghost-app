@@ -14,6 +14,8 @@ import { GhostText } from "@/components/themed-text";
 import { PlusMenu } from "@/components/plus-menu";
 import { GhostButton, StatusDot } from "@/components/ghost";
 import { useGhostStore } from "@/lib/store";
+import { dismissFirstRun } from "@/lib/firstRun";
+import { capability } from "@/lib/capabilities";
 import { evaluate, formatBytes, inspectDevice, manifestNeed, type DeviceInfo } from "@/lib/local/devcap";
 import { loadCatalog } from "@/lib/local/catalog";
 import { SUPPORTED_PHONE_MODEL_IDS, isSupportedPhoneModel, isVerifiedPublisher, type ModelManifest } from "@/lib/local/registry";
@@ -129,6 +131,19 @@ export default function LocalModelsScreen() {
       setPhase("idle");
       setProgress(0);
       if (firstRun) {
+        // Match the Pod path: offer notifications once, best-effort, without
+        // blocking the first useful turn. Needs a dev build; skipped in Expo Go.
+        if (capability("notifications").supported) {
+          try {
+            const Notifications = await import("expo-notifications");
+            const { status } = await Notifications.getPermissionsAsync();
+            if (status === "undetermined") {
+              await Notifications.requestPermissionsAsync();
+            }
+          } catch {
+            // Notifications unavailable — setup still succeeds.
+          }
+        }
         // Setup complete. Land on Home — the same destination pairing uses —
         // where Ghost confirms it is running on this phone.
         router.replace("/(tabs)");
@@ -266,6 +281,15 @@ export default function LocalModelsScreen() {
         <View style={[styles.firstRunBottom, { paddingBottom: insets.bottom + Space.xxl }]}>
           <TouchableOpacity onPress={() => router.replace("/connect")} activeOpacity={0.6}>
             <GhostText type="callout" style={styles.quiet}>Connect a Ghost Pod instead</GhostText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              await dismissFirstRun();
+              router.replace("/(tabs)");
+            }}
+            activeOpacity={0.6}
+          >
+            <GhostText type="footnote" style={styles.quiet}>Continue without a model</GhostText>
           </TouchableOpacity>
         </View>
       </View>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
@@ -26,6 +27,7 @@ function statusLabel(s: string): string {
 
 export default function GoalsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { config } = useGhostStore();
   const [items, setItems] = useState<GoalItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -108,7 +110,11 @@ export default function GoalsScreen() {
         <GhostText type="subhead" style={styles.sub}>Standing intents Ghost keeps working — tell it once, it reports back.</GhostText>
       </View>
       {!config ? (
-        <EmptyState title="Not connected" subtitle="Connect to see goals." />
+        <EmptyState
+          title="Not connected"
+          subtitle="Goals live on a Ghost Pod. Connect one to keep them."
+          action={<GhostButton title="Connect a Ghost Pod" onPress={() => router.push("/connect")} />}
+        />
       ) : loading ? (
         <View style={styles.center}><ActivityIndicator color={Ghost.text.primary} size="large" /></View>
       ) : (

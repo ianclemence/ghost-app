@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
@@ -103,6 +104,7 @@ const ROUTING_ROWS: { key: keyof RoutingPrefs; label: string; desc: string }[] =
 
 export default function IntelligenceScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { config } = useGhostStore();
   const [state, setState] = useState<ModelState | null>(null);
   const [providersState, setProvidersState] = useState<ProvidersState | null>(null);
@@ -308,8 +310,10 @@ export default function IntelligenceScreen() {
         <View style={styles.center}>
           <Text style={styles.emptyHello}>
             <Text style={styles.emptyInk}>Not connected. </Text>
-            <Text style={styles.emptyMuted}>Connect to manage Ghost AI.</Text>
+            <Text style={styles.emptyMuted}>Connect a Ghost Pod to manage Ghost AI.</Text>
           </Text>
+          <View style={{ height: Space.lg }} />
+          <GhostButton title="Connect a Ghost Pod" onPress={() => router.push("/connect")} />
         </View>
       ) : loading ? (
         <View style={styles.center}><ActivityIndicator color={Ghost.text.primary} size="large" /></View>

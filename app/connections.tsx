@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
@@ -44,6 +45,7 @@ function setupHint(app: ConnectedAppInfo): string {
 
 export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { config } = useGhostStore();
   const [items, setItems] = useState<ConnectedAppInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -132,7 +134,11 @@ export default function ConnectionsScreen() {
         <GhostText type="subhead" style={styles.sub}>What Ghost can act on — email, calendar, home, music, code. Messaging channels live elsewhere.</GhostText>
       </View>
       {!config ? (
-        <EmptyState title="Not connected" subtitle="Connect to see app status." />
+        <EmptyState
+          title="Not connected"
+          subtitle="Connected apps live on a Ghost Pod. Connect one to use them."
+          action={<GhostButton title="Connect a Ghost Pod" onPress={() => router.push("/connect")} />}
+        />
       ) : loading ? (
         <View style={styles.center}><ActivityIndicator color={Ghost.text.primary} size="large" /></View>
       ) : error && items.length === 0 ? (

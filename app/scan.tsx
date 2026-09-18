@@ -69,6 +69,16 @@ export default function QrScannerScreen() {
       if (status === "scanned") return;
 
       const payload = parsePairingURI(data);
+      // A setup QR carries only the Pod address; the setup code is typed next.
+      if (payload?.type === "setup") {
+        setStatus("scanned");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.replace({
+          pathname: "/setup-pod" as never,
+          params: { host: payload.host, port: payload.port, pod: payload.podId ?? "" },
+        });
+        return;
+      }
       if (!payload || payload.type !== "secure") {
         setStatus("invalid");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

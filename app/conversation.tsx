@@ -306,7 +306,12 @@ export default function ConversationScreen() {
   const send = useCallback(async (text: string) => {
     if (isStreaming) return;
     // A paired Pod or an active local model — either makes Ghost reachable.
-    if (!config && !useGhostStore.getState().localReady) return;
+    if (!config && !useGhostStore.getState().localReady) {
+      // Honest limit with a path forward (the plus menu offers local setup and
+      // Pod connection). Never silently drop the turn.
+      setSendError("Ghost isn't set up yet. Tap + to set up on this phone or connect a Ghost Pod.");
+      return;
+    }
     const q = text.trim();
     if (!q) return;
     setDraft("");
@@ -472,10 +477,19 @@ export default function ConversationScreen() {
         <>
           <View style={{ flex: 1 }} />
           <View style={styles.emptyCenter}>
-            <Text style={styles.emptyHello}>
-              <Text style={styles.emptyInk}>Talk to Ghost. </Text>
-              <Text style={styles.emptyMuted}>Say anything to begin.</Text>
-            </Text>
+            {config || localReady ? (
+              <Text style={styles.emptyHello}>
+                <Text style={styles.emptyInk}>Talk to Ghost. </Text>
+                <Text style={styles.emptyMuted}>Say anything to begin.</Text>
+              </Text>
+            ) : (
+              <Text style={styles.emptyHello}>
+                <Text style={styles.emptyInk}>Ghost isn&apos;t set up yet. </Text>
+                <Text style={styles.emptyMuted}>
+                  Tap + to set up on this phone or connect a Ghost Pod.
+                </Text>
+              </Text>
+            )}
           </View>
         </>
       ) : (

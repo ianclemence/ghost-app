@@ -211,6 +211,27 @@ describe("travel-cache collector", () => {
   });
 });
 
+describe("phone-local boot health", () => {
+  test("no active model is not ready", async () => {
+    asyncBacking.delete("ghost:models:meta");
+    const { activeModelHealthy } = await import("./health");
+    expect(await activeModelHealthy()).toBe(false);
+  });
+
+  test("active model with a missing artifact is not ready", async () => {
+    // The expo-file-system stub reports every File as non-existent, which is
+    // exactly the crashed-install / lost-artifact case: a model marked active
+    // on disk but not actually usable must not be treated as ready.
+    asyncBacking.set(
+      "ghost:models:meta",
+      JSON.stringify({ activeId: "ghost-mini-1", pinnedHashes: {}, versions: { "ghost-mini-1": "1.0.0" } }),
+    );
+    const { activeModelHealthy } = await import("./health");
+    expect(await activeModelHealthy()).toBe(false);
+    asyncBacking.delete("ghost:models:meta");
+  });
+});
+
 describe("remember→recall→sync integration (stubbed transport)", () => {
   test("remember turn collects, next turn recalls, no model tool calls", async () => {
     const { runLocalPipeline } = await import("./pipeline");

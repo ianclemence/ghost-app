@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
+import { GhostButton } from "@/components/ghost";
 import { PlusMenu } from "@/components/plus-menu";
 import { LiveOrb, LiveWaveform } from "@/components/live-waveform";
 import { useLiveSession } from "@/lib/live/use-live-session";
@@ -123,11 +124,19 @@ export default function LiveVoiceScreen() {
           <Text style={styles.honest}>Checking live voice…</Text>
         ) : null}
         {offline ? (
-          <Text style={styles.honest}>
-            {config
-              ? "Your Ghost is offline, so live voice is paused. Text still works."
-              : "Pair your Ghost Pod for live voice. Text chat works on this phone."}
-          </Text>
+          <>
+            <Text style={styles.honest}>
+              {config
+                ? "Your Ghost is offline, so live voice is paused. Text still works."
+                : "Pair your Ghost Pod for live voice. Text chat works on this phone."}
+            </Text>
+            {!config ? (
+              <>
+                <View style={{ height: Space.md }} />
+                <GhostButton title="Connect a Ghost Pod" onPress={() => router.push("/connect")} />
+              </>
+            ) : null}
+          </>
         ) : null}
         {status.checked && !status.enabled && !offline ? (
           <Text style={styles.honest}>

@@ -12,7 +12,8 @@ import {
   isPaired,
   handlePairingDeepLink,
 } from '../lib/connection';
-import { modelManager } from '../lib/local/modelManager';
+import { activeModelHealthy } from '../lib/local/health';
+import { isFirstRunDismissed } from '../lib/firstRun';
 import { useGhostStore } from '../lib/store';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
@@ -47,10 +48,13 @@ export default function RootLayout() {
       // Check if paired. A phone with an active local model is a Ghost in its
       // own right — it does not need a Pod to reach the main app.
       const paired = await isPaired();
-      const localReady = (await modelManager.activeModelId()) !== null;
+      // Health, not just disk presence: a corrupt or missing artifact must not
+      // route the user into the app only to fail at the first send.
+      const localReady = await activeModelHealthy();
+      const dismissed = await isFirstRunDismissed();
       useGhostStore.getState().setLocalReady(localReady);
 
-      if (!paired && !localReady) {
+      if (!paired && !localReady && !dismissed) {
         // First launch — show the front door
         router.replace('/onboarding');
       } else if (paired) {
@@ -75,6 +79,13 @@ export default function RootLayout() {
               relayServer: payload.relayServer ?? '',
               ghostId: payload.ghostId ?? '',
             },
+          });
+        } else if (payload.type === 'setup') {
+          // First-run setup handoff — prefill the Pod address, then take the
+          // setup code on the setup screen.
+          router.replace({
+            pathname: '/setup-pod' as never,
+            params: { host: payload.host, port: payload.port, pod: payload.podId ?? '' },
           });
         } else if (payload.type === 'legacy') {
           // Legacy relay deep link — adopted through the credentials system.
@@ -183,6 +194,10 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="manual"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="setup-pod"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
 

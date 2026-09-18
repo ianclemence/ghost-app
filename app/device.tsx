@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
@@ -32,6 +33,7 @@ function fmtGB(n?: number): string {
 
 export default function DeviceScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { config } = useGhostStore();
   const [version, setVersion] = useState("—");
   const [uptime, setUptime] = useState("—");
@@ -95,8 +97,10 @@ export default function DeviceScreen() {
         <View style={styles.center}>
           <Text style={styles.emptyHello}>
             <Text style={styles.emptyInk}>Not connected. </Text>
-            <Text style={styles.emptyMuted}>Connect to see device health.</Text>
+            <Text style={styles.emptyMuted}>Connect a Ghost Pod to see its health.</Text>
           </Text>
+          <View style={{ height: Space.lg }} />
+          <GhostButton title="Connect a Ghost Pod" onPress={() => router.push("/connect")} />
         </View>
       ) : loading ? (
         <View style={styles.center}><ActivityIndicator color={Ghost.text.primary} size="large" /></View>

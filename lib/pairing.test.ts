@@ -94,6 +94,29 @@ describe("parsePairingURI legacy pairing", () => {
   });
 });
 
+describe("parsePairingURI setup handoff", () => {
+  test("accepts a setup URI and carries only the address", () => {
+    const p = parsePairingURI("ghost://setup?v=1&host=192.168.1.42&port=80&pod=abc123");
+    expect(p?.type).toBe("setup");
+    if (p?.type === "setup") {
+      expect(p.host).toBe("192.168.1.42");
+      expect(p.port).toBe("80");
+      expect(p.podId).toBe("abc123");
+    }
+  });
+
+  test("defaults the port to 80 and rejects a missing host", () => {
+    const p = parsePairingURI("ghost://setup?v=1&host=192.168.1.42");
+    expect(p?.type).toBe("setup");
+    if (p?.type === "setup") expect(p.port).toBe("80");
+    expect(parsePairingURI("ghost://setup?v=1")).toBeNull();
+  });
+
+  test("rejects the wrong version", () => {
+    expect(parsePairingURI("ghost://setup?v=2&host=192.168.1.42")).toBeNull();
+  });
+});
+
 describe("pairing validators", () => {
   test("token and host helpers", () => {
     expect(validatePairingToken(TOKEN)).toBe(true);

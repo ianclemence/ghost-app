@@ -41,6 +41,15 @@ export default function ConnectToGhostScreen() {
             Enter manually
           </GhostText>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.manualButton}
+          onPress={() => router.push("/setup-pod" as never)}
+          activeOpacity={0.6}
+        >
+          <GhostText type="footnote" style={styles.manualText}>
+            Set up a new Ghost Pod
+          </GhostText>
+        </TouchableOpacity>
       </View>
     </View>
   );

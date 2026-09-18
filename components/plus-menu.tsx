@@ -17,16 +17,19 @@ import Animated, {
 import { Space } from "@/constants/theme";
 import { useGhostStore } from "@/lib/store";
 
+// The app is the daily driver. The menu is grouped by role so the everyday
+// verbs (talk) stay at the top and management/connection live below — the
+// control plane itself is Ghost Web, not this menu.
 const ITEMS = [
-  { route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
-  { route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
-  { route: "/live" as const, label: "Live voice", match: "live", Icon: PhoneCall },
-  { route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
-  { route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
-  { route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },
-  { route: "/goals" as const, label: "Goals", match: "goals", Icon: Flag },
-  { route: "/device" as const, label: "Ghost Pod", match: "device", Icon: Cpu },
-  { route: "/about" as const, label: "About", match: "about", Icon: Info },
+  { group: "Talk", route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
+  { group: "Talk", route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
+  { group: "Talk", route: "/live" as const, label: "Live voice", match: "live", Icon: PhoneCall },
+  { group: "Your Ghost", route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
+  { group: "Your Ghost", route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
+  { group: "Your Ghost", route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },
+  { group: "Your Ghost", route: "/goals" as const, label: "Goals", match: "goals", Icon: Flag },
+  { group: "Your Ghost", route: "/device" as const, label: "Ghost Pod", match: "device", Icon: Cpu },
+  { group: "More", route: "/about" as const, label: "About", match: "about", Icon: Info },
 ];
 
 const SPRING_EASE = Easing.bezier(0.32, 0.72, 0, 1);
@@ -62,11 +65,11 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
   const items = config
     ? ITEMS
     : [
-        { route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
-        { route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
-        { route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
-        { route: "/connect" as const, label: "Connect a Ghost Pod", match: "connect", Icon: Cpu },
-        { route: "/about" as const, label: "About", match: "about", Icon: Info },
+        { group: "Talk", route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
+        { group: "Talk", route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
+        { group: "Your Ghost", route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
+        { group: "Your Ghost", route: "/connect" as const, label: "Connect a Ghost Pod", match: "connect", Icon: Cpu },
+        { group: "More", route: "/about" as const, label: "About", match: "about", Icon: Info },
       ];
   const fabRot = useSharedValue(0);
   useEffect(() => {
@@ -102,24 +105,33 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
                 ? (pathname === "/" || pathname.includes("(tabs)"))
                 : pathname.includes(item.match);
               const Icon = item.Icon;
+              const showGroup = i === 0 || items[i - 1].group !== item.group;
               return (
-                <Animated.View
-                  key={item.label}
-                  entering={reduceMotion ? undefined : FadeInUp.duration(260).delay(90 + i * 70).easing(SPRING_EASE)}
-                >
-                  <Pressable
-                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                    pressRetentionOffset={16}
-                    onPress={() => go(item.route)}
-                    accessibilityLabel={`Go to ${item.label}`}
-                    accessibilityState={{ selected: active }}
+                <React.Fragment key={item.label}>
+                  {showGroup ? (
+                    <Animated.View
+                      entering={reduceMotion ? undefined : FadeInUp.duration(260).delay(90 + i * 70).easing(SPRING_EASE)}
+                    >
+                      <Text style={styles.groupLabel}>{item.group}</Text>
+                    </Animated.View>
+                  ) : null}
+                  <Animated.View
+                    entering={reduceMotion ? undefined : FadeInUp.duration(260).delay(90 + i * 70).easing(SPRING_EASE)}
                   >
-                    <View style={[styles.iconWell, active && styles.iconWellActive]}>
-                      <Icon size={18} color={active ? "#FAFAF6" : "#1A1611"} strokeWidth={1.5} />
-                    </View>
-                    <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
-                  </Pressable>
-                </Animated.View>
+                    <Pressable
+                      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                      pressRetentionOffset={16}
+                      onPress={() => go(item.route)}
+                      accessibilityLabel={`Go to ${item.label}`}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <View style={[styles.iconWell, active && styles.iconWellActive]}>
+                        <Icon size={18} color={active ? "#FAFAF6" : "#1A1611"} strokeWidth={1.5} />
+                      </View>
+                      <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
+                    </Pressable>
+                  </Animated.View>
+                </React.Fragment>
               );
             })}
           </ScrollView>
@@ -165,6 +177,14 @@ const styles = StyleSheet.create({
   list: {
     gap: Space.lg,
     paddingVertical: Space.sm,
+  },
+  groupLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: "#8A847C",
+    marginTop: Space.sm,
   },
   row: {
     flexDirection: "row",
