@@ -27,6 +27,7 @@ Terminal green on black hacker consoles. Neon on black crypto voice apps. SaaS h
 3. Honest about limits: offline, unconfigured, and busy states say so plainly with a path forward.
 4. Consistency is trust: the same button, bubble, and status vocabulary on every screen.
 5. Private by construction: credentials stay in secure storage, the UI never leaks secrets or message content into notifications.
+6. One mental model per job: the owner expresses intent in conversation; Ghost files it. Internal nouns (routine, automation, scheduled item) may appear as quiet badges, never as a filing decision the owner must make.
 
 ## Accessibility & Inclusion
 

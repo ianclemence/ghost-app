@@ -14,6 +14,7 @@ import {
 } from '../lib/connection';
 import { activeModelHealthy } from '../lib/local/health';
 import { isFirstRunDismissed } from '../lib/firstRun';
+import { recordMilestone } from '../lib/onboarding-metrics';
 import { useGhostStore } from '../lib/store';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
@@ -48,6 +49,8 @@ export default function RootLayout() {
       // Check if paired. A phone with an active local model is a Ghost in its
       // own right — it does not need a Pod to reach the main app.
       const paired = await isPaired();
+      // Stamps once per install; the funnel's zero point for time-to-milestone.
+      void recordMilestone('first_launch');
       // Health, not just disk presence: a corrupt or missing artifact must not
       // route the user into the app only to fail at the first send.
       const localReady = await activeModelHealthy();
@@ -222,6 +225,10 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="goals"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="things"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen

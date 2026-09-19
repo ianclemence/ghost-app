@@ -1,4 +1,5 @@
 import { activityQuery } from "./activity";
+import { recordMilestone } from "./onboarding-metrics";
 
 export interface Message {
   id: string;
@@ -873,7 +874,15 @@ export async function resolveApproval(
       { method: "POST", headers: headers(cfg), body: JSON.stringify({ id, grant }) },
       10000,
     );
-    if (res.ok) return { ok: true };
+    if (res.ok) {
+      // Funnel milestone: a standing grant is the moment Ghost stops asking.
+      // Instrument at the one choke point so every grant path (permission
+      // card, card actions) is counted exactly once.
+      if (grant === "allow_always") {
+        void recordMilestone("first_grant");
+      }
+      return { ok: true };
+    }
     const data = await res.json().catch(() => null);
     return { ok: false, error: data?.error?.message ?? "That approval is no longer answerable." };
   } catch (e: unknown) {
@@ -974,6 +983,98 @@ export async function controlRoutine(
     headers: headers(cfg),
   });
   if (!res.ok) throw new Error(`Routine ${action} failed (HTTP ${res.status})`);
+}
+
+// ─── Things: the one "what Ghost does for you" feed ──────────────────────
+//
+// The Pod merges routines and scheduled items into one normalized shape at
+// /v1/things. The owner never decides whether their intent is a "routine" or
+// an "automation" — Ghost infers the shape. This is the only things client;
+// do not rebuild the split by calling routines and scheduled separately.
+
+export type ThingKind = "reminder" | "routine" | "automation" | "task";
+export type ThingState = "active" | "paused" | "waiting" | "done" | "failed" | "cancelled";
+
+export interface Thing {
+  id: string;
+  title: string;
+  what: string;
+  kind: ThingKind;
+  state: ThingState;
+  schedule: string;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  run_count: number;
+  last_error?: string;
+  waiting_on?: string;
+  source: string;
+  created_at: string;
+  updated_at: string;
+  kind_reason?: string;
+}
+
+export async function fetchThings(cfg: GhostConfig): Promise<Thing[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/things`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Things failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  const things = Array.isArray(data?.things) ? data.things : [];
+  // Funnel milestone: the first time an owner sees something Ghost is
+  // running for them is the moment the product proves itself. Recorded at
+  // the one fetch choke point so Home and the Things screen agree.
+  if (things.length > 0) void recordMilestone("first_thing");
+  return things;
+}
+
+// controlThing dispatches pause/resume/cancel to the correct backend action
+// based on provenance. Routine-sourced Things use the routine endpoints so
+// the metadata sidecar stays consistent; everything else uses the scheduler.
+export async function controlThing(
+  cfg: GhostConfig,
+  thing: Pick<Thing, "id" | "source">,
+  action: "pause" | "resume" | "cancel" | "delete",
+): Promise<void> {
+  const isRoutine = thing.source === "routine";
+  const url = isRoutine
+    ? `${baseURL(cfg)}/v1/routines/${encodeURIComponent(thing.id)}/${action}`
+    : `${baseURL(cfg)}/v1/scheduled/${encodeURIComponent(thing.id)}/${action}`;
+  const res = await fetch(url, { method: "POST", headers: headers(cfg) });
+  if (!res.ok) throw new Error(`Thing ${action} failed (HTTP ${res.status})`);
+}
+
+// Label the kind in owner language. Internal nouns ("routine", "automation")
+// never reach the UI as a filing decision; they appear only as a quiet badge.
+export function kindLabel(kind: ThingKind): string {
+  switch (kind) {
+    case "reminder":
+      return "Reminder";
+    case "routine":
+      return "Recurring";
+    case "automation":
+      return "Scheduled";
+    case "task":
+      return "Task";
+    default:
+      return "Thing";
+  }
+}
+
+export function stateLabel(state: ThingState): string {
+  switch (state) {
+    case "active":
+      return "Active";
+    case "paused":
+      return "Paused";
+    case "waiting":
+      return "Waiting for you";
+    case "done":
+      return "Done";
+    case "failed":
+      return "Needs attention";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return "Active";
+  }
 }
 
 export interface ConnectedAppInfo {

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
 import { PlusMenu } from "@/components/plus-menu";
-import { fetchIdentity, fetchPendingApprovals } from "@/lib/ghostApi";
+import { fetchIdentity, fetchPendingApprovals, fetchThings, type Thing } from "@/lib/ghostApi";
+import { deriveHomeSummary } from "@/lib/home";
 import { useGhostStore } from "@/lib/store";
 
 const EASE = Easing.bezier(0.32, 0.72, 0, 1);
@@ -23,9 +25,11 @@ function dateHeader(d = new Date()): { top: string; sub: string } {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { config, setGhostName, connectionState, localReady } = useGhostStore();
   const [userName, setUserName] = useState("");
   const [waitingApproval, setWaitingApproval] = useState(false);
+  const [things, setThings] = useState<Thing[]>([]);
   const { top, sub } = dateHeader();
   const greet = greeting();
   const reduceMotion = useReducedMotion();
@@ -41,10 +45,17 @@ export default function HomeScreen() {
     fetchPendingApprovals(config).then((r) => {
       if (!cancelled) setWaitingApproval(r.length > 0);
     }).catch(() => {});
+    // Home states one fact about what Ghost is doing, so the owner's first
+    // screen answers "what do you do for me?" without becoming a dashboard.
+    fetchThings(config).then((t) => {
+      if (!cancelled) setThings(t);
+    }).catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [config, setGhostName]);
+
+  const summary = deriveHomeSummary(things);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -83,6 +94,16 @@ export default function HomeScreen() {
         </Text>
         {waitingApproval ? (
           <Text style={styles.nudge}>Ghost is waiting for your approval.</Text>
+        ) : null}
+        {summary.headline ? (
+          <Pressable
+            onPress={() => router.push("/things")}
+            accessibilityRole="button"
+            accessibilityLabel={`${summary.headline} Open what Ghost does.`}
+            style={styles.thingsLine}
+          >
+            <Text style={styles.thingsText}>{summary.headline}</Text>
+          </Pressable>
         ) : null}
       </Animated.View>
       <PlusMenu />
@@ -138,5 +159,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#1A1611",
     fontWeight: "600",
+  },
+  thingsLine: {
+    marginTop: Space.lg,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Space.md,
+  },
+  thingsText: {
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#6B6560",
   },
 });

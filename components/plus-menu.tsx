@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { Blocks, Cpu, Flag, House, Info, MessageCircle, PhoneCall, Smartphone, Sparkles } from "lucide-react-native";
+import { Blocks, CalendarClock, Cpu, Flag, House, Info, MessageCircle, PhoneCall, Smartphone, Sparkles } from "lucide-react-native";
 import { ScreenBackground } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -20,10 +20,14 @@ import { useGhostStore } from "@/lib/store";
 // The app is the daily driver. The menu is grouped by role so the everyday
 // verbs (talk) stay at the top and management/connection live below — the
 // control plane itself is Ghost Web, not this menu.
+//
+// "Things Ghost does" replaces the old split between routines and
+// automations: the owner has one mental model, so there is one destination.
 const ITEMS = [
   { group: "Talk", route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
   { group: "Talk", route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
   { group: "Talk", route: "/live" as const, label: "Live voice", match: "live", Icon: PhoneCall },
+  { group: "Your Ghost", route: "/things" as const, label: "Things Ghost does", match: "things", Icon: CalendarClock },
   { group: "Your Ghost", route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
   { group: "Your Ghost", route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
   { group: "Your Ghost", route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },

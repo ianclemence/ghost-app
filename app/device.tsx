@@ -15,6 +15,7 @@ import {
   type PiStats,
 } from "@/lib/ghostApi";
 import { downloadCompletionRate, getLocalMetrics, type LocalMetrics } from "@/lib/local/metrics";
+import { funnelSnapshot, getMilestones, type FunnelSnapshot } from "@/lib/onboarding-metrics";
 import { useGhostStore } from "@/lib/store";
 
 function fmtBytes(n?: number): string {
@@ -44,6 +45,7 @@ export default function DeviceScreen() {
   const [diagRunning, setDiagRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localMetrics, setLocalMetrics] = useState<LocalMetrics | null>(null);
+  const [funnel, setFunnel] = useState<FunnelSnapshot | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!config) return;
@@ -57,6 +59,7 @@ export default function DeviceScreen() {
         getLocalMetrics().catch(() => null),
       ]);
       setLocalMetrics(m);
+      setFunnel(funnelSnapshot(await getMilestones().catch(() => ({}))));
       if (health.uptimeS != null) setUptime(formatUptime(health.uptimeS));
       else if (s?.uptime) setUptime(s.uptime);
       setVersion(s?.version ?? "—");
@@ -184,6 +187,19 @@ export default function DeviceScreen() {
               style={{ alignSelf: "center" }}
             />
           </View>
+
+          <GhostText type="caption" style={styles.group}>Getting started</GhostText>
+          {(() => {
+            const f = funnel;
+            const fmt = (ms: number | null) =>
+              ms == null ? "\u2014" : ms < 60000 ? "under a minute" : ms < 3600000 ? `${Math.round(ms / 60000)} min` : `${Math.round(ms / 3600000)} h`;
+            return (
+              <>
+                <InfoRow label="First thing working" value={f == null ? "\u2014" : f.gotFirstThing ? fmt(f.msToFirstThing) : "not yet"} />
+                <InfoRow label="First standing grant" value={f == null ? "\u2014" : f.gotFirstGrant ? fmt(f.msToFirstGrant) : "not yet"} />
+              </>
+            );
+          })()}
 
           <GhostText type="caption" style={styles.group}>Offline phone</GhostText>
           {(() => {
