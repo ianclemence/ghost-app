@@ -488,12 +488,27 @@ export function parseStreamLine(line: string, fallbackRequestId?: string): Strea
   return { kind: "unknown" };
 }
 
-function applyStreamEvent(
+export function applyStreamEvent(
   ev: StreamEvent,
-  session: { fullText: string },
+  session: { fullText: string; needsBreak?: boolean },
   opts: SendOptions,
   sanitizedTag: string,
 ): "done" | "continue" {
+  // Insert a paragraph break between assistant segments separated by a tool
+  // call. A model that speaks before acting ("I'll check that." → tool →
+  // answer) otherwise streams as "I'll check that.Here's what I found.",
+  // which reads as one malformed sentence.
+  const emitText = (text: string) => {
+    if (session.needsBreak && session.fullText.length > 0 && text.trim() !== "") {
+      if (!/\n\s*$/.test(session.fullText)) {
+        session.fullText += "\n\n";
+        opts.onChunk("\n\n");
+      }
+    }
+    session.needsBreak = false;
+    session.fullText += text;
+    opts.onChunk(text);
+  };
   switch (ev.kind) {
     case "keepalive":
     case "skip":
@@ -505,9 +520,14 @@ function applyStreamEvent(
       trace("stream_done_marker");
       opts.onDone(session.fullText);
       return "done";
+    case "tool":
+      // A tool ran; the next text chunk begins a new assistant segment.
+      session.needsBreak = true;
+      opts.onToolStatus?.(ev.tool, ev.label);
+      trace("stream_object", { type: "tool_status" });
+      return "continue";
     case "text":
-      session.fullText += ev.text;
-      opts.onChunk(ev.text);
+      emitText(ev.text);
       trace("stream_chunk", { length: ev.text.length });
       return "continue";
     case "raw":
@@ -516,18 +536,13 @@ function applyStreamEvent(
         if (opts.onSanitized) opts.onSanitized(sanitizedTag);
         return "continue";
       }
-      session.fullText += ev.text;
-      opts.onChunk(ev.text);
+      emitText(ev.text);
       trace("stream_raw_chunk", { length: ev.text.length });
       return "continue";
     case "lifecycle":
       opts.onLifecycle?.(ev.requestId, ev.state);
       if (ev.outcome) opts.onOutcome?.(ev.requestId, ev.outcome);
       trace("stream_object", { type: "lifecycle" });
-      return "continue";
-    case "tool":
-      opts.onToolStatus?.(ev.tool, ev.label);
-      trace("stream_object", { type: "tool_status" });
       return "continue";
     case "clarify":
       opts.onClarify?.({ questionId: ev.questionId, question: ev.question, choices: ev.choices, requestId: ev.requestId });
