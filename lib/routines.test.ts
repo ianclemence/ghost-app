@@ -2,20 +2,20 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 const ghostApi = await import("./ghostApi");
 
-const CFG = { piHost: "ghost.local", piPort: "8766" } as Parameters<typeof ghostApi.fetchThings>[0];
+const CFG = { piHost: "ghost.local", piPort: "8766" } as Parameters<typeof ghostApi.fetchRoutines>[0];
 const realFetch = globalThis.fetch;
 
 afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-describe("fetchThings", () => {
+describe("fetchRoutines", () => {
   test("returns the normalized feed", async () => {
     globalThis.fetch = (async () => ({
       ok: true,
       json: async () => ({
         ok: true,
-        things: [
+        routines: [
           {
             id: "routine-1",
             title: "Weekly brief",
@@ -31,7 +31,7 @@ describe("fetchThings", () => {
         ],
       }),
     })) as unknown as typeof fetch;
-    const feed = await ghostApi.fetchThings(CFG);
+    const feed = await ghostApi.fetchRoutines(CFG);
     expect(feed).toHaveLength(1);
     expect(feed[0].kind).toBe("routine");
     expect(feed[0].schedule).toBe("Weekdays at 9:00 AM");
@@ -39,23 +39,23 @@ describe("fetchThings", () => {
 
   test("tolerates a malformed body", async () => {
     globalThis.fetch = (async () => ({ ok: true, json: async () => ({}) })) as unknown as typeof fetch;
-    expect(await ghostApi.fetchThings(CFG)).toEqual([]);
+    expect(await ghostApi.fetchRoutines(CFG)).toEqual([]);
   });
 
   test("throws on HTTP failure so the UI can show an honest error", async () => {
     globalThis.fetch = (async () => ({ ok: false, status: 503 })) as unknown as typeof fetch;
-    await expect(ghostApi.fetchThings(CFG)).rejects.toThrow("HTTP 503");
+    await expect(ghostApi.fetchRoutines(CFG)).rejects.toThrow("HTTP 503");
   });
 });
 
-describe("controlThing", () => {
+describe("controlRoutineItem", () => {
   test("routes routine-sourced things to the routine endpoint", async () => {
     let seenUrl = "";
     globalThis.fetch = (async (url: string) => {
       seenUrl = url;
       return { ok: true } as Response;
     }) as unknown as typeof fetch;
-    await ghostApi.controlThing(CFG, { id: "routine-1", source: "routine" }, "pause");
+    await ghostApi.controlRoutineItem(CFG, { id: "routine-1", source: "routine" }, "pause");
     expect(seenUrl).toContain("/v1/routines/routine-1/pause");
   });
 
@@ -65,13 +65,13 @@ describe("controlThing", () => {
       seenUrl = url;
       return { ok: true } as Response;
     }) as unknown as typeof fetch;
-    await ghostApi.controlThing(CFG, { id: "rem-1", source: "user" }, "cancel");
+    await ghostApi.controlRoutineItem(CFG, { id: "rem-1", source: "user" }, "cancel");
     expect(seenUrl).toContain("/v1/scheduled/rem-1/cancel");
   });
 
   test("throws on failure", async () => {
     globalThis.fetch = (async () => ({ ok: false, status: 404 })) as unknown as typeof fetch;
-    await expect(ghostApi.controlThing(CFG, { id: "x", source: "user" }, "resume")).rejects.toThrow("HTTP 404");
+    await expect(ghostApi.controlRoutineItem(CFG, { id: "x", source: "user" }, "resume")).rejects.toThrow("HTTP 404");
   });
 });
 

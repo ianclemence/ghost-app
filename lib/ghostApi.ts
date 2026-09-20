@@ -908,23 +908,6 @@ export async function resolveApproval(
   }
 }
 
-export interface RoutineItem {
-  id: string;
-  name: string;
-  instruction: string;
-  timezone?: string;
-  status: string;
-  next_run?: string | null;
-  last_run?: string | null;
-}
-
-export async function fetchRoutines(cfg: GhostConfig): Promise<RoutineItem[]> {
-  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/routines`, { headers: headers(cfg) }, 10000);
-  if (!res.ok) throw new Error(`Routines failed (HTTP ${res.status})`);
-  const data = await res.json().catch(() => null);
-  return Array.isArray(data?.routines) ? data.routines : [];
-}
-
 // ─── Goals: standing owner intents the heartbeat evaluates ───────────────
 
 export interface GoalItem {
@@ -991,34 +974,23 @@ export async function fetchCards(cfg: GhostConfig, channel = "mobile"): Promise<
   return Array.isArray(data?.cards) ? data.cards : [];
 }
 
-export async function controlRoutine(
-  cfg: GhostConfig,
-  id: string,
-  action: "pause" | "resume" | "cancel" | "delete",
-): Promise<void> {
-  const res = await fetch(`${baseURL(cfg)}/v1/routines/${encodeURIComponent(id)}/${action}`, {
-    method: "POST",
-    headers: headers(cfg),
-  });
-  if (!res.ok) throw new Error(`Routine ${action} failed (HTTP ${res.status})`);
-}
-
-// ─── Things: the one "what Ghost does for you" feed ──────────────────────
+// ─── Routines: the one feed of what Ghost runs for you ───────────────────
 //
 // The Pod merges routines and scheduled items into one normalized shape at
-// /v1/things. The owner never decides whether their intent is a "routine" or
-// an "automation" — Ghost infers the shape. This is the only things client;
-// do not rebuild the split by calling routines and scheduled separately.
+// /v1/routinefeed. The owner never decides whether their intent is a "routine"
+// or an "automation" — Ghost infers the shape. This is the only routines
+// client; do not rebuild the split by calling routines and scheduled
+// separately.
 
-export type ThingKind = "reminder" | "routine" | "automation" | "task";
-export type ThingState = "active" | "paused" | "waiting" | "done" | "failed" | "cancelled";
+export type RoutineKind = "reminder" | "routine" | "automation" | "task";
+export type RoutineState = "active" | "paused" | "waiting" | "done" | "failed" | "cancelled";
 
-export interface Thing {
+export interface RoutineItem {
   id: string;
   title: string;
   what: string;
-  kind: ThingKind;
-  state: ThingState;
+  kind: RoutineKind;
+  state: RoutineState;
   schedule: string;
   next_run_at?: string | null;
   last_run_at?: string | null;
@@ -1031,37 +1003,37 @@ export interface Thing {
   kind_reason?: string;
 }
 
-export async function fetchThings(cfg: GhostConfig): Promise<Thing[]> {
-  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/things`, { headers: headers(cfg) }, 10000);
-  if (!res.ok) throw new Error(`Things failed (HTTP ${res.status})`);
+export async function fetchRoutines(cfg: GhostConfig): Promise<RoutineItem[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/routinefeed`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Routines failed (HTTP ${res.status})`);
   const data = await res.json().catch(() => null);
-  const things = Array.isArray(data?.things) ? data.things : [];
+  const routines = Array.isArray(data?.routines) ? data.routines : [];
   // Funnel milestone: the first time an owner sees something Ghost is
   // running for them is the moment the product proves itself. Recorded at
-  // the one fetch choke point so Home and the Things screen agree.
-  if (things.length > 0) void recordMilestone("first_thing");
-  return things;
+  // the one fetch choke point so Home and the Routines screen agree.
+  if (routines.length > 0) void recordMilestone("first_thing");
+  return routines;
 }
 
-// controlThing dispatches pause/resume/cancel to the correct backend action
-// based on provenance. Routine-sourced Things use the routine endpoints so
-// the metadata sidecar stays consistent; everything else uses the scheduler.
-export async function controlThing(
+// controlRoutine dispatches pause/resume/cancel to the correct backend action
+// based on provenance. Routine-sourced rows use the routine endpoints so the
+// metadata sidecar stays consistent; everything else uses the scheduler.
+export async function controlRoutineItem(
   cfg: GhostConfig,
-  thing: Pick<Thing, "id" | "source">,
+  routine: Pick<RoutineItem, "id" | "source">,
   action: "pause" | "resume" | "cancel" | "delete",
 ): Promise<void> {
-  const isRoutine = thing.source === "routine";
+  const isRoutine = routine.source === "routine";
   const url = isRoutine
-    ? `${baseURL(cfg)}/v1/routines/${encodeURIComponent(thing.id)}/${action}`
-    : `${baseURL(cfg)}/v1/scheduled/${encodeURIComponent(thing.id)}/${action}`;
+    ? `${baseURL(cfg)}/v1/routines/${encodeURIComponent(routine.id)}/${action}`
+    : `${baseURL(cfg)}/v1/scheduled/${encodeURIComponent(routine.id)}/${action}`;
   const res = await fetch(url, { method: "POST", headers: headers(cfg) });
-  if (!res.ok) throw new Error(`Thing ${action} failed (HTTP ${res.status})`);
+  if (!res.ok) throw new Error(`Routine ${action} failed (HTTP ${res.status})`);
 }
 
 // Label the kind in owner language. Internal nouns ("routine", "automation")
 // never reach the UI as a filing decision; they appear only as a quiet badge.
-export function kindLabel(kind: ThingKind): string {
+export function kindLabel(kind: RoutineKind): string {
   switch (kind) {
     case "reminder":
       return "Reminder";
@@ -1072,11 +1044,11 @@ export function kindLabel(kind: ThingKind): string {
     case "task":
       return "Task";
     default:
-      return "Thing";
+      return "Routine";
   }
 }
 
-export function stateLabel(state: ThingState): string {
+export function stateLabel(state: RoutineState): string {
   switch (state) {
     case "active":
       return "Active";

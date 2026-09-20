@@ -8,11 +8,11 @@ import { PlusMenu } from "@/components/plus-menu";
 import { ScreenBackground } from "@/components/screen-glow";
 import { GhostButton, EmptyState } from "@/components/ghost";
 import {
-  controlThing,
-  fetchThings,
+  controlRoutineItem,
+  fetchRoutines,
   kindLabel,
   stateLabel,
-  type Thing,
+  type RoutineItem,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
@@ -27,7 +27,7 @@ import { useGhostStore } from "@/lib/store";
 // for reviewing and steering, not for filling forms — matching the design
 // principle that talk is the primary verb, not configuration.
 
-function badgeFor(t: Thing): { label: string; color: string } {
+function badgeFor(t: RoutineItem): { label: string; color: string } {
   switch (t.state) {
     case "waiting":
       return { label: stateLabel(t.state), color: Ghost.status.warning };
@@ -48,7 +48,7 @@ export default function ThingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config } = useGhostStore();
-  const [items, setItems] = useState<Thing[]>([]);
+  const [items, setItems] = useState<RoutineItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export default function ThingsScreen() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      setItems(await fetchThings(config));
+      setItems(await fetchRoutines(config));
     } catch {
       setError("Couldn't load what Ghost is doing.");
     }
@@ -71,12 +71,12 @@ export default function ThingsScreen() {
   }, [load]);
 
   const handleOp = useCallback(
-    async (t: Thing, op: "pause" | "resume" | "cancel") => {
+    async (t: RoutineItem, op: "pause" | "resume" | "cancel") => {
       if (!config || busyId) return;
       const run = async () => {
         setBusyId(t.id);
         try {
-          await controlThing(config, t, op);
+          await controlRoutineItem(config, t, op);
           await load(true);
         } catch (e) {
           Alert.alert("Couldn't do that", e instanceof Error ? e.message : "Unknown error");

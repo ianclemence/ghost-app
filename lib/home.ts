@@ -1,4 +1,4 @@
-import type { Thing } from "./ghostApi";
+import type { RoutineItem } from "./ghostApi";
 
 // Home is the first screen. Its job is to answer "what does Ghost do for
 // me?" in one calm line, without becoming a dashboard. This module holds
@@ -9,7 +9,7 @@ export interface HomeSummary {
   // running. Kept singular on purpose: Home states one fact, it does not
   // list.
   headline: string | null;
-  // True when at least one Thing is waiting on the owner. Home nudges,
+  // True when at least one routine is waiting on the owner. Home nudges,
   // it never blocks.
   needsYou: boolean;
 }
@@ -26,7 +26,7 @@ const KIND_VERB: Record<string, string> = {
 //  2. otherwise the soonest active thing,
 //  3. otherwise nothing.
 // It is deterministic and total.
-export function deriveHomeSummary(things: Thing[]): HomeSummary {
+export function deriveHomeSummary(things: RoutineItem[]): HomeSummary {
   if (!things || things.length === 0) {
     return { headline: null, needsYou: false };
   }

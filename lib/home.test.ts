@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { deriveHomeSummary } from "./home";
-import type { Thing } from "./ghostApi";
+import type { RoutineItem } from "./ghostApi";
 
-function thing(over: Partial<Thing>): Thing {
+function thing(over: Partial<RoutineItem>): RoutineItem {
   return {
     id: "t1",
     title: "Weekly brief",

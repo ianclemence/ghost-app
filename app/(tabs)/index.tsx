@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
 import { PlusMenu } from "@/components/plus-menu";
-import { fetchIdentity, fetchPendingApprovals, fetchProactiveStatus, fetchThings, type ProactiveStatus, type Thing } from "@/lib/ghostApi";
+import { fetchIdentity, fetchPendingApprovals, fetchProactiveStatus, fetchRoutines, type ProactiveStatus, type RoutineItem } from "@/lib/ghostApi";
 import { deriveHomeSummary } from "@/lib/home";
 import { proactiveLine } from "@/lib/proactive";
 import { useGhostStore } from "@/lib/store";
@@ -30,7 +30,7 @@ export default function HomeScreen() {
   const { config, setGhostName, connectionState, localReady } = useGhostStore();
   const [userName, setUserName] = useState("");
   const [waitingApproval, setWaitingApproval] = useState(false);
-  const [things, setThings] = useState<Thing[]>([]);
+  const [things, setThings] = useState<RoutineItem[]>([]);
   const [proactive, setProactive] = useState<ProactiveStatus | null>(null);
   const { top, sub } = dateHeader();
   const greet = greeting();
@@ -49,7 +49,7 @@ export default function HomeScreen() {
     }).catch(() => {});
     // Home states one fact about what Ghost is doing, so the owner's first
     // screen answers "what do you do for me?" without becoming a dashboard.
-    fetchThings(config).then((t) => {
+    fetchRoutines(config).then((t) => {
       if (!cancelled) setThings(t);
     }).catch(() => {});
     // When Ghost is quietly watching or holding something for later, the
