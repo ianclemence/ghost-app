@@ -65,17 +65,17 @@ describe("sendSteering abort", () => {
       seenBody = String(init?.body ?? "");
       return { ok: true, json: async () => ({}) } as Response;
     }) as typeof fetch;
-    const ok = await ghostApi.sendSteering(CFG, { sessionKey: "mobile:default", action: "abort" });
+    const ok = await ghostApi.sendSteering(CFG, { sessionKey: "main", action: "abort" });
     expect(ok).toBe(true);
     expect(seenUrl.includes("/v1/steering")).toBe(true);
-    expect(JSON.parse(seenBody)).toEqual({ session_key: "mobile:default", content: "", action: "abort" });
+    expect(JSON.parse(seenBody)).toEqual({ session_key: "main", content: "", action: "abort" });
   });
 
   test("unreachable runtime reports failure, not cancellation", async () => {
     globalThis.fetch = (async () => {
       throw new Error("down");
     }) as unknown as typeof fetch;
-    const ok = await ghostApi.sendSteering(CFG, { sessionKey: "mobile:default", action: "abort" });
+    const ok = await ghostApi.sendSteering(CFG, { sessionKey: "main", action: "abort" });
     expect(ok).toBe(false);
   });
 });

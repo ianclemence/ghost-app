@@ -32,7 +32,7 @@ const entry = (content: string, id = `q-${content}`) => ({
   id,
   messageId: `temp-${content}`,
   content,
-  sessionKey: "mobile:default",
+  sessionKey: "main",
   createdAt: Date.now(),
   attempts: 0,
 });

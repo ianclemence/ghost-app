@@ -173,7 +173,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
       config: {
         piHost: "",
         piPort: "8766",
-        session: "mobile:default",
+        session: "main",
         sendLocation: false,
         transport: "relay",
         relayServer,

@@ -198,9 +198,15 @@ function normalizePort(port: string): string {
   return numeric === "" ? "8766" : numeric;
 }
 
+// The one shared conversation. Pre-unification clients stored
+// mobile:default / cli:default; those fold onto main so no history is
+// ever stranded behind the rename (the gateway canonicalizes too).
+const LEGACY_SESSIONS = new Set(["mobile:default", "cli:default"]);
+
 export function normalizeSession(session?: string): string {
   const value = (session ?? "").trim();
-  return value === "" ? "mobile:default" : value;
+  if (value === "" || LEGACY_SESSIONS.has(value)) return "main";
+  return value;
 }
 
 export function authHeaders(cfg: GhostConfig): Record<string, string> {
@@ -357,7 +363,7 @@ export interface SendOptions {
   mediaType?: string;
   signal?: AbortSignal;
   // Override the session this message belongs to. Defaults to cfg.session.
-  // The contract default conversation is mobile:default. The key is opaque.
+  // The contract default conversation is main. The key is opaque.
   sessionKey?: string;
   onChunk: (chunk: string) => void;
   onLifecycle?: (requestId: string, state: string) => void;

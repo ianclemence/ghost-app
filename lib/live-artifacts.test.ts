@@ -77,13 +77,13 @@ describe("artifact clients", () => {
       seenUrl = url;
       return okResponse({ ok: true, artifacts: [{ id: "a1" }] });
     }) as unknown as typeof fetch;
-    const items = await ghostApi.fetchArtifacts(CFG, "mobile:default");
-    expect(seenUrl.includes("conversation_id=mobile%3Adefault")).toBe(true);
+    const items = await ghostApi.fetchArtifacts(CFG, "main");
+    expect(seenUrl.includes("conversation_id=main")).toBe(true);
     expect(items.map((a) => a.id)).toEqual(["a1"]);
     globalThis.fetch = (async () => {
       throw new Error("down");
     }) as unknown as typeof fetch;
-    expect(await ghostApi.fetchArtifacts(CFG, "mobile:default")).toEqual([]);
+    expect(await ghostApi.fetchArtifacts(CFG, "main")).toEqual([]);
   });
 
   test("detail 404 resolves to null", async () => {

@@ -157,7 +157,7 @@ async function buildConfig(): Promise<GhostConfig | null> {
   return {
     piHost: meta.host,
     piPort: meta.port,
-    session: "mobile:default",
+    session: "main",
     sendLocation: false,
     transport: meta.transport ?? "relay",
     relayServer: meta.relayServer,

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 const { parseSurfaceAnnouncement, presentSurface, surfaceTitle } = await import("./surfaces");
-const SESSION = "mobile:default";
+const SESSION = "main";
 
 function surface(over: Record<string, unknown> = {}) {
   return {

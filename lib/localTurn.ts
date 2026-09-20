@@ -31,7 +31,7 @@ export async function runLocalTurn(
   const pod = cfg ? { baseUrl: baseURL(cfg), headers: authHeaders(cfg) } : null;
   const manifests = await loadCatalog(pod);
   const transport = new GhostTransport(
-    cfg ? { baseUrl: baseURL(cfg), headers: authHeaders(cfg), session: "mobile:default" } : null,
+    cfg ? { baseUrl: baseURL(cfg), headers: authHeaders(cfg), session: "main" } : null,
   );
 
   let podModelKnown = false;

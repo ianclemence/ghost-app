@@ -71,10 +71,10 @@ export interface ClarifyRequest {
 
 /**
  * One persistent Ghost conversation. The frozen contract selects
- * mobile:default when the client never sets a session; we pin it
+ * main when the client never sets a session; we pin it
  * explicitly so history, chat, and voice share one relationship.
  */
-export const MAIN_SESSION_ID = "mobile:default";
+export const MAIN_SESSION_ID = "main";
 
 let nextMessageId = 1;
 
