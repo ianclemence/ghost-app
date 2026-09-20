@@ -1229,6 +1229,41 @@ export interface ConnectorInfo {
   source: string;
   auth?: { kind?: string; setup?: string };
   capabilities?: ConnectorCapability[];
+  // Live readiness for first-party connectors: status is the connection
+  // lifecycle (connected/expired/...), ready is true only when usable now.
+  status?: string;
+  ready?: boolean;
+}
+
+// ─── Connector readiness, in owner language ────────────────────────────
+// The directory must tell the owner what they can use NOW versus what still
+// needs connecting. First-party connectors carry a live status; installed
+// portable connectors are ready by virtue of being installed.
+export type ConnectorReadiness = "ready" | "needs_connection" | "needs_reauth" | "available";
+
+export function connectorReadiness(c: Pick<ConnectorInfo, "source" | "status" | "ready">): ConnectorReadiness {
+  const status = (c.status ?? "").toLowerCase();
+  if (status === "connected" || c.ready === true) return "ready";
+  if (status === "expired" || status === "needs_reauth" || status === "invalid" || status === "revoked") {
+    return "needs_reauth";
+  }
+  if (status === "disconnected" || status === "not_configured" || status === "unavailable") {
+    return "needs_connection";
+  }
+  return c.source === "installed" ? "ready" : "available";
+}
+
+export function readinessLabel(r: ConnectorReadiness): string {
+  switch (r) {
+    case "ready":
+      return "Ready";
+    case "needs_reauth":
+      return "Reconnect needed";
+    case "needs_connection":
+      return "Not connected";
+    default:
+      return "Available";
+  }
 }
 
 /** The connector directory: installed connectors plus built-in connected apps. */

@@ -11,6 +11,8 @@ import {
   disconnectConnectedApp,
   fetchConnectedApps,
   fetchConnectors,
+  connectorReadiness,
+  readinessLabel,
   type ConnectedAppInfo,
   type ConnectorInfo,
 } from "@/lib/ghostApi";
@@ -221,15 +223,26 @@ export default function ConnectionsScreen() {
               <GhostText type="footnote" style={styles.rowMeta}>
                 Portable connectors Ghost can use, listed by capability.
               </GhostText>
-              {connectors.map((c) => (
-                <View key={c.id} style={styles.dirRow}>
-                  <GhostText type="callout" style={styles.dirName}>{c.display_name || c.id}</GhostText>
-                  <GhostText type="footnote" style={styles.rowMeta}>
-                    {c.kind} · {c.source}
-                    {(c.capabilities?.length ?? 0) > 0 ? " · " + (c.capabilities ?? []).map((x) => x.id).join(" · ") : ""}
-                  </GhostText>
-                </View>
-              ))}
+              {connectors.map((c) => {
+                const readiness = connectorReadiness(c);
+                return (
+                  <View key={c.id} style={styles.dirRow}>
+                    <View style={styles.dirHead}>
+                      <GhostText type="callout" style={styles.dirName}>{c.display_name || c.id}</GhostText>
+                      <GhostText
+                        type="footnote"
+                        style={[styles.dirState, readiness === "ready" ? styles.dirReady : null]}
+                      >
+                        {readinessLabel(readiness)}
+                      </GhostText>
+                    </View>
+                    <GhostText type="footnote" style={styles.rowMeta}>
+                      {c.kind} · {c.source}
+                      {(c.capabilities?.length ?? 0) > 0 ? " · " + (c.capabilities ?? []).map((x) => x.id).join(" · ") : ""}
+                    </GhostText>
+                  </View>
+                );
+              })}
             </View>
           ) : null}
         </ScrollView>
@@ -295,8 +308,21 @@ const styles = StyleSheet.create({
   dirRow: {
     paddingVertical: Space.sm,
   },
+  dirHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Space.sm,
+  },
+  dirState: {
+    color: Ghost.text.tertiary,
+  },
+  dirReady: {
+    color: Ghost.status.success,
+  },
   dirName: {
     color: Ghost.text.primary,
+    flexShrink: 1,
   },
   input: {
     borderWidth: 1,
