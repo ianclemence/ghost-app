@@ -822,6 +822,9 @@ export interface ActivityChip {
   timestamp: string;
   summary?: string;
   detail?: string;
+  // Why explains, in owner language, why Ghost acted or asked. Empty for
+  // routine reads that need no justification.
+  why?: string;
 }
 
 export async function fetchActivity(

@@ -4,6 +4,7 @@ import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reani
 import { Ghost, Space } from "@/constants/theme";
 import { GhostButton } from "@/components/ghost";
 import { isValidGrant, resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
+import { riskNote } from "@/lib/permission-risk";
 
 const CARD_ENTER = FadeInUp.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
@@ -14,6 +15,7 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
   const card = item.card;
   const title = card?.title ?? "Ghost needs approval";
   const desc = card?.description ?? "Ghost is waiting for your approval to continue.";
+  const note = riskNote(card?.risk);
   const actions = card?.actions ?? [
     { id: "allow_once", label: "Allow once", style: "primary" },
     { id: "deny", label: "Deny", style: "danger" },
@@ -37,6 +39,7 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
       <Text style={styles.kicker}>Needs your approval</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.desc}>{desc}</Text>
+      {note ? <Text style={styles.note}>{note}</Text> : null}
       <View style={styles.row}>
         {actions.map((a) => {
           const destructive = a.style === "danger" || /deny|reject/i.test(a.id);
@@ -81,6 +84,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: Ghost.text.secondary,
+  },
+  note: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: Ghost.text.tertiary,
+    fontStyle: "italic",
   },
   row: {
     flexDirection: "row",
