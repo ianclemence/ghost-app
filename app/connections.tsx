@@ -10,11 +10,7 @@ import {
   connectConnectedApp,
   disconnectConnectedApp,
   fetchConnectedApps,
-  fetchConnectors,
-  connectorReadiness,
-  readinessLabel,
   type ConnectedAppInfo,
-  type ConnectorInfo,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
@@ -52,7 +48,6 @@ export default function ConnectionsScreen() {
   const router = useRouter();
   const { config } = useGhostStore();
   const [items, setItems] = useState<ConnectedAppInfo[]>([]);
-  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,11 +63,6 @@ export default function ConnectionsScreen() {
       setItems(await fetchConnectedApps(config));
     } catch {
       setError("Couldn't load connected apps.");
-    }
-    try {
-      setConnectors(await fetchConnectors(config));
-    } catch {
-      // The connector directory is best-effort; connected apps still render.
     }
     setLoading(false);
   }, [config]);
@@ -153,7 +143,7 @@ export default function ConnectionsScreen() {
         <View style={styles.center}><ActivityIndicator color={Ghost.text.primary} size="large" /></View>
       ) : error && items.length === 0 ? (
         <View style={styles.center}><EmptyState title="Couldn't load apps." subtitle={error} action={<GhostButton title="Retry" onPress={() => load()} />} /></View>
-      ) : items.length === 0 && connectors.length === 0 ? (
+      ) : items.length === 0 ? (
         <View style={styles.center}><EmptyState title="No apps yet." subtitle="Connected services will appear here." /></View>
       ) : (
         <ScrollView
@@ -216,35 +206,6 @@ export default function ConnectionsScreen() {
             );
           })}
           <GhostText type="footnote" style={styles.note}>OAuth apps (Gmail, Outlook, Calendar, Spotify) connect via browser sign-in. GitHub, Notion, and provider keys can be pasted here. Keys never leave your Ghost.</GhostText>
-
-          {connectors.length > 0 ? (
-            <View style={styles.directory}>
-              <GhostText type="headline" style={styles.rowTitle}>Connectors</GhostText>
-              <GhostText type="footnote" style={styles.rowMeta}>
-                Portable connectors Ghost can use, listed by capability.
-              </GhostText>
-              {connectors.map((c) => {
-                const readiness = connectorReadiness(c);
-                return (
-                  <View key={c.id} style={styles.dirRow}>
-                    <View style={styles.dirHead}>
-                      <GhostText type="callout" style={styles.dirName}>{c.display_name || c.id}</GhostText>
-                      <GhostText
-                        type="footnote"
-                        style={[styles.dirState, readiness === "ready" ? styles.dirReady : null]}
-                      >
-                        {readinessLabel(readiness)}
-                      </GhostText>
-                    </View>
-                    <GhostText type="footnote" style={styles.rowMeta}>
-                      {c.kind} · {c.source}
-                      {(c.capabilities?.length ?? 0) > 0 ? " · " + (c.capabilities ?? []).map((x) => x.id).join(" · ") : ""}
-                    </GhostText>
-                  </View>
-                );
-              })}
-            </View>
-          ) : null}
         </ScrollView>
       )}
       <PlusMenu />
@@ -300,29 +261,6 @@ const styles = StyleSheet.create({
   },
   rowHint: {
     color: Ghost.text.tertiary,
-  },
-  directory: {
-    marginTop: Space.xl,
-    gap: 4,
-  },
-  dirRow: {
-    paddingVertical: Space.sm,
-  },
-  dirHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Space.sm,
-  },
-  dirState: {
-    color: Ghost.text.tertiary,
-  },
-  dirReady: {
-    color: Ghost.status.success,
-  },
-  dirName: {
-    color: Ghost.text.primary,
-    flexShrink: 1,
   },
   input: {
     borderWidth: 1,
