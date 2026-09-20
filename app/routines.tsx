@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
@@ -9,23 +9,29 @@ import { ScreenBackground } from "@/components/screen-glow";
 import { GhostButton, EmptyState } from "@/components/ghost";
 import {
   controlRoutineItem,
+  createGoal,
+  fetchGoals,
   fetchRoutines,
+  goalAction,
   kindLabel,
   stateLabel,
+  type GoalItem,
   type RoutineItem,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
 // Routines — the one place that answers "what does Ghost do for me?".
 //
-// The owner never files their intent as a "routine" or an "automation".
-// They say what they want in conversation; Ghost infers the shape. This
-// screen shows what is running, what is waiting, and what is done — one
-// list, one vocabulary, no internal taxonomy to learn.
+// Scheduled work (reminders, recurring briefs, automations) and standing
+// goals live here together. The owner never files their intent as a
+// "routine", an "automation", or a "goal" — they say what they want in
+// conversation and Ghost infers the shape. Kind and goal badges are quiet
+// metadata, never a filing decision.
 //
-// Creation happens in conversation ("every Monday at 9…"). This surface is
-// for reviewing and steering, not for filling forms — matching the design
-// principle that talk is the primary verb, not configuration.
+// Routines are created in conversation ("every Monday at 9…"). Goals are
+// declared here or in conversation; the heartbeat evaluates them. This
+// surface is for reviewing and steering, not for filling forms — matching
+// the design principle that talk is the primary verb, not configuration.
 
 function badgeFor(t: RoutineItem): { label: string; color: string } {
   switch (t.state) {
@@ -44,24 +50,51 @@ function badgeFor(t: RoutineItem): { label: string; color: string } {
   }
 }
 
+function goalStatusLabel(s: string): string {
+  switch (s) {
+    case "active":
+      return "Active";
+    case "paused":
+      return "Paused";
+    case "completed":
+      return "Done";
+    case "expired":
+      return "Expired";
+    default:
+      return s ? s.replace(/_/g, " ") : "Unknown";
+  }
+}
+
 export default function RoutinesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config } = useGhostStore();
+  const connectionState = useGhostStore((s) => s.connectionState);
   const [items, setItems] = useState<RoutineItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [goals, setGoals] = useState<GoalItem[]>([]);
+  const [goalsError, setGoalsError] = useState<string | null>(null);
+  const [goalText, setGoalText] = useState("");
+  const [goalScope, setGoalScope] = useState("");
+  const [goalBusy, setGoalBusy] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!config) return;
     if (!silent) setLoading(true);
     setError(null);
+    setGoalsError(null);
     try {
       setItems(await fetchRoutines(config));
     } catch {
       setError("Couldn't load what Ghost is doing.");
+    }
+    try {
+      setGoals(await fetchGoals(config));
+    } catch {
+      setGoalsError("Couldn't load goals.");
     }
     setLoading(false);
   }, [config]);
@@ -95,6 +128,58 @@ export default function RoutinesScreen() {
     [config, busyId, load],
   );
 
+  const handleCreateGoal = useCallback(async () => {
+    if (!config || goalBusy) return;
+    const t = goalText.trim();
+    if (!t) {
+      Alert.alert("Missing goal", "Describe what Ghost should keep doing for you.");
+      return;
+    }
+    setGoalBusy("new");
+    try {
+      await createGoal(config, t, goalScope.trim() || undefined);
+      setGoalText("");
+      setGoalScope("");
+      await load(true);
+    } catch (e) {
+      Alert.alert("Couldn't create goal", e instanceof Error ? e.message : "Unknown error");
+    }
+    setGoalBusy(null);
+  }, [config, goalBusy, goalText, goalScope, load]);
+
+  const handleGoalOp = useCallback(
+    async (g: GoalItem, op: "pause" | "resume" | "complete") => {
+      if (!config || goalBusy) return;
+      if (op === "complete") {
+        Alert.alert("Mark done?", `"${g.text}" will stop being evaluated.`, [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Done", onPress: async () => {
+              setGoalBusy(g.id);
+              try {
+                await goalAction(config, g.id, op);
+                await load(true);
+              } catch (e) {
+                Alert.alert("Failed", e instanceof Error ? e.message : "Unknown error");
+              }
+              setGoalBusy(null);
+            },
+          },
+        ]);
+        return;
+      }
+      setGoalBusy(g.id);
+      try {
+        await goalAction(config, g.id, op);
+        await load(true);
+      } catch (e) {
+        Alert.alert("Failed", e instanceof Error ? e.message : "Unknown error");
+      }
+      setGoalBusy(null);
+    },
+    [config, goalBusy, load],
+  );
+
   const active = items.filter((t) => t.state === "active" || t.state === "waiting").length;
 
   return (
@@ -110,6 +195,11 @@ export default function RoutinesScreen() {
             : "Tell Ghost in a chat — \u201cevery Monday at 9, prepare my brief\u201d."}
         </GhostText>
       </View>
+      {config && connectionState !== "online" ? (
+        <GhostText type="footnote" style={styles.offline} accessibilityLiveRegion="polite">
+          {connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}
+        </GhostText>
+      ) : null}
 
       {!config ? (
         <EmptyState
@@ -212,6 +302,86 @@ export default function RoutinesScreen() {
               );
             })
           )}
+
+          <GhostText type="caption" style={styles.sectionLabel}>
+            Goals
+          </GhostText>
+          <GhostText type="footnote" style={styles.sectionDesc}>
+            Standing intents Ghost keeps working on — tell it once, it reports back.
+          </GhostText>
+          {goalsError && goals.length === 0 ? (
+            <EmptyState
+              title="Couldn't load goals"
+              subtitle={goalsError}
+              action={<GhostButton title="Try again" onPress={() => load()} />}
+            />
+          ) : null}
+          <View style={styles.creator}>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. Take care of school emails"
+              value={goalText}
+              onChangeText={setGoalText}
+              editable={goalBusy !== "new"}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Scope (optional, e.g. school.edu inbox)"
+              value={goalScope}
+              onChangeText={setGoalScope}
+              editable={goalBusy !== "new"}
+            />
+            <GhostButton title={goalBusy === "new" ? "Working…" : "Set goal"} onPress={handleCreateGoal} />
+          </View>
+          {goals.length === 0 && !goalsError ? (
+            <GhostText type="footnote" style={styles.rowMeta}>
+              No goals yet. Set one above and Ghost will keep at it.
+            </GhostText>
+          ) : (
+            goals.map((g) => {
+              const busy = goalBusy === g.id;
+              const isActive = g.status === "active";
+              return (
+                <View key={g.id} style={styles.row}>
+                  <View style={styles.rowHead}>
+                    <GhostText type="headline" style={styles.rowTitle}>
+                      {g.text}
+                    </GhostText>
+                    <View style={[styles.badge, { borderColor: Ghost.text.tertiary }]}>
+                      <GhostText type="footnote" style={{ color: Ghost.text.tertiary }}>
+                        Goal
+                      </GhostText>
+                    </View>
+                  </View>
+                  <GhostText type="footnote" style={styles.rowMeta}>
+                    {goalStatusLabel(g.status)}{g.scope ? ` · ${g.scope}` : ""}
+                  </GhostText>
+                  <View style={styles.actions}>
+                    {isActive ? (
+                      <GhostButton
+                        title={busy ? "…" : "Pause"}
+                        variant="secondary"
+                        onPress={() => handleGoalOp(g, "pause")}
+                      />
+                    ) : g.status === "paused" || g.status === "expired" ? (
+                      <GhostButton
+                        title={busy ? "…" : "Resume"}
+                        variant="secondary"
+                        onPress={() => handleGoalOp(g, "resume")}
+                      />
+                    ) : null}
+                    {g.status !== "completed" ? (
+                      <GhostButton
+                        title={busy ? "…" : "Done"}
+                        variant="ghost"
+                        onPress={() => handleGoalOp(g, "complete")}
+                      />
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })
+          )}
         </ScrollView>
       )}
       <PlusMenu />
@@ -236,6 +406,11 @@ const styles = StyleSheet.create({
     ...Type.subhead,
     color: Ghost.text.secondary,
     marginTop: 2,
+  },
+  offline: {
+    color: Ghost.text.tertiary,
+    textAlign: "center",
+    marginTop: 4,
   },
   center: {
     flex: 1,
@@ -282,5 +457,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Space.sm,
     marginTop: Space.sm,
+  },
+  sectionLabel: {
+    color: Ghost.text.tertiary,
+    textTransform: "uppercase",
+    marginTop: Space.xl,
+    marginBottom: Space.xs,
+  },
+  sectionDesc: {
+    color: Ghost.text.secondary,
+    marginBottom: Space.sm,
+  },
+  creator: {
+    gap: 8,
+    marginBottom: Space.lg,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Ghost.border.subtle,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: Ghost.text.primary,
   },
 });

@@ -40,7 +40,7 @@ export default function FirstLaunchScreen() {
         <GhostButton
           title="Set up on this phone"
           variant="primary"
-          onPress={() => router.push("/local-models?firstRun=1" as never)}
+          onPress={() => router.push("/ghost?firstRun=1" as never)}
           fullWidth
         />
         <TouchableOpacity

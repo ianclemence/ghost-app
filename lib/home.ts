@@ -1,4 +1,4 @@
-import type { RoutineItem } from "./ghostApi";
+import type { GoalItem, RoutineItem } from "./ghostApi";
 
 // Home is the first screen. Its job is to answer "what does Ghost do for
 // me?" in one calm line, without becoming a dashboard. This module holds
@@ -23,21 +23,26 @@ const KIND_VERB: Record<string, string> = {
 
 // deriveHomeSummary picks the most useful single thing to say. Priority:
 //  1. something waiting on the owner (needs action now),
-//  2. otherwise the soonest active thing,
-//  3. otherwise nothing.
+//  2. otherwise the soonest active routine,
+//  3. otherwise an active standing goal,
+//  4. otherwise nothing.
 // It is deterministic and total.
-export function deriveHomeSummary(routines: RoutineItem[]): HomeSummary {
-  if (!routines || routines.length === 0) {
+export function deriveHomeSummary(routines: RoutineItem[], goals: GoalItem[] = []): HomeSummary {
+  if ((!routines || routines.length === 0) && (!goals || goals.length === 0)) {
     return { headline: null, needsYou: false };
   }
 
-  const waiting = routines.find((t) => t.state === "waiting");
+  const waiting = (routines ?? []).find((t) => t.state === "waiting");
   if (waiting) {
     return { headline: `One thing needs you: ${waiting.title}.`, needsYou: true };
   }
 
-  const active = routines.filter((t) => t.state === "active");
+  const active = (routines ?? []).filter((t) => t.state === "active");
   if (active.length === 0) {
+    const goal = (goals ?? []).find((g) => g.status === "active");
+    if (goal) {
+      return { headline: `Keeping up with \u201c${goal.text}\u201d.`, needsYou: false };
+    }
     return { headline: null, needsYou: false };
   }
 

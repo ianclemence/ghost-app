@@ -7,7 +7,7 @@ import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
-import { capability } from "@/lib/capabilities";
+import { ensureNotificationPermission } from "@/lib/notify";
 
 const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
@@ -31,38 +31,18 @@ export default function PairingSuccessScreen() {
       return;
     }
 
-    // Notifications need a dev build; in Expo Go skip straight through.
-    // The module throws at import time on newer SDKs, so load it lazily.
-    if (!capability("notifications").supported) {
+    // Same shared ask as Mini-download setup: prompt once when undecided,
+    // otherwise report the existing state. Unavailable (Expo Go, etc.)
+    // skips straight through.
+    setBusy(true);
+    const result = await ensureNotificationPermission();
+    setBusy(false);
+    if (result === "unavailable") {
       router.replace("/(tabs)");
       return;
     }
-
-    // Check notification status
-    setBusy(true);
-    try {
-      const Notifications = await import("expo-notifications");
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status === "granted") {
-        setNotifStatus("granted");
-        setAskedNotifications(true);
-        return;
-      }
-      if (status === "denied") {
-        setNotifStatus("denied");
-        setAskedNotifications(true);
-        return;
-      }
-      // Undetermined — request permission
-      const result = await Notifications.requestPermissionsAsync();
-      setNotifStatus(result.status as "granted" | "denied");
-      setAskedNotifications(true);
-    } catch {
-      // Notifications not available (Expo Go, etc.)
-      router.replace("/(tabs)");
-    } finally {
-      setBusy(false);
-    }
+    setNotifStatus(result);
+    setAskedNotifications(true);
   };
 
   // After notifications handled, show the final state

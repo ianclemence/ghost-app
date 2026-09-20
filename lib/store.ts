@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { GhostConfig, Message } from "./ghostApi";
+import type { AnswerOrigin } from "./provenance";
 
 export type ConnectionState = "online" | "syncing" | "offline";
 export type MessageStatus =
@@ -12,6 +13,12 @@ export type MessageStatus =
 
 export interface ExtendedMessage extends Message {
   status?: MessageStatus;
+  // Where this reply ran. Set at send time from the runtime's own routing
+  // labels; server history rows (other devices, scheduler turns) carry none
+  // and render no badge — unknown stays unknown.
+  origin?: AnswerOrigin;
+  // Phone answer not yet synced to the Pod.
+  pendingSync?: boolean;
 }
 
 interface GhostStore {

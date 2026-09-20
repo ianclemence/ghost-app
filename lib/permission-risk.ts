@@ -14,3 +14,18 @@ export function riskNote(risk?: string): string | null {
       return null;
   }
 }
+
+// Caution line for approvals the broker could not classify. Unknown stakes
+// must look more careful than low risk, never identical to it.
+export function riskCaution(risk?: string): string | null {
+  const normalized = (risk ?? "").toLowerCase();
+  if (
+    normalized === "" ||
+    (normalized !== "high_impact" &&
+      normalized !== "consequential" &&
+      normalized !== "low_risk")
+  ) {
+    return "Ghost couldn't classify this action, so it stopped. Review carefully before allowing.";
+  }
+  return null;
+}

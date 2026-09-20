@@ -4,8 +4,9 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
+import { GhostButton } from "@/components/ghost";
 import { PlusMenu } from "@/components/plus-menu";
-import { fetchIdentity, fetchPendingApprovals, fetchProactiveStatus, fetchRoutines, type ProactiveStatus, type RoutineItem } from "@/lib/ghostApi";
+import { fetchGoals, fetchIdentity, fetchPendingApprovals, fetchProactiveStatus, fetchRoutines, type GoalItem, type ProactiveStatus, type RoutineItem } from "@/lib/ghostApi";
 import { deriveHomeSummary } from "@/lib/home";
 import { proactiveLine } from "@/lib/proactive";
 import { useGhostStore } from "@/lib/store";
@@ -29,8 +30,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const { config, setGhostName, connectionState, localReady } = useGhostStore();
   const [userName, setUserName] = useState("");
-  const [waitingApproval, setWaitingApproval] = useState(false);
+  const [approvalCount, setApprovalCount] = useState(0);
   const [routines, setRoutines] = useState<RoutineItem[]>([]);
+  const [goals, setGoals] = useState<GoalItem[]>([]);
   const [proactive, setProactive] = useState<ProactiveStatus | null>(null);
   const { top, sub } = dateHeader();
   const greet = greeting();
@@ -45,12 +47,15 @@ export default function HomeScreen() {
       if (id.owner.trim()) setUserName(id.owner.trim());
     }).catch(() => {});
     fetchPendingApprovals(config).then((r) => {
-      if (!cancelled) setWaitingApproval(r.length > 0);
+      if (!cancelled) setApprovalCount(r.length);
     }).catch(() => {});
     // Home states one fact about what Ghost is doing, so the owner's first
     // screen answers "what do you do for me?" without becoming a dashboard.
     fetchRoutines(config).then((r) => {
       if (!cancelled) setRoutines(r);
+    }).catch(() => {});
+    fetchGoals(config).then((g) => {
+      if (!cancelled) setGoals(g);
     }).catch(() => {});
     // When Ghost is quietly watching or holding something for later, the
     // owner should know — without a dashboard. One calm line at most.
@@ -62,8 +67,11 @@ export default function HomeScreen() {
     };
   }, [config, setGhostName]);
 
-  const summary = deriveHomeSummary(routines);
+  const summary = deriveHomeSummary(routines, goals);
   const proactiveText = proactiveLine(proactive).text;
+  // "Ready" is earned, not default: without a Pod or a phone model there is
+  // nothing to talk to yet, so Home offers setup instead of conversation.
+  const ready = !!config || localReady;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -92,16 +100,35 @@ export default function HomeScreen() {
             <>
               <Text style={styles.muted}>{greet},{`\n`}</Text>
               <Text style={styles.ink}>{userName}. </Text>
-              <Text style={styles.muted}>I am ready.{`\n`}What should we do first?</Text>
+              {ready ? (
+                <Text style={styles.muted}>I am ready.{`\n`}What should we do first?</Text>
+              ) : (
+                <Text style={styles.muted}>Let&apos;s get set up first.</Text>
+              )}
             </>
-          ) : (
+          ) : ready ? (
             <>
               <Text style={styles.muted}>{greet}. {`\n`}I am ready.{`\n`}What should we do first?</Text>
             </>
+          ) : (
+            <>
+              <Text style={styles.muted}>Welcome to Ghost.{`\n`}Let&apos;s get set up first.</Text>
+            </>
           )}
         </Text>
-        {waitingApproval ? (
-          <Text style={styles.nudge}>Ghost is waiting for your approval.</Text>
+        {approvalCount > 0 ? (
+          <Pressable
+            onPress={() => router.push({ pathname: "/conversation", params: { anchor: "approvals" } } as never)}
+            accessibilityRole="button"
+            accessibilityLabel={`${approvalCount} approval${approvalCount === 1 ? "" : "s"} waiting. Open conversation to review.`}
+            style={styles.routinesLine}
+          >
+            <Text style={styles.nudge}>
+              {approvalCount === 1
+                ? "Ghost is waiting for your approval."
+                : `Ghost is waiting for ${approvalCount} approvals.`}
+            </Text>
+          </Pressable>
         ) : null}
         {summary.headline ? (
           <Pressable
@@ -118,6 +145,19 @@ export default function HomeScreen() {
             {proactiveText}
           </Text>
         ) : null}
+        <View style={styles.talkRow}>
+          {ready ? (
+            <>
+              <GhostButton title="Start a conversation" onPress={() => router.push("/conversation" as never)} />
+              <GhostButton title="Live voice" variant="secondary" onPress={() => router.push("/live" as never)} />
+            </>
+          ) : (
+            <>
+              <GhostButton title="Set up on this phone" onPress={() => router.push("/ghost?firstRun=1" as never)} />
+              <GhostButton title="Connect a Pod" variant="secondary" onPress={() => router.push("/connect")} />
+            </>
+          )}
+        </View>
       </Animated.View>
       <PlusMenu />
     </View>
@@ -193,5 +233,11 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: "#8A857E",
     paddingHorizontal: Space.md,
+  },
+  talkRow: {
+    marginTop: Space.lg,
+    flexDirection: "row",
+    gap: Space.sm,
+    justifyContent: "center",
   },
 });

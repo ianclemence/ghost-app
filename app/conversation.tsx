@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -49,6 +49,7 @@ import {
 import { MAIN_SESSION_ID, useGhostStore, type ExtendedMessage } from "@/lib/store";
 import { runLocalTurn } from "@/lib/localTurn";
 import { loadLocalThread, saveLocalThread } from "@/lib/local/threadCache";
+import { originBadge, parseOrigin, type AnswerOrigin } from "@/lib/provenance";
 
 function outcomeLine(outcome: ChatOutcome | null): string | null {
   switch (outcome) {
@@ -111,6 +112,13 @@ export default function ConversationScreen() {
   const [outcome, setOutcome] = useState<ChatOutcome | null>(null);
   const [clarify, setClarify] = useState<{ questionId: string; question: string } | null>(null);
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const [showAllApprovals, setShowAllApprovals] = useState(false);
+  const { anchor } = useLocalSearchParams<{ anchor?: string }>();
+  // Deep link from the Home approval nudge: reveal the full queue so the
+  // owner lands on every waiting approval, not just the first ones.
+  useEffect(() => {
+    if (anchor === "approvals") setShowAllApprovals(true);
+  }, [anchor]);
   const [cancelPhase, setCancelPhase] = useState<CancelPhase>("idle");
   const [surfaces, setSurfaces] = useState<{ id: string; kind: SurfaceKind }[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
@@ -119,6 +127,13 @@ export default function ConversationScreen() {
   surfacesRef.current = surfaces;
   const flushingRef = useRef(false);
   const localAbort = useRef<AbortController | null>(null);
+  // Provenance for the in-flight turn: derived from the runtime's own
+  // routing labels (same source as the transient "Thinking" line), stamped
+  // onto the assistant bubble at onDone so it survives the turn.
+  const originRef = useRef<{ origin: AnswerOrigin | null; pendingSync: boolean }>({
+    origin: null,
+    pendingSync: false,
+  });
 
   // Flush the offline outbox FIFO: oldest queued message sends first.
   // A failed flush stops and leaves the entry queued; a non-retryable
@@ -193,6 +208,8 @@ export default function ConversationScreen() {
             role: m.role as "user" | "assistant",
             content: m.content,
             timestamp: m.timestamp,
+            origin: (m.origin ?? undefined) as AnswerOrigin | undefined,
+            pendingSync: m.pendingSync ?? undefined,
           })),
         );
       }
@@ -205,7 +222,7 @@ export default function ConversationScreen() {
     if (messages.length === 0) return;
     const t = setTimeout(() => {
       void saveLocalThread(
-        messages.filter((m) => m.content).map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
+        messages.filter((m) => m.content).map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp, origin: m.origin, pendingSync: m.pendingSync })),
       ).catch(() => {});
     }, 500);
     return () => clearTimeout(t);
@@ -358,6 +375,7 @@ export default function ConversationScreen() {
     listRef.current?.scrollToEnd({ animated: true });
     setStreaming(true);
     setToolActivity(null);
+    originRef.current = { origin: null, pendingSync: false };
     const requestId = `m-${Date.now()}`;
     const ctrl = new AbortController();
     localAbort.current = ctrl;
@@ -373,7 +391,14 @@ export default function ConversationScreen() {
       sessionKey: MAIN_SESSION_ID,
       signal: ctrl.signal,
       onChunk: (c) => appendStream(c),
-      onToolStatus: (t, label) => setToolActivity(statusPhaseForTool(t) ?? label),
+      onToolStatus: (t, label) => {
+        if (t === "ghost") {
+          const o = parseOrigin(label);
+          if (o) originRef.current.origin = o;
+          if (label.toLowerCase().includes("will sync")) originRef.current.pendingSync = true;
+        }
+        setToolActivity(statusPhaseForTool(t) ?? label);
+      },
       onLifecycle: () => {},
       onOutcome: (_rid, o) => setOutcome(o),
       onClarify: (info) => setClarify({ questionId: info.questionId, question: info.question }),
@@ -386,6 +411,12 @@ export default function ConversationScreen() {
         // assumption, including a pending cancellation request.
         setCancelPhase((p) => nextCancelState(p, "settled"));
         localAbort.current = null;
+        // Stamp where this ran before commit: the ids change underneath,
+        // but commitStream preserves the row fields.
+        updateMessage(asstId, {
+          origin: originRef.current.origin ?? (config ? "pod" : "phone"),
+          pendingSync: originRef.current.pendingSync || undefined,
+        });
         commitStream();
         if (config) {
           fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
@@ -492,6 +523,11 @@ export default function ConversationScreen() {
           <MarkdownBubble content={item.content} streaming={item.status === "streaming"} />
         )}
         {item.status === "streaming" && item.content.trim() ? <WaveDots /> : null}
+        {item.status !== "streaming" && originBadge(item.origin, item.pendingSync) ? (
+          <Text style={styles.origin} accessibilityLabel={`Answered ${item.origin === "phone" ? "on this phone" : item.origin === "cloud" ? "via Pod cloud" : "by home Pod"}`}>
+            {originBadge(item.origin, item.pendingSync)}
+          </Text>
+        ) : null}
       </View>
     );
   }, [toolActivity]);
@@ -555,7 +591,14 @@ export default function ConversationScreen() {
         />
       )}
       <View style={{ marginBottom: dockH }}>
-        {config && approvals.slice(0, 2).map((a) => (
+        {config && approvals.length > 0 ? (
+          <Text style={styles.approvalCount} accessibilityLiveRegion="polite">
+            {approvals.length === 1
+              ? "1 approval waiting"
+              : `${approvals.length} approvals waiting`}
+          </Text>
+        ) : null}
+        {config && (showAllApprovals ? approvals : approvals.slice(0, 3)).map((a) => (
           <View key={a.id} style={styles.approvalWrap}>
             <PermissionCard
               item={a}
@@ -566,6 +609,18 @@ export default function ConversationScreen() {
             />
           </View>
         ))}
+        {config && approvals.length > 3 && !showAllApprovals ? (
+          <Pressable
+            onPress={() => setShowAllApprovals(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Show all ${approvals.length} approvals`}
+            style={styles.approvalMore}
+          >
+            <Text style={styles.approvalMoreText}>
+              Show all {approvals.length} approvals
+            </Text>
+          </Pressable>
+        ) : null}
         {clarify ? <Text style={styles.status} accessibilityLiveRegion="polite">{clarify.question}</Text> : null}
         {cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{cancelLine}</Text> : null}
         {statusLine && !clarify && !cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{statusLine}</Text> : null}
@@ -768,8 +823,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Ghost.text.tertiary,
   },
+  origin: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: Ghost.text.tertiary,
+    marginTop: 4,
+  },
   approvalWrap: {
     paddingHorizontal: 28,
+  },
+  approvalCount: {
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1A1611",
+    paddingHorizontal: 28,
+    marginBottom: 4,
+  },
+  approvalMore: {
+    alignItems: "center",
+    paddingVertical: 12,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  approvalMoreText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1A1611",
   },
   extras: {
     paddingVertical: Space.xs,

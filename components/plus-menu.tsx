@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { Blocks, CalendarClock, Cpu, Flag, House, Info, MessageCircle, PhoneCall, Smartphone, Sparkles } from "lucide-react-native";
+import { Blocks, CalendarClock, Cpu, Ghost as GhostIcon, House, Info, Sparkles } from "lucide-react-native";
 import { ScreenBackground } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -17,22 +17,21 @@ import Animated, {
 import { Space } from "@/constants/theme";
 import { useGhostStore } from "@/lib/store";
 
-// The app is the daily driver. The menu is grouped by role so the everyday
-// verbs (talk) stay at the top and management/connection live below — the
-// control plane itself is Ghost Web, not this menu.
+// The app is the daily driver. The menu holds the six management
+// destinations; talk (conversation, live voice) launches from Home, not
+// from this menu — the control plane itself is Ghost Web, not this menu.
 //
-// "Routines" is the one destination for everything Ghost runs for you —
-// the owner has one mental model, so there is one destination.
+// "Routines" is the one destination for everything Ghost runs for you,
+// including standing goals — the owner has one mental model, so there is
+// one destination. "Ghost" merges this phone (Mini travel cache) and the
+// home Pod (health, diagnostics, Pod AI models) so there is one answer to
+// "where does Ghost run?".
 const ITEMS = [
   { group: "Talk", route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
-  { group: "Talk", route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
-  { group: "Talk", route: "/live" as const, label: "Live voice", match: "live", Icon: PhoneCall },
   { group: "Your Ghost", route: "/routines" as const, label: "Routines", match: "routines", Icon: CalendarClock },
   { group: "Your Ghost", route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
-  { group: "Your Ghost", route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
   { group: "Your Ghost", route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },
-  { group: "Your Ghost", route: "/goals" as const, label: "Goals", match: "goals", Icon: Flag },
-  { group: "Your Ghost", route: "/device" as const, label: "Ghost Pod", match: "device", Icon: Cpu },
+        { group: "Your Ghost", route: "/ghost" as const, label: "Ghost", match: "ghost", Icon: GhostIcon },
   { group: "More", route: "/about" as const, label: "About", match: "about", Icon: Info },
 ];
 
@@ -70,8 +69,7 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
     ? ITEMS
     : [
         { group: "Talk", route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
-        { group: "Talk", route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
-        { group: "Your Ghost", route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
+  { group: "Your Ghost", route: "/ghost" as const, label: "Ghost", match: "ghost", Icon: GhostIcon },
         { group: "Your Ghost", route: "/connect" as const, label: "Connect a Ghost Pod", match: "connect", Icon: Cpu },
         { group: "More", route: "/about" as const, label: "About", match: "about", Icon: Info },
       ];

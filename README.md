@@ -10,8 +10,8 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 
 | Feature | Description |
 |---------|-------------|
-| Greeting | Owner name from Pod identity, date header |
-| Approval nudge | Pending permission requests needing you |
+| Greeting | Owner name from Pod identity, date header; setup-first when nothing is paired |
+| Approval nudge | Tappable count of pending approvals, deep-links to the approval queue |
 | Plus menu | Entry to every screen |
 
 ## 💬 Chats
@@ -19,7 +19,8 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 | Feature | Description |
 |---------|-------------|
 | Streaming AI | Token-by-token responses (Pod SSE, or on-device Mini when offline) |
-| Routing label | Every answer says where it ran: phone vs home Pod |
+| Routing label | Every answer keeps a quiet badge saying where it ran: phone vs home Pod vs Pod cloud |
+| Approval queue | All pending approvals with count, expandable; unknown-risk items get caution styling |
 | Live tool progress | Shows "Searching… / Running…" while Ghost works |
 | Voice input | Record and transcribe via the Pod (`POST /v1/voice/turn`); disabled offline with an honest label |
 | Markdown rendering | Code blocks, headings, links, formatting |
@@ -32,23 +33,36 @@ the Composer exposes no attach buttons on the conversation screen.
 
 ## 🔀 Plus menu
 
-- Conversation — jump straight into a chat
-- **Routines** — everything Ghost runs for you, in one list
-- Intelligence — which AI Ghost runs on
-- Ghost Local — on-device Mini model, storage, privacy
+Six destinations; talk (conversation, live voice) launches from Home:
+
+- Home — greeting, approval nudge, talk entries
+- **Routines** — everything Ghost does for you: scheduled work plus standing goals
+- Intelligence — which AI Ghost runs on (models, providers, routing)
 - Connected Apps — status of connected services
-- Goals — standing intents Ghost keeps working on
-- Ghost Pod — device health, attention items, offline-phone metrics
+- Ghost — this phone (Mini, storage, privacy) + your Pod (health, diagnostics, Pod AI models)
 - About — what Ghost is and how it works
 
 ### Routines
 
 One destination for anything Ghost does on its own: recurring briefs,
-reminders, and scheduled actions. You never file your intent as a “routine”
-or an “automation” — say what you want in a chat, and Ghost infers the shape
-and shows it here. The Pod merges both backing models at `/v1/routinefeed`; the
-app renders one list with one vocabulary. Pause, resume, or stop anything
-from the same screen.
+reminders, scheduled actions, and standing goals. You never file your intent
+as a “routine”, an “automation”, or a “goal” — say what you want in a chat,
+and Ghost infers the shape and shows it here. The Pod merges both backing
+models at `/v1/routinefeed` (goals come from `/v1/goals`); the app renders
+one list with one vocabulary. Pause, resume, or stop anything from the same
+screen.
+
+### Ghost
+
+One answer to "where does Ghost run?": Status (version, uptime, load),
+This phone (Ghost Mini download, storage, privacy, offline counters), and —
+when a Pod is paired — Home Pod (diagnostics, Pod AI models via Ollama,
+getting-started funnel). Phone privacy decides first, before the
+Intelligence routing toggles: Local only keeps everything on your devices.
+
+Notifications carry fixed product copy only (never message content) with a
+triage category (approval / question / update); taps land in the
+conversation at the approvals queue or the thread.
 
 ## 📴 Offline (travel cache)
 
@@ -151,15 +165,17 @@ ghost-app/
 ├── app/
 │   ├── _layout.tsx           # Root stack, deep links, WS notifications
 │   ├── (tabs)/
-│   │   └── index.tsx         # 👻 Home — greeting + approval nudge + Plus menu
+│   │   └── index.tsx         # 👻 Home — greeting + approval nudge + talk entries + Plus menu
 │   │   │   # (no chats list: one thread, see conversation.tsx below)
 │   ├── conversation.tsx      # Chat (Pod SSE or on-device Mini via runLocalTurn)
-│   ├── intelligence.tsx      # Intelligence — default model + AI health (Plus menu)
-│   ├── local-models.tsx      # Ghost Local — Mini download, storage, privacy (Plus menu)
-│   ├── goals.tsx             # Goals CRUD (Plus menu)
-│   ├── routines.tsx           # Routines — unified routines + automations
+│   ├── live.tsx              # Live voice (launched from Home, not the menu)
+│   ├── intelligence.tsx      # Intelligence — models, providers, routing + AI health (Plus menu)
+│   ├── routines.tsx           # Routines — scheduled work + standing goals (Plus menu)
 │   ├── connections.tsx       # Connected Apps — service status (Plus menu)
-│   ├── device.tsx            # Ghost Pod — health, diagnostics, offline-phone metrics
+│   ├── ghost.tsx             # Ghost — this phone + your Pod (Plus menu)
+│   ├── goals.tsx             # Redirect → /routines (deep-link compat)
+│   ├── device.tsx            # Redirect → /ghost (deep-link compat)
+│   ├── local-models.tsx      # Redirect → /ghost (deep-link compat)
 │   ├── about.tsx             # About Ghost (Plus menu)
 │   ├── onboarding.tsx        # First-launch flow
 │   ├── connect.tsx           # Scan QR / enter manually

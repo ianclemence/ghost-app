@@ -15,6 +15,8 @@ export interface CachedMessage {
   role: string;
   content: string;
   timestamp: number;
+  origin?: string;
+  pendingSync?: boolean;
 }
 
 export async function saveLocalThread(messages: CachedMessage[]): Promise<void> {

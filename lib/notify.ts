@@ -1,8 +1,16 @@
 import type { WSMessage } from "./ghostApi";
 
+export type NotificationCategory = "approval" | "question" | "update";
+
 export interface NotificationCopy {
   title: string;
   body: string;
+  // Urgency triage without content: approval (needs a decision), question
+  // (needs an answer), update (needs nothing). The tray still never carries
+  // message content — the category only decides the anchor.
+  category: NotificationCategory;
+  // Where the tap should land inside the conversation.
+  anchor: "approvals" | "thread";
 }
 
 /**
@@ -20,10 +28,10 @@ export function notificationCopyFor(msg: WSMessage): NotificationCopy | null {
         ? String((msg.metadata as Record<string, unknown>).type)
         : "";
   if (type === "assistant_message") {
-    return { title: "Ghost", body: "Ghost needs your attention." };
+    return { title: "Ghost", body: "Ghost needs your attention.", category: "update", anchor: "thread" };
   }
   if (type === "clarify_request") {
-    return { title: "Ghost", body: "Ghost has a question for you." };
+    return { title: "Ghost", body: "Ghost has a question for you.", category: "question", anchor: "thread" };
   }
   return null;
 }
@@ -35,4 +43,24 @@ export function notificationKeyFor(msg: WSMessage): string | null {
   const rid = meta && typeof meta.request_id === "string" ? meta.request_id : "";
   if (rid && typeof msg.timestamp === "number") return `${rid}:${msg.timestamp}`;
   return null;
+}
+
+/**
+ * The one shared notification-permission ask — used by pairing success and
+ * Mini-download setup alike, so both flows behave identically. Only prompts
+ * when undecided; otherwise reports the existing state. Needs a dev build;
+ * Expo Go (and any runtime without the module) reports unavailable.
+ */
+export async function ensureNotificationPermission(): Promise<"granted" | "denied" | "unavailable"> {
+  const { capability } = await import("./capabilities");
+  if (!capability("notifications").supported) return "unavailable";
+  try {
+    const Notifications = await import("expo-notifications");
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status === "granted" || status === "denied") return status;
+    const result = await Notifications.requestPermissionsAsync();
+    return result.status === "granted" ? "granted" : "denied";
+  } catch {
+    return "unavailable";
+  }
 }

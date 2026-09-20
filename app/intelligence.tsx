@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { PlusMenu } from "@/components/plus-menu";
@@ -10,9 +11,7 @@ import {
   fetchDoctorStatus,
   fetchIntelligenceConfig,
   fetchModelState,
-  fetchOllamaModels,
   fetchProviders,
-  pullOllamaModel,
   saveIntelligenceConfig,
   switchModel,
   testProviderConnection,
@@ -106,10 +105,10 @@ export default function IntelligenceScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config } = useGhostStore();
+  const connectionState = useGhostStore((s) => s.connectionState);
   const [state, setState] = useState<ModelState | null>(null);
   const [providersState, setProvidersState] = useState<ProvidersState | null>(null);
   const [intelConfig, setIntelConfig] = useState<IntelligenceConfig | null>(null);
-  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +119,9 @@ export default function IntelligenceScreen() {
   const [healthRan, setHealthRan] = useState(false);
   const [healthRunning, setHealthRunning] = useState(false);
   const [routingError, setRoutingError] = useState<string | null>(null);
+  // Phone privacy mode (Ghost screen) outranks these toggles: Local only
+  // keeps everything on-device no matter what is switched on here.
+  const [ghostPrivacy, setGhostPrivacy] = useState<string | null>(null);
 
   // Provider configure sheet state (mirrors the web console modal).
   const [configuring, setConfiguring] = useState<string | null>(null);
@@ -129,28 +131,25 @@ export default function IntelligenceScreen() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  // Local model install state (mirrors the web console install row).
-  const [installName, setInstallName] = useState("");
-  const [installing, setInstalling] = useState(false);
-  const [installResult, setInstallResult] = useState<string | null>(null);
+  // Empty save with a stored key keeps the key and says so explicitly —
+  // closing silently left doubt about what was stored.
+  const [keptKey, setKeptKey] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!config) return;
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const [modelRes, providersRes, configRes, ollamaRes] = await Promise.allSettled([
+      const [modelRes, providersRes, configRes] = await Promise.allSettled([
         fetchModelState(config),
         fetchProviders(config),
         fetchIntelligenceConfig(config),
-        fetchOllamaModels(config),
       ]);
       if (modelRes.status === "rejected") throw modelRes.reason;
       setState(modelRes.value);
       if (providersRes.status === "fulfilled") setProvidersState(providersRes.value);
       if (configRes.status === "fulfilled") setIntelConfig(configRes.value);
-      if (ollamaRes.status === "fulfilled") setOllamaModels(ollamaRes.value);
+      await AsyncStorage.getItem("ghost:privacy").then((p) => setGhostPrivacy(p)).catch(() => {});
     } catch {
       setError("Could not load models.");
     }
@@ -163,6 +162,7 @@ export default function IntelligenceScreen() {
 
   const openConfigure = (key: string) => {
     setConfiguring(key);
+    setKeptKey(false);
     setKeyInput("");
     setUrlInput(key === "ollama" ? (intelConfig?.ollama_url || "http://localhost:11434") : "");
     setTestResult(null);
@@ -171,14 +171,12 @@ export default function IntelligenceScreen() {
 
   const reloadProviders = useCallback(async () => {
     if (!config) return;
-    const [providersRes, configRes, ollamaRes] = await Promise.allSettled([
+    const [providersRes, configRes] = await Promise.allSettled([
       fetchProviders(config),
       fetchIntelligenceConfig(config),
-      fetchOllamaModels(config),
     ]);
     if (providersRes.status === "fulfilled") setProvidersState(providersRes.value);
     if (configRes.status === "fulfilled") setIntelConfig(configRes.value);
-    if (ollamaRes.status === "fulfilled") setOllamaModels(ollamaRes.value);
   }, [config]);
 
   const doTest = async () => {
@@ -200,6 +198,10 @@ export default function IntelligenceScreen() {
     const key = keyInput.trim();
     const url = urlInput.trim();
     if (!isOllama && key === "") {
+      if (configuringCred?.has_key) {
+        setKeptKey(true);
+        return;
+      }
       setConfiguring(null);
       return;
     }
@@ -212,9 +214,10 @@ export default function IntelligenceScreen() {
         await saveIntelligenceConfig(config, { api_keys: { [configuring]: key } });
       }
       setConfiguring(null);
+      setKeptKey(false);
       await reloadProviders();
     } catch {
-      setSaveError("Could not save. Try again.");
+      setSaveError("Couldn't save — nothing changed. Try again.");
     }
     setSaving(false);
   };
@@ -227,7 +230,7 @@ export default function IntelligenceScreen() {
     setRoutingError(null);
     saveIntelligenceConfig(config, { routing: next }).catch(() => {
       setIntelConfig((cur) => (cur ? { ...cur, routing: prev } : cur));
-      setRoutingError("Could not save. Try again.");
+      setRoutingError("Couldn't save — routing unchanged. Try again.");
     });
   };
 
@@ -263,7 +266,7 @@ export default function IntelligenceScreen() {
       setState((prev) => (prev ? { ...prev, active } : prev));
       setSelected(null);
     } catch {
-      setSwitchError("Could not switch. Try again.");
+      setSwitchError("Couldn't switch — still on the current model.");
     }
     setSwitching(false);
   };
@@ -281,22 +284,6 @@ export default function IntelligenceScreen() {
     setHealthRunning(false);
   }, [config, healthRunning]);
 
-  const doInstall = async () => {
-    if (!config || installing) return;
-    const name = installName.trim();
-    if (!name) return;
-    setInstalling(true);
-    setInstallResult(null);
-    try {
-      await pullOllamaModel(config, name);
-      setInstallResult("Download started. This can take a while.");
-      setInstallName("");
-    } catch {
-      setInstallResult("Could not start download.");
-    }
-    setInstalling(false);
-  };
-
   const configuringCred = configuring ? intelConfig?.providers[configuring] : undefined;
   const configuringInfo = configuring ? providersState?.providers[configuring] : undefined;
 
@@ -306,6 +293,11 @@ export default function IntelligenceScreen() {
         <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">Intelligence</GhostText>
         <GhostText type="subhead" style={styles.sub}>Which AI Ghost runs on.</GhostText>
       </View>
+      {config && connectionState !== "online" ? (
+        <GhostText type="footnote" style={styles.offline} accessibilityLiveRegion="polite">
+          {connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}
+        </GhostText>
+      ) : null}
       {!config ? (
         <View style={styles.center}>
           <Text style={styles.emptyHello}>
@@ -390,14 +382,14 @@ export default function IntelligenceScreen() {
           ) : null}
 
           <GhostText type="caption" style={styles.group}>Providers</GhostText>
-          <GhostText type="footnote" style={styles.sectionDesc}>Connect to cloud AI services. Ghost only uses what you configure.</GhostText>
+          <GhostText type="footnote" style={styles.sectionDesc}>Cloud AI services Ghost may use. Apps Ghost acts on live under Connected Apps.</GhostText>
           {providerKeys.length === 0 ? (
             <GhostText type="footnote" style={styles.rowMeta}>No provider info yet.</GhostText>
           ) : providerKeys.map((key) => {
             const info = providersState!.providers[key];
             const local = info.local || isLocalProvider(key);
             const isDefault = key === defaultProvider;
-            const modelCount = local ? ollamaModels.length : info.models.length;
+            const modelCount = info.models.length;
             return (
               <View key={key} style={styles.row}>
                 <View style={styles.rowBody}>
@@ -420,6 +412,9 @@ export default function IntelligenceScreen() {
 
           <GhostText type="caption" style={styles.group}>Routing</GhostText>
           <GhostText type="footnote" style={styles.sectionDesc}>Ghost automatically chooses the best model when a task requires something different.</GhostText>
+          {ghostPrivacy === "local_only" ? (
+            <GhostText type="footnote" style={styles.rowMeta}>Ghost privacy is Local only, so cloud stays off no matter these toggles. Change it on the Ghost screen.</GhostText>
+          ) : null}
           {routingError ? <GhostText type="footnote" style={styles.rowWarn}>{routingError}</GhostText> : null}
           {ROUTING_ROWS.map((r) => (
             <View key={r.key} style={styles.row}>
@@ -434,45 +429,6 @@ export default function IntelligenceScreen() {
               />
             </View>
           ))}
-
-          <GhostText type="caption" style={styles.group}>Local models</GhostText>
-          <GhostText type="footnote" style={styles.sectionDesc}>Installed on your Ghost via Ollama.</GhostText>
-          {ollamaModels.length === 0 ? (
-            <GhostText type="footnote" style={styles.rowMeta}>No local models installed yet.</GhostText>
-          ) : ollamaModels.map((m) => {
-            const active = state ? state.active === `ollama:${m}` : false;
-            return (
-              <View key={m} style={styles.row}>
-                <View style={styles.rowBody}>
-                  <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{m}</GhostText>
-                  <GhostText type="footnote" style={styles.rowMeta} numberOfLines={1}>Local</GhostText>
-                </View>
-                {active ? (
-                  <View style={styles.activePill}>
-                    <StatusDot status="online" />
-                    <GhostText type="footnote" style={styles.activeLabel}>Active</GhostText>
-                  </View>
-                ) : (
-                  <GhostButton
-                    title="Use"
-                    variant="secondary"
-                    onPress={() => { setSelected({ name: "", provider: "ollama", model: m, available: true }); setSwitchError(null); }}
-                  />
-                )}
-              </View>
-            );
-          })}
-          <View style={styles.installRow}>
-            <View style={styles.installInput}>
-              <GhostInput
-                value={installName}
-                onChangeText={setInstallName}
-                placeholder="Model name (e.g. qwen3:8b)"
-              />
-            </View>
-            <GhostButton title="Install" variant="secondary" onPress={() => void doInstall()} disabled={installing || installName.trim() === ""} loading={installing} />
-          </View>
-          {installResult ? <GhostText type="footnote" style={styles.rowMeta}>{installResult}</GhostText> : null}
 
           <GhostText type="caption" style={styles.group}>AI health</GhostText>
           {healthRunning ? (
@@ -525,10 +481,19 @@ export default function IntelligenceScreen() {
       </GhostSheet>
       <GhostSheet
         visible={configuring !== null}
-        onClose={() => { if (!saving && !testing) setConfiguring(null); }}
+        onClose={() => { if (!saving && !testing) { setConfiguring(null); setKeptKey(false); } }}
         title={configuring ? `Configure ${providerName(configuring)}` : "Configure provider"}
         message={saveError ?? undefined}
       >
+        {keptKey ? (
+          <>
+            <GhostText type="footnote" style={styles.sheetDesc}>
+              Kept the saved key — nothing changed.
+            </GhostText>
+            <GhostButton title="Done" fullWidth onPress={() => { setConfiguring(null); setKeptKey(false); }} />
+          </>
+        ) : (
+        <>
         {configuring === "ollama" ? (
           <GhostText type="footnote" style={styles.sheetDesc}>Ollama runs on your Ghost. No API key needed.</GhostText>
         ) : (
@@ -560,6 +525,8 @@ export default function IntelligenceScreen() {
           </GhostText>
         ) : null}
         <GhostButton title="Save" fullWidth onPress={() => void doSaveProvider()} disabled={saving || testing} loading={saving} />
+        </>
+        )}
       </GhostSheet>
       <PlusMenu />
     </View>
@@ -583,6 +550,11 @@ const styles = StyleSheet.create({
     ...Type.subhead,
     color: Ghost.text.secondary,
     marginTop: 2,
+  },
+  offline: {
+    color: Ghost.text.tertiary,
+    textAlign: "center",
+    marginTop: 4,
   },
   center: {
     ...StyleSheet.absoluteFill,
@@ -640,8 +612,7 @@ const styles = StyleSheet.create({
     color: Ghost.text.secondary,
   },
   rowWarn: {
-    color: Ghost.text.secondary,
-    fontStyle: "italic",
+    color: Ghost.text.primary,
   },
   needsKey: {
     color: Ghost.text.tertiary,
@@ -690,15 +661,6 @@ const styles = StyleSheet.create({
   },
   testBad: {
     color: Ghost.text.secondary,
-    flex: 1,
-  },
-  installRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.md,
-    marginTop: Space.md,
-  },
-  installInput: {
     flex: 1,
   },
 });

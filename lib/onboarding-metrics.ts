@@ -62,7 +62,7 @@ export function timeToMilestone(ms: Milestones, m: Milestone): number | null {
 }
 
 // funnelSnapshot is the compact, testable view of the funnel used by the
-// Ghost Pod diagnostics screen.
+// Ghost screen.
 export interface FunnelSnapshot {
   launched: boolean;
   gotFirstRoutine: boolean;

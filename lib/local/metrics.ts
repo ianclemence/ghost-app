@@ -2,7 +2,7 @@
 // false-tool-call rate, sync conflict rate, download completion, dev-build
 // friction, battery/thermal complaints. If Mini tool precision < ~95%,
 // local tools stay off (they are: only deterministic remember ships).
-// Persisted in AsyncStorage; surfaces in Ghost Pod screen / diagnostics.
+// Persisted in AsyncStorage; surfaces in the Ghost screen / diagnostics.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type LocalMetricName =

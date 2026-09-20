@@ -47,6 +47,7 @@ export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config } = useGhostStore();
+  const connectionState = useGhostStore((s) => s.connectionState);
   const [items, setItems] = useState<ConnectedAppInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -133,6 +134,11 @@ export default function ConnectionsScreen() {
         <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">Connected Apps</GhostText>
         <GhostText type="subhead" style={styles.sub}>What Ghost can act on — email, calendar, home, music, code. Messaging channels live elsewhere.</GhostText>
       </View>
+      {config && connectionState !== "online" ? (
+        <GhostText type="footnote" style={styles.offline} accessibilityLiveRegion="polite">
+          {connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}
+        </GhostText>
+      ) : null}
       {!config ? (
         <EmptyState
           title="Not connected"
@@ -166,6 +172,9 @@ export default function ConnectionsScreen() {
                   ) : null}
                   {!connected ? (
                     <GhostText type="footnote" style={styles.rowHint}>{setupHint(c)}</GhostText>
+                  ) : null}
+                  {connected && (c.setup === "paste_key" || c.setup === "paste_pair" || c.auth_kind === "api_key" || c.auth_kind === "token") ? (
+                    <GhostText type="footnote" style={styles.rowHint}>Key saved on your Pod. To replace it, disconnect then reconnect.</GhostText>
                   ) : null}
                   {c.help ? (
                     <GhostText type="footnote" style={styles.rowHint}>{c.help}</GhostText>
@@ -230,6 +239,11 @@ const styles = StyleSheet.create({
     ...Type.subhead,
     color: Ghost.text.secondary,
     marginTop: 2,
+  },
+  offline: {
+    color: Ghost.text.tertiary,
+    textAlign: "center",
+    marginTop: 4,
   },
   center: {
     flex: 1,

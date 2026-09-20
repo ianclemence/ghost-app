@@ -117,7 +117,14 @@ export default function LiveVoiceScreen() {
                   : "Tap Start to talk"}
         </Text>
         {connected ? (
-          <Text style={styles.elapsed}>{fmtElapsed(snapshot.elapsedSeconds)} / 10:00</Text>
+          <>
+            <Text style={styles.elapsed}>{fmtElapsed(snapshot.elapsedSeconds)} / 10:00</Text>
+            <Text style={styles.honest}>
+              {snapshot.elapsedSeconds >= 480
+                ? "Ending soon — wrap up. The transcript stays here."
+                : "Calls end at 10:00. The transcript stays here."}
+            </Text>
+          </>
         ) : null}
         {snapshot.error ? <Text style={styles.error}>{snapshot.error}</Text> : null}
         {!status.checked ? (
@@ -142,6 +149,9 @@ export default function LiveVoiceScreen() {
           <Text style={styles.honest}>
             {"Live voice needs an OpenAI key. Add one under Intelligence."}
           </Text>
+        ) : null}
+        {!connected && !busy && !offline && status.enabled ? (
+          <Text style={styles.honest}>Calls last up to 10 minutes.</Text>
         ) : null}
 
         <LiveWaveform

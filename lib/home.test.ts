@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { deriveHomeSummary } from "./home";
-import type { RoutineItem } from "./ghostApi";
+import type { GoalItem, RoutineItem } from "./ghostApi";
 
 function routine(over: Partial<RoutineItem>): RoutineItem {
   return {
@@ -55,5 +55,33 @@ describe("deriveHomeSummary", () => {
   test("unknown kind still produces a sentence", () => {
     const got = deriveHomeSummary([routine({ kind: "mystery" as never })]);
     expect(got.headline).toContain("Weekly brief");
+  });
+
+  test("active goal surfaces when no routine is running", () => {
+    const goal: GoalItem = { id: "g1", text: "Take care of school emails", status: "active" };
+    const got = deriveHomeSummary([routine({ state: "done" })], [goal]);
+    expect(got.headline).toBe("Keeping up with \u201cTake care of school emails\u201d.");
+    expect(got.needsYou).toBe(false);
+  });
+
+  test("waiting routine beats an active goal", () => {
+    const goal: GoalItem = { id: "g1", text: "Take care of school emails", status: "active" };
+    const got = deriveHomeSummary(
+      [routine({ id: "b", title: "Send invoice", state: "waiting" })],
+      [goal],
+    );
+    expect(got.needsYou).toBe(true);
+    expect(got.headline).toContain("Send invoice");
+  });
+
+  test("active routine beats an active goal", () => {
+    const goal: GoalItem = { id: "g1", text: "Take care of school emails", status: "active" };
+    const got = deriveHomeSummary([routine({ title: "Weekly brief" })], [goal]);
+    expect(got.headline).toContain("Weekly brief");
+  });
+
+  test("finished goals stay silent", () => {
+    const done: GoalItem = { id: "g1", text: "Old goal", status: "completed" };
+    expect(deriveHomeSummary([], [done])).toEqual({ headline: null, needsYou: false });
   });
 });

@@ -4,7 +4,7 @@ import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reani
 import { Ghost, Space } from "@/constants/theme";
 import { GhostButton } from "@/components/ghost";
 import { isValidGrant, resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
-import { riskNote } from "@/lib/permission-risk";
+import { riskCaution, riskNote } from "@/lib/permission-risk";
 
 const CARD_ENTER = FadeInUp.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
@@ -16,6 +16,8 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
   const title = card?.title ?? "Ghost needs approval";
   const desc = card?.description ?? "Ghost is waiting for your approval to continue.";
   const note = riskNote(card?.risk);
+  const caution = riskCaution(card?.risk);
+  const offersAlways = (card?.actions ?? []).some((a) => /always/i.test(a.id));
   const actions = card?.actions ?? [
     { id: "allow_once", label: "Allow once", style: "primary" },
     { id: "deny", label: "Deny", style: "danger" },
@@ -32,14 +34,18 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
   return (
     <Animated.View
       entering={reduceMotion ? undefined : CARD_ENTER}
-      style={styles.card}
+      style={[styles.card, caution ? styles.cardCaution : null]}
       accessibilityLabel="Permission request from Ghost"
       accessibilityLiveRegion="polite"
     >
-      <Text style={styles.kicker}>Needs your approval</Text>
+      <Text style={styles.kicker}>{caution ? "Needs your approval — review carefully" : "Needs your approval"}</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.desc}>{desc}</Text>
       {note ? <Text style={styles.note}>{note}</Text> : null}
+      {caution ? <Text style={styles.caution}>{caution}</Text> : null}
+      {offersAlways ? (
+        <Text style={styles.note}>“Always” means Ghost won’t ask again for this.</Text>
+      ) : null}
       <View style={styles.row}>
         {actions.map((a) => {
           const destructive = a.style === "danger" || /deny|reject/i.test(a.id);
@@ -71,6 +77,9 @@ const styles = StyleSheet.create({
     gap: Space.xs,
     marginVertical: Space.xs,
   },
+  cardCaution: {
+    borderColor: Ghost.status.warning,
+  },
   kicker: {
     fontSize: 12,
     color: Ghost.text.tertiary,
@@ -90,6 +99,12 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: Ghost.text.tertiary,
     fontStyle: "italic",
+  },
+  caution: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
+    color: Ghost.status.warning,
   },
   row: {
     flexDirection: "row",

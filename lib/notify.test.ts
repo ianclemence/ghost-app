@@ -9,12 +9,19 @@ describe("notificationCopyFor", () => {
       type: "assistant_message",
       content: "Your password is hunter2 and the vault holds X",
     });
-    expect(copy).toEqual({ title: "Ghost", body: "Ghost needs your attention." });
+    expect(copy).toEqual({ title: "Ghost", body: "Ghost needs your attention.", category: "update", anchor: "thread" });
   });
 
   test("clarification uses the question prompt copy", () => {
     const copy = notificationCopyFor({ id: "q1", type: "clarify_request", content: "Which Sarah?" });
-    expect(copy).toEqual({ title: "Ghost", body: "Ghost has a question for you." });
+    expect(copy).toEqual({ title: "Ghost", body: "Ghost has a question for you.", category: "question", anchor: "thread" });
+  });
+
+  test("copy carries triage category and anchor, never content", () => {
+    const copy = notificationCopyFor({ id: "m1", type: "assistant_message", content: "secret" })!;
+    expect(copy.body).not.toContain("secret");
+    expect(["approval", "question", "update"]).toContain(copy.category);
+    expect(["approvals", "thread"]).toContain(copy.anchor);
   });
 
   test("internal frames never notify", () => {

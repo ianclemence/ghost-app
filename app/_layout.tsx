@@ -129,17 +129,27 @@ export default function RootLayout() {
           content: {
             title: copy.title,
             body: copy.body,
+            data: { anchor: copy.anchor, category: copy.category },
           },
           trigger: null,
         });
       });
 
       // Tapping a Ghost notification opens the canonical conversation.
+      // The anchor rides along (approvals vs thread) so the tap lands
+      // where the decision is, not just at the top of the thread.
       let tapSub: { remove: () => void } | undefined;
       if (notifications) {
         try {
-          tapSub = notifications.addNotificationResponseReceivedListener(() => {
-            router.replace('/conversation' as never);
+          tapSub = notifications.addNotificationResponseReceivedListener((response) => {
+            const data = response.notification.request.content.data as
+              | { anchor?: string }
+              | undefined;
+            if (data?.anchor === "approvals") {
+              router.replace({ pathname: "/conversation", params: { anchor: "approvals" } } as never);
+            } else {
+              router.replace('/conversation' as never);
+            }
           });
         } catch {}
       }
@@ -232,7 +242,15 @@ export default function RootLayout() {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
+          name="ghost"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
           name="device"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="local-models"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen

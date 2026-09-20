@@ -1,6 +1,7 @@
 import { View, StyleSheet, ScrollView, Linking, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
+import Constants from "expo-constants";
 import { GhostText } from "@/components/themed-text";
 import { PlusMenu } from "@/components/plus-menu";
 import { Ghost, Space } from "@/constants/theme";
@@ -11,6 +12,7 @@ export default function AboutScreen() {
   const insets = useSafeAreaInsets();
   const ghostName = useGhostStore((s) => s.ghostName);
   const name = ghostName || "Ghost";
+  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
 
   return (
     <View style={{ flex: 1, backgroundColor: Ghost.bg.base }}>
@@ -93,7 +95,7 @@ export default function AboutScreen() {
       </View>
 
       <GhostText type="caption" style={styles.license}>
-        Open source under the MIT License.
+        Ghost Mobile v{appVersion} · Open source under the MIT License.
       </GhostText>
     </ScrollView>
     <PlusMenu />
