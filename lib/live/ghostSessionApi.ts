@@ -42,14 +42,14 @@ async function requestJson(cfg: GhostConfig, path: string, method: "POST" | "DEL
   } catch (error) {
     if (error instanceof Error) {
       if (controller.signal.aborted || ["AbortError", "NetworkError"].includes(error.name)) {
-        throw new Error("Can't reach Ghost — check your Wi-Fi and Pod connection.");
+        throw new Error("Can't reach Ghost. Check your Wi-Fi and Pod connection.");
       }
       if (["Network request failed", "Failed to fetch", "fetch failed"].includes(error.message)) {
-        throw new Error("Can't reach Ghost — check your Wi-Fi and Pod connection.");
+        throw new Error("Can't reach Ghost. Check your Wi-Fi and Pod connection.");
       }
       throw error;
     }
-    throw new Error("Can't reach Ghost — check your Wi-Fi and Pod connection.");
+    throw new Error("Can't reach Ghost. Check your Wi-Fi and Pod connection.");
   } finally {
     clearTimeout(timeout);
   }

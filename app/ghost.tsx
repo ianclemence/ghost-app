@@ -177,7 +177,7 @@ export default function GhostScreen() {
 
   const runSetup = async (m: ModelManifest) => {
     if (!isSupportedPhoneModel(m.id)) {
-      setLocalError("Ghost Balanced is retired — Ghost Mini is the supported offline model. Remove Balanced to reclaim space.");
+      setLocalError("Ghost Balanced is retired. Ghost Mini is the supported offline model. Remove Balanced to reclaim space.");
       return;
     }
     setBusy(m.id);
@@ -219,7 +219,7 @@ export default function GhostScreen() {
 
   const activate = async (m: ModelManifest) => {
     if (!isSupportedPhoneModel(m.id)) {
-      setLocalError("Ghost Balanced is retired — activate Ghost Mini instead.");
+      setLocalError("Ghost Balanced is retired. Activate Ghost Mini instead.");
       return;
     }
     setBusy(m.id);
@@ -310,7 +310,7 @@ export default function GhostScreen() {
     try {
       await switchModel(config, `ollama:${name}`);
     } catch {
-      setInstallResult("Couldn't switch — still on the current model.");
+      setInstallResult("Couldn't switch. Still on the current model.");
     }
     setOllamaBusy(null);
   };
@@ -342,7 +342,7 @@ export default function GhostScreen() {
         <ScrollView contentContainerStyle={styles.firstRunBody} showsVerticalScrollIndicator={false}>
           <GhostText type="largeTitle" style={styles.title}>Set up Ghost</GhostText>
           <GhostText type="body" style={styles.sub}>
-            Download Ghost Mini once — chat and note-taking work offline. Routines, home control, and full memory stay on your Pod.
+            Download Ghost Mini once. Chat and note-taking work offline. Routines, home control, and full memory stay on your Pod.
           </GhostText>
 
           {unavailable ? (
@@ -398,7 +398,7 @@ export default function GhostScreen() {
         </ScrollView>
 
         <View style={[styles.firstRunBottom, { paddingBottom: insets.bottom + Space.xxl }]}>
-          <TouchableOpacity onPress={() => router.replace("/connect")} activeOpacity={0.6}>
+          <TouchableOpacity onPress={() => router.replace("/connect")} activeOpacity={0.6} style={styles.quietHit} accessibilityRole="button">
             <GhostText type="callout" style={styles.quiet}>Connect a Ghost Pod instead</GhostText>
           </TouchableOpacity>
           <TouchableOpacity
@@ -407,6 +407,8 @@ export default function GhostScreen() {
               router.replace("/(tabs)");
             }}
             activeOpacity={0.6}
+            style={styles.quietHit}
+            accessibilityRole="button"
           >
             <GhostText type="footnote" style={styles.quiet}>Continue without a model</GhostText>
           </TouchableOpacity>
@@ -511,8 +513,8 @@ export default function GhostScreen() {
                 {m.size_estimated ? "~" : ""}{formatBytes(m.size_bytes)} · {m.quantization} · v{m.version}
               </Text>
               {!supported ? (
-                <Text style={styles.meta}>Legacy — retired. Remove to reclaim space; Mini is the supported offline model.</Text>
-              ) : verdict ? <Text style={styles.meta}>{VERDICT_LABEL[verdict.verdict] ?? verdict.verdict}{verdict.reason ? ` — ${verdict.reason}` : ""}</Text> : null}
+                <Text style={styles.meta}>Legacy, retired. Remove to reclaim space; Mini is the supported offline model.</Text>
+              ) : verdict ? <Text style={styles.meta}>{VERDICT_LABEL[verdict.verdict] ?? verdict.verdict}{verdict.reason ? `: ${verdict.reason}` : ""}</Text> : null}
               <Text style={styles.meta}>
                 {isVerifiedPublisher(m) ? "Signed publisher" : "HTTPS · hash pinned on install"}
               </Text>
@@ -561,11 +563,11 @@ export default function GhostScreen() {
         </View>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Privacy</Text>
-          <Text style={styles.meta}>This decides first — before the Intelligence toggles. Local only keeps everything on your devices.</Text>
+          <Text style={styles.meta}>This decides first, before the Intelligence toggles. Local only keeps everything on your devices.</Text>
           {(["local_only", "balanced", "cloud_capable"] as Privacy[]).map((p) => (
             <GhostButton
               key={p}
-              title={`${privacy === p ? "● " : "○ "}${p === "local_only" ? "Local only — never cloud" : p === "balanced" ? "Balanced — local first" : "Cloud capable"}`}
+              title={`${privacy === p ? "● " : "○ "}${p === "local_only" ? "Local only: never cloud" : p === "balanced" ? "Balanced: local first" : "Cloud capable"}`}
               variant={privacy === p ? "primary" : "secondary"}
               onPress={() => setPrivacyMode(p)}
             />
@@ -694,9 +696,10 @@ const styles = StyleSheet.create({
   },
   title: { ...Type.largeTitle, color: Ghost.text.primary },
   sub: { ...Type.subhead, color: Ghost.text.secondary, marginTop: 2 },
-  body: { paddingHorizontal: Space.xl, gap: Space.md, paddingBottom: 140 },
+  body: { paddingHorizontal: Space.xl, gap: Space.md, paddingBottom: Space.huge + Space.edge },
   firstRunBody: { paddingHorizontal: Space.xl, paddingTop: Space.section, gap: Space.lg },
   firstRunBottom: { alignItems: "center", paddingTop: Space.md },
+  quietHit: { minHeight: 44, justifyContent: "center", paddingVertical: Space.sm },
   group: {
     color: Ghost.text.tertiary,
     textTransform: "uppercase",

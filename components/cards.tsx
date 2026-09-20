@@ -79,7 +79,7 @@ export function RichCardView({ card, config, onDone }: { card: RichCard; config:
             const r = it as Record<string, unknown>;
             return (
               <GhostText key={i} type="body" style={styles.item}>
-                • {String(r?.name ?? r ?? "")}{r?.price ? ` — ${String(r.price)}` : ""}
+                • {String(r?.name ?? r ?? "")}{r?.price ? `: ${String(r.price)}` : ""}
               </GhostText>
             );
           })}

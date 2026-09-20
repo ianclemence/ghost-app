@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { PlusMenu } from "@/components/plus-menu";
-import { EmptyState, GhostButton } from "@/components/ghost";
+import { EmptyState, GhostButton, GhostInput, OfflineBadge } from "@/components/ghost";
 import {
   connectConnectedApp,
   disconnectConnectedApp,
@@ -35,7 +35,7 @@ function statusLabel(s: string): string {
 
 function setupHint(app: ConnectedAppInfo): string {
   if (app.setup === "console_oauth" || app.auth_kind === "oauth") {
-    return "Browser sign-in required — use the web console, then pull to refresh.";
+    return "Browser sign-in required. Use the web console, then pull to refresh.";
   }
   if (app.setup === "paste_pair") {
     return "Needs instance URL + token.";
@@ -132,12 +132,12 @@ export default function ConnectionsScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">Connected Apps</GhostText>
-        <GhostText type="subhead" style={styles.sub}>What Ghost can act on — email, calendar, home, music, code. Messaging channels live elsewhere.</GhostText>
+        <GhostText type="subhead" style={styles.sub}>What Ghost can act on: email, calendar, home, music, code. Messaging channels live elsewhere.</GhostText>
       </View>
       {config && connectionState !== "online" ? (
-        <GhostText type="footnote" style={styles.offline} accessibilityLiveRegion="polite">
-          {connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}
-        </GhostText>
+        <View style={styles.offlineWrap}>
+          <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
+        </View>
       ) : null}
       {!config ? (
         <EmptyState
@@ -165,7 +165,7 @@ export default function ConnectionsScreen() {
                 <View style={styles.rowBody}>
                   <GhostText type="headline" style={styles.rowTitle}>{c.display_name || c.provider}</GhostText>
                   <GhostText type="footnote" style={styles.rowMeta}>
-                    {statusLabel(c.status)}{c.needs_reauth ? " — reconnect needed" : ""}
+                    {statusLabel(c.status)}{c.needs_reauth ? " (reconnect needed)" : ""}
                   </GhostText>
                   {Array.isArray(c.capabilities) && c.capabilities.length > 0 ? (
                     <GhostText type="footnote" style={styles.rowCaps}>{c.capabilities.join(" · ")}</GhostText>
@@ -180,19 +180,18 @@ export default function ConnectionsScreen() {
                     <GhostText type="footnote" style={styles.rowHint}>{c.help}</GhostText>
                   ) : null}
                   {!connected && c.setup === "paste_pair" ? (
-                    <TextInput
-                      style={styles.input}
+                    <GhostInput
                       placeholder="https://homeassistant.local:8123"
                       autoCapitalize="none"
                       autoCorrect={false}
+                      keyboardType="url"
                       value={urlInput[c.id] ?? ""}
                       onChangeText={(t) => setUrlInput((m) => ({ ...m, [c.id]: t }))}
                       editable={!busy}
                     />
                   ) : null}
                   {!connected && c.setup !== "console_oauth" && c.auth_kind !== "oauth" ? (
-                    <TextInput
-                      style={styles.input}
+                    <GhostInput
                       placeholder={c.setup === "paste_pair" ? "Long-lived token" : "Paste key"}
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -240,10 +239,8 @@ const styles = StyleSheet.create({
     color: Ghost.text.secondary,
     marginTop: 2,
   },
-  offline: {
-    color: Ghost.text.tertiary,
-    textAlign: "center",
-    marginTop: 4,
+  offlineWrap: {
+    alignItems: "center",
   },
   center: {
     flex: 1,
@@ -251,7 +248,8 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: Space.xl,
-    paddingBottom: Space.huge,
+    // FAB clearance: button height + edge distance.
+    paddingBottom: Space.huge + Space.edge,
   },
   row: {
     flexDirection: "row",
@@ -276,18 +274,9 @@ const styles = StyleSheet.create({
   rowHint: {
     color: Ghost.text.tertiary,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: Ghost.border?.subtle ?? "#333",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    color: Ghost.text.primary,
-    marginTop: 6,
-  },
   actions: {
     flexDirection: "row",
-    gap: 8,
+    gap: Space.sm,
     marginTop: 6,
   },
   note: {

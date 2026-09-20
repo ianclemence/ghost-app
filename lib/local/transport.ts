@@ -34,9 +34,9 @@ export class GhostTransport {
   // streamLocal executes a fully offline phone-local turn.
   async streamLocal(manifests: ModelManifest[], req: Omit<GenerateRequest, "model">, h: TransportHandlers, signal?: AbortSignal): Promise<void> {
     const active = await modelManager.activeModel(manifests);
-    if (!active) throw new Error("no local model active — download one first");
+    if (!active) throw new Error("No local model active. Download one first.");
     const uri = modelManager.artifactUri(active);
-    if (!uri) throw new Error("active model artifact missing — reinstall it");
+    if (!uri) throw new Error("Active model artifact missing. Reinstall it.");
     await mobileLocalRuntime.ensureLoaded(uri);
     h.onEvent(progressEvent("Ghost · Local"));
     let acc = "";

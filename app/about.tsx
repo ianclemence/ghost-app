@@ -18,7 +18,7 @@ export default function AboutScreen() {
     <View style={{ flex: 1, backgroundColor: Ghost.bg.base }}>
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + 120 }]}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + Space.huge + Space.edge + Space.xl }]}
     >
       <View style={styles.brand}>
         <GhostMark size={48} />

@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Space, Type } from "@/constants/theme";
+import { Ghost, Midnight, Space, Type } from "@/constants/theme";
 import { parsePairingURI } from "@/lib/pairing";
 import { startPairing } from "@/lib/connection";
 
@@ -127,7 +127,7 @@ export default function QrScannerScreen() {
 
   const cornerColor = invalidFlash.interpolate({
     inputRange: [0, 1],
-    outputRange: ["rgba(255,255,255,0.8)", Ghost.status.error],
+    outputRange: ["rgba(250,250,247,0.8)", Ghost.status.error],
   });
 
   // Loading
@@ -201,9 +201,9 @@ export default function QrScannerScreen() {
                 <LinearGradient
                   colors={[
                     "transparent",
-                    "rgba(255,255,255,0.4)",
-                    "rgba(255,255,255,0.6)",
-                    "rgba(255,255,255,0.4)",
+                    "rgba(250,250,247,0.4)",
+                    "rgba(250,250,247,0.6)",
+                    "rgba(250,250,247,0.4)",
                     "transparent",
                   ]}
                   start={{ x: 0, y: 0 }}
@@ -238,7 +238,7 @@ export default function QrScannerScreen() {
       <View
         style={[styles.headerOverlay, { paddingTop: insets.top + Space.lg }]}
       >
-        <GhostMark size={24} color="rgba(255,255,255,0.7)" />
+        <GhostMark size={24} color="rgba(250,250,247,0.7)" />
         <Text style={styles.headerTitle}>Scan your Ghost Pod</Text>
         <Text style={styles.headerHint}>
           Center the QR code in the frame
@@ -260,7 +260,7 @@ export default function QrScannerScreen() {
 
         {status === "scanned" && (
           <View style={styles.loadingRow}>
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color={Ghost.text.inverse} size="small" />
             <Text style={styles.loadingText}>Connecting…</Text>
           </View>
         )}
@@ -280,7 +280,7 @@ export default function QrScannerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: Midnight.bg,
   },
   center: {
     justifyContent: "center",
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   },
   maskTop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(23,19,15,0.65)",
   },
   maskMiddle: {
     flexDirection: "row",
@@ -305,11 +305,11 @@ const styles = StyleSheet.create({
   },
   maskSide: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(23,19,15,0.65)",
   },
   maskBottom: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(23,19,15,0.65)",
   },
 
   // ─── Scan Window ─────────────────────────────────────────────────────────
@@ -376,12 +376,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Type.headline,
-    color: "#fff",
+    color: Ghost.text.inverse,
     marginTop: Space.sm,
   },
   headerHint: {
     ...Type.subhead,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(250,250,247,0.55)",
   },
 
   bottomOverlay: {
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   },
   invalidText: {
     ...Type.subhead,
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(250,250,247,0.7)",
     fontWeight: "500",
   },
   loadingRow: {
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     ...Type.subhead,
-    color: "rgba(255,255,255,0.8)",
+    color: "rgba(250,250,247,0.8)",
     fontWeight: "500",
   },
   cancelButton: {
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     ...Type.callout,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(250,250,247,0.55)",
   },
 
   // ─── Permission Denied ───────────────────────────────────────────────────

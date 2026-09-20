@@ -18,6 +18,8 @@ Light-first warm paper. Midnight warm dark is reserved for the conversation worl
 - `--status-warning`: #B07C2E
 - `--status-error`: #C24B3C
 - `--ember`: #FFB45C (presence light, speaking only)
+- `--bubble-user`: #E4E2DC (user chat bubble)
+- `--text-inverse`: #FAFAF7 (ink on dark fills and camera scrims)
 
 Dark conversation tokens (`Midnight`): bg #17130F, surface #241E17, ink #F1E9DC, muted #A3927F, line rgba(240,233,223,0.07).
 
@@ -32,6 +34,8 @@ Dark conversation tokens (`Midnight`): bg #17130F, surface #241E17, ink #F1E9DC,
 
 - Scale: 2, 4, 8, 12, 16, 20, 24, 32, 48, 64; edge rhythm 52
 - Radii: sm 6, md 10, lg 14, xl 18, xxl 24, full 999
+- Sheet offsets: `UI.modal.top` 100, `UI.modal.bottom` 80 (centered screens above the home indicator)
+- List clearance above the FAB: `Space.huge + Space.edge` (button height + edge distance)
 
 ## Components
 
@@ -39,5 +43,7 @@ Dark conversation tokens (`Midnight`): bg #17130F, surface #241E17, ink #F1E9DC,
 - Secondary: raised pill with hairline border
 - Chips: 44px minimum touch row, selected is accent fill with inverse label
 - Bubbles: user #E4E2DC right, Ghost raised with subtle border; no nested cards
-- Status: inline honest text, error in status error, never a modal first
+- Status: inline honest text, error in status error, never a modal first. One offline language: `OfflineBadge` (Reconnecting/Offline) on every Pod screen
+- Inputs: `GhostInput` everywhere (sunken fill, 48px minimum, tertiary placeholder). No one-off TextInput styles
+- Copy: every word earns its place. No em dashes in user-facing strings; commas, colons, or periods instead
 - Motion: 150 to 250ms, ease out exponential, no bounce, reduced motion respected

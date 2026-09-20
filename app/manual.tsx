@@ -3,14 +3,13 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  TextInput,
   KeyboardAvoidingView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
-import { GhostButton } from "@/components/ghost";
-import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { GhostButton, GhostInput } from "@/components/ghost";
+import { Ghost, Space, UI } from "@/constants/theme";
 import { startPairing } from "@/lib/connection";
 
 /**
@@ -93,7 +92,7 @@ export default function ManualScreen() {
     >
       <ScrollView
         style={{ flex: 1, backgroundColor: Ghost.bg.base }}
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 80, paddingBottom: insets.bottom + 80 }]}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + UI.modal.bottom, paddingBottom: insets.bottom + UI.modal.bottom }]}
         keyboardShouldPersistTaps="handled"
       >
         <GhostText type="largeTitle" style={styles.title}>
@@ -107,13 +106,11 @@ export default function ManualScreen() {
         <GhostText type="caption" style={styles.label}>
           Ghost Pod address
         </GhostText>
-        <TextInput
-          style={styles.input}
+        <GhostInput
           value={host}
           onChangeText={setHost}
           accessibilityLabel="Ghost Pod address"
           placeholder="192.168.1.42"
-          placeholderTextColor={Ghost.text.tertiary}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
@@ -122,26 +119,22 @@ export default function ManualScreen() {
         <GhostText type="caption" style={styles.label}>
           Port
         </GhostText>
-        <TextInput
-          style={styles.input}
+        <GhostInput
           value={port}
           onChangeText={setPort}
           accessibilityLabel="Port"
           placeholder="8766"
-          placeholderTextColor={Ghost.text.tertiary}
           keyboardType="number-pad"
         />
 
         <GhostText type="caption" style={styles.label}>
           Pairing token
         </GhostText>
-        <TextInput
-          style={styles.input}
+        <GhostInput
           value={token}
           onChangeText={handleTokenChange}
           accessibilityLabel="Pairing token"
-            placeholder="Paste token from Ghost Pod"
-          placeholderTextColor={Ghost.text.tertiary}
+          placeholder="Paste token from Ghost Pod"
           autoCapitalize="none"
           autoCorrect={false}
         />
@@ -182,15 +175,6 @@ const styles = StyleSheet.create({
     color: Ghost.text.tertiary,
     marginBottom: Space.xs,
     marginTop: Space.md,
-  },
-  input: {
-    ...Type.body,
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    borderRadius: Radius.md,
-    padding: Space.md,
-    color: Ghost.text.primary,
-    backgroundColor: Ghost.bg.base,
   },
   buttonRow: {
     marginTop: Space.xxl,

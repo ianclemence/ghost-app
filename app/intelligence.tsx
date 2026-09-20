@@ -6,7 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { PlusMenu } from "@/components/plus-menu";
-import { GhostButton, GhostInput, GhostSheet, GhostToggle, StatusDot } from "@/components/ghost";
+import { GhostButton, GhostInput, GhostSheet, GhostToggle, OfflineBadge, StatusDot } from "@/components/ghost";
 import {
   fetchDoctorStatus,
   fetchIntelligenceConfig,
@@ -217,7 +217,7 @@ export default function IntelligenceScreen() {
       setKeptKey(false);
       await reloadProviders();
     } catch {
-      setSaveError("Couldn't save — nothing changed. Try again.");
+      setSaveError("Couldn't save. Nothing changed, try again.");
     }
     setSaving(false);
   };
@@ -230,7 +230,7 @@ export default function IntelligenceScreen() {
     setRoutingError(null);
     saveIntelligenceConfig(config, { routing: next }).catch(() => {
       setIntelConfig((cur) => (cur ? { ...cur, routing: prev } : cur));
-      setRoutingError("Couldn't save — routing unchanged. Try again.");
+      setRoutingError("Couldn't save. Routing is unchanged, try again.");
     });
   };
 
@@ -266,7 +266,7 @@ export default function IntelligenceScreen() {
       setState((prev) => (prev ? { ...prev, active } : prev));
       setSelected(null);
     } catch {
-      setSwitchError("Couldn't switch — still on the current model.");
+      setSwitchError("Couldn't switch. Still on the current model.");
     }
     setSwitching(false);
   };
@@ -294,9 +294,9 @@ export default function IntelligenceScreen() {
         <GhostText type="subhead" style={styles.sub}>Which AI Ghost runs on.</GhostText>
       </View>
       {config && connectionState !== "online" ? (
-        <GhostText type="footnote" style={styles.offline} accessibilityLiveRegion="polite">
-          {connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}
-        </GhostText>
+        <View style={styles.offlineWrap}>
+          <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
+        </View>
       ) : null}
       {!config ? (
         <View style={styles.center}>
@@ -488,7 +488,7 @@ export default function IntelligenceScreen() {
         {keptKey ? (
           <>
             <GhostText type="footnote" style={styles.sheetDesc}>
-              Kept the saved key — nothing changed.
+              Kept the saved key. Nothing changed.
             </GhostText>
             <GhostButton title="Done" fullWidth onPress={() => { setConfiguring(null); setKeptKey(false); }} />
           </>
@@ -551,10 +551,8 @@ const styles = StyleSheet.create({
     color: Ghost.text.secondary,
     marginTop: 2,
   },
-  offline: {
-    color: Ghost.text.tertiary,
-    textAlign: "center",
-    marginTop: 4,
+  offlineWrap: {
+    alignItems: "center",
   },
   center: {
     ...StyleSheet.absoluteFill,
@@ -569,21 +567,22 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   emptyMuted: {
-    color: "#7A746C",
+    color: Ghost.text.tertiary,
   },
   emptyInk: {
-    color: "#1A1611",
+    color: Ghost.text.primary,
     fontWeight: "700",
   },
   retry: {
     marginTop: Space.lg,
     fontSize: 15,
     fontWeight: "600",
-    color: "#1A1611",
+    color: Ghost.text.primary,
   },
   list: {
     paddingHorizontal: Space.xl,
-    paddingBottom: Space.huge,
+    // FAB clearance: button height + edge distance.
+    paddingBottom: Space.huge + Space.edge,
   },
   group: {
     color: Ghost.text.tertiary,

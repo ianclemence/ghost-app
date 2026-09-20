@@ -550,6 +550,10 @@ export function GhostInput({
   multiline,
   secureTextEntry,
   keyboardType,
+  autoCapitalize,
+  autoCorrect,
+  accessibilityLabel,
+  editable = true,
   style,
 }: {
   value: string;
@@ -557,7 +561,11 @@ export function GhostInput({
   placeholder?: string;
   multiline?: boolean;
   secureTextEntry?: boolean;
-  keyboardType?: "default" | "numeric" | "email-address" | "url";
+  keyboardType?: "default" | "numeric" | "number-pad" | "email-address" | "url";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoCorrect?: boolean;
+  accessibilityLabel?: string;
+  editable?: boolean;
   style?: StyleProp<TextStyle>;
 }) {
   return (
@@ -569,6 +577,10 @@ export function GhostInput({
       multiline={multiline}
       secureTextEntry={secureTextEntry}
       keyboardType={keyboardType}
+      autoCapitalize={autoCapitalize}
+      autoCorrect={autoCorrect}
+      accessibilityLabel={accessibilityLabel ?? placeholder}
+      editable={editable}
       style={[
         {
           backgroundColor: Ghost.bg.sunken,
@@ -583,6 +595,7 @@ export function GhostInput({
           lineHeight: 24,
           textAlignVertical: multiline ? "top" : "center",
           minHeight: multiline ? 96 : 48,
+          opacity: editable ? 1 : 0.5,
         },
         style,
       ]}

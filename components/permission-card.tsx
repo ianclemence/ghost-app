@@ -38,7 +38,7 @@ export function PermissionCard({ item, config, onResolved }: { item: PendingAppr
       accessibilityLabel="Permission request from Ghost"
       accessibilityLiveRegion="polite"
     >
-      <Text style={styles.kicker}>{caution ? "Needs your approval — review carefully" : "Needs your approval"}</Text>
+      <Text style={styles.kicker}>{caution ? "Needs your approval. Review carefully" : "Needs your approval"}</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.desc}>{desc}</Text>
       {note ? <Text style={styles.note}>{note}</Text> : null}

@@ -14,7 +14,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { Space } from "@/constants/theme";
+import { Space, Ghost } from "@/constants/theme";
 import { useGhostStore } from "@/lib/store";
 
 // The app is the daily driver. The menu holds the six management
@@ -128,7 +128,7 @@ export function PlusMenu({ hidden }: { hidden?: boolean }) {
                       accessibilityState={{ selected: active }}
                     >
                       <View style={[styles.iconWell, active && styles.iconWellActive]}>
-                        <Icon size={18} color={active ? "#FAFAF6" : "#1A1611"} strokeWidth={1.5} />
+                        <Icon size={18} color={active ? Ghost.text.inverse : Ghost.text.primary} strokeWidth={1.5} />
                       </View>
                       <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
                     </Pressable>
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.6,
     textTransform: "uppercase",
-    color: "#8A847C",
+    color: Ghost.text.tertiary,
     marginTop: Space.sm,
   },
   row: {
@@ -201,17 +201,17 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#EDEBE6",
+    backgroundColor: Ghost.bg.sunken,
     alignItems: "center",
     justifyContent: "center",
   },
   iconWellActive: {
-    backgroundColor: "#1A1611",
+    backgroundColor: Ghost.text.primary,
   },
   label: {
     fontSize: 17,
     fontWeight: "500",
-    color: "#1A1611",
+    color: Ghost.text.primary,
     letterSpacing: -0.1,
   },
   labelActive: {
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 16,
     borderCurve: "continuous",
-    backgroundColor: "#1A1611",
+    backgroundColor: Ghost.text.primary,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Space.edge,
@@ -242,13 +242,13 @@ const styles = StyleSheet.create({
     width: 18,
     height: 2,
     borderRadius: 1,
-    backgroundColor: "#FAFAF6",
+    backgroundColor: Ghost.text.inverse,
   },
   barV: {
     position: "absolute",
     width: 2,
     height: 18,
     borderRadius: 1,
-    backgroundColor: "#FAFAF6",
+    backgroundColor: Ghost.text.inverse,
   },
 });

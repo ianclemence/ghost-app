@@ -78,6 +78,11 @@ export const Ghost = {
     strong: "rgba(26,22,17,0.20)",
   },
 
+  // Bubbles
+  bubble: {
+    user: "#E4E2DC",
+  },
+
   // Backward compat getters (for gradual migration)
   get background() {
     return this.bg.base;
@@ -249,6 +254,7 @@ export const UI = {
   },
   modal: {
     top: 100,
+    bottom: 80,
     side: Space.xl,
     backdrop: "rgba(26,22,17,0.4)",
     headerPadding: Space.lg,

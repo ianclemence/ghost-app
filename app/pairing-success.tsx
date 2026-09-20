@@ -6,7 +6,7 @@ import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
-import { Ghost, Space } from "@/constants/theme";
+import { Ghost, Space, UI } from "@/constants/theme";
 import { ensureNotificationPermission } from "@/lib/notify";
 
 const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1));
@@ -48,7 +48,7 @@ export default function PairingSuccessScreen() {
   // After notifications handled, show the final state
   if (askedNotifications) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 100 }]}>
+      <View style={[styles.container, { paddingTop: insets.top + UI.modal.top }]}>
         <View style={styles.content}>
           <Animated.View entering={reduceMotion ? undefined : SUCCESS_ENTER} style={styles.successMark}>
             <GhostMark size={48} />
@@ -65,7 +65,7 @@ export default function PairingSuccessScreen() {
           </GhostText>
         </View>
 
-        <View style={[styles.bottom, { paddingBottom: insets.bottom + 80 }]}>
+        <View style={[styles.bottom, { paddingBottom: insets.bottom + UI.modal.bottom }]}>
           <GhostButton
             title="Continue"
             variant="primary"
@@ -78,7 +78,7 @@ export default function PairingSuccessScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 100 }]}>
+    <View style={[styles.container, { paddingTop: insets.top + UI.modal.top }]}>
       <View style={styles.content}>
         <GhostMark size={48} />
         <GhostText type="largeTitle" style={styles.title}>
@@ -89,7 +89,7 @@ export default function PairingSuccessScreen() {
         </GhostText>
       </View>
 
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + 80 }]}>
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + UI.modal.bottom }]}>
         <GhostButton
           title="Continue"
           variant="primary"

@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { PlusMenu } from "@/components/plus-menu";
 import { ScreenBackground } from "@/components/screen-glow";
-import { GhostButton, EmptyState } from "@/components/ghost";
+import { GhostButton, EmptyState, GhostInput, OfflineBadge } from "@/components/ghost";
 import {
   controlRoutineItem,
   createGoal,
@@ -192,13 +192,13 @@ export default function RoutinesScreen() {
         <GhostText type="subhead" style={styles.sub}>
           {active > 0
             ? `${active} ${active === 1 ? "routine" : "routines"} running for you.`
-            : "Tell Ghost in a chat — \u201cevery Monday at 9, prepare my brief\u201d."}
+            : "Tell Ghost in a chat: \u201cevery Monday at 9, prepare my brief\u201d."}
         </GhostText>
       </View>
       {config && connectionState !== "online" ? (
-        <GhostText type="footnote" style={styles.offline} accessibilityLiveRegion="polite">
-          {connectionState === "syncing" ? "Ghost is reconnecting" : "Your Ghost is offline"}
-        </GhostText>
+        <View style={styles.offlineWrap}>
+          <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
+        </View>
       ) : null}
 
       {!config ? (
@@ -307,7 +307,7 @@ export default function RoutinesScreen() {
             Goals
           </GhostText>
           <GhostText type="footnote" style={styles.sectionDesc}>
-            Standing intents Ghost keeps working on — tell it once, it reports back.
+            Standing intents Ghost keeps working on. Tell it once, it reports back.
           </GhostText>
           {goalsError && goals.length === 0 ? (
             <EmptyState
@@ -317,15 +317,13 @@ export default function RoutinesScreen() {
             />
           ) : null}
           <View style={styles.creator}>
-            <TextInput
-              style={styles.input}
+            <GhostInput
               placeholder="e.g. Take care of school emails"
               value={goalText}
               onChangeText={setGoalText}
               editable={goalBusy !== "new"}
             />
-            <TextInput
-              style={styles.input}
+            <GhostInput
               placeholder="Scope (optional, e.g. school.edu inbox)"
               value={goalScope}
               onChangeText={setGoalScope}
@@ -407,10 +405,8 @@ const styles = StyleSheet.create({
     color: Ghost.text.secondary,
     marginTop: 2,
   },
-  offline: {
-    color: Ghost.text.tertiary,
-    textAlign: "center",
-    marginTop: 4,
+  offlineWrap: {
+    alignItems: "center",
   },
   center: {
     flex: 1,
@@ -418,7 +414,9 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: Space.xl,
-    paddingBottom: Space.huge,
+    // FAB clearance: button height + edge distance, so the last row
+    // never slides under the menu button.
+    paddingBottom: Space.huge + Space.edge,
   },
   row: {
     paddingVertical: Space.lg,
@@ -469,15 +467,7 @@ const styles = StyleSheet.create({
     marginBottom: Space.sm,
   },
   creator: {
-    gap: 8,
+    gap: Space.sm,
     marginBottom: Space.lg,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: Ghost.border.subtle,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    color: Ghost.text.primary,
   },
 });

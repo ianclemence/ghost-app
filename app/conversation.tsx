@@ -509,7 +509,7 @@ export default function ConversationScreen() {
           <Text style={styles.userText}>{item.content}</Text>
           {item.status === "queued" ? (
             <Text style={styles.queuedNote} accessibilityLiveRegion="polite">
-              Queued — will send when you&apos;re back online
+              Queued. Sends when you&apos;re back online
             </Text>
           ) : null}
         </View>
@@ -640,7 +640,7 @@ export default function ConversationScreen() {
           minimal
           // Voice transcription runs on the Pod (POST /v1/voice/turn). Offline
           // or local-only there is no transcriber, so no handler: Composer
-          // renders the mic visibly disabled ("Voice needs Pod — type instead").
+          // renders the mic visibly disabled ("Voice needs Pod. Type instead").
           onTranscribeAudio={
             config && connectionState === "online"
               ? (uri) => voiceTranscribeUri(config, uri, MAIN_SESSION_ID)
@@ -652,7 +652,7 @@ export default function ConversationScreen() {
         />
       </Animated.View>
       <LinearGradient
-        colors={["#FAFAF7", "rgba(250,250,247,0)"]}
+        colors={[Ghost.bg.base, "rgba(250,250,247,0)"]}
         style={[styles.topFade, { height: headerH + 80 }]}
         pointerEvents="none"
       />
@@ -700,7 +700,7 @@ export default function ConversationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAF7",
+    backgroundColor: Ghost.bg.base,
   },
   headerFloating: {
     position: "absolute",
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 2,
     borderRadius: 1,
-    backgroundColor: "#1A1611",
+    backgroundColor: Ghost.text.primary,
     transform: [{ rotate: "-45deg" }, { translateY: -4 }],
   },
   chevDown: {
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 2,
     borderRadius: 1,
-    backgroundColor: "#1A1611",
+    backgroundColor: Ghost.text.primary,
     transform: [{ rotate: "45deg" }, { translateY: 4 }],
   },
   headerCenter: {
@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#1A1611",
+    color: Ghost.text.primary,
   },
   headerSub: {
     fontSize: 12,
@@ -791,10 +791,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   emptyMuted: {
-    color: "#7A746C",
+    color: Ghost.text.tertiary,
   },
   emptyInk: {
-    color: "#1A1611",
+    color: Ghost.text.primary,
     fontWeight: "700",
   },
   msgBlock: {
@@ -803,21 +803,21 @@ const styles = StyleSheet.create({
   userText: {
     fontSize: 17,
     lineHeight: 25,
-    color: "#1A1611",
+    color: Ghost.text.primary,
     fontWeight: "600",
     textAlign: "right",
   },
   queuedNote: {
     fontSize: 12,
     lineHeight: 16,
-    color: "#7A746C",
+    color: Ghost.text.tertiary,
     textAlign: "right",
     marginTop: 2,
   },
   ghostText: {
     fontSize: 17,
     lineHeight: 26,
-    color: "#1A1611",
+    color: Ghost.text.primary,
   },
   thinking: {
     fontSize: 15,
@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 13,
     fontWeight: "600",
-    color: "#1A1611",
+    color: Ghost.text.primary,
     paddingHorizontal: 28,
     marginBottom: 4,
   },
@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
   approvalMoreText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1A1611",
+    color: Ghost.text.primary,
   },
   extras: {
     paddingVertical: Space.xs,
@@ -857,14 +857,14 @@ const styles = StyleSheet.create({
   status: {
     textAlign: "center",
     fontSize: 13,
-    color: "#6B6560",
+    color: Ghost.text.secondary,
     paddingHorizontal: 28,
     marginBottom: 4,
   },
   error: {
     textAlign: "center",
     fontSize: 13,
-    color: "#C24B3C",
+    color: Ghost.status.error,
     paddingHorizontal: 28,
     marginBottom: 8,
   },

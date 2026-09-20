@@ -167,7 +167,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAF7",
+    backgroundColor: Ghost.bg.base,
   },
   dateWrap: {
     alignItems: "center",
@@ -175,8 +175,9 @@ const styles = StyleSheet.create({
   },
   dateTop: {
     fontSize: 19,
+    lineHeight: 26,
     fontWeight: "700",
-    color: "#1A1611",
+    color: Ghost.text.primary,
   },
   dateSub: {
     fontSize: 17,
@@ -200,17 +201,17 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   muted: {
-    color: "#7A746C",
+    color: Ghost.text.tertiary,
   },
   ink: {
-    color: "#1A1611",
+    color: Ghost.text.primary,
     fontWeight: "700",
   },
   nudge: {
     marginTop: Space.lg,
     fontSize: 14,
     textAlign: "center",
-    color: "#1A1611",
+    color: Ghost.text.primary,
     fontWeight: "600",
   },
   routinesLine: {
@@ -224,14 +225,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 14,
     lineHeight: 20,
-    color: "#6B6560",
+    color: Ghost.text.secondary,
   },
   proactiveText: {
     marginTop: Space.sm,
     textAlign: "center",
     fontSize: 13,
     lineHeight: 19,
-    color: "#8A857E",
+    color: Ghost.text.tertiary,
     paddingHorizontal: Space.md,
   },
   talkRow: {

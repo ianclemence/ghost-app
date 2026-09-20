@@ -32,7 +32,7 @@ export interface PipelineHandlers {
 // reflex answers trivially without model inference (local, synchronous).
 function reflexAnswer(msg: string): string | null {
   const m = msg.trim().toLowerCase();
-  if (/^(hi|hello|hey|yo)\b/.test(m) && m.length < 24) return "Hey — I'm here, running on this phone.";
+  if (/^(hi|hello|hey|yo)\b/.test(m) && m.length < 24) return "Hey, I'm here, running on this phone.";
   if (/^(thanks|thank you|thx)\b/.test(m)) return "Anytime.";
   return null;
 }

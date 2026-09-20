@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   },
   bottom: {
     position: "absolute",
-    bottom: 80,
+    bottom: Space.section + Space.lg,
     left: Space.xl,
     right: Space.xl,
     gap: Space.md,
@@ -101,6 +101,8 @@ const styles = StyleSheet.create({
   },
   quiet: {
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
     paddingVertical: Space.sm,
   },
   quietText: {

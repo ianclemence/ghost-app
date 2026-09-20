@@ -111,7 +111,7 @@ export class ModelManager {
     this.tasks.set(manifest.id, task as unknown as TaskHandle);
     try {
       const file = await task.downloadAsync();
-      if (!file) throw new Error("download paused — resume to continue");
+      if (!file) throw new Error("Download paused. Resume to continue.");
       await this.install(manifest, part.uri);
     } finally {
       sub.remove();

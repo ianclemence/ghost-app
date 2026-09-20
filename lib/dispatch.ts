@@ -21,5 +21,5 @@ export function dispatchMode(isStreaming: boolean, steeringAvailable: boolean): 
 // The phrasing is honest: the message joined the current turn; it did not
 // start a new one, and Ghost may finish the original task first.
 export function steerAck(): string {
-  return "Sent to Ghost — it'll pick this up in the current turn.";
+  return "Sent to Ghost. It picks this up in the current turn.";
 }

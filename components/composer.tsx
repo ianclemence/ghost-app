@@ -333,7 +333,7 @@ export function Composer({
         ) : (
           <View
             style={[styles.iconBtn, styles.micDisabled]}
-            accessibilityLabel="Voice needs Pod connection — type instead"
+            accessibilityLabel="Voice needs Pod connection. Type instead"
             accessibilityState={{ disabled: true }}
           >
             <Mic size={18} color={Ghost.text.secondary} />
@@ -346,7 +346,7 @@ export function Composer({
             <Animated.View entering={FadeIn.duration(150)}>
               <ActionPressButton
                 style={styles.sendBtn}
-                accessibilityLabel="Send message — joins the current turn"
+                accessibilityLabel="Send message. Joins the current turn"
                 onPress={submit}
               >
                 <Send size={18} color={Ghost.text.inverse} />
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   trailingRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: Space.sm,
   },
   stopBtn: {
     width: 36,

@@ -113,7 +113,7 @@ function networkError(err: any): GhostError {
   }
   return {
     kind: "network",
-    message: "Can't reach Ghost — check your Wi-Fi and Pi connection",
+    message: "Can't reach Ghost. Check your Wi-Fi and Pod connection",
     retryable: true,
   };
 }

@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
-import { Ghost, Space } from "@/constants/theme";
+import { Ghost, Space, UI } from "@/constants/theme";
 
 /**
  * Connect to Ghost screen.
@@ -15,17 +15,17 @@ export default function ConnectToGhostScreen() {
   const router = useRouter();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 100 }]}>
+    <View style={[styles.container, { paddingTop: insets.top + UI.modal.top }]}>
       <View style={styles.content}>
         <GhostText type="largeTitle" style={styles.title}>
           Connect to Ghost
         </GhostText>
         <GhostText type="body" style={styles.description}>
-          Your Ghost is running on your Ghost Pod.{"\n"}Scan the QR code shown on your Ghost Pod to connect this phone.
+          Scan the QR code shown on your Ghost Pod to connect this phone.
         </GhostText>
       </View>
 
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + 80 }]}>
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + UI.modal.bottom }]}>
         <GhostButton
           title="Scan QR Code"
           variant="primary"
@@ -81,6 +81,8 @@ const styles = StyleSheet.create({
   },
   manualButton: {
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
     paddingVertical: Space.md,
   },
   manualText: {

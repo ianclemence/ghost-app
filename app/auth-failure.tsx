@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Space } from "@/constants/theme";
+import { Ghost, Space, UI } from "@/constants/theme";
 import { disconnectAndClear, initializeConnection } from "@/lib/connection";
 
 /**
@@ -27,7 +27,7 @@ export default function AuthFailureScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 100 }]}>
+    <View style={[styles.container, { paddingTop: insets.top + UI.modal.top }]}>
       <View style={styles.content}>
         <GhostMark size={48} color={Ghost.text.tertiary} />
         <GhostText type="headline" style={styles.title}>
@@ -38,7 +38,7 @@ export default function AuthFailureScreen() {
         </GhostText>
       </View>
 
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + 80 }]}>
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + UI.modal.bottom }]}>
         <GhostButton
           title="Connect again"
           variant="primary"

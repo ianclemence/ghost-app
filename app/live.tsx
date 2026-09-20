@@ -121,7 +121,7 @@ export default function LiveVoiceScreen() {
             <Text style={styles.elapsed}>{fmtElapsed(snapshot.elapsedSeconds)} / 10:00</Text>
             <Text style={styles.honest}>
               {snapshot.elapsedSeconds >= 480
-                ? "Ending soon — wrap up. The transcript stays here."
+                ? "Ending soon, so wrap up. The transcript stays here."
                 : "Calls end at 10:00. The transcript stays here."}
             </Text>
           </>
@@ -180,7 +180,7 @@ export default function LiveVoiceScreen() {
               accessibilityRole="button"
             >
               {busy ? (
-                <ActivityIndicator color="#FAFAF7" />
+                <ActivityIndicator color={Ghost.text.inverse} />
               ) : (
                 <Text style={styles.endText}>End</Text>
               )}
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: Ghost.accent.primary,
   },
-  startText: { fontSize: 16, fontWeight: "700", color: "#FAFAF7" },
+  startText: { fontSize: 16, fontWeight: "700", color: Ghost.text.inverse },
   end: {
     minHeight: 48,
     justifyContent: "center",
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: Ghost.status.error,
   },
-  endText: { fontSize: 16, fontWeight: "700", color: "#FAFAF7" },
+  endText: { fontSize: 16, fontWeight: "700", color: Ghost.text.inverse },
   disabled: { opacity: 0.45 },
   section: {
     fontSize: 13,
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: Ghost.accent.primary, borderColor: Ghost.accent.primary },
   chipText: { fontSize: 14, color: Ghost.text.primary },
-  chipTextActive: { color: "#FAFAF7", fontWeight: "600" },
+  chipTextActive: { color: Ghost.text.inverse, fontWeight: "600" },
   lock: { fontSize: 12, color: Ghost.text.tertiary, marginTop: Space.sm },
   empty: { fontSize: 14, lineHeight: 20, color: Ghost.text.tertiary, maxWidth: 480 },
   thread: { gap: Space.sm },
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     borderColor: Ghost.border.subtle,
     maxWidth: "92%",
   },
-  user: { alignSelf: "flex-end", backgroundColor: "#E4E2DC", borderColor: "transparent" },
+  user: { alignSelf: "flex-end", backgroundColor: Ghost.bubble.user, borderColor: "transparent" },
   ghost: { alignSelf: "flex-start", backgroundColor: Ghost.bg.raised },
   bubbleText: { fontSize: 15, lineHeight: 21, color: Ghost.text.primary },
 });
