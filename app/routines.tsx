@@ -16,7 +16,7 @@ import {
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
-// Things — the one place that answers "what does Ghost do for me?".
+// Routines — the one place that answers "what does Ghost do for me?".
 //
 // The owner never files their intent as a "routine" or an "automation".
 // They say what they want in conversation; Ghost infers the shape. This
@@ -44,7 +44,7 @@ function badgeFor(t: RoutineItem): { label: string; color: string } {
   }
 }
 
-export default function ThingsScreen() {
+export default function RoutinesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config } = useGhostStore();

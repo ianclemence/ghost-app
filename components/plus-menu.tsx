@@ -21,13 +21,13 @@ import { useGhostStore } from "@/lib/store";
 // verbs (talk) stay at the top and management/connection live below — the
 // control plane itself is Ghost Web, not this menu.
 //
-// "Things Ghost does" replaces the old split between routines and
-// automations: the owner has one mental model, so there is one destination.
+// "Routines" is the one destination for everything Ghost runs for you —
+// the owner has one mental model, so there is one destination.
 const ITEMS = [
   { group: "Talk", route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
   { group: "Talk", route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
   { group: "Talk", route: "/live" as const, label: "Live voice", match: "live", Icon: PhoneCall },
-  { group: "Your Ghost", route: "/things" as const, label: "Routines", match: "things", Icon: CalendarClock },
+  { group: "Your Ghost", route: "/routines" as const, label: "Routines", match: "routines", Icon: CalendarClock },
   { group: "Your Ghost", route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
   { group: "Your Ghost", route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
   { group: "Your Ghost", route: "/connections" as const, label: "Connected Apps", match: "connections", Icon: Blocks },

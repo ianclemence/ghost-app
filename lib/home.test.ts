@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { deriveHomeSummary } from "./home";
 import type { RoutineItem } from "./ghostApi";
 
-function thing(over: Partial<RoutineItem>): RoutineItem {
+function routine(over: Partial<RoutineItem>): RoutineItem {
   return {
     id: "t1",
     title: "Weekly brief",
@@ -23,37 +23,37 @@ describe("deriveHomeSummary", () => {
     expect(deriveHomeSummary([])).toEqual({ headline: null, needsYou: false });
   });
 
-  test("waiting beats active — the owner sees the thing that needs them", () => {
+  test("waiting beats active — the owner sees the routine that needs them", () => {
     const got = deriveHomeSummary([
-      thing({ id: "a", title: "Daily sync", state: "active" }),
-      thing({ id: "b", title: "Send invoice", state: "waiting" }),
+      routine({ id: "a", title: "Daily sync", state: "active" }),
+      routine({ id: "b", title: "Send invoice", state: "waiting" }),
     ]);
     expect(got.needsYou).toBe(true);
     expect(got.headline).toContain("Send invoice");
   });
 
-  test("single active thing reads naturally", () => {
-    const got = deriveHomeSummary([thing({ title: "Weekly brief", kind: "routine" })]);
+  test("single active routine reads naturally", () => {
+    const got = deriveHomeSummary([routine({ title: "Weekly brief", kind: "routine" })]);
     expect(got.headline).toBe("I keep doing \u201cWeekly brief\u201d.");
     expect(got.needsYou).toBe(false);
   });
 
-  test("multiple active things summarize the count", () => {
+  test("multiple active routines summarize the count", () => {
     const got = deriveHomeSummary([
-      thing({ id: "a", title: "Brief", kind: "automation" }),
-      thing({ id: "b", title: "Sync" }),
-      thing({ id: "c", title: "Remind", kind: "reminder" }),
+      routine({ id: "a", title: "Brief", kind: "automation" }),
+      routine({ id: "b", title: "Sync" }),
+      routine({ id: "c", title: "Remind", kind: "reminder" }),
     ]);
     expect(got.headline).toBe("I handle \u201cBrief\u201d and 2 more.");
   });
 
-  test("only finished things yields no headline", () => {
-    const got = deriveHomeSummary([thing({ state: "done" }), thing({ id: "x", state: "cancelled" })]);
+  test("only finished routines yields no headline", () => {
+    const got = deriveHomeSummary([routine({ state: "done" }), routine({ id: "x", state: "cancelled" })]);
     expect(got).toEqual({ headline: null, needsYou: false });
   });
 
   test("unknown kind still produces a sentence", () => {
-    const got = deriveHomeSummary([thing({ kind: "mystery" as never })]);
+    const got = deriveHomeSummary([routine({ kind: "mystery" as never })]);
     expect(got.headline).toContain("Weekly brief");
   });
 });

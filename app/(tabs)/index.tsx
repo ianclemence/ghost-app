@@ -30,7 +30,7 @@ export default function HomeScreen() {
   const { config, setGhostName, connectionState, localReady } = useGhostStore();
   const [userName, setUserName] = useState("");
   const [waitingApproval, setWaitingApproval] = useState(false);
-  const [things, setThings] = useState<RoutineItem[]>([]);
+  const [routines, setRoutines] = useState<RoutineItem[]>([]);
   const [proactive, setProactive] = useState<ProactiveStatus | null>(null);
   const { top, sub } = dateHeader();
   const greet = greeting();
@@ -49,8 +49,8 @@ export default function HomeScreen() {
     }).catch(() => {});
     // Home states one fact about what Ghost is doing, so the owner's first
     // screen answers "what do you do for me?" without becoming a dashboard.
-    fetchRoutines(config).then((t) => {
-      if (!cancelled) setThings(t);
+    fetchRoutines(config).then((r) => {
+      if (!cancelled) setRoutines(r);
     }).catch(() => {});
     // When Ghost is quietly watching or holding something for later, the
     // owner should know — without a dashboard. One calm line at most.
@@ -62,7 +62,7 @@ export default function HomeScreen() {
     };
   }, [config, setGhostName]);
 
-  const summary = deriveHomeSummary(things);
+  const summary = deriveHomeSummary(routines);
   const proactiveText = proactiveLine(proactive).text;
 
   return (
@@ -105,12 +105,12 @@ export default function HomeScreen() {
         ) : null}
         {summary.headline ? (
           <Pressable
-            onPress={() => router.push("/things")}
+            onPress={() => router.push("/routines" as never)}
             accessibilityRole="button"
             accessibilityLabel={`${summary.headline} Open routines.`}
-            style={styles.thingsLine}
+            style={styles.routinesLine}
           >
-            <Text style={styles.thingsText}>{summary.headline}</Text>
+            <Text style={styles.routinesText}>{summary.headline}</Text>
           </Pressable>
         ) : null}
         {proactiveText ? (
@@ -173,14 +173,14 @@ const styles = StyleSheet.create({
     color: "#1A1611",
     fontWeight: "600",
   },
-  thingsLine: {
+  routinesLine: {
     marginTop: Space.lg,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Space.md,
   },
-  thingsText: {
+  routinesText: {
     textAlign: "center",
     fontSize: 14,
     lineHeight: 20,

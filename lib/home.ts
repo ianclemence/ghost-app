@@ -26,17 +26,17 @@ const KIND_VERB: Record<string, string> = {
 //  2. otherwise the soonest active thing,
 //  3. otherwise nothing.
 // It is deterministic and total.
-export function deriveHomeSummary(things: RoutineItem[]): HomeSummary {
-  if (!things || things.length === 0) {
+export function deriveHomeSummary(routines: RoutineItem[]): HomeSummary {
+  if (!routines || routines.length === 0) {
     return { headline: null, needsYou: false };
   }
 
-  const waiting = things.find((t) => t.state === "waiting");
+  const waiting = routines.find((t) => t.state === "waiting");
   if (waiting) {
     return { headline: `One thing needs you: ${waiting.title}.`, needsYou: true };
   }
 
-  const active = things.filter((t) => t.state === "active");
+  const active = routines.filter((t) => t.state === "active");
   if (active.length === 0) {
     return { headline: null, needsYou: false };
   }

@@ -33,7 +33,7 @@ the Composer exposes no attach buttons on the conversation screen.
 ## 🔀 Plus menu
 
 - Conversation — jump straight into a chat
-- **Things Ghost does** — everything Ghost runs for you, in one list
+- **Routines** — everything Ghost runs for you, in one list
 - Intelligence — which AI Ghost runs on
 - Ghost Local — on-device Mini model, storage, privacy
 - Connected Apps — status of connected services
@@ -41,12 +41,12 @@ the Composer exposes no attach buttons on the conversation screen.
 - Ghost Pod — device health, attention items, offline-phone metrics
 - About — what Ghost is and how it works
 
-### Things Ghost does
+### Routines
 
 One destination for anything Ghost does on its own: recurring briefs,
 reminders, and scheduled actions. You never file your intent as a “routine”
 or an “automation” — say what you want in a chat, and Ghost infers the shape
-and shows it here. The Pod merges both backing models at `/v1/things`; the
+and shows it here. The Pod merges both backing models at `/v1/routinefeed`; the
 app renders one list with one vocabulary. Pause, resume, or stop anything
 from the same screen.
 
@@ -157,7 +157,7 @@ ghost-app/
 │   ├── intelligence.tsx      # Intelligence — default model + AI health (Plus menu)
 │   ├── local-models.tsx      # Ghost Local — Mini download, storage, privacy (Plus menu)
 │   ├── goals.tsx             # Goals CRUD (Plus menu)
-│   ├── things.tsx            # Things Ghost does — unified routines + automations
+│   ├── routines.tsx           # Routines — unified routines + automations
 │   ├── connections.tsx       # Connected Apps — service status (Plus menu)
 │   ├── device.tsx            # Ghost Pod — health, diagnostics, offline-phone metrics
 │   ├── about.tsx             # About Ghost (Plus menu)
@@ -218,7 +218,7 @@ Pairing and auth errors return `{ "error": { "code", "message" } }`:
 | GET | `/v1/identity` | Owner/Ghost identity |
 | GET | `/v1/activity` | User-safe activity |
 | GET/POST | `/v1/permissions/requests` + `/v1/permissions/resolve` | Pending approvals |
-| GET | `/v1/things` | Unified “things Ghost does for you” feed (routines + scheduled) |
+| GET | `/v1/routinefeed` | Unified Routines feed (routines + scheduled) |
 | GET/POST | `/v1/routines` | Routines |
 | GET/POST | `/v1/goals` | Goals |
 | GET | `/v1/cards` | Rich cards |

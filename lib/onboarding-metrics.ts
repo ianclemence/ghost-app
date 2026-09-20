@@ -6,7 +6,7 @@
  * capabilities that constitute their actual use case — so Ghost goes quiet
  * and just works. Two milestones define whether that happened:
  *
- *   - first_thing:   the first time an owner sees a Thing Ghost is running
+ *   - first_routine: the first time an owner sees a Routine Ghost is running
  *   - first_grant:   the first time an owner chooses "always" for a capability
  *
  * We cannot improve a funnel we do not measure, so this persists timestamps
@@ -17,9 +17,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const KEY = "ghost:onboarding:milestones:v1";
 
-export type Milestone = "first_launch" | "first_thing" | "first_grant";
+export type Milestone = "first_launch" | "first_routine" | "first_grant";
 
-export type Milestones = Partial<Record<Milestone, number>>;
+export type Milestones = Partial<Record<Milestone, number>> & {
+  // Legacy key from before the Things → Routines rename. Read for migration
+  // only; new writes use first_routine.
+  first_thing?: number;
+};
 
 export async function getMilestones(): Promise<Milestones> {
   try {
@@ -52,7 +56,7 @@ export async function recordMilestone(m: Milestone, now = Date.now()): Promise<M
 // clamped to 0 so the metric stays honest.
 export function timeToMilestone(ms: Milestones, m: Milestone): number | null {
   const start = ms.first_launch;
-  const end = ms[m];
+  const end = m === "first_routine" ? firstRoutineAt(ms) : ms[m];
   if (start == null || end == null) return null;
   return Math.max(0, end - start);
 }
@@ -61,18 +65,22 @@ export function timeToMilestone(ms: Milestones, m: Milestone): number | null {
 // Ghost Pod diagnostics screen.
 export interface FunnelSnapshot {
   launched: boolean;
-  gotFirstThing: boolean;
+  gotFirstRoutine: boolean;
   gotFirstGrant: boolean;
-  msToFirstThing: number | null;
+  msToFirstRoutine: number | null;
   msToFirstGrant: number | null;
+}
+
+function firstRoutineAt(ms: Milestones): number | undefined {
+  return ms.first_routine ?? ms.first_thing;
 }
 
 export function funnelSnapshot(ms: Milestones): FunnelSnapshot {
   return {
     launched: ms.first_launch != null,
-    gotFirstThing: ms.first_thing != null,
+    gotFirstRoutine: firstRoutineAt(ms) != null,
     gotFirstGrant: ms.first_grant != null,
-    msToFirstThing: timeToMilestone(ms, "first_thing"),
+    msToFirstRoutine: timeToMilestone(ms, "first_routine"),
     msToFirstGrant: timeToMilestone(ms, "first_grant"),
   };
 }

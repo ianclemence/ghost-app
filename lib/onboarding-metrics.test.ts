@@ -37,10 +37,10 @@ describe("recordMilestone", () => {
 
   test("records distinct milestones independently", async () => {
     await recordMilestone("first_launch", 1000);
-    await recordMilestone("first_thing", 5000);
+    await recordMilestone("first_routine", 5000);
     const ms = await getMilestones();
     expect(ms.first_launch).toBe(1000);
-    expect(ms.first_thing).toBe(5000);
+    expect(ms.first_routine).toBe(5000);
     expect(ms.first_grant).toBeUndefined();
   });
 
@@ -52,35 +52,39 @@ describe("recordMilestone", () => {
 
 describe("timeToMilestone", () => {
   test("subtracts first launch from the milestone", () => {
-    expect(timeToMilestone({ first_launch: 1000, first_thing: 6000 }, "first_thing")).toBe(5000);
+    expect(timeToMilestone({ first_launch: 1000, first_routine: 6000 }, "first_routine")).toBe(5000);
   });
 
   test("returns null when either endpoint is missing", () => {
-    expect(timeToMilestone({ first_thing: 6000 }, "first_thing")).toBeNull();
-    expect(timeToMilestone({ first_launch: 1000 }, "first_thing")).toBeNull();
+    expect(timeToMilestone({ first_routine: 6000 }, "first_routine")).toBeNull();
+    expect(timeToMilestone({ first_launch: 1000 }, "first_routine")).toBeNull();
   });
 
   test("clamps clock skew to zero rather than reporting negative time", () => {
-    expect(timeToMilestone({ first_launch: 5000, first_thing: 1000 }, "first_thing")).toBe(0);
+    expect(timeToMilestone({ first_launch: 5000, first_routine: 1000 }, "first_routine")).toBe(0);
+  });
+
+  test("reads the legacy first_thing key", () => {
+    expect(timeToMilestone({ first_launch: 1000, first_thing: 6000 }, "first_routine")).toBe(5000);
   });
 });
 
 describe("funnelSnapshot", () => {
   test("reports which milestones landed", () => {
-    const snap = funnelSnapshot({ first_launch: 1000, first_thing: 4000 });
+    const snap = funnelSnapshot({ first_launch: 1000, first_routine: 4000 });
     expect(snap.launched).toBe(true);
-    expect(snap.gotFirstThing).toBe(true);
+    expect(snap.gotFirstRoutine).toBe(true);
     expect(snap.gotFirstGrant).toBe(false);
-    expect(snap.msToFirstThing).toBe(3000);
+    expect(snap.msToFirstRoutine).toBe(3000);
     expect(snap.msToFirstGrant).toBeNull();
   });
 
   test("empty milestones describe an unstarted funnel", () => {
     expect(funnelSnapshot({})).toEqual({
       launched: false,
-      gotFirstThing: false,
+      gotFirstRoutine: false,
       gotFirstGrant: false,
-      msToFirstThing: null,
+      msToFirstRoutine: null,
       msToFirstGrant: null,
     });
   });

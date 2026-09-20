@@ -49,7 +49,7 @@ describe("fetchRoutines", () => {
 });
 
 describe("controlRoutineItem", () => {
-  test("routes routine-sourced things to the routine endpoint", async () => {
+  test("routes routine-sourced items to the routine endpoint", async () => {
     let seenUrl = "";
     globalThis.fetch = (async (url: string) => {
       seenUrl = url;
@@ -59,7 +59,7 @@ describe("controlRoutineItem", () => {
     expect(seenUrl).toContain("/v1/routines/routine-1/pause");
   });
 
-  test("routes non-routine things to the scheduler endpoint", async () => {
+  test("routes non-routine items to the scheduler endpoint", async () => {
     let seenUrl = "";
     globalThis.fetch = (async (url: string) => {
       seenUrl = url;

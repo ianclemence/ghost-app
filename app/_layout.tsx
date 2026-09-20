@@ -228,7 +228,7 @@ export default function RootLayout() {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
-          name="things"
+          name="routines"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen

@@ -195,7 +195,7 @@ export default function DeviceScreen() {
               ms == null ? "\u2014" : ms < 60000 ? "under a minute" : ms < 3600000 ? `${Math.round(ms / 60000)} min` : `${Math.round(ms / 3600000)} h`;
             return (
               <>
-                <InfoRow label="First thing working" value={f == null ? "\u2014" : f.gotFirstThing ? fmt(f.msToFirstThing) : "not yet"} />
+                <InfoRow label="First routine working" value={f == null ? "\u2014" : f.gotFirstRoutine ? fmt(f.msToFirstRoutine) : "not yet"} />
                 <InfoRow label="First standing grant" value={f == null ? "\u2014" : f.gotFirstGrant ? fmt(f.msToFirstGrant) : "not yet"} />
               </>
             );

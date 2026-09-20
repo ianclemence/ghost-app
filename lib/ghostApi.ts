@@ -1011,7 +1011,7 @@ export async function fetchRoutines(cfg: GhostConfig): Promise<RoutineItem[]> {
   // Funnel milestone: the first time an owner sees something Ghost is
   // running for them is the moment the product proves itself. Recorded at
   // the one fetch choke point so Home and the Routines screen agree.
-  if (routines.length > 0) void recordMilestone("first_thing");
+  if (routines.length > 0) void recordMilestone("first_routine");
   return routines;
 }
 
