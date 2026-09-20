@@ -1125,6 +1125,31 @@ export async function fetchDesk(cfg: GhostConfig): Promise<DeskItem[]> {
   return Array.isArray(data?.items) ? data.items : [];
 }
 
+// ─── Proactive status: Ghost's quiet work ────────────────────────────────
+//
+// Ghost reaches out on its own only when something is genuinely useful, and
+// the policy bounds how often. This is the owner-facing view of that: are we
+// in quiet hours, how much of today's budget is left, and is anything waiting.
+// Read-only; it changes no policy and delivers nothing.
+
+export interface ProactiveStatus {
+  quiet: boolean;
+  quiet_start?: string;
+  quiet_end?: string;
+  budget_used: number;
+  budget_max: number;
+  waiting: number;
+  next_briefing?: string;
+  next_reflection?: string;
+}
+
+export async function fetchProactiveStatus(cfg: GhostConfig): Promise<ProactiveStatus | null> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/proactive`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return data?.proactive ?? null;
+}
+
 // kindLabel in owner language. "document" is a file Ghost works with;
 // "artifact" is something Ghost made for you; "tool" is a capability Ghost
 // built; "surface" is a live session Ghost acted on.

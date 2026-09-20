@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
 import { PlusMenu } from "@/components/plus-menu";
-import { fetchIdentity, fetchPendingApprovals, fetchThings, type Thing } from "@/lib/ghostApi";
+import { fetchIdentity, fetchPendingApprovals, fetchProactiveStatus, fetchThings, type ProactiveStatus, type Thing } from "@/lib/ghostApi";
 import { deriveHomeSummary } from "@/lib/home";
+import { proactiveLine } from "@/lib/proactive";
 import { useGhostStore } from "@/lib/store";
 
 const EASE = Easing.bezier(0.32, 0.72, 0, 1);
@@ -30,6 +31,7 @@ export default function HomeScreen() {
   const [userName, setUserName] = useState("");
   const [waitingApproval, setWaitingApproval] = useState(false);
   const [things, setThings] = useState<Thing[]>([]);
+  const [proactive, setProactive] = useState<ProactiveStatus | null>(null);
   const { top, sub } = dateHeader();
   const greet = greeting();
   const reduceMotion = useReducedMotion();
@@ -50,12 +52,18 @@ export default function HomeScreen() {
     fetchThings(config).then((t) => {
       if (!cancelled) setThings(t);
     }).catch(() => {});
+    // When Ghost is quietly watching or holding something for later, the
+    // owner should know — without a dashboard. One calm line at most.
+    fetchProactiveStatus(config).then((p) => {
+      if (!cancelled) setProactive(p);
+    }).catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [config, setGhostName]);
 
   const summary = deriveHomeSummary(things);
+  const proactiveText = proactiveLine(proactive).text;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -103,6 +111,16 @@ export default function HomeScreen() {
             style={styles.thingsLine}
           >
             <Text style={styles.thingsText}>{summary.headline}</Text>
+          </Pressable>
+        ) : null}
+        {proactiveText ? (
+          <Pressable
+            onPress={() => router.push("/desk")}
+            accessibilityRole="button"
+            accessibilityLabel={`${proactiveText} Open the Desk.`}
+            style={styles.proactiveLine}
+          >
+            <Text style={styles.proactiveText}>{proactiveText}</Text>
           </Pressable>
         ) : null}
       </Animated.View>
@@ -172,5 +190,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: "#6B6560",
+  },
+  proactiveLine: {
+    marginTop: Space.sm,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Space.md,
+  },
+  proactiveText: {
+    textAlign: "center",
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#8A857E",
   },
 });
