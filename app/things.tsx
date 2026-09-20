@@ -102,11 +102,11 @@ export default function ThingsScreen() {
       <ScreenBackground />
       <View style={styles.header}>
         <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">
-          Things Ghost does
+          Routines
         </GhostText>
         <GhostText type="subhead" style={styles.sub}>
           {active > 0
-            ? `${active} ${active === 1 ? "thing" : "things"} running for you.`
+            ? `${active} ${active === 1 ? "routine" : "routines"} running for you.`
             : "Tell Ghost in a chat — \u201cevery Monday at 9, prepare my brief\u201d."}
         </GhostText>
       </View>

@@ -107,21 +107,16 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => router.push("/things")}
             accessibilityRole="button"
-            accessibilityLabel={`${summary.headline} Open what Ghost does.`}
+            accessibilityLabel={`${summary.headline} Open routines.`}
             style={styles.thingsLine}
           >
             <Text style={styles.thingsText}>{summary.headline}</Text>
           </Pressable>
         ) : null}
         {proactiveText ? (
-          <Pressable
-            onPress={() => router.push("/desk")}
-            accessibilityRole="button"
-            accessibilityLabel={`${proactiveText} Open the Desk.`}
-            style={styles.proactiveLine}
-          >
-            <Text style={styles.proactiveText}>{proactiveText}</Text>
-          </Pressable>
+          <Text style={styles.proactiveText} accessibilityLiveRegion="polite">
+            {proactiveText}
+          </Text>
         ) : null}
       </Animated.View>
       <PlusMenu />
@@ -191,17 +186,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "#6B6560",
   },
-  proactiveLine: {
-    marginTop: Space.sm,
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Space.md,
-  },
   proactiveText: {
+    marginTop: Space.sm,
     textAlign: "center",
     fontSize: 13,
     lineHeight: 19,
     color: "#8A857E",
+    paddingHorizontal: Space.md,
   },
 });
