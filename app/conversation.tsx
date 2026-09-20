@@ -31,6 +31,7 @@ import {
   type SurfaceKind,
 } from "@/lib/ghostApi";
 import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
+import { dispatchMode } from "@/lib/dispatch";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
 import { parseCardMessage, type RichCard } from "@/lib/cards";
@@ -304,7 +305,6 @@ export default function ConversationScreen() {
   }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox]);
 
   const send = useCallback(async (text: string) => {
-    if (isStreaming) return;
     // A paired Pod or an active local model — either makes Ghost reachable.
     if (!config && !useGhostStore.getState().localReady) {
       // Honest limit with a path forward (the plus menu offers local setup and
@@ -314,6 +314,36 @@ export default function ConversationScreen() {
     }
     const q = text.trim();
     if (!q) return;
+
+    // Send-while-working: never drop the owner's input. Steer it into the
+    // running turn so Ghost receives it now; if steering is unavailable,
+    // hand it to the offline outbox (visible, ordered, delivered on turn end).
+    if (isStreaming) {
+      setDraft("");
+      appendMessage({ id: `temp-${Date.now()}`, role: "user", content: q, timestamp: Date.now(), status: "sending" });
+      nearBottom.current = true;
+      listRef.current?.scrollToEnd({ animated: true });
+      const mode = dispatchMode(true, !!config);
+      if (mode === "steer") {
+        const ok = await sendSteering(config!, { sessionKey: MAIN_SESSION_ID, content: q, action: "redirect" });
+        if (ok) {
+          setSendError(null);
+          return;
+        }
+      }
+      // Steering failed or unavailable: queue it so it is delivered in order.
+      enqueueOutbox({
+        id: makeOutboxId(),
+        messageId: `temp-${Date.now()}`,
+        content: q,
+        sessionKey: MAIN_SESSION_ID,
+        createdAt: Date.now(),
+        attempts: 0,
+      }).catch(() => {});
+      setSendError(null);
+      return;
+    }
+
     setDraft("");
     setSendError(null);
     setOutcome(null);

@@ -1,4 +1,4 @@
-import { Camera, ImagePlus, Mic, Pause, Send, Square, X } from "lucide-react-native";
+import { Camera, ImagePlus, Mic, Send, Square, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Animated, {
   FadeIn,
@@ -341,15 +341,28 @@ export function Composer({
         )
       ) : null}
       {streaming && onStop ? (
-        <Animated.View entering={FadeIn.duration(150)}>
-          <ActionPressButton
-            style={styles.sendBtn}
-            accessibilityLabel="Pause Ghost's response"
-            onPress={onStop}
-          >
-            <Pause size={18} color={Ghost.text.inverse} fill={Ghost.text.inverse} />
-          </ActionPressButton>
-        </Animated.View>
+        <View style={styles.trailingRow}>
+          {canSend ? (
+            <Animated.View entering={FadeIn.duration(150)}>
+              <ActionPressButton
+                style={styles.sendBtn}
+                accessibilityLabel="Send message — joins the current turn"
+                onPress={submit}
+              >
+                <Send size={18} color={Ghost.text.inverse} />
+              </ActionPressButton>
+            </Animated.View>
+          ) : null}
+          <Animated.View entering={FadeIn.duration(150)}>
+            <ActionPressButton
+              style={styles.stopBtn}
+              accessibilityLabel="Stop Ghost's response"
+              onPress={onStop}
+            >
+              <Square size={16} color={Ghost.text.primary} fill={Ghost.text.primary} />
+            </ActionPressButton>
+          </Animated.View>
+        </View>
       ) : showSend ? (
         <Animated.View entering={FadeIn.duration(150)}>
           <ActionPressButton
@@ -408,6 +421,23 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: Ghost.bg.sunken,
+  },
+  // While Ghost is working: Send (when there is text) sits beside Stop, so
+  // the owner can add an instruction without waiting — and can always stop.
+  trailingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  stopBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Ghost.bg.sunken,
+    borderWidth: 1,
+    borderColor: Ghost.border.default,
+    alignItems: "center",
+    justifyContent: "center",
   },
   micDisabled: {
     opacity: 0.4,
