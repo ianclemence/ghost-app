@@ -1092,6 +1092,62 @@ export function stateLabel(state: ThingState): string {
   }
 }
 
+// ─── The Desk: the work Ghost has done on your machine ───────────────────
+//
+// A read-only projection of documents, artifacts, tools, and live surfaces.
+// /v1/desk returns already-normalized items; the app renders them and never
+// rebuilds the merge. Acting on an item is a new conversation turn, not a
+// Desk action — the Desk grants nothing.
+
+export type DeskKind = "document" | "artifact" | "tool" | "surface";
+export type DeskRender = "preview" | "open" | "download" | "visit";
+
+export interface DeskItem {
+  id: string;
+  kind: DeskKind;
+  title: string;
+  summary?: string;
+  source: string;
+  created_at: string;
+  updated_at: string;
+  size?: number;
+  render: DeskRender[];
+  protected: boolean;
+}
+
+export async function fetchDesk(cfg: GhostConfig): Promise<DeskItem[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/desk`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Desk failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+// kindLabel in owner language. "document" is a file Ghost works with;
+// "artifact" is something Ghost made for you; "tool" is a capability Ghost
+// built; "surface" is a live session Ghost acted on.
+export function deskKindLabel(kind: DeskKind): string {
+  switch (kind) {
+    case "document":
+      return "File";
+    case "artifact":
+      return "Made for you";
+    case "tool":
+      return "Tool";
+    case "surface":
+      return "Live session";
+    default:
+      return "Item";
+  }
+}
+
+export function formatDeskSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 export interface ConnectedAppInfo {
   id: string;
   provider: string;

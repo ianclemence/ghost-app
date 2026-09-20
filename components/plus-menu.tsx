@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { Blocks, CalendarClock, Cpu, Flag, House, Info, MessageCircle, PhoneCall, Smartphone, Sparkles } from "lucide-react-native";
+import { Blocks, Briefcase, CalendarClock, Cpu, Flag, House, Info, MessageCircle, PhoneCall, Smartphone, Sparkles } from "lucide-react-native";
 import { ScreenBackground } from "@/components/screen-glow";
 import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -27,6 +27,7 @@ const ITEMS = [
   { group: "Talk", route: "/(tabs)" as const, label: "Home", match: "(tabs)", Icon: House },
   { group: "Talk", route: "/conversation" as const, label: "Conversation", match: "conversation", Icon: MessageCircle },
   { group: "Talk", route: "/live" as const, label: "Live voice", match: "live", Icon: PhoneCall },
+  { group: "Talk", route: "/desk" as const, label: "The Desk", match: "desk", Icon: Briefcase },
   { group: "Your Ghost", route: "/things" as const, label: "Things Ghost does", match: "things", Icon: CalendarClock },
   { group: "Your Ghost", route: "/intelligence" as const, label: "Intelligence", match: "intelligence", Icon: Sparkles },
   { group: "Your Ghost", route: "/local-models" as const, label: "Ghost Local", match: "local-models", Icon: Smartphone },
