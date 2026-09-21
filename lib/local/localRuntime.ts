@@ -4,6 +4,7 @@
 // Requires a dev build (custom native module); Expo Go reports unavailable
 // with an actionable reason instead of failing obscurely.
 import Constants from "expo-constants";
+import { ReasoningStreamFilter, stripReasoningTags } from "./reasoning";
 import type {
   Capability, ChatMessage, GenerateRequest, GenerateResult,
   InferenceRuntime, Locality, ModelRef, Requirements, RuntimeHealth,
@@ -91,14 +92,20 @@ export class MobileLocalRuntime implements InferenceRuntime {
     const prompt = buildPrompt(req.messages, req.tools, req.jsonMode);
     const text = await this.native.generate(prompt, req.options);
     signal?.throwIfAborted();
-    return { content: text, finishReason: "stop" };
+    // Never surface inline chain-of-thought from the local model.
+    return { content: stripReasoningTags(text), finishReason: "stop" };
   }
 
   async stream(req: GenerateRequest, onToken: (t: string) => void, signal?: AbortSignal): Promise<GenerateResult> {
     if (!this.native) throw new Error("local inference unavailable");
     return new Promise<GenerateResult>((resolve, reject) => {
+      // Strip inline reasoning before any token reaches the caller; the
+      // filter persists across tokens so split tags never leak.
+      const filter = new ReasoningStreamFilter();
       const sub = this.native!.addListener("token", (e) => {
-        if (e.token) onToken(e.token);
+        if (!e.token) return;
+        const visible = filter.write(e.token);
+        if (visible) onToken(visible);
       });
       const onAbort = () => {
         this.native!.cancel().catch(() => {});
@@ -111,7 +118,12 @@ export class MobileLocalRuntime implements InferenceRuntime {
         (text) => {
           signal?.removeEventListener("abort", onAbort);
           sub.remove();
-          resolve({ content: text, finishReason: signal?.aborted ? "cancelled" : "stop" });
+          const tail = filter.flush();
+          if (tail) onToken(tail);
+          // Prefer the sanitized result; fall back to the raw text if the
+          // native layer returned nothing.
+          const content = text ? stripReasoningTags(text) : "";
+          resolve({ content, finishReason: signal?.aborted ? "cancelled" : "stop" });
         },
         (err) => {
           signal?.removeEventListener("abort", onAbort);
