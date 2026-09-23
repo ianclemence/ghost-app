@@ -1870,3 +1870,39 @@ export function disconnectWebSocket(): void {
   } catch {}
   wsInstance = null;
 }
+
+export interface IdeaSource {
+  kind: string;
+  ref: string;
+  excerpt?: string;
+}
+
+export interface IdeaItem {
+  id: string;
+  title: string;
+  body: string;
+  sources: IdeaSource[];
+  status: "pending" | "accepted" | "dismissed";
+  unverified?: boolean;
+  created_at: string;
+}
+
+export async function fetchIdeas(cfg: GhostConfig): Promise<IdeaItem[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/ideas`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Ideas failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  const ideas = Array.isArray(data?.ideas) ? data.ideas : [];
+  return ideas as IdeaItem[];
+}
+
+export async function decideIdea(
+  cfg: GhostConfig,
+  id: string,
+  decision: "accept" | "dismiss",
+): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/ideas/${encodeURIComponent(id)}/${decision}`, {
+    method: "POST",
+    headers: headers(cfg),
+  });
+  if (!res.ok) throw new Error(`Idea ${decision} failed (HTTP ${res.status})`);
+}
