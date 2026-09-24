@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
@@ -37,6 +37,7 @@ import { parseSurfaceAnnouncement } from "@/lib/surfaces";
 import { parseCardMessage, type RichCard } from "@/lib/cards";
 import { statusPhaseForTool } from "@/lib/statusPhase";
 import { reconcileHistory } from "@/lib/reconcile";
+import { applyBackgroundEvent, formatBackgroundElapsed, type BackgroundRunningTask } from "@/lib/background";
 import { MarkdownBubble } from "@/components/markdown-bubble";
 import { RichCardView } from "@/components/cards";
 import {
@@ -123,6 +124,19 @@ export default function ConversationScreen() {
   const [surfaces, setSurfaces] = useState<{ id: string; kind: SurfaceKind }[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [cards, setCards] = useState<RichCard[]>([]);
+  // Detached background tasks for this conversation: running rows tick in
+  // the dock; completions append as assistant messages. Driven by daemon
+  // background_started/background_done events, never by polling.
+  const [bgRunning, setBgRunning] = useState<BackgroundRunningTask[]>([]);
+  const [bgNow, setBgNow] = useState(0);
+  const bgRunningRef = useRef<BackgroundRunningTask[]>([]);
+  bgRunningRef.current = bgRunning;
+  // Elapsed ticker: self-sustaining only while work is in flight.
+  useEffect(() => {
+    if (bgRunning.length === 0) return;
+    const t = setInterval(() => setBgNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [bgRunning.length]);
   const surfacesRef = useRef<{ id: string; kind: SurfaceKind }[]>([]);
   surfacesRef.current = surfaces;
   const flushingRef = useRef(false);
@@ -288,6 +302,23 @@ export default function ConversationScreen() {
     loadCards();
     const off = onWSMessage((msg) => {
       const t = typeof msg.type === "string" ? msg.type : (msg.metadata as Record<string, unknown> | undefined)?.type;
+      if (t === "background_started" || t === "background_done") {
+        // Detached work for THIS conversation only; other threads never
+        // render here. Completions append as assistant messages so the
+        // findings read in place, styled like any other reply.
+        const now = Date.now();
+        const { running, append } = applyBackgroundEvent(
+          bgRunningRef.current,
+          { type: t, content: msg.content, metadata: msg.metadata },
+          MAIN_SESSION_ID,
+          now,
+        );
+        setBgRunning(running);
+        if (append) {
+          appendMessage({ id: `bg-${now}`, role: "assistant", content: append.content, timestamp: now });
+        }
+        return;
+      }
       if (t === "clarify_request" && typeof msg.content === "string" && msg.content) {
         const meta = (msg.metadata ?? {}) as Record<string, unknown>;
         const qid = typeof meta.question_id === "string" ? meta.question_id : typeof msg.id === "string" ? msg.id : "";
@@ -319,7 +350,7 @@ export default function ConversationScreen() {
       clearInterval(t);
       off();
     };
-  }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox]);
+  }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox, appendMessage]);
 
   const send = useCallback(async (text: string) => {
     // A paired Pod or an active local model — either makes Ghost reachable.
@@ -591,6 +622,14 @@ export default function ConversationScreen() {
         />
       )}
       <View style={{ marginBottom: dockH }}>
+        {bgRunning.map((b) => (
+          <View key={b.key} style={styles.bgRow} accessibilityLiveRegion="polite">
+            <ActivityIndicator size="small" color={Ghost.text.secondary} />
+            <Text style={styles.bgText}>
+              {b.label} · {formatBackgroundElapsed(b.startedAt, bgNow || Date.now())}
+            </Text>
+          </View>
+        ))}
         {config && approvals.length > 0 ? (
           <Text style={styles.approvalCount} accessibilityLiveRegion="polite">
             {approvals.length === 1
@@ -860,6 +899,18 @@ const styles = StyleSheet.create({
     color: Ghost.text.secondary,
     paddingHorizontal: 28,
     marginBottom: 4,
+  },
+  bgRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    marginBottom: 4,
+  },
+  bgText: {
+    fontSize: 13,
+    color: Ghost.text.secondary,
+    marginLeft: 6,
   },
   error: {
     textAlign: "center",
