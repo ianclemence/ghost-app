@@ -64,3 +64,37 @@ describe("parseCardMessage", () => {
     expect(c?.actions?.[1]?.request_id).toBe("r1");
   });
 });
+
+describe("memory receipt cards", () => {
+  test("accepts memory_receipt with receipt data", () => {
+    const c = parseCardMessage(
+      frame({
+        type: "card_update",
+        card_kind: "memory_receipt",
+        card_id: "c10",
+        title: "Why Ghost knows this",
+        body: "my name is Ian",
+        data: { claim_id: "ec_1", quote: "my name is Ian", confidence: 0.95, status: "current", source: "msg-7" },
+      }),
+      "main",
+    );
+    expect(c?.kind).toBe("memory_receipt");
+    expect(c?.data?.claim_id).toBe("ec_1");
+    expect(c?.data?.confidence).toBe(0.95);
+  });
+
+  test("an older belief without a quote still parses", () => {
+    const c = parseCardMessage(
+      frame({ type: "card_update", card_kind: "memory_receipt", card_id: "c11", title: "Why Ghost knows this", data: { claim_id: "ec_2", quote: "", confidence: 0.9 } }),
+      "main",
+    );
+    expect(c?.kind).toBe("memory_receipt");
+    expect(c?.data?.quote).toBe("");
+  });
+
+  test("checkout_sheet is still refused", () => {
+    expect(
+      parseCardMessage(frame({ type: "card_update", card_kind: "checkout_sheet", card_id: "c12", title: "Pay" }), "main"),
+    ).toBeNull();
+  });
+});

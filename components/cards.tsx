@@ -87,6 +87,31 @@ export function RichCardView({ card, config, onDone }: { card: RichCard; config:
         </CardShell>
       );
     }
+    case "memory_receipt": {
+      const quote = typeof card.data?.quote === "string" ? card.data.quote : "";
+      const confidence = typeof card.data?.confidence === "number" ? card.data.confidence : 0;
+      const source = typeof card.data?.source === "string" ? card.data.source : "";
+      const learned = typeof card.data?.learned === "string" ? card.data.learned : "";
+      const status = typeof card.data?.status === "string" ? card.data.status : "current";
+      const bits: string[] = [];
+      if (confidence > 0) bits.push(`${Math.round(confidence * 100)}% confident`);
+      if (learned) bits.push(`learned ${learned}`);
+      if (source) bits.push(`from message ${source}`);
+      return (
+        <CardShell title={card.title}>
+          {quote ? (
+            <View style={styles.quoteBox}>
+              <GhostText type="body" style={styles.quote}>{quote}</GhostText>
+            </View>
+          ) : (
+            <GhostText type="footnote" style={styles.meta}>Saved before Ghost kept quotes, so there are no exact words on file.</GhostText>
+          )}
+          {bits.length ? <GhostText type="footnote" style={styles.meta}>{bits.join("  ·  ")}</GhostText> : null}
+          {status === "replaced" ? <GhostText type="footnote" style={styles.meta}>Replaced by a newer memory.</GhostText> : null}
+          {status === "forgotten" ? <GhostText type="footnote" style={styles.meta}>Forgotten — this won’t be used again.</GhostText> : null}
+        </CardShell>
+      );
+    }
     case "browser_view":
       return (
         <CardShell title={card.title} body={card.body ?? "Ghost is showing you its browser."}>
@@ -124,5 +149,18 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 6,
     flexWrap: "wrap",
+  },
+  quoteBox: {
+    backgroundColor: Ghost.bg.sunken,
+    borderRadius: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: Ghost.border.subtle,
+    paddingVertical: Space.sm,
+    paddingHorizontal: Space.md,
+    marginTop: 2,
+  },
+  quote: {
+    color: Ghost.text.primary,
+    fontStyle: "italic",
   },
 });
