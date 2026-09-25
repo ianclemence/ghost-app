@@ -112,6 +112,12 @@ export function RichCardView({ card, config, onDone }: { card: RichCard; config:
         </CardShell>
       );
     }
+    case "browser_recovery":
+      return (
+        <CardShell title={card.title} body={card.body}>
+          <GhostText type="footnote" style={styles.meta}>Nothing was lost — ask again and I'll retry.</GhostText>
+        </CardShell>
+      );
     case "browser_view":
       return (
         <CardShell title={card.title} body={card.body ?? "Ghost is showing you its browser."}>

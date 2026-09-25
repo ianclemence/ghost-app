@@ -98,3 +98,20 @@ describe("memory receipt cards", () => {
     ).toBeNull();
   });
 });
+
+describe("browser recovery cards", () => {
+  test("accepts browser_recovery with no actions", () => {
+    const c = parseCardMessage(
+      frame({ type: "card_update", card_kind: "browser_recovery", card_id: "c20", title: "My browser got stuck", body: "Every page was timing out, so I reset it." }),
+      "main",
+    );
+    expect(c?.kind).toBe("browser_recovery");
+    expect(c?.actions?.length ?? 0).toBe(0);
+  });
+
+  test("an unknown kind is still refused", () => {
+    expect(
+      parseCardMessage(frame({ type: "card_update", card_kind: "checkout_sheet", card_id: "c21", title: "Pay" }), "main"),
+    ).toBeNull();
+  });
+});

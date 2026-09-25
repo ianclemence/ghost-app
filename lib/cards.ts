@@ -1,6 +1,6 @@
 import type { WSMessage } from "./ghostApi";
 
-export type CardKind = "suggestion" | "goal_update" | "cart" | "browser_view" | "memory_receipt";
+export type CardKind = "suggestion" | "goal_update" | "cart" | "browser_view" | "memory_receipt" | "browser_recovery";
 
 export interface CardAction {
   id: string;
@@ -20,7 +20,7 @@ export interface RichCard {
   actions?: CardAction[];
 }
 
-const KNOWN_KINDS: CardKind[] = ["suggestion", "goal_update", "cart", "browser_view", "memory_receipt"];
+const KNOWN_KINDS: CardKind[] = ["suggestion", "goal_update", "cart", "browser_view", "memory_receipt", "browser_recovery"];
 
 /**
  * Parses mobile-channel card_update frames. Unknown kinds are dropped so a
