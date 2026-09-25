@@ -58,7 +58,7 @@ interface GhostStore {
   appendStream: (chunk: string) => void;
   commitStream: () => void;
 
-  // Live tool activity ("Searching: …", "Running: …" from tool_status events)
+  // Live status line ("Thinking", "Searching the web" from tool_status events)
   toolActivity: string | null;
   setToolActivity: (label: string | null) => void;
 }

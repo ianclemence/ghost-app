@@ -35,7 +35,7 @@ import { dispatchMode } from "@/lib/dispatch";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
 import { parseCardMessage, type RichCard } from "@/lib/cards";
-import { statusPhaseForTool } from "@/lib/statusPhase";
+import { displayStatusForTool } from "@/lib/statusPhase";
 import { reconcileHistory } from "@/lib/reconcile";
 import { applyBackgroundEvent, formatBackgroundElapsed, type BackgroundRunningTask } from "@/lib/background";
 import { MarkdownBubble } from "@/components/markdown-bubble";
@@ -169,7 +169,7 @@ export default function ConversationScreen() {
             content: entry.content,
             sessionKey: entry.sessionKey,
             onChunk: (c) => appendStream(c),
-            onToolStatus: (_t, label) => setToolActivity(label),
+            onToolStatus: (t, label) => setToolActivity(displayStatusForTool(t, label)),
             onDone: () => resolve({ ok: true, auth: false }),
             onError: (e) => resolve({ ok: false, auth: e.kind === "auth" }),
           });
@@ -428,7 +428,7 @@ export default function ConversationScreen() {
           if (o) originRef.current.origin = o;
           if (label.toLowerCase().includes("will sync")) originRef.current.pendingSync = true;
         }
-        setToolActivity(statusPhaseForTool(t) ?? label);
+        setToolActivity(displayStatusForTool(t, label));
       },
       onLifecycle: () => {},
       onOutcome: (_rid, o) => setOutcome(o),
