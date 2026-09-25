@@ -1871,3 +1871,50 @@ export function disconnectWebSocket(): void {
   wsInstance = null;
 }
 
+// ─── Website logins (browser sign-ins; secrets stay on the Pod) ───────────
+
+export interface WebsiteLoginInfo {
+  host: string;
+  url: string;
+  username: string;
+}
+
+export async function fetchWebsiteLogins(cfg: GhostConfig): Promise<WebsiteLoginInfo[]> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/website-logins`, { headers: headers(cfg) }, 10000);
+  if (!res.ok) throw new Error(`Website logins failed (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.logins) ? data.logins : [];
+}
+
+export async function saveWebsiteLogin(
+  cfg: GhostConfig,
+  input: { url: string; username: string; password: string },
+): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/website-logins`,
+    { method: "POST", headers: headers(cfg), body: JSON.stringify(input) },
+    15000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(body || `Save failed (HTTP ${res.status})`);
+  }
+}
+
+export async function deleteWebsiteLogin(cfg: GhostConfig, host: string): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/website-logins?host=${encodeURIComponent(host)}`,
+    { method: "DELETE", headers: headers(cfg) },
+    15000,
+  );
+  if (!res.ok) throw new Error(`Remove failed (HTTP ${res.status})`);
+}
+
+export async function signOutBrowser(cfg: GhostConfig): Promise<void> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/browser/signout`,
+    { method: "POST", headers: headers(cfg) },
+    15000,
+  );
+  if (!res.ok) throw new Error(`Sign out failed (HTTP ${res.status})`);
+}

@@ -13,6 +13,7 @@ import {
   type ConnectedAppInfo,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
+import { WebsiteLogins } from "@/components/website-logins";
 
 function statusLabel(s: string): string {
   switch (s) {
@@ -214,6 +215,7 @@ export default function ConnectionsScreen() {
             );
           })}
           <GhostText type="footnote" style={styles.note}>OAuth apps (Gmail, Outlook, Calendar, Spotify) connect via browser sign-in. GitHub, Notion, and provider keys can be pasted here. Keys never leave your Ghost.</GhostText>
+          <WebsiteLogins config={config} />
         </ScrollView>
       )}
       <PlusMenu />
