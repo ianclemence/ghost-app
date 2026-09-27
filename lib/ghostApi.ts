@@ -863,6 +863,10 @@ export interface ApprovalCard {
 export interface PendingApproval {
   id: string;
   request_id: string;
+  // The session the ask was raised in. The decision has to travel back into
+  // that session: the runtime only resumes a paused call from the session that
+  // paused it.
+  session_key?: string;
   capability: string;
   action: string;
   status: string;
@@ -884,31 +888,97 @@ export function isValidGrant(grant: string): grant is ApprovalGrant {
   return grant === "allow_once" || grant === "allow_always" || grant === "deny";
 }
 
+// The grant, phrased exactly the way the pending ask tells the owner to answer
+// it: "Reply here with `allow once`, `always allow`, or `deny`".
+//
+// The decision is deliberately NOT posted to /v1/permissions/resolve. That
+// endpoint writes the decision to the row and returns ok — and nothing else:
+// no resume, no execution. The approved action simply sat there unrun (the
+// store kept rows at `approved`, never consumed). The phrase travels as an
+// ordinary turn instead, which is the path the terminal already uses: it
+// reaches CheckApprovalReply, where the broker resolves the request, the
+// paused call re-executes exactly once, and the result comes back as Ghost's
+// reply in the conversation. Authority stays with the broker either way — this
+// is a second way to answer, never a second way to authorize.
+const GRANT_PHRASE: Record<ApprovalGrant, string> = {
+  allow_once: "allow once",
+  allow_always: "always allow",
+  deny: "deny",
+};
+
 export async function resolveApproval(
   cfg: GhostConfig,
-  id: string,
+  ref: string,
   grant: ApprovalGrant,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!isValidGrant(grant)) {
     return { ok: false, error: "Unknown approval action. Nothing was sent." };
   }
+  // Locate the live ask before answering. A card can outlive its request, and
+  // a phrase sent with nothing pending would fall straight through to ordinary
+  // chat as though the owner had typed it. Matching either id keeps every
+  // caller working regardless of which field it holds.
+  const req = (await fetchPendingApprovals(cfg)).find((r) => r.id === ref || r.request_id === ref);
+  if (!req) {
+    return { ok: false, error: "That approval is no longer answerable." };
+  }
+  // Answer in the session the ask was raised in: main for in-chat asks, the
+  // routine's own session for background work.
+  const sessionKey = normalizeSession(req.session_key ?? cfg.session);
+  const failure: { err?: GhostError } = {};
+  await sendMessage(cfg, {
+    content: GRANT_PHRASE[grant],
+    requestId: `ap-${Date.now()}`,
+    sessionKey,
+    onChunk: () => {},
+    onDone: () => {},
+    onError: (e) => {
+      failure.err = e;
+    },
+  });
+  if (failure.err) {
+    return { ok: false, error: failure.err.message };
+  }
+  // Funnel milestone: a standing grant is the moment Ghost stops asking.
+  // Instrument at the one choke point so every grant path (permission
+  // card, card actions) is counted exactly once.
+  if (grant === "allow_always") {
+    void recordMilestone("first_grant");
+  }
+  return { ok: true };
+}
+
+// ─── Proposals: what Ghost noticed, and what it offers to do ─────────────
+//
+// A proposal is approved by identity, not by an authorization token. Ghost
+// mints and records the permission decision at the moment of approval, so a
+// suggestion the owner gets to late is still actionable — there is no token
+// sitting on this card waiting to expire.
+
+export type IdeaDecision = "approve" | "dismiss" | "snooze";
+
+export async function decideIdea(
+  cfg: GhostConfig,
+  ideaId: string,
+  decision: IdeaDecision,
+): Promise<{ ok: boolean; result?: string; error?: string }> {
+  if (!ideaId || !decision) {
+    return { ok: false, error: "Unknown suggestion. Nothing was sent." };
+  }
   try {
     const res = await fetchWithTimeout(
-      `${baseURL(cfg)}/v1/permissions/resolve`,
-      { method: "POST", headers: headers(cfg), body: JSON.stringify({ id, grant }) },
-      10000,
+      `${baseURL(cfg)}/v1/ideas/${encodeURIComponent(ideaId)}/${decision}`,
+      { method: "POST", headers: headers(cfg), body: JSON.stringify({}) },
+      60000,
     );
-    if (res.ok) {
-      // Funnel milestone: a standing grant is the moment Ghost stops asking.
-      // Instrument at the one choke point so every grant path (permission
-      // card, card actions) is counted exactly once.
-      if (grant === "allow_always") {
-        void recordMilestone("first_grant");
-      }
-      return { ok: true };
-    }
     const data = await res.json().catch(() => null);
-    return { ok: false, error: data?.error?.message ?? "That approval is no longer answerable." };
+    if (!res.ok) {
+      return { ok: false, error: data?.error?.message ?? "That suggestion is no longer answerable." };
+    }
+    if (data && data.ok === false) {
+      return { ok: false, error: data?.error ?? "That suggestion could not be applied.", result: data?.result };
+    }
+    return { ok: true, result: data?.result };
   } catch (e: unknown) {
     return { ok: false, error: e instanceof Error ? e.message : "Network error" };
   }

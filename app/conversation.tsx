@@ -643,7 +643,17 @@ export default function ConversationScreen() {
               item={a}
               config={config}
               onResolved={() => {
-                if (config) fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+                if (!config) return;
+                // The approval now runs as a turn, so the card clearing is not
+                // the whole result: what Ghost did (or why it didn't) arrives
+                // in the thread a moment later. Refresh both, or the owner
+                // approves and sees nothing change.
+                fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+                fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+                  .then(({ messages: h }) =>
+                    setMessages(reconcileHistory(useGhostStore.getState().messages, h)),
+                  )
+                  .catch(() => {});
               }}
             />
           </View>

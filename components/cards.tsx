@@ -5,7 +5,7 @@ import { GhostButton } from "@/components/ghost";
 import { GhostText } from "@/components/themed-text";
 import type { RichCard } from "@/lib/cards";
 import type { GhostConfig } from "@/lib/ghostApi";
-import { resolveApproval } from "@/lib/ghostApi";
+import { decideIdea, resolveApproval } from "@/lib/ghostApi";
 
 function CardShell({ title, body, children }: { title: string; body?: string; children?: React.ReactNode }) {
   return (
@@ -31,18 +31,36 @@ function ActionRow({ card, config, onDone }: { card: RichCard; config: GhostConf
             variant={destructive ? "danger" : "primary"}
             disabled={busy}
             onPress={() => {
+              // A proposal is decided by identity: Ghost mints and records the
+              // permission decision at approval time, so the card never
+              // carries a perishable authorization token.
+              const ideaId = typeof card.data?.idea_id === "string" ? card.data.idea_id : "";
+              setBusy(true);
+              if (ideaId) {
+                decideIdea(config, ideaId, destructive ? "dismiss" : "approve")
+                  .catch(() => null)
+                  .finally(() => {
+                    setBusy(false);
+                    onDone(card.id);
+                  });
+                return;
+              }
               const reqId = a.request_id || card.request_id;
               if (!reqId) {
+                setBusy(false);
                 onDone(card.id);
                 return;
               }
-              setBusy(true);
-              const grant = destructive ? "deny" : "allow_once";
-              resolveApproval(config, reqId, grant)
-                .catch(() => null)
-                .finally(() => {
+              resolveApproval(config, reqId, destructive ? "deny" : "allow_once")
+                .then((r) => {
                   setBusy(false);
-                  onDone(card.id);
+                  // Clear the card only when the runtime actually took the
+                  // answer. Clearing it on a failure would show the owner a
+                  // green light for an approval that never landed.
+                  if (r.ok) onDone(card.id);
+                })
+                .catch(() => {
+                  setBusy(false);
                 });
             }}
           />
