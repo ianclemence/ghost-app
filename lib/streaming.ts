@@ -41,6 +41,10 @@ export function closeInlineMarkers(text: string): string {
   // Never touch content inside fenced blocks — the block filter owns it.
   const lines = text.split("\n");
   if (findLastOpenFenceLine(lines) >= 0) return text;
+  // A trailing fence marker is a CLOSED fence's closer (`...\n````), not an
+  // unclosed code span: counting its backticks as odd would append a stray
+  // backtick and flash ```` in the streamed preview.
+  if (fenceMarker(lines[lines.length - 1] ?? "") !== null) return text;
   const idx = text.lastIndexOf("\n");
   const headText = idx >= 0 ? text.slice(0, idx + 1) : "";
   const last = idx >= 0 ? text.slice(idx + 1) : text;

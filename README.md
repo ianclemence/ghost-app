@@ -23,7 +23,9 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 | Approval queue | All pending approvals with count, expandable; unknown-risk items get caution styling |
 | Live tool progress | Shows "Searching… / Running…" while Ghost works |
 | Voice input | Record and transcribe via the Pod (`POST /v1/voice/turn`); disabled offline with an honest label |
-| Markdown rendering | Code blocks, headings, links, formatting |
+| Markdown rendering | Headings, lists (incl. task lists), tables (horizontal scroll), blockquotes, links, images, strikethrough, and code blocks with a language label + copy button |
+| Mermaid diagrams | `mermaid` fences render as real diagrams in a sandboxed WebView (strict security, no HTML labels, no links); failures degrade to code |
+| Safe links | Only `https:`/`http:` open, in an in-app browser sheet; `javascript:`, `data:`, `file:`, `intent:`, `tel:` are refused; only `https:` images load |
 | Conversation history | Latest 50 messages, reconciled against the server after every turn; on-device thread cache when there is no Pod |
 | Cancel generation | Stop a long response mid-stream |
 | Offline outbox | Messages typed while unreachable are queued on-device (persisted FIFO, network/timeout failures only) and sent in order when connectivity returns |

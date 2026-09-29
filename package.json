@@ -52,10 +52,12 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-webrtc": "^124.0.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.8.3",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
     "@types/react": "~19.2.14",
     "bun-types": "^1.4.2",
     "eslint": "^9.0.0",

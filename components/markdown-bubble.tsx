@@ -1,32 +1,68 @@
-import { Linking } from "react-native";
 import React, { memo } from "react";
-import Markdown from "react-native-markdown-display";
-import { Ghost } from "@/constants/theme";
+import Markdown, { MarkdownIt } from "react-native-markdown-display";
+import { Ghost, Type } from "@/constants/theme";
 import { prepareStreamingMarkdown } from "@/lib/streaming";
+import { openExternalUrl } from "@/lib/links";
+import { markdownRules } from "@/components/markdown-rules";
+
+/**
+ * One markdown-it instance for every bubble: linkify turns bare URLs into
+ * tappable links (the terminal conceals them; the phone opens them), and
+ * typographer keeps quotes/dashes smart. Parsing is deterministic and
+ * local — no plugins that could inject HTML.
+ */
+const markdownIt = MarkdownIt({
+  typographer: true,
+  linkify: true,
+  // Model output is untrusted and the terminal shows raw HTML literally;
+  // the phone must not diverge by executing it.
+  html: false,
+});
 
 const markdownStyle = {
   body: {
     color: Ghost.text.primary,
-    fontSize: 16,
-    lineHeight: 24,
+    ...Type.body,
   },
   heading1: {
     color: Ghost.text.primary,
-    fontSize: 20,
+    fontSize: 21,
+    lineHeight: 28,
     fontWeight: "700" as const,
-    marginVertical: 6,
+    marginTop: 10,
+    marginBottom: 4,
   },
   heading2: {
     color: Ghost.text.primary,
     fontSize: 18,
+    lineHeight: 25,
     fontWeight: "700" as const,
-    marginVertical: 4,
+    marginTop: 8,
+    marginBottom: 3,
   },
   heading3: {
     color: Ghost.text.primary,
     fontSize: 16,
-    fontWeight: "700" as const,
-    marginVertical: 4,
+    lineHeight: 23,
+    fontWeight: "600" as const,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  heading4: {
+    color: Ghost.text.primary,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: "600" as const,
+  },
+  heading5: {
+    color: Ghost.text.primary,
+    fontSize: 15,
+    fontWeight: "600" as const,
+  },
+  heading6: {
+    color: Ghost.text.tertiary,
+    fontSize: 14,
+    fontWeight: "600" as const,
   },
   strong: {
     color: Ghost.text.primary,
@@ -36,8 +72,13 @@ const markdownStyle = {
     color: Ghost.text.primary,
     fontStyle: "italic" as const,
   },
+  s: {
+    color: Ghost.text.secondary,
+    textDecorationLine: "line-through" as const,
+  },
   link: {
     color: Ghost.accent.primary,
+    textDecorationLine: "underline" as const,
   },
   code_inline: {
     color: Ghost.text.primary,
@@ -45,16 +86,17 @@ const markdownStyle = {
     fontSize: 14,
     paddingHorizontal: 4,
     borderRadius: 4,
+    fontFamily: "monospace",
   },
   fence: {
     backgroundColor: Ghost.bg.sunken,
-    padding: 10,
+    padding: 0,
     borderRadius: 8,
     marginVertical: 6,
   },
   code_block: {
     backgroundColor: Ghost.bg.sunken,
-    padding: 10,
+    padding: 0,
     borderRadius: 8,
     marginVertical: 6,
   },
@@ -72,30 +114,45 @@ const markdownStyle = {
   ordered_list: {
     marginVertical: 4,
   },
+  list_item: {
+    marginVertical: 2,
+  },
+  bullet_list_icon: {
+    color: Ghost.text.secondary,
+    marginRight: 8,
+  },
+  ordered_list_icon: {
+    color: Ghost.text.secondary,
+    marginRight: 8,
+  },
   table: {
-    borderColor: Ghost.bg.sunken,
+    borderColor: Ghost.border.default,
+    borderWidth: 1,
     marginVertical: 6,
+  },
+  tr: {
+    borderBottomColor: Ghost.border.subtle,
+    borderBottomWidth: 1,
   },
   th: {
     color: Ghost.text.primary,
     fontWeight: "700" as const,
-    padding: 6,
+    padding: 8,
+    backgroundColor: Ghost.bg.sunken,
   },
   td: {
     color: Ghost.text.primary,
-    padding: 6,
+    padding: 8,
   },
   hr: {
-    backgroundColor: Ghost.bg.sunken,
+    backgroundColor: Ghost.border.default,
     height: 1,
-    marginVertical: 8,
+    marginVertical: 10,
+  },
+  paragraph: {
+    marginVertical: 2,
   },
 };
-
-function openExternal(url: string): boolean {
-  void Linking.openURL(url).catch(() => {});
-  return true;
-}
 
 interface Props {
   /** Full message text. */
@@ -117,10 +174,19 @@ function renderContent(content: string, streaming: boolean): string {
  * raw. Memoized on content so settled messages never re-parse.
  */
 export const MarkdownBubble = memo(function MarkdownBubble({ content, streaming }: Props) {
-  // Default style merging stays on: custom tokens override the built-in
-  // defaults, and keys we don't touch keep their base rendering.
+  // mergeStyle stays on (default): our tokens override the library's, and
+  // anything we don't define (body, textgroup, softbreak, ...) keeps its
+  // base rendering instead of silently losing color and size.
   return (
-    <Markdown style={markdownStyle} onLinkPress={openExternal}>
+    <Markdown
+      style={markdownStyle}
+      rules={markdownRules}
+      markdownit={markdownIt}
+      onLinkPress={(url) => {
+        void openExternalUrl(url);
+        return true;
+      }}
+    >
       {renderContent(content, streaming)}
     </Markdown>
   );

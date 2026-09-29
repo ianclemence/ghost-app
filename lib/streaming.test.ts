@@ -62,3 +62,29 @@ describe("closeInlineMarkers guards", () => {
     expect(closeInlineMarkers("a *lone star")).toBe("a *lone star*");
   });
 });
+
+describe("mermaid streaming safety", () => {
+  test("holds an unclosed mermaid fence entirely", () => {
+    const out = prepareStreamingMarkdown(
+      "Here is the flow:\n\n```mermaid\nflowchart TD\n    A[User] --> B[Ghost]\n",
+    );
+    expect(out).not.toContain("```");
+    expect(out).not.toContain("flowchart");
+    expect(out).toContain("Here is the flow:");
+  });
+
+  test("holds a mermaid fence whose language just arrived", () => {
+    const out = prepareStreamingMarkdown("Diagram:\n```mermaid");
+    expect(out).not.toContain("```");
+  });
+
+  test("passes a completed mermaid block through verbatim", () => {
+    const text = "```mermaid\nflowchart TD\n    A --> B\n```";
+    expect(prepareStreamingMarkdown(text)).toBe(text);
+  });
+
+  test("does not inline-close markers inside a held mermaid fence", () => {
+    const out = prepareStreamingMarkdown("```mermaid\nA[**not bold] --> B\n");
+    expect(out).not.toContain("**not bold]");
+  });
+});
