@@ -25,7 +25,7 @@ const markdownStyle = {
     ...Type.body,
   },
   heading1: {
-    color: Ghost.text.primary,
+    color: Ghost.accent.primary,
     fontSize: 21,
     lineHeight: 28,
     fontWeight: "700" as const,
@@ -33,7 +33,7 @@ const markdownStyle = {
     marginBottom: 4,
   },
   heading2: {
-    color: Ghost.text.primary,
+    color: Ghost.accent.primary,
     fontSize: 18,
     lineHeight: 25,
     fontWeight: "700" as const,
@@ -41,7 +41,7 @@ const markdownStyle = {
     marginBottom: 3,
   },
   heading3: {
-    color: Ghost.text.primary,
+    color: Ghost.accent.primary,
     fontSize: 16,
     lineHeight: 23,
     fontWeight: "600" as const,
