@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { reconcileHistory } from "./reconcile";
+import { normalizeHistoryTimestamps, reconcileHistory } from "./reconcile";
 import type { Message } from "./ghostApi";
 import type { ExtendedMessage } from "./store";
 
@@ -99,5 +99,29 @@ describe("multi-iteration turns", () => {
     const out = reconcileHistory(local, server);
     expect(out).toHaveLength(2);
     expect(out.map((m) => m.id)).toEqual(["msg-1", "temp-2"]);
+  });
+});
+
+describe("reconcileHistory with real units", () => {
+  // The Pod reports history timestamps in Unix seconds; messages created on
+  // the phone carry Date.now() milliseconds. Normalized at the boundary, a
+  // just-sent message must reconcile with its server copy, not duplicate.
+  test("server seconds normalize to ms and match the local send", () => {
+    const sentAt = 1_790_000_000_123; // ms
+    const local = [
+      msg({ id: "temp-u", role: "user", content: "hi", timestamp: sentAt }),
+      msg({ id: "temp-a", content: "hello", timestamp: sentAt + 50 }),
+    ];
+    const server = normalizeHistoryTimestamps([
+      srv({ id: "11", role: "user", content: "hi", timestamp: Math.floor(sentAt / 1000) }),
+      srv({ id: "12", content: "hello", timestamp: Math.floor(sentAt / 1000) + 2 }),
+    ]);
+    const out = reconcileHistory(local, server);
+    expect(out.map((m) => m.id)).toEqual(["temp-u", "temp-a"]);
+  });
+
+  test("normalization leaves millisecond timestamps alone", () => {
+    const out = normalizeHistoryTimestamps([srv({ id: "1", timestamp: 1_790_000_000_123 })]);
+    expect(out[0].timestamp).toBe(1_790_000_000_123);
   });
 });

@@ -234,9 +234,6 @@ export async function initializeConnection(): Promise<void> {
       connectWebSocket(config);
       store.setConnectionState("online");
       startHealthMonitor(config);
-      // Phone ↔ Pod cooperation: only necessary sync occurs on reconnect.
-      // Fire-and-forget; sync failures never break connectivity.
-      void import("./podClient").then(({ syncNow }) => syncNow(config).catch(() => {}));
     } else {
       store.setConnectionState("offline");
       // Still start health monitor to auto-reconnect when Ghost comes back

@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { GhostConfig, Message } from "./ghostApi";
-import type { AnswerOrigin } from "./provenance";
+import { GhostConfig, Message, type ServedBy } from "./ghostApi";
 
 export type ConnectionState = "online" | "syncing" | "offline";
 export type MessageStatus =
@@ -13,12 +12,9 @@ export type MessageStatus =
 
 export interface ExtendedMessage extends Message {
   status?: MessageStatus;
-  // Where this reply ran. Set at send time from the runtime's own routing
-  // labels; server history rows (other devices, scheduler turns) carry none
-  // and render no badge — unknown stays unknown.
-  origin?: AnswerOrigin;
-  // Phone answer not yet synced to the Pod.
-  pendingSync?: boolean;
+  // Where this reply ran, as the Pod's runtime stated it (served_by).
+  // History rows carry none and render nothing: unknown stays unknown.
+  servedBy?: ServedBy;
 }
 
 interface GhostStore {
@@ -29,10 +25,6 @@ interface GhostStore {
   // Connection (3-state)
   connectionState: ConnectionState;
   setConnectionState: (v: ConnectionState) => void;
-  // Phone-local Ghost is ready: a model is installed and active. Independent
-  // of Pod pairing — Ghost can run with this true and config null.
-  localReady: boolean;
-  setLocalReady: (v: boolean) => void;
   // Identity of the paired Ghost (from the pairing response)
   ghostName: string | null;
   setGhostName: (name: string | null) => void;
@@ -92,8 +84,6 @@ export const useGhostStore = create<GhostStore>((set) => ({
   connectionState: "offline",
   setConnectionState: (v) => set({ connectionState: v }),
 
-  localReady: false,
-  setLocalReady: (v) => set({ localReady: v }),
 
   ghostName: null,
   setGhostName: (name) => set({ ghostName: name }),

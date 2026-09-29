@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { PlusMenu } from "@/components/plus-menu";
+import { ScreenHeader } from "@/components/screen-header";
 import { GhostButton, GhostInput, GhostSheet, GhostToggle, OfflineBadge, StatusDot } from "@/components/ghost";
 import {
   fetchDoctorStatus,
@@ -102,7 +101,6 @@ const ROUTING_ROWS: { key: keyof RoutingPrefs; label: string; desc: string }[] =
 ];
 
 export default function IntelligenceScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config } = useGhostStore();
   const connectionState = useGhostStore((s) => s.connectionState);
@@ -288,11 +286,8 @@ export default function IntelligenceScreen() {
   const configuringInfo = configuring ? providersState?.providers[configuring] : undefined;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">Intelligence</GhostText>
-        <GhostText type="subhead" style={styles.sub}>Which AI Ghost runs on.</GhostText>
-      </View>
+    <View style={styles.container}>
+      <ScreenHeader title="Intelligence" subtitle="Which AI Ghost thinks with" />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>
           <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
@@ -528,7 +523,6 @@ export default function IntelligenceScreen() {
         </>
         )}
       </GhostSheet>
-      <PlusMenu />
     </View>
   );
 }

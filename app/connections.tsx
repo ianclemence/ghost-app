@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { PlusMenu } from "@/components/plus-menu";
+import { ScreenHeader } from "@/components/screen-header";
 import { EmptyState, GhostButton, GhostInput, OfflineBadge } from "@/components/ghost";
 import {
   connectConnectedApp,
@@ -45,7 +44,6 @@ function setupHint(app: ConnectedAppInfo): string {
 }
 
 export default function ConnectionsScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config } = useGhostStore();
   const connectionState = useGhostStore((s) => s.connectionState);
@@ -130,11 +128,8 @@ export default function ConnectionsScreen() {
   }, [config, busyId, load]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">Connected Apps</GhostText>
-        <GhostText type="subhead" style={styles.sub}>What Ghost can act on: email, calendar, home, music, code. Messaging channels live elsewhere.</GhostText>
-      </View>
+    <View style={styles.container}>
+      <ScreenHeader title="Connected apps" subtitle="What Ghost can read and act on. It asks before anything consequential." />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>
           <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
@@ -218,7 +213,6 @@ export default function ConnectionsScreen() {
           <WebsiteLogins config={config} />
         </ScrollView>
       )}
-      <PlusMenu />
     </View>
   );
 }

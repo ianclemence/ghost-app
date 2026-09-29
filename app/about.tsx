@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import Constants from "expo-constants";
 import { GhostText } from "@/components/themed-text";
-import { PlusMenu } from "@/components/plus-menu";
+import { ScreenHeader } from "@/components/screen-header";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostMark } from "@/components/ghost-mark";
 import { useGhostStore } from "@/lib/store";
@@ -16,9 +16,10 @@ export default function AboutScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Ghost.bg.base }}>
+    <ScreenHeader title="About" />
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + Space.xl, paddingBottom: insets.bottom + Space.huge + Space.edge + Space.xl }]}
+      contentContainerStyle={[styles.container, { paddingTop: Space.md, paddingBottom: insets.bottom + Space.huge }]}
     >
       <View style={styles.brand}>
         <GhostMark size={48} />
@@ -98,7 +99,6 @@ export default function AboutScreen() {
         Ghost Mobile v{appVersion} · Open source under the MIT License.
       </GhostText>
     </ScrollView>
-    <PlusMenu />
     </View>
   );
 }

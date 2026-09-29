@@ -1,3 +1,4 @@
+import { normalizeHistoryTimestamps } from "./reconcile";
 import { activityQuery } from "./activity";
 import { recordMilestone } from "./onboarding-metrics";
 
@@ -321,7 +322,7 @@ export async function fetchHistory(
   offset = 0,
   since?: number,
   sessionKey?: string,
-): Promise<{ messages: Message[]; total: number }> {
+): Promise<{ messages: Message[]; total: number; hasMore: boolean }> {
   const session = normalizeSession(sessionKey ?? cfg.session);
   const qs = new URLSearchParams({
     limit: String(limit),
@@ -338,7 +339,12 @@ export async function fetchHistory(
     },
   });
   if (!res.ok) throw new Error(`Failed to fetch history (HTTP ${res.status})`);
-  return res.json();
+  const data = (await res.json()) as { messages?: Message[]; total?: number; has_more?: boolean };
+  return {
+    messages: normalizeHistoryTimestamps(Array.isArray(data?.messages) ? data.messages : []),
+    total: data?.total ?? 0,
+    hasMore: data?.has_more === true,
+  };
 }
 
 // ─── Send (streaming SSE) ─────────────────────────────────────────────────
@@ -369,6 +375,10 @@ export interface SendOptions {
   onLifecycle?: (requestId: string, state: string) => void;
   onOutcome?: (requestId: string, outcome: ChatOutcome) => void;
   onClarify?: (info: ClarifyInfo) => void;
+  /** Runtime phase (retrieving memory, waiting on the model). */
+  onPhase?: (phase: string, detail: string) => void;
+  /** Where the turn ran, stated once by the runtime on success. */
+  onServedBy?: (served: ServedBy) => void;
   onSanitized?: (reason: string) => void;
   onToolStatus?: (tool: string, label: string) => void;
   onCancelled?: () => void;
@@ -443,7 +453,17 @@ export type StreamEvent =
   | { kind: "lifecycle"; requestId: string; state: string; outcome: ChatOutcome | null }
   | { kind: "tool"; tool: string; label: string }
   | { kind: "clarify"; questionId: string; question: string; choices: string[]; requestId: string }
+  | { kind: "phase"; phase: string; detail: string }
+  | { kind: "served"; served: ServedBy }
   | { kind: "unknown" };
+
+/** Where a turn actually ran, as the Pod's runtime recorded it. */
+export interface ServedBy {
+  provider: string;
+  model: string;
+  /** True only when every model call in the turn stayed on the Pod. */
+  local: boolean;
+}
 
 function knownOutcome(value: string): ChatOutcome | null {
   return value === "success" ||
@@ -481,6 +501,19 @@ export function parseStreamLine(line: string, fallbackRequestId?: string): Strea
   }
   if (type === "tool_status") {
     return { kind: "tool", tool: String(frame.tool ?? ""), label: String(frame.label ?? "") };
+  }
+  if (type === "phase") {
+    const phase = String(frame.phase ?? "");
+    if (!phase) return { kind: "unknown" };
+    return { kind: "phase", phase, detail: String(frame.detail ?? "") };
+  }
+  if (type === "served_by") {
+    const model = typeof frame.model === "string" ? frame.model : "";
+    if (!model) return { kind: "unknown" };
+    return {
+      kind: "served",
+      served: { provider: String(frame.provider ?? ""), model, local: frame.local === true },
+    };
   }
   if (type === "clarify_request") {
     const questionId = String(frame.question_id ?? "");
@@ -554,7 +587,31 @@ export function applyStreamEvent(
       opts.onClarify?.({ questionId: ev.questionId, question: ev.question, choices: ev.choices, requestId: ev.requestId });
       trace("stream_object", { type: "clarify_request" });
       return "continue";
+    case "phase":
+      opts.onPhase?.(ev.phase, ev.detail);
+      return "continue";
+    case "served":
+      opts.onServedBy?.(ev.served);
+      return "continue";
   }
+}
+
+/** Owner words for a runtime phase frame (never machinery). */
+export function phaseLabel(phase: string, detail?: string): string | null {
+  switch (phase) {
+    case "retrieving":
+      return detail === "memory" ? "Checking memory" : "Looking that up";
+    case "thinking":
+      return "Thinking";
+    default:
+      return null;
+  }
+}
+
+/** One quiet line under a reply: where it ran, from the runtime's record. */
+export function servedByLabel(s: ServedBy | null | undefined): string | null {
+  if (!s || !s.model) return null;
+  return s.local ? `On your Pod · ${s.model}` : `${s.model} via ${s.provider || "cloud"}`;
 }
 
 export async function sendMessage(

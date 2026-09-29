@@ -111,7 +111,7 @@ export default function SetupPodScreen() {
         </GhostText>
         <GhostText type="body" style={styles.description}>
           Bring a brand-new Pod online from this phone. The setup code is printed
-          in the Pod's console output on the device.
+          in the Pod&apos;s console output on the device.
         </GhostText>
 
         <View style={styles.scanRow}>

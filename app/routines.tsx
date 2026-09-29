@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { PlusMenu } from "@/components/plus-menu";
-import { ScreenBackground } from "@/components/screen-glow";
+import { ScreenHeader } from "@/components/screen-header";
 import { GhostButton, EmptyState, GhostInput, OfflineBadge } from "@/components/ghost";
 import {
   controlRoutineItem,
@@ -66,7 +64,6 @@ function goalStatusLabel(s: string): string {
 }
 
 export default function RoutinesScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config } = useGhostStore();
   const connectionState = useGhostStore((s) => s.connectionState);
@@ -183,18 +180,13 @@ export default function RoutinesScreen() {
   const active = items.filter((t) => t.state === "active" || t.state === "waiting").length;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenBackground />
-      <View style={styles.header}>
-        <GhostText type="largeTitle" style={styles.title} accessibilityRole="header">
-          Routines
-        </GhostText>
-        <GhostText type="subhead" style={styles.sub}>
-          {active > 0
-            ? `${active} ${active === 1 ? "routine" : "routines"} running for you.`
-            : "Tell Ghost in a chat: \u201cevery Monday at 9, prepare my brief\u201d."}
-        </GhostText>
-      </View>
+    <View style={styles.container}>
+      <ScreenHeader
+        title="Routines"
+        subtitle={active > 0
+          ? `${active} ${active === 1 ? "thing" : "things"} Ghost keeps doing for you`
+          : "Tell Ghost: \u201cevery Monday at 9, prepare my brief\u201d"}
+      />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>
           <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
@@ -239,7 +231,7 @@ export default function RoutinesScreen() {
             <EmptyState
               title="Nothing yet"
               subtitle="Say \u201cevery Monday at 9, prepare my weekly brief\u201d in a chat and it appears here."
-              action={<GhostButton title="Start a chat" onPress={() => router.push("/conversation")} />}
+              action={<GhostButton title="Start a chat" onPress={() => router.replace("/")} />}
             />
           ) : (
             items.map((t) => {
@@ -382,7 +374,6 @@ export default function RoutinesScreen() {
           )}
         </ScrollView>
       )}
-      <PlusMenu />
     </View>
   );
 }

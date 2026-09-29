@@ -6,11 +6,11 @@ product
 
 ## Users
 
-Owners of a self-hosted Ghost Pod plus phone-local users with no Pod. They talk to Ghost daily, in short private moments, to think, remember, and act. Primary task on any screen is one verb: talk, approve, review, or connect.
+Owners of a self-hosted Ghost Pod. They talk to Ghost daily, in short private moments, to think, remember, and act. The app is one conversation; every other screen is a short trip away from it and back. Primary task on any screen is one verb: talk, approve, review, or connect.
 
 ## Product Purpose
 
-Ghost Mobile is the daily driver companion for a personal AI that lives on hardware the owner controls. It pairs over a secure QR flow, chats with streaming responses, manages approvals, goals, and automations, and stays honest offline. Success is trust: every answer says where it ran, every action shows runtime evidence, nothing pretends.
+Ghost Mobile is the window into a personal AI that lives on hardware the owner controls: one ongoing conversation, the way you talk to a person. It pairs over a secure QR flow, chats with streaming responses, manages approvals, goals, and automations, and stays honest offline. Success is trust: every answer says where it ran, every action shows runtime evidence, nothing pretends.
 
 ## Brand Personality
 

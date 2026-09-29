@@ -12,7 +12,6 @@ import {
   isPaired,
   handlePairingDeepLink,
 } from '../lib/connection';
-import { activeModelHealthy } from '../lib/local/health';
 import { isFirstRunDismissed } from '../lib/firstRun';
 import { recordMilestone } from '../lib/onboarding-metrics';
 import { useGhostStore } from '../lib/store';
@@ -46,18 +45,13 @@ export default function RootLayout() {
         } catch {}
       }
 
-      // Check if paired. A phone with an active local model is a Ghost in its
-      // own right — it does not need a Pod to reach the main app.
+      // Ghost lives on the owner's Pod; the phone is how they reach it.
       const paired = await isPaired();
       // Stamps once per install; the funnel's zero point for time-to-milestone.
       void recordMilestone('first_launch');
-      // Health, not just disk presence: a corrupt or missing artifact must not
-      // route the user into the app only to fail at the first send.
-      const localReady = await activeModelHealthy();
       const dismissed = await isFirstRunDismissed();
-      useGhostStore.getState().setLocalReady(localReady);
 
-      if (!paired && !localReady && !dismissed) {
+      if (!paired && !dismissed) {
         // First launch — show the front door
         router.replace('/onboarding');
       } else if (paired) {
@@ -145,11 +139,10 @@ export default function RootLayout() {
             const data = response.notification.request.content.data as
               | { anchor?: string }
               | undefined;
-            if (data?.anchor === "approvals") {
-              router.replace({ pathname: "/conversation", params: { anchor: "approvals" } } as never);
-            } else {
-              router.replace('/conversation' as never);
-            }
+            // Approvals are docked in the conversation itself, so every
+            // Ghost notification lands in the one conversation.
+            void data;
+            router.replace('/' as never);
           });
         } catch {}
       }
@@ -172,9 +165,20 @@ export default function RootLayout() {
         {/* Tabs — main app */}
         <Stack.Screen name="(tabs)" />
 
-        {/* Conversation */}
+        {/* Old conversation link → the root conversation */}
+        <Stack.Screen name="conversation" options={{ animation: 'none' }} />
+
+        {/* Ghost, opened up: over the conversation, swipe down to return */}
         <Stack.Screen
-          name="conversation"
+          name="panel"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="memory"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="activity"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
 
@@ -247,10 +251,6 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="device"
-          options={{ presentation: 'card', animation: 'slide_from_right' }}
-        />
-        <Stack.Screen
-          name="local-models"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen

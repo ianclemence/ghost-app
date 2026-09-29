@@ -82,3 +82,17 @@ export function reconcileHistory(
   out.sort((a, b) => a.timestamp - b.timestamp);
   return out;
 }
+
+/**
+ * One time unit in the app: milliseconds. The Pod reports history in Unix
+ * seconds while the phone stamps its own messages with Date.now(); mixed,
+ * a just-sent message never matched its server copy (a duplicate row) and
+ * day grouping and ordering were wrong. Values already in ms pass through.
+ */
+export function normalizeHistoryTimestamps<T extends { timestamp: number }>(rows: T[]): T[] {
+  return rows.map((r) =>
+    typeof r.timestamp === "number" && r.timestamp > 0 && r.timestamp < 1e12
+      ? { ...r, timestamp: r.timestamp * 1000 }
+      : r,
+  );
+}

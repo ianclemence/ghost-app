@@ -6,72 +6,68 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 
 # Features
 
-## 👻 Home
+Ghost Mobile is one conversation with your Ghost, the way you'd talk to a
+person. Everything else is a short trip away from it and back.
+
+## 💬 The conversation (home)
 
 | Feature | Description |
 |---------|-------------|
-| Greeting | Owner name from Pod identity, date header; setup-first when nothing is paired |
-| Approval nudge | Tappable count of pending approvals, deep-links to the approval queue |
-| Plus menu | Entry to every screen |
+| Presence | Ghost's name, a status light, and one live line of what it is doing right now (thinking, working in the background, waiting for your OK, keeping an eye on things, offline) |
+| Streaming | Token-by-token replies from your Pod; runtime phases ("Checking memory") fill the silence before the first word |
+| Where it ran | A quiet line under each live reply, stated by the Pod's runtime (`served_by`): on your Pod, or which cloud model |
+| Days and time | Day separators; time appears only where it means something: when Ghost reached out on its own (ember dot) or the conversation resumed after a pause |
+| Your messages | Soft bubbles; long-press any message to copy |
+| Approvals | Ghost's pending decisions docked above the composer, one at a time with "1 of n"; the stakes come from the broker's risk class, never from model prose |
+| Artifacts | Documents and plans Ghost made appear in the thread where they were made |
+| Photos | Attach a photo for the Pod's vision model |
+| Voice | Dictate (transcribed on the Pod) or open live voice from the header |
+| Send while working | Type a follow-up while Ghost works; it joins the running turn. Stop at any time |
+| History | Scroll back through the whole conversation (paged from the Pod); opens instantly from an on-device copy |
+| Offline outbox | Messages typed while the Pod is unreachable wait on the phone and go out in order when it's back |
+| Markdown | Headings, lists, tables, quotes, links, code with copy, Mermaid diagrams (sandboxed); only `http(s)` links open |
 
-## 💬 Chats
+## 👻 Ghost, opened up (tap Ghost in the header)
 
-| Feature | Description |
-|---------|-------------|
-| Streaming AI | Token-by-token responses (Pod SSE, or on-device Mini when offline) |
-| Routing label | Every answer keeps a quiet badge saying where it ran: phone vs home Pod vs Pod cloud |
-| Approval queue | All pending approvals with count, expandable; unknown-risk items get caution styling |
-| Live tool progress | Shows "Searching… / Running…" while Ghost works |
-| Voice input | Record and transcribe via the Pod (`POST /v1/voice/turn`); disabled offline with an honest label |
-| Markdown rendering | Headings, lists (incl. task lists), tables (horizontal scroll), blockquotes, links, images, strikethrough, and code blocks with a language label + copy button |
-| Mermaid diagrams | `mermaid` fences render as real diagrams in a sandboxed WebView (strict security, no HTML labels, no links); failures degrade to code |
-| Safe links | Only `https:`/`http:` open, in an in-app browser sheet; `javascript:`, `data:`, `file:`, `intent:`, `tel:` are refused; only `https:` images load |
-| Conversation history | Latest 50 messages, reconciled against the server after every turn; on-device thread cache when there is no Pod |
-| Cancel generation | Stop a long response mid-stream |
-| Offline outbox | Messages typed while unreachable are queued on-device (persisted FIFO, network/timeout failures only) and sent in order when connectivity returns |
+- **Right now**: what needs your OK
+- **Coming up**: the next things Ghost will do (routines, reminders, watches)
+- **What Ghost did**: the latest actions, each with its outcome and why
+- **Memory**: everything Ghost remembers, readable and forgettable
+- **Settings**: Intelligence, Connected apps, Your Pod, About
 
-Media attachments are not wired in the chat UI. The send path supports them;
-the Composer exposes no attach buttons on the conversation screen.
+### Activity
 
-## 🔀 Plus menu
+The audit trail: every action Ghost took, by day, with the outcome the
+runtime recorded and why Ghost acted.
 
-Six destinations; talk (conversation, live voice) launches from Home:
+### Memory
 
-- Home — greeting, approval nudge, talk entries
-- **Routines** — everything Ghost does for you: scheduled work plus standing goals
-- Intelligence — which AI Ghost runs on (models, providers, routing)
-- Connected Apps — status of connected services
-- Ghost — this phone (Mini, storage, privacy) + your Pod (health, diagnostics, Pod AI models)
-- About — what Ghost is and how it works
+What Ghost remembers, grouped by area, with when it was learned and how
+often it was confirmed. Forget anything; it's removed on your Pod.
 
 ### Routines
 
-One destination for anything Ghost does on its own: recurring briefs,
-reminders, scheduled actions, and standing goals. You never file your intent
-as a “routine”, an “automation”, or a “goal” — say what you want in a chat,
-and Ghost infers the shape and shows it here. The Pod merges both backing
-models at `/v1/routinefeed` (goals come from `/v1/goals`); the app renders
-one list with one vocabulary. Pause, resume, or stop anything from the same
-screen.
+Anything Ghost does on its own: recurring briefs, reminders, scheduled
+actions, watches, and standing goals, from `/v1/routinefeed`. Pause, resume,
+or stop anything.
 
-### Ghost
+### Your Pod
 
-One answer to "where does Ghost run?": Status (version, uptime, load),
-This phone (Ghost Mini download, storage, privacy, offline counters), and —
-when a Pod is paired — Home Pod (diagnostics, Pod AI models via Ollama,
-getting-started funnel). Phone privacy decides first, before the
-Intelligence routing toggles: Local only keeps everything on your devices.
+Health (version, uptime, load, memory, storage), anything that needs
+attention, and the AI models installed on the Pod (Ollama). Models on the Pod
+answer without anything leaving it.
 
-Notifications carry fixed product copy only (never message content) with a
-triage category (approval / question / update); taps land in the
-conversation at the approvals queue or the thread.
+## Where Ghost runs
 
-## 📴 Offline (travel cache)
+Ghost lives on your Pod: memory, permissions, tools, and routines stay on
+hardware you own, and local models run there. The phone is how you reach
+it. There is no second, smaller Ghost on the phone: a model small enough
+for a phone can't do what Ghost does (governed tools, durable memory,
+watches, approvals), so offline the app is honest instead: your last
+conversation stays readable and new messages wait until the Pod is back.
 
-With Ghost Mini downloaded, the phone answers and collects offline: chat plus
-`remember ...` notes, queued for sync. Routines, home control, and full memory
-stay on the Pod. The phone never executes actions offline — it answers,
-collects, and syncs.
+Notifications carry fixed product copy only (never message content); taps
+open the conversation.
 
 ---
 
@@ -166,40 +162,37 @@ Opening this URI adopts the relay connection through the app's credential system
 ghost-app/
 ├── app/
 │   ├── _layout.tsx           # Root stack, deep links, WS notifications
-│   ├── (tabs)/
-│   │   └── index.tsx         # 👻 Home — greeting + approval nudge + talk entries + Plus menu
-│   │   │   # (no chats list: one thread, see conversation.tsx below)
-│   ├── conversation.tsx      # Chat (Pod SSE or on-device Mini via runLocalTurn)
-│   ├── live.tsx              # Live voice (launched from Home, not the menu)
-│   ├── intelligence.tsx      # Intelligence — models, providers, routing + AI health (Plus menu)
-│   ├── routines.tsx           # Routines — scheduled work + standing goals (Plus menu)
-│   ├── connections.tsx       # Connected Apps — service status (Plus menu)
-│   ├── ghost.tsx             # Ghost — this phone + your Pod (Plus menu)
-│   ├── goals.tsx             # Redirect → /routines (deep-link compat)
-│   ├── device.tsx            # Redirect → /ghost (deep-link compat)
-│   ├── local-models.tsx      # Redirect → /ghost (deep-link compat)
-│   ├── about.tsx             # About Ghost (Plus menu)
-│   ├── onboarding.tsx        # First-launch flow
-│   ├── connect.tsx           # Scan QR / enter manually
-│   ├── scan.tsx              # QR scanner
-│   ├── confirm.tsx           # Pairing progress
-│   ├── manual.tsx            # Manual pairing entry (LAN only)
-│   ├── pairing-success.tsx   # Connected state
-│   ├── auth-failure.tsx      # Credential rejected
-│   ├── revoked.tsx           # Device disconnected
+│   ├── (tabs)/index.tsx      # 💬 The conversation (home)
+│   ├── conversation.tsx      # Redirect → / (old links, notification taps)
+│   ├── panel.tsx             # Ghost, opened up (tap Ghost in the header)
+│   ├── activity.tsx          # Everything Ghost did, and why
+│   ├── memory.tsx            # What Ghost remembers (forgettable)
+│   ├── routines.tsx          # Routines, reminders, watches, standing goals
+│   ├── intelligence.tsx      # Which AI Ghost thinks with
+│   ├── connections.tsx       # Connected apps
+│   ├── ghost.tsx             # Your Pod: health, attention, Pod models
+│   ├── live.tsx              # Live voice
+│   ├── about.tsx             # About Ghost
+│   ├── goals.tsx / device.tsx  # Redirects (deep-link compat)
+│   ├── onboarding.tsx        # First launch: connect or set up a Pod
+│   ├── connect.tsx, scan.tsx, confirm.tsx, manual.tsx, setup-pod.tsx
+│   ├── pairing-success.tsx, auth-failure.tsx, revoked.tsx
+├── components/
+│   ├── presence-header.tsx   # Ghost + live status line
+│   ├── thread.tsx            # Day separators, bubbles, Ghost messages, thinking
+│   ├── permission-card.tsx   # Approval card
+│   └── screen-header.tsx     # Back/close header for every other screen
 ├── lib/
 │   ├── ghostApi.ts           # API client (REST + SSE + WS)
-│   ├── localTurn.ts          # Execution-planned send (phone/Pod/cloud)
-│   ├── local/                # Travel cache: pipeline, planner, Mini catalog,
-│   │                         # modelManager, memsync, metrics, threadCache
+│   ├── thread.ts             # Thread model: days, out-of-turn, time
+│   ├── presence.ts           # The one-line status
+│   ├── threadCache.ts        # On-device copy of the thread (instant open)
+│   ├── outbox.ts             # Offline message queue (FIFO, persisted)
+│   ├── reconcile.ts          # Streamed ↔ server history reconciliation
 │   ├── connection.ts         # Connection state machine
 │   ├── credentials.ts        # SecureStore/AsyncStorage credential layer
-│   ├── pairing.ts            # Pairing URI parser (ghost://pair + legacy connect)
-│   ├── outbox.ts             # Offline message queue (FIFO, persisted)
-│   ├── store.ts              # Zustand state
-│   └── format.ts             # Formatting helpers
-├── modules/ghost-local-inference/  # On-device runtime (llama.cpp, Mini only)
-├── components/
+│   ├── pairing.ts            # Pairing URI parser
+│   └── store.ts              # Zustand state
 ├── constants/theme.ts        # Design tokens
 └── docs/
 ```
@@ -249,12 +242,12 @@ Pairing and auth errors return `{ "error": { "code", "message" } }`:
 | GET/POST | `/v1/intelligence/config` | Owner AI config: masked keys, routing, Ollama URL |
 | GET | `/v1/ollama/models` | Installed local models |
 | POST | `/v1/ollama/pull` | Start a local model download |
-| GET | `/v1/models/catalog` | Phone-local model catalog (Mini only) |
-| GET/POST | `/v1/sync/ops` | Memory-sync op push/pull |
-| GET | `/v1/doctor` (+ `/v1/doctor/local`) | Diagnostics and service health checks |
+| GET | `/v1/doctor` | Diagnostics and service health checks |
+| GET | `/v1/activity` | What Ghost did, with outcome and why |
+| GET | `/v1/routinefeed` | Routines, reminders, watches |
 | GET | `/v1/live/surfaces` | Live surfaces |
 | GET | `/v1/artifacts` | Artifacts |
-| GET | `/v1/memory/self` | Phone-visible memory fact |
+| GET/POST | `/v1/memory/self` (+ `/forget`) | What Ghost remembers; forget an item |
 | GET | `/v1/stats` | Pod stats (version, CPU, memory, disk) |
 | WS | `/v1/ws` | Proactive push (`assistant_message`, `clarify_request`, `cron_update`, `progress_event`) |
 

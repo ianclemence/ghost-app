@@ -133,7 +133,7 @@ export function RichCardView({ card, config, onDone }: { card: RichCard; config:
     case "browser_recovery":
       return (
         <CardShell title={card.title} body={card.body}>
-          <GhostText type="footnote" style={styles.meta}>Nothing was lost — ask again and I'll retry.</GhostText>
+          <GhostText type="footnote" style={styles.meta}>Nothing was lost — ask again and I&apos;ll retry.</GhostText>
         </CardShell>
       );
     case "browser_view":

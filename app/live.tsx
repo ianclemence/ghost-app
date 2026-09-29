@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { GhostButton } from "@/components/ghost";
-import { PlusMenu } from "@/components/plus-menu";
 import { LiveOrb, LiveWaveform } from "@/components/live-waveform";
 import { useLiveSession } from "@/lib/live/use-live-session";
 import { fetchLiveStatus } from "@/lib/live/ghostSessionApi";
@@ -241,7 +240,6 @@ export default function LiveVoiceScreen() {
         )}
         <View style={{ height: 120 }} />
       </ScrollView>
-      <PlusMenu />
     </View>
   );
 }

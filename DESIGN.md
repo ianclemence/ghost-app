@@ -42,7 +42,12 @@ Dark conversation tokens (`Midnight`): bg #17130F, surface #241E17, ink #F1E9DC,
 - Primary action: full radius pill, accent fill, 16/700 label, 44px minimum height
 - Secondary: raised pill with hairline border
 - Chips: 44px minimum touch row, selected is accent fill with inverse label
-- Bubbles: user #E4E2DC right, Ghost raised with subtle border; no nested cards
+- Conversation: one thread and it is home. Owner messages are soft bubbles (#E4E2DC) on the right; Ghost writes full-width prose (rich answers need the width). No nested cards
+- Presence: Ghost's mark with a status light (success idle, ember working or asking, grey offline) and one live line under the name. Tapping Ghost opens its panel
+- Time: day separators always; a timestamp only where it carries meaning: when Ghost spoke out of turn (ember dot + time) or the conversation resumed after 30+ minutes
+- Ember means Ghost: the presence light, an out-of-turn message, an approval asking. Never decoration
+- Where it ran: stated by the Pod's runtime (served_by), one quiet line under a live reply; unknown stays unknown
+- Every non-conversation screen: back (or close for the panel) + large title + one-line subtitle; no floating menus
 - Status: inline honest text, error in status error, never a modal first. One offline language: `OfflineBadge` (Reconnecting/Offline) on every Pod screen
 - Inputs: `GhostInput` everywhere (sunken fill, 48px minimum, tertiary placeholder). No one-off TextInput styles
 - Copy: every word earns its place. No em dashes in user-facing strings; commas, colons, or periods instead

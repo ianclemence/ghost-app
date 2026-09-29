@@ -9,19 +9,18 @@ import { dismissFirstRun } from "@/lib/firstRun";
 /**
  * First launch screen.
  *
- * Ghost is one system that runs wherever you have hardware. The phone is a
- * first-class Ghost, so the primary path is local setup; a Ghost Pod is the
- * optional extension for home hardware and always-on service.
+ * Ghost lives on a Pod the owner controls: memory, permissions, and tools
+ * stay there. The phone is how you reach it, so the first step is always
+ * connecting (or setting up) the Pod.
  */
 export default function FirstLaunchScreen() {
   const router = useRouter();
 
-  // Explore without setting anything up: the phone can still reach the app,
-  // and local setup or a Pod can be added later from the plus menu. This is
-  // what keeps first-run from being a dead end.
+  // Look around first: the conversation opens with the way to connect a Pod
+  // one tap away, so first run is never a dead end.
   const explore = async () => {
     await dismissFirstRun();
-    router.replace("/(tabs)");
+    router.replace("/");
   };
 
   return (
@@ -34,22 +33,25 @@ export default function FirstLaunchScreen() {
         <GhostText type="body" style={styles.tagline}>
           Your AI. Your Memory. Your Machine.
         </GhostText>
+        <GhostText type="callout" style={styles.explain}>
+          Ghost runs on a small computer you own. This phone is how you talk to it, from anywhere.
+        </GhostText>
       </View>
 
       <View style={styles.bottom}>
         <GhostButton
-          title="Set up on this phone"
+          title="Connect your Pod"
           variant="primary"
-          onPress={() => router.push("/ghost?firstRun=1" as never)}
+          onPress={() => router.push("/connect")}
           fullWidth
         />
         <TouchableOpacity
           style={styles.secondary}
-          onPress={() => router.push("/connect")}
+          onPress={() => router.push("/setup-pod" as never)}
           activeOpacity={0.6}
         >
           <GhostText type="callout" style={styles.secondaryText}>
-            Connect a Ghost Pod
+            Set up a new Pod
           </GhostText>
         </TouchableOpacity>
         <TouchableOpacity
@@ -58,7 +60,7 @@ export default function FirstLaunchScreen() {
           activeOpacity={0.6}
         >
           <GhostText type="footnote" style={styles.quietText}>
-            Explore without setting up
+            Look around first
           </GhostText>
         </TouchableOpacity>
       </View>
@@ -84,6 +86,12 @@ const styles = StyleSheet.create({
   tagline: {
     color: Ghost.text.secondary,
     opacity: 0.7,
+  },
+  explain: {
+    color: Ghost.text.secondary,
+    textAlign: "center",
+    marginTop: Space.lg,
+    maxWidth: 300,
   },
   bottom: {
     position: "absolute",
