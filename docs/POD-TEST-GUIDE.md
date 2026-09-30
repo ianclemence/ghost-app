@@ -1,18 +1,18 @@
 # Pod acceptance guide
 
-Test the app against a real Ghost Pod, from a blank SD card to a working
+Test the app against a real Ghost Pod, from a blank drive to a working
 conversation. Each step says what you should see, and what to do if you do not.
 
 ## You need
 
-- A Raspberry Pi 5 (8 GB or more) on your network
+- A Pod, or a computer that meets [what a Pod needs](https://github.com/ianclemence/ghost/blob/main/docs/HARDWARE.md) (8 GB of memory recommended), on your network
 - A phone with the Ghost app (development build or Expo Go)
 - An API key for the AI you want Ghost to think with, or plan to choose "On this Pod"
-- The Pod's IP address (`hostname -I` on the Pi)
+- The Pod's IP address (`hostname -I` on the Pod)
 
 ## 1. Install Ghost on the Pod
 
-On the Pi:
+On the Pod:
 
 ```bash
 sudo apt install -y git make golang-go ffmpeg
@@ -27,7 +27,7 @@ install stops and says so; it does not report success.
 
 ## 2. Set up from the console
 
-1. On the Pi, read the setup code: `journalctl -u ghost-web | grep 'Setup code'`
+1. On the Pod, read the setup code: `journalctl -u ghost-web | grep 'Setup code'`
 2. Open `http://<pod-ip>` in a browser and enter the code
 3. Name yourself and Ghost, and choose an owner password
 4. Choose what Ghost thinks with and paste the key (or choose On this Pod)
@@ -41,7 +41,7 @@ Pod** asks for the address, the setup code, your names, the AI and the password.
 
 ## 3. Pair the phone
 
-On the Pi run `ghost pair` and scan the QR in the app (**Pair your Ghost > Scan
+On the Pod run `ghost pair` and scan the QR in the app (**Pair your Ghost > Scan
 your Ghost**). The code works once and expires in five minutes. If the camera
 cannot scan it, choose "Enter manually" and type the address and code shown
 under the QR.

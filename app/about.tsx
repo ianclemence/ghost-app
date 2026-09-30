@@ -31,8 +31,10 @@ export default function AboutScreen() {
       <View style={styles.section}>
         <GhostText type="body" style={styles.prose}>
           <GhostText style={styles.proseBold}>{name}</GhostText> is a personal AI
-          that lives on your own hardware. It remembers what matters, works for
-          you without being watched, and stays with you across your devices.
+          that lives on a small computer in your home. It remembers the people and
+          plans in your life, does things for you, and speaks up when something
+          needs you. It is the same Ghost on your phone, in a browser and in a
+          terminal.
         </GhostText>
       </View>
 
@@ -43,19 +45,19 @@ export default function AboutScreen() {
         <View style={styles.item}>
           <GhostText type="body" style={styles.itemTitle}>Ghost Web</GhostText>
           <GhostText type="caption" style={styles.itemDesc}>
-            The control center. Configure, understand, and take care of Ghost.
+            Set up, connect and look after your Ghost from any browser.
           </GhostText>
         </View>
         <View style={styles.item}>
           <GhostText type="body" style={styles.itemTitle}>Ghost Mobile</GhostText>
           <GhostText type="caption" style={styles.itemDesc}>
-            Your daily driver. Talk to Ghost and take it with you.
+            Talk to Ghost, approve what it wants to do, and step in when it needs you.
           </GhostText>
         </View>
         <View style={styles.item}>
           <GhostText type="body" style={styles.itemTitle}>The Ghost Pod</GhostText>
           <GhostText type="caption" style={styles.itemDesc}>
-            The hardware Ghost lives on. A Raspberry Pi, RK1, or any Linux machine.
+            The small always-on computer Ghost lives on.
           </GhostText>
         </View>
       </View>
@@ -65,8 +67,9 @@ export default function AboutScreen() {
           Privacy
         </GhostText>
         <GhostText type="body" style={styles.prose}>
-          Configuration and secrets live only on your device. Nothing is sent to
-          a central service unless you explicitly connect a cloud provider.
+          Your memory, files and logins stay on your Pod. Nothing is sent to a
+          central service. Only what you ask Ghost to think about goes to the AI
+          model you chose, and only if that model is in the cloud.
         </GhostText>
       </View>
 
