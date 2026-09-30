@@ -1,4 +1,6 @@
 import { normalizeHistoryTimestamps } from "./reconcile";
+import { toMediaItems, type Attachment } from "./attachments";
+import { readBase64 } from "./localFiles";
 import { activityQuery } from "./activity";
 import { recordMilestone } from "./onboarding-metrics";
 
@@ -9,6 +11,8 @@ export interface Message {
   timestamp: number;
   media_type?: string;
   media_url?: string;
+  /** Files (not photos) sent with this message, shown as small chips. */
+  files?: { name: string; size: number }[];
 }
 
 export interface GhostConfig {
@@ -367,6 +371,8 @@ export interface SendOptions {
   requestId?: string;
   mediaB64?: string;
   mediaType?: string;
+  /** Photos and files sent with this message. */
+  attachments?: Attachment[];
   signal?: AbortSignal;
   // Override the session this message belongs to. Defaults to cfg.session.
   // The contract default conversation is main. The key is opaque.
@@ -618,12 +624,11 @@ export async function sendMessage(
   cfg: GhostConfig,
   opts: SendOptions,
 ): Promise<void> {
-  const mediaItems =
-    opts.mediaB64 && opts.mediaType
+  const mediaItems = opts.attachments?.length
+    ? toMediaItems(opts.attachments)
+    : opts.mediaB64
       ? [{ base64: opts.mediaB64, mime_type: opts.mediaType }]
-      : opts.mediaB64
-        ? [{ base64: opts.mediaB64 }]
-        : [];
+      : [];
 
   const sessionKey = normalizeSession(opts.sessionKey ?? cfg.session);
   const body: Record<string, unknown> = {
@@ -633,7 +638,9 @@ export async function sendMessage(
     channel: "mobile",
     chat_id: "default",
   };
-  if (mediaItems.length > 0) body.media = mediaItems;
+  // media_items is the object form. (Objects under "media" were rejected by the
+  // Pod, so no photo ever went through.)
+  if (mediaItems.length > 0) body.media_items = mediaItems;
   const deviceTimezone = getDeviceTimezone();
   if (deviceTimezone) body.metadata = { timezone: deviceTimezone };
 
@@ -1540,10 +1547,7 @@ export async function voiceTurn(
 
 export async function voiceTranscribeUri(cfg: GhostConfig, uri: string, sessionKey: string): Promise<string> {
   try {
-    const FS = await import("expo-file-system");
-    const read = (FS as unknown as { readAsStringAsync?: (u: string, o?: unknown) => Promise<string> }).readAsStringAsync;
-    if (!read) return "";
-    const b64 = await read(uri, { encoding: "base64" });
+    const b64 = await readBase64(uri);
     if (!b64) return "";
     const out = await voiceTurn(cfg, b64, "audio/m4a", sessionKey);
     return out.ok ? (out.transcript ?? "") : "";
@@ -2045,4 +2049,35 @@ export async function signOutBrowser(cfg: GhostConfig): Promise<void> {
     15000,
   );
   if (!res.ok) throw new Error(`Sign out failed (HTTP ${res.status})`);
+}
+
+// ─── Files the owner has sent Ghost ───────────────────────────────────────
+// Stored on the Pod, listable and deletable from here. Deleting removes the
+// file itself, not just its entry.
+
+export interface StoredFile {
+  id: string;
+  name: string;
+  kind: string;
+  mime: string;
+  size: number;
+  created_at: string;
+}
+
+export async function fetchFiles(cfg: GhostConfig): Promise<{ files: StoredFile[]; retentionDays: number }> {
+  const res = await fetch(`${baseURL(cfg)}/v1/files`, { headers: headers(cfg) });
+  if (!res.ok) throw new Error(`Failed to load files (HTTP ${res.status})`);
+  const data = await res.json();
+  return {
+    files: Array.isArray(data?.files) ? data.files : [],
+    retentionDays: typeof data?.retention_days === "number" ? data.retention_days : 30,
+  };
+}
+
+export async function deleteFile(cfg: GhostConfig, id: string): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/files/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: headers(cfg),
+  });
+  if (!res.ok) throw new Error(`Failed to delete (HTTP ${res.status})`);
 }

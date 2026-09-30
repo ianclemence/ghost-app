@@ -1,4 +1,4 @@
-import { Camera, ImagePlus, Mic, Send, Square, X } from "lucide-react-native";
+import { Camera, ImagePlus, Mic, Paperclip, Send, Square, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Animated, {
   FadeIn,
@@ -100,6 +100,8 @@ interface ComposerProps {
   busy?: boolean;
   leading?: React.ReactNode;
   onPhoto?: () => void;
+  /** Attach a document or any other file. */
+  onFile?: () => void;
   onCamera?: () => void;
   showMic?: boolean;
   minimal?: boolean;
@@ -129,6 +131,7 @@ export function Composer({
   busy = false,
   leading,
   onPhoto,
+  onFile,
   onCamera,
   showMic = true,
   minimal = false,
@@ -277,6 +280,17 @@ export function Composer({
           onPress={onPhoto}
         >
           <ImagePlus size={18} color={Ghost.text.secondary} />
+        </TouchableOpacity>
+      ) : null}
+      {onFile ? (
+        <TouchableOpacity
+          style={styles.iconBtn}
+          activeOpacity={0.7}
+          hitSlop={8}
+          accessibilityLabel="Attach a file"
+          onPress={onFile}
+        >
+          <Paperclip size={18} color={Ghost.text.secondary} />
         </TouchableOpacity>
       ) : null}
       {onCamera ? (

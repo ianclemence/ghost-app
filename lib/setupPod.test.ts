@@ -66,3 +66,30 @@ describe("setupPod", () => {
     expect(r.error).toContain("Couldn't reach");
   });
 });
+
+describe("setupPod AI choice", () => {
+  const capture = () => {
+    let sent: Record<string, unknown> = {};
+    const f = (async (_u: string, init: { body: string }) => {
+      sent = JSON.parse(init.body);
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }) as unknown as typeof fetch;
+    return { f, body: () => sent };
+  };
+
+  test("a cloud choice sends its key and lets the Pod pick the model", async () => {
+    const c = capture();
+    await setupPod({ ...base, provider: "anthropic", apiKey: " sk-ant-abc " }, c.f);
+    expect(c.body().provider).toBe("anthropic");
+    expect(c.body().api_key).toBe("sk-ant-abc");
+    expect("model" in c.body()).toBe(false);
+  });
+
+  test("the Pod itself needs no key and names its own small model", async () => {
+    const c = capture();
+    await setupPod({ ...base, provider: "ollama" }, c.f);
+    expect(c.body().provider).toBe("ollama");
+    expect(c.body().model).toBe("qwen3:0.6b");
+    expect("api_key" in c.body()).toBe(false);
+  });
+});

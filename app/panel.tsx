@@ -140,6 +140,7 @@ export default function PanelScreen() {
         <Section title="Settings">
           {config ? <Row title="Intelligence" detail="Which AI Ghost thinks with" onPress={() => router.push("/intelligence" as never)} /> : null}
           {config ? <Row title="Connected apps" detail="Email, calendar, and logins" onPress={() => router.push("/connections" as never)} /> : null}
+          {config ? <Row title="Files" detail="What you have sent Ghost, and delete it" onPress={() => router.push("/files" as never)} /> : null}
           <Row title="Your Pod" detail="Health and the models on it" onPress={() => router.push("/ghost" as never)} />
           {!config ? <Row title="Connect your Pod" onPress={() => router.push("/connect" as never)} /> : null}
           <Row title="About" onPress={() => router.push("/about" as never)} />

@@ -17,7 +17,9 @@ export interface SetupPodInput {
   adminPassword: string;
   ownerName: string;
   ghostName: string;
+  /** The AI Ghost thinks with: a cloud provider id, or "ollama" for the Pod itself. */
   provider?: string;
+  apiKey?: string;
   model?: string;
 }
 
@@ -59,7 +61,10 @@ export async function setupPod(
         owner_name: input.ownerName.trim(),
         ghost_name: input.ghostName.trim(),
         provider: input.provider || "ollama",
-        model: input.model || "qwen3:0.6b",
+        // The Pod picks a cloud provider's own recommended model; only the
+        // on-Pod default needs naming here.
+        ...((input.provider || "ollama") === "ollama" ? { model: input.model || "qwen3:0.6b" } : input.model ? { model: input.model } : {}),
+        ...(input.apiKey?.trim() ? { api_key: input.apiKey.trim() } : {}),
         pair: true,
       }),
     });

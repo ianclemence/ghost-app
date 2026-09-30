@@ -4,7 +4,16 @@ import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View }
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
-import { ArrowDown, X } from "lucide-react-native";
+import * as DocumentPicker from "expo-document-picker";
+import { ArrowDown, FileText, X } from "lucide-react-native";
+import {
+  attachmentProblem,
+  base64Bytes,
+  fileSize,
+  photoName,
+  type Attachment,
+} from "@/lib/attachments";
+import { readBase64 } from "@/lib/localFiles";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
@@ -128,8 +137,9 @@ export default function ConversationScreen() {
   const [scrolled, setScrolled] = useState(false);
   const [awayFromLatest, setAwayFromLatest] = useState(false);
   const [unseen, setUnseen] = useState(0);
-  // One photo can ride along with the next message (Pod vision).
-  const [photo, setPhoto] = useState<{ uri: string; b64: string; mime: string } | null>(null);
+  // Photos and files ride along with the next message. The Pod detects each
+  // one's real type and opens it with the right tool.
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   // Messages present at first paint don't animate in; new ones do.
   const initialKeysRef = useRef<Set<string> | null>(null);
   const [cancelPhase, setCancelPhase] = useState<CancelPhase>("idle");
@@ -405,11 +415,15 @@ export default function ConversationScreen() {
     setClarify(null);
     setCancelPhase((p) => nextCancelState(p, "settled"));
     const tempUserId = `temp-${Date.now()}`;
-    const attached = config ? photo : null;
-    setPhoto(null);
+    const attached = config ? attachments : [];
+    setAttachments([]);
+    const firstImage = attached.find((a) => a.kind === "image");
     appendMessage({
       id: tempUserId, role: "user", content: q, timestamp: Date.now(), status: "sending",
-      ...(attached ? { media_type: attached.mime, media_url: attached.uri } : {}),
+      ...(firstImage ? { media_type: firstImage.mime, media_url: firstImage.uri } : {}),
+      ...(attached.some((a) => a.kind === "file")
+        ? { files: attached.filter((a) => a.kind === "file").map((a) => ({ name: a.name, size: a.size })) }
+        : {}),
     });
     const asstId = `temp-a-${Date.now()}`;
     appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
@@ -424,7 +438,7 @@ export default function ConversationScreen() {
     localAbort.current = ctrl;
     await sendMessage(config, {
       content: q,
-      ...(attached ? { mediaB64: attached.b64, mediaType: attached.mime } : {}),
+      ...(attached.length ? { attachments: attached } : {}),
       requestId,
       sessionKey: MAIN_SESSION_ID,
       signal: ctrl.signal,
@@ -516,7 +530,7 @@ export default function ConversationScreen() {
       setToolActivity(null);
       setSendError(e instanceof Error ? e.message : String(e));
     });
-  }, [config, isStreaming, photo, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox]);
+  }, [config, isStreaming, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox]);
 
   const stopTurn = useCallback(async () => {
     if (!isStreaming) return;
@@ -562,11 +576,50 @@ export default function ConversationScreen() {
       mediaTypes: ["images"],
       quality: 0.7,
       base64: true,
+      allowsMultipleSelection: true,
     }).catch(() => null);
-    const a = res && !res.canceled ? res.assets?.[0] : null;
-    if (!a?.base64) return;
-    setPhoto({ uri: a.uri, b64: a.base64, mime: a.mimeType ?? "image/jpeg" });
-  }, []);
+    if (!res || res.canceled) return;
+    let next = attachments;
+    for (const a of res.assets ?? []) {
+      if (!a.base64) continue;
+      const problem = attachmentProblem(base64Bytes(a.base64), next.length);
+      if (problem) {
+        setSendError(problem);
+        break;
+      }
+      const mime = a.mimeType ?? "image/jpeg";
+      next = [...next, { uri: a.uri, b64: a.base64, mime, name: photoName(a.uri, mime, next.length), kind: "image", size: base64Bytes(a.base64) }];
+    }
+    setAttachments(next);
+  }, [attachments]);
+
+  const attachFile = useCallback(async () => {
+    const res = await DocumentPicker.getDocumentAsync({
+      multiple: true,
+      copyToCacheDirectory: true,
+      type: "*/*",
+    }).catch(() => null);
+    if (!res || res.canceled) return;
+    let next = attachments;
+    for (const a of res.assets ?? []) {
+      const problem = attachmentProblem(a.size, next.length);
+      if (problem) {
+        setSendError(problem);
+        break;
+      }
+      try {
+        const b64 = await readBase64(a.uri);
+        next = [...next, {
+          uri: a.uri, b64, mime: a.mimeType ?? "application/octet-stream",
+          name: a.name, kind: a.mimeType?.startsWith("image/") ? "image" : "file",
+          size: a.size ?? base64Bytes(b64),
+        }];
+      } catch {
+        setSendError("Could not read " + a.name + ".");
+      }
+    }
+    setAttachments(next);
+  }, [attachments]);
 
   const thread = React.useMemo(() => buildThread(messages, artifacts), [messages, artifacts]);
   const lastCount = useRef(0);
@@ -594,6 +647,12 @@ export default function ConversationScreen() {
           {m.media_url && m.media_type?.startsWith("image/") ? (
             <Image source={{ uri: m.media_url }} style={styles.userPhoto} accessibilityLabel="Photo you sent" />
           ) : null}
+          {m.files?.map((f, i) => (
+            <View key={`${f.name}-${i}`} style={styles.userFile} accessibilityLabel={`File you sent: ${f.name}`}>
+              <FileText size={14} color={Ghost.text.secondary} />
+              <Text style={styles.userFileText} numberOfLines={1}>{f.name} · {fileSize(f.size)}</Text>
+            </View>
+          ))}
           <UserMessage message={m} showTime={item.showTime} groupStart={item.groupStart} animate={animate} />
         </View>
       );
@@ -780,13 +839,21 @@ export default function ConversationScreen() {
         {cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{cancelLine}</Text> : null}
         {statusLine && !clarify && !cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{statusLine}</Text> : null}
         {sendError ? <Text style={styles.error} accessibilityLiveRegion="polite">{sendError}</Text> : null}
-        {photo ? (
-          <View style={styles.photoChip}>
-            <Image source={{ uri: photo.uri }} style={styles.photoThumb} accessibilityLabel="Attached photo" />
-            <Text style={styles.photoText}>Photo attached</Text>
-            <Pressable onPress={() => setPhoto(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Remove photo">
-              <X size={16} color={Ghost.text.secondary} />
-            </Pressable>
+        {attachments.length > 0 ? (
+          <View style={styles.chipRow}>
+            {attachments.map((a, i) => (
+              <View key={`${a.uri}-${i}`} style={styles.photoChip}>
+                {a.kind === "image" ? (
+                  <Image source={{ uri: a.uri }} style={styles.photoThumb} accessibilityLabel={`Attached photo ${a.name}`} />
+                ) : (
+                  <View style={[styles.photoThumb, styles.fileThumb]}><FileText size={16} color={Ghost.text.secondary} /></View>
+                )}
+                <Text style={styles.photoText} numberOfLines={1}>{a.kind === "image" ? a.name : `${a.name} · ${fileSize(a.size)}`}</Text>
+                <Pressable onPress={() => setAttachments((l) => l.filter((_, j) => j !== i))} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ${a.name}`}>
+                  <X size={16} color={Ghost.text.secondary} />
+                </Pressable>
+              </View>
+            ))}
           </View>
         ) : null}
         <Composer
@@ -795,8 +862,9 @@ export default function ConversationScreen() {
           onSubmit={send}
           placeholder="Message Ghost"
           minimal
-          // Photos go to the Pod's vision model; the phone has none.
+          // Photos and files go to the Pod, which identifies and reads them.
           onPhoto={podOnline ? () => void attachPhoto() : undefined}
+          onFile={podOnline ? () => void attachFile() : undefined}
           // Voice transcription runs on the Pod (POST /v1/voice/turn). Offline
           // or local-only there is no transcriber, so no handler: Composer
           // renders the mic visibly disabled ("Voice needs Pod. Type instead").
@@ -937,7 +1005,38 @@ const styles = StyleSheet.create({
     color: Ghost.status.error,
     paddingHorizontal: 28,
   },
+  userFile: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.xs,
+    maxWidth: "80%",
+    marginRight: Space.xl,
+    marginBottom: 4,
+    paddingHorizontal: Space.md,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: Ghost.bg.raised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.border.default,
+  },
+  userFileText: {
+    flexShrink: 1,
+    fontSize: 13,
+    color: Ghost.text.secondary,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Space.sm,
+  },
+  fileThumb: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Ghost.bg.sunken,
+  },
   photoChip: {
+    maxWidth: 260,
     flexDirection: "row",
     alignItems: "center",
     gap: Space.sm,
@@ -956,6 +1055,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   photoText: {
+    flexShrink: 1,
     fontSize: 13,
     color: Ghost.text.secondary,
   },

@@ -1,4 +1,4 @@
-# 👻 Ghost Mobile
+# Ghost Mobile
 
 The daily-driver companion app for your self-hosted Ghost — a personal AI that lives on your own hardware. Pair your phone with your Ghost Pod over a secure QR flow, chat with streaming responses, browse memory and history, manage automations, and receive proactive notifications.
 
@@ -9,7 +9,7 @@ The daily-driver companion app for your self-hosted Ghost — a personal AI that
 Ghost Mobile is one conversation with your Ghost, the way you'd talk to a
 person. Everything else is a short trip away from it and back.
 
-## 💬 The conversation (home)
+## The conversation (home)
 
 | Feature | Description |
 |---------|-------------|
@@ -20,20 +20,20 @@ person. Everything else is a short trip away from it and back.
 | Your messages | Soft bubbles; long-press any message to copy |
 | Approvals | Ghost's pending decisions docked above the composer, one at a time with "1 of n"; the stakes come from the broker's risk class, never from model prose |
 | Artifacts | Documents and plans Ghost made appear in the thread where they were made |
-| Photos | Attach a photo for the Pod's vision model |
+| Photos and files | Attach up to four photos or files (PDF, Word, spreadsheets, text). The Pod identifies each by its real type and reads it. Sent files are listed, and deletable, under Files |
 | Voice | Dictate (transcribed on the Pod) or open live voice from the header |
 | Send while working | Type a follow-up while Ghost works; it joins the running turn. Stop at any time |
 | History | Scroll back through the whole conversation (paged from the Pod); opens instantly from an on-device copy |
 | Offline outbox | Messages typed while the Pod is unreachable wait on the phone and go out in order when it's back |
 | Markdown | Headings, lists, tables, quotes, links, code with copy, Mermaid diagrams (sandboxed); only `http(s)` links open |
 
-## 👻 Ghost, opened up (tap Ghost in the header)
+## Ghost, opened up (tap Ghost in the header)
 
 - **Right now**: what needs your OK
 - **Coming up**: the next things Ghost will do (routines, reminders, watches)
 - **What Ghost did**: the latest actions, each with its outcome and why
 - **Memory**: everything Ghost remembers, readable and forgettable
-- **Settings**: Intelligence, Connected apps, Your Pod, About
+- **Settings**: Intelligence, Connected apps, Files, Your Pod, About
 
 ### Activity
 
@@ -82,7 +82,7 @@ open the conversation.
 
 ---
 
-# 🚀 Getting Started
+# Getting Started
 
 ## Prerequisites
 
@@ -162,11 +162,12 @@ Opening this URI adopts the relay connection through the app's credential system
 ghost-app/
 ├── app/
 │   ├── _layout.tsx           # Root stack, deep links, WS notifications
-│   ├── (tabs)/index.tsx      # 💬 The conversation (home)
+│   ├── (tabs)/index.tsx      # The conversation (home)
 │   ├── conversation.tsx      # Redirect → / (old links, notification taps)
 │   ├── panel.tsx             # Ghost, opened up (tap Ghost in the header)
 │   ├── activity.tsx          # Everything Ghost did, and why
 │   ├── memory.tsx            # What Ghost remembers (forgettable)
+│   ├── files.tsx             # Files you have sent Ghost (deletable)
 │   ├── routines.tsx          # Routines, reminders, watches, standing goals
 │   ├── intelligence.tsx      # Which AI Ghost thinks with
 │   ├── connections.tsx       # Connected apps
@@ -266,7 +267,7 @@ Not called by the app: `/v1/upload`, `/v1/transcribe`, `/v1/search`,
 
 ---
 
-# 📦 Build & Deployment
+# Build & Deployment
 
 Build for production using **Expo Application Services (EAS)**:
 
@@ -321,7 +322,7 @@ Ghost Mobile uses `eas build --local` on GitHub-hosted runners — this does **n
 | `android-ci.yml` | Push / PR to `master` | APK artifact (14-day retention) |
 | `android-release.yml` | Push tag `v*.*.*` | APK published to **GitHub Releases tab** |
 
-> ⚠️ The `android-ci.yml` / `android-release.yml` workflows do not exist in this repo yet — add them (same shape as the Nairobi Unwind repo) before the table above applies.
+> The `android-ci.yml` / `android-release.yml` workflows do not exist in this repo yet — add them (same shape as the Nairobi Unwind repo) before the table above applies.
 
 ### Required GitHub secret
 
@@ -329,7 +330,7 @@ Set this secret in your repository under **Settings → Secrets and variables �
 
 | Secret | Required | Description |
 |---|---|---|
-| `EXPO_TOKEN` | ✅ Yes | Authenticates EAS CLI for signing credential download |
+| `EXPO_TOKEN` | Yes | Authenticates EAS CLI for signing credential download |
 
 Generate a token at [expo.dev/settings/access-tokens](https://expo.dev/settings/access-tokens).
 

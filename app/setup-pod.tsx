@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
+  Pressable,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +12,7 @@ import { GhostText } from "@/components/themed-text";
 import { GhostButton, GhostInput } from "@/components/ghost";
 import { Ghost, Space, UI } from "@/constants/theme";
 import { setupPod } from "@/lib/setupPod";
+import { BRAINS, brainByKey, brainProblem } from "@/lib/brains";
 import { completePairing } from "@/lib/connection";
 
 /**
@@ -32,6 +34,8 @@ export default function SetupPodScreen() {
   const [ghostName, setGhostName] = useState("Ghost");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [brain, setBrain] = useState("deepseek");
+  const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -43,8 +47,15 @@ export default function SetupPodScreen() {
       setError("Passwords don't match.");
       return;
     }
+    const brainIssue = brainProblem(brain, apiKey);
+    if (brainIssue) {
+      setError(brainIssue);
+      return;
+    }
     setBusy(true);
     const result = await setupPod({
+      provider: brain,
+      apiKey,
       host,
       port,
       setupCode: code,
@@ -170,6 +181,37 @@ export default function SetupPodScreen() {
           autoCapitalize="words"
         />
 
+        <GhostText type="caption" style={styles.label}>What should Ghost think with?</GhostText>
+        <View style={styles.brains} accessibilityRole="radiogroup">
+          {BRAINS.map((b) => {
+            const on = b.key === brain;
+            return (
+              <Pressable
+                key={b.key}
+                onPress={() => setBrain(b.key)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+                style={[styles.brain, on && styles.brainOn]}
+              >
+                <GhostText type="body" style={styles.brainName}>{b.label}</GhostText>
+                {b.note ? <GhostText type="footnote" style={styles.brainNote}>{b.note}</GhostText> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+        {brainByKey(brain).cloud ? (
+          <GhostInput
+            value={apiKey}
+            onChangeText={setApiKey}
+            accessibilityLabel={`${brainByKey(brain).label} API key`}
+            placeholder={`Paste your ${brainByKey(brain).label} API key`}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            style={{ marginTop: Space.sm }}
+          />
+        ) : null}
+
         <GhostText type="caption" style={styles.label}>Owner password</GhostText>
         <GhostInput
           value={password}
@@ -221,6 +263,29 @@ const styles = StyleSheet.create({
   description: {
     color: Ghost.text.secondary,
     lineHeight: 24,
+  },
+  brains: {
+    gap: Space.sm,
+  },
+  brain: {
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.md,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.border.default,
+    backgroundColor: Ghost.bg.raised,
+    gap: 2,
+  },
+  brainOn: {
+    borderColor: Ghost.accent.primary,
+    borderWidth: 1.5,
+  },
+  brainName: {
+    color: Ghost.text.primary,
+    fontWeight: "600",
+  },
+  brainNote: {
+    color: Ghost.text.secondary,
   },
   scanRow: {
     marginTop: Space.lg,

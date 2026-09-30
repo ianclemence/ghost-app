@@ -1,3 +1,4 @@
+import { writeCacheFile } from "@/lib/localFiles";
 import React, { useState } from "react";
 import { Image, Linking, StyleSheet, Text, View } from "react-native";
 import { Ghost, Space } from "@/constants/theme";
@@ -66,19 +67,12 @@ export function ArtifactCard({ config, artifact }: Props) {
         return;
       }
       const p = await fetchWorkspacePreview(config, artifact.path);
-      const FS = await import("expo-file-system");
-      const write = (FS as unknown as { writeAsStringAsync?: (u: string, c: string, o?: unknown) => Promise<void> }).writeAsStringAsync;
-      const cache = (FS as unknown as { cacheDirectory?: string }).cacheDirectory;
-      if (!write || !cache) {
-        setPreviewError("Downloads aren't supported on this device.");
-        return;
-      }
       const name = artifact.path.split("/").pop() ?? "ghost-file";
-      const uri = `${cache}${name}`;
+      let uri: string;
       if (p?.image_base64) {
-        await write(uri, p.image_base64, { encoding: "base64" });
+        uri = await writeCacheFile(name, p.image_base64, "base64");
       } else if (p?.content) {
-        await write(uri, p.content.slice(0, 262144), { encoding: "utf8" });
+        uri = await writeCacheFile(name, p.content.slice(0, 262144), "utf8");
       } else {
         setPreviewError("This file can't be downloaded.");
         return;
