@@ -959,7 +959,7 @@ export function isValidGrant(grant: string): grant is ApprovalGrant {
 // is a second way to answer, never a second way to authorize.
 const GRANT_PHRASE: Record<ApprovalGrant, string> = {
   allow_once: "allow once",
-  allow_task: "allow for 1 hour",
+  allow_task: "allow for this task",
   allow_always: "always allow",
   deny: "deny",
 };
