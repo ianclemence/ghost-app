@@ -2081,3 +2081,43 @@ export async function deleteFile(cfg: GhostConfig, id: string): Promise<void> {
   });
   if (!res.ok) throw new Error(`Failed to delete (HTTP ${res.status})`);
 }
+
+export interface FilePreview {
+  previewable: boolean;
+  kind: string;
+  name: string;
+  mime: string;
+  size: number;
+  reason?: string;
+  content?: string;
+  image_base64?: string;
+  /** The text shown was extracted from a document, not the file itself. */
+  extracted?: boolean;
+  truncated?: boolean;
+}
+
+/** What can be shown of a stored file inside the app, decided by the Pod. */
+export async function fetchFilePreview(cfg: GhostConfig, id: string): Promise<FilePreview> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/files/${encodeURIComponent(id)}/preview`,
+    { headers: headers(cfg) },
+    30000,
+  );
+  if (!res.ok) throw new Error(`Failed to load the file (HTTP ${res.status})`);
+  return (await res.json()) as FilePreview;
+}
+
+/** The original file, for the phone's own viewer or share sheet. */
+export async function fetchFileContent(
+  cfg: GhostConfig,
+  id: string,
+): Promise<{ name: string; mime: string; base64: string }> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/files/${encodeURIComponent(id)}/content`,
+    { headers: headers(cfg) },
+    120000,
+  );
+  if (!res.ok) throw new Error(`Failed to open the file (HTTP ${res.status})`);
+  const d = await res.json();
+  return { name: String(d?.name ?? "file"), mime: String(d?.mime ?? ""), base64: String(d?.base64 ?? "") };
+}

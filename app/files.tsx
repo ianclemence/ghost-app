@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { deleteFile, fetchFiles, type StoredFile } from "@/lib/ghostApi";
@@ -23,6 +24,7 @@ const KIND_WORD: Record<string, string> = {
  * file itself. Old files also leave on their own after the retention window.
  */
 export default function FilesScreen() {
+  const router = useRouter();
   const config = useGhostStore((s) => s.config);
   const [files, setFiles] = useState<StoredFile[] | null>(null);
   const [days, setDays] = useState(30);
@@ -89,12 +91,17 @@ export default function FilesScreen() {
             <View style={styles.card}>
               {files.map((f) => (
                 <View key={f.id} style={styles.item}>
-                  <View style={styles.itemText}>
+                  <Pressable
+                    style={styles.itemText}
+                    onPress={() => router.push({ pathname: "/file", params: { id: f.id, name: f.name } } as never)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${f.name}`}
+                  >
                     <Text style={styles.itemTitle} numberOfLines={1}>{f.name}</Text>
                     <Text style={styles.itemMeta}>
                       {[KIND_WORD[f.kind] ?? "File", fileSize(f.size), whenAgo(f.created_at)].filter(Boolean).join(" · ")}
                     </Text>
-                  </View>
+                  </Pressable>
                   {busy === f.id ? (
                     <ActivityIndicator size="small" color={Ghost.text.tertiary} />
                   ) : (
