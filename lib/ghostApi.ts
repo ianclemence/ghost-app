@@ -939,10 +939,10 @@ export async function fetchPendingApprovals(cfg: GhostConfig): Promise<PendingAp
   return Array.isArray(data?.requests) ? data.requests : [];
 }
 
-export type ApprovalGrant = "allow_once" | "allow_always" | "deny";
+export type ApprovalGrant = "allow_once" | "allow_task" | "allow_always" | "deny";
 
 export function isValidGrant(grant: string): grant is ApprovalGrant {
-  return grant === "allow_once" || grant === "allow_always" || grant === "deny";
+  return grant === "allow_once" || grant === "allow_task" || grant === "allow_always" || grant === "deny";
 }
 
 // The grant, phrased exactly the way the pending ask tells the owner to answer
@@ -959,6 +959,7 @@ export function isValidGrant(grant: string): grant is ApprovalGrant {
 // is a second way to answer, never a second way to authorize.
 const GRANT_PHRASE: Record<ApprovalGrant, string> = {
   allow_once: "allow once",
+  allow_task: "allow for 1 hour",
   allow_always: "always allow",
   deny: "deny",
 };
@@ -999,7 +1000,7 @@ export async function resolveApproval(
   // Funnel milestone: a standing grant is the moment Ghost stops asking.
   // Instrument at the one choke point so every grant path (permission
   // card, card actions) is counted exactly once.
-  if (grant === "allow_always") {
+  if (grant === "allow_always" || grant === "allow_task") {
     void recordMilestone("first_grant");
   }
   return { ok: true };
