@@ -2,7 +2,7 @@
 // and the AI models installed on it. The Pod is Ghost's local brain; the
 // phone is a window into it, so there is no second, weaker Ghost here.
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
@@ -12,6 +12,9 @@ import {
   checkHealthInfo,
   fetchDoctorStatus,
   fetchOllamaModels,
+  fetchPodUpdate,
+  startPodUpdate,
+  type PodUpdate,
   fetchStats,
   pullOllamaModel,
   switchModel,
@@ -45,6 +48,8 @@ export default function PodScreen() {
   const [installing, setInstalling] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [busyModel, setBusyModel] = useState<string | null>(null);
+  const [update, setUpdate] = useState<PodUpdate | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!config) return;
@@ -68,6 +73,54 @@ export default function PodScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadUpdate = useCallback(async () => {
+    if (!config) return;
+    setUpdate(await fetchPodUpdate(config).catch(() => null));
+  }, [config]);
+
+  useEffect(() => {
+    void loadUpdate();
+  }, [loadUpdate]);
+
+  // While an update runs the Pod restarts, so the check fails for a while and
+  // then succeeds on the new version; poll until it settles.
+  useEffect(() => {
+    if (!updating) return;
+    const t = setInterval(async () => {
+      if (!config) return;
+      const u = await fetchPodUpdate(config).catch(() => null);
+      if (u && !u.running) {
+        setUpdate(u);
+        setUpdating(false);
+        void load(true);
+      }
+    }, 6000);
+    return () => clearInterval(t);
+  }, [updating, config, load]);
+
+  const confirmUpdate = () => {
+    if (!config || !update?.available) return;
+    Alert.alert(
+      `Update to ${update.available}?`,
+      "Ghost restarts while it updates and is unavailable for a few minutes. Your memory and settings are kept.",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Update",
+          onPress: async () => {
+            try {
+              await startPodUpdate(config);
+              setUpdating(true);
+              setNote(null);
+            } catch (e) {
+              setNote(e instanceof Error ? e.message : "Couldn't start the update.");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const runDiagnostics = async () => {
     if (!config || diagRunning) return;
@@ -168,6 +221,30 @@ export default function PodScreen() {
                 if (rows.length === 0) return <Text style={styles.meta}>Your Pod didn&apos;t report its health details.</Text>;
                 return rows.map((r, i) => <Info key={r.label} label={r.label} value={r.value} dot={r.dot} last={i === rows.length - 1} />);
               })()}
+            </View>
+
+            <Text style={styles.group}>Updates</Text>
+            <View style={styles.card}>
+              {updating || update?.running ? (
+                <>
+                  <Text style={styles.cardTitle}>Updating your Pod</Text>
+                  <Text style={styles.meta}>Ghost restarts when it finishes. This page updates on its own.</Text>
+                  <ActivityIndicator color={Ghost.text.tertiary} />
+                </>
+              ) : update?.newer && update.available ? (
+                <>
+                  <Text style={styles.cardTitle}>{update.available} is available</Text>
+                  <Text style={styles.meta}>You have {update.installed}.</Text>
+                  {update.notes ? <Text style={styles.meta} numberOfLines={8}>{update.notes}</Text> : null}
+                  <GhostButton title="Update" onPress={confirmUpdate} />
+                </>
+              ) : update?.check_failed ? (
+                <Text style={styles.meta}>{update.check_failed}</Text>
+              ) : update ? (
+                <Text style={styles.meta}>Ghost is up to date ({update.installed}).</Text>
+              ) : (
+                <Text style={styles.meta}>Couldn&apos;t check for updates.</Text>
+              )}
             </View>
 
             <Text style={styles.group}>Needs attention</Text>

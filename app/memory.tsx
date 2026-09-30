@@ -121,13 +121,22 @@ export default function MemoryScreen() {
 // When and how firmly Ghost knows this: "Learned Sep 9", or
 // "Confirmed 4 times · last Jul 31" once the owner has repeated it.
 function memoryMeta(f: MemoryFact): string | undefined {
+  const parts: string[] = [];
+  if (f.about) parts.push(`About ${f.about}`);
   const n = f.reinforce_count ?? 0;
   if (n > 1) {
     const last = whenAgo(f.reinforced_at ?? f.created_at ?? null);
-    return last ? `Confirmed ${n} times · last ${last}` : `Confirmed ${n} times`;
+    parts.push(last ? `Confirmed ${n} times · last ${last}` : `Confirmed ${n} times`);
+  } else {
+    const learned = whenAgo(f.created_at ?? null);
+    if (learned) parts.push(`Learned ${learned}`);
   }
-  const learned = whenAgo(f.created_at ?? null);
-  return learned ? `Learned ${learned}` : undefined;
+  if (f.valid_until) {
+    const t = Date.parse(f.valid_until);
+    if (Number.isFinite(t)) parts.push(`until ${new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`);
+  }
+  if (f.sensitive) parts.push("Private");
+  return parts.length ? parts.join(" · ") : undefined;
 }
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {

@@ -8,6 +8,7 @@ import { GhostMark } from "@/components/ghost-mark";
 import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space, UI } from "@/constants/theme";
 import { ensureNotificationPermission } from "@/lib/notify";
+import { useGhostStore } from "@/lib/store";
 
 const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
@@ -31,7 +32,7 @@ export default function PairingSuccessScreen() {
       return;
     }
 
-    // Same shared ask as Mini-download setup: prompt once when undecided,
+    // Prompt once when undecided,
     // otherwise report the existing state. Unavailable (Expo Go, etc.)
     // skips straight through.
     setBusy(true);
@@ -43,6 +44,12 @@ export default function PairingSuccessScreen() {
     }
     setNotifStatus(result);
     setAskedNotifications(true);
+    // Now that the owner has decided, hand the Pod a push token so it can
+    // reach this phone when the app is closed.
+    if (result === "granted") {
+      const cfg = useGhostStore.getState().config;
+      if (cfg) void import("@/lib/push").then((m) => m.syncPushToken(cfg)).catch(() => {});
+    }
   };
 
   // After notifications handled, show the final state

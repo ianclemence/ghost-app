@@ -770,6 +770,12 @@ export interface MemoryFact {
   domain: string;
   domain_label: string;
   value: string;
+  /** Who this is about, when it is someone other than you. */
+  about?: string;
+  /** Private: health, money, legal. Handled with care. */
+  sensitive?: boolean;
+  /** When a dated or temporary memory stops being true. */
+  valid_until?: string | null;
   created_at?: string;
   reinforce_count?: number;
   reinforced_at?: string | null;
@@ -2120,4 +2126,54 @@ export async function fetchFileContent(
   if (!res.ok) throw new Error(`Failed to open the file (HTTP ${res.status})`);
   const d = await res.json();
   return { name: String(d?.name ?? "file"), mime: String(d?.mime ?? ""), base64: String(d?.base64 ?? "") };
+}
+
+// ─── Push ──────────────────────────────────────────────────────────────────
+
+/** Hand the Pod this phone's push token so it can notify when the app is closed. */
+export async function registerPushToken(cfg: GhostConfig, token: string, platform: string): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/push/register`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ token, platform }),
+  });
+  if (!res.ok) throw new Error(`Failed to register for notifications (HTTP ${res.status})`);
+}
+
+export async function unregisterPushToken(cfg: GhostConfig): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/push/register`, { method: "DELETE", headers: headers(cfg) });
+  if (!res.ok) throw new Error(`Failed to unregister (HTTP ${res.status})`);
+}
+
+// ─── Updates ───────────────────────────────────────────────────────────────
+// A paired phone can update its own Pod. The Pod installs only its own newer
+// release, and only after the owner confirms.
+
+export interface PodUpdate {
+  installed: string;
+  available?: string;
+  newer?: boolean;
+  notes?: string;
+  check_failed?: string;
+  running?: boolean;
+  success?: boolean;
+  log?: string;
+}
+
+export async function fetchPodUpdate(cfg: GhostConfig): Promise<PodUpdate> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/system/update`, { headers: headers(cfg) }, 20000);
+  if (!res.ok) throw new Error(`Failed to check for updates (HTTP ${res.status})`);
+  return (await res.json()) as PodUpdate;
+}
+
+export async function startPodUpdate(cfg: GhostConfig): Promise<void> {
+  const res = await fetch(`${baseURL(cfg)}/v1/system/update`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ confirm: true }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error?.message ?? `Couldn't start the update (HTTP ${res.status})`);
+  }
 }

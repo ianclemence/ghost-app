@@ -227,6 +227,8 @@ export async function initializeConnection(): Promise<void> {
   registerAuthFailureHandler();
   store.setConfig(config);
   store.setConnectionState("syncing");
+  // Silent: only registers when notifications were already allowed.
+  void import("./push").then((m) => m.syncPushToken(config)).catch(() => {});
 
   try {
     const health = await pollHealth(config);

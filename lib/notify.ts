@@ -46,9 +46,8 @@ export function notificationKeyFor(msg: WSMessage): string | null {
 }
 
 /**
- * The one shared notification-permission ask — used by pairing success and
- * Mini-download setup alike, so both flows behave identically. Only prompts
- * when undecided; otherwise reports the existing state. Needs a dev build;
+ * The one shared notification-permission ask, used by pairing success. Only
+ * prompts when undecided; otherwise reports the existing state. Needs a dev build;
  * Expo Go (and any runtime without the module) reports unavailable.
  */
 export async function ensureNotificationPermission(): Promise<"granted" | "denied" | "unavailable"> {
