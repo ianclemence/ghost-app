@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { ArrowDown, FileText, X } from "lucide-react-native";
@@ -15,7 +15,7 @@ import {
 } from "@/lib/attachments";
 import { readBase64 } from "@/lib/localFiles";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Ghost, Radius, shadowRGB, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
 import { ScreenBackground } from "@/components/screen-glow";
 import { PresenceHeader } from "@/components/presence-header";
@@ -46,7 +46,7 @@ import {
 } from "@/lib/ghostApi";
 import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
 import { dispatchMode } from "@/lib/dispatch";
-import { applyLiveEffect, liveEffect } from "@/lib/liveTurn";
+import { applyLiveEffect, applySay, liveEffect, sayEffect } from "@/lib/liveTurn";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
 import { parseCardMessage, type RichCard } from "@/lib/cards";
@@ -120,6 +120,7 @@ export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const ownRequestRef = useRef<string | null>(null);
+  const reduceMotion = useReducedMotion();
   const { config, messages, setMessages, appendMessage, removeMessage, updateMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
@@ -320,6 +321,18 @@ export default function ConversationScreen() {
     loadArtifacts();
     loadCards();
     const off = onWSMessage((msg) => {
+      // Ghost speaking first (a reminder, an alert, a routine's result): it
+      // joins the thread now, labelled, instead of waiting for a reload.
+      const say = sayEffect(msg, { session: MAIN_SESSION_ID });
+      if (say) {
+        applySay(say, { appendMessage: useGhostStore.getState().appendMessage });
+        fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+          .then(({ messages: h }) => {
+            if (!cancelled) setMessages(reconcileHistory(useGhostStore.getState().messages, h));
+          })
+          .catch(() => {});
+        return;
+      }
       // A reply that another surface started (a message sent from the terminal):
       // follow it live instead of finding it finished the next time we look.
       const live = liveEffect(msg, { session: MAIN_SESSION_ID, ownRequestId: ownRequestRef.current });
@@ -816,7 +829,7 @@ export default function ConversationScreen() {
       )}
       <Animated.View style={[styles.dock, dockPad]}>
         {awayFromLatest || unseen > 0 ? (
-          <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(160)} style={styles.jumpWrap} pointerEvents="box-none">
+          <Animated.View entering={reduceMotion ? undefined : FadeInDown.duration(200).springify().damping(18)} exiting={reduceMotion ? undefined : FadeOut.duration(140)} style={styles.jumpWrap} pointerEvents="box-none">
             <Pressable
               onPress={jumpToLatest}
               style={({ pressed }) => [styles.jump, pressed && { opacity: 0.7 }]}
@@ -995,7 +1008,7 @@ const styles = StyleSheet.create({
     backgroundColor: Ghost.bg.base,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.border.strong,
-    boxShadow: "0 4px 14px rgba(26, 22, 17, 0.10)",
+    boxShadow: `0 4px 14px rgba(${shadowRGB}, 0.12)`,
   },
   jumpText: {
     fontSize: 13,

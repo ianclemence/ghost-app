@@ -16,7 +16,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ghost, Fonts, Radius, Space, UI } from "@/constants/theme";
+import { alpha, Ghost, Fonts, Radius, Space, UI } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { GhostMark } from "@/components/ghost-mark";
 
@@ -115,7 +115,7 @@ export function GhostButton({
       border: "transparent",
     },
     danger: {
-      bg: "rgba(194,75,60,0.10)",
+      bg: alpha(Ghost.status.error, 0.12),
       fg: Ghost.status.error,
       border: "transparent",
     },

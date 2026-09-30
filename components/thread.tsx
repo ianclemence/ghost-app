@@ -14,6 +14,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
+import { AlarmClock, Info, Repeat, TriangleAlert } from "lucide-react-native";
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { MarkdownBubble } from "@/components/markdown-bubble";
 import { clockTime } from "@/lib/thread";
@@ -148,7 +149,9 @@ export const GhostMessage = memo(function GhostMessage({
   const empty = !message.content.trim();
   return (
     <Animated.View entering={enter(reduce, animate)} style={[styles.ghostRow, groupStart && styles.groupGap]}>
-      {showTime ? (
+      {message.kind ? (
+        <KindLabel kind={message.kind} time={showTime || message.kind !== undefined ? clockTime(message.timestamp) : null} />
+      ) : showTime ? (
         <View style={styles.eyebrow} accessible accessibilityLabel={outOfTurn ? `Ghost, on its own, at ${clockTime(message.timestamp)}` : clockTime(message.timestamp)}>
           {outOfTurn ? <EmberDot size={6} active={false} /> : null}
           <Text style={styles.meta}>{clockTime(message.timestamp)}</Text>
@@ -172,6 +175,37 @@ export const GhostMessage = memo(function GhostMessage({
     </Animated.View>
   );
 });
+
+const KINDS = {
+  reminder: { label: "Reminder", Icon: AlarmClock, tint: () => Ghost.accent.primary },
+  notice: { label: "Ghost noticed", Icon: Info, tint: () => Ghost.text.secondary },
+  alert: { label: "Needs you", Icon: TriangleAlert, tint: () => Ghost.emberDeep },
+  routine: { label: "Routine", Icon: Repeat, tint: () => Ghost.status.success },
+} as const;
+
+/**
+ * What Ghost started by itself, named above the message so a glance tells
+ * "Ghost answered me" from "Ghost is telling me something": a reminder, a
+ * notice, an alert, a routine's result. One quiet line, tinted; the message
+ * itself reads like any other.
+ */
+export function KindLabel({ kind, time }: { kind: keyof typeof KINDS; time: string | null }) {
+  const k = KINDS[kind];
+  if (!k) return null;
+  const tint = k.tint();
+  return (
+    <View
+      style={styles.eyebrow}
+      accessible
+      accessibilityRole="header"
+      accessibilityLabel={time ? `${k.label}, ${time}` : k.label}
+    >
+      <k.Icon size={13} color={tint} strokeWidth={2.2} />
+      <Text style={[styles.kindText, { color: tint }]}>{k.label}</Text>
+      {time ? <Text style={styles.meta}>{time}</Text> : null}
+    </View>
+  );
+}
 
 /** Presence while Ghost works: breathing ember + the runtime's phase. */
 export function Thinking({ phase, compact }: { phase: string | null; compact?: boolean }) {
@@ -201,6 +235,12 @@ const styles = StyleSheet.create({
   },
   groupGap: {
     marginTop: Space.lg,
+  },
+  kindText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   userRow: {
     alignItems: "flex-end",

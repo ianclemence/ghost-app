@@ -4,11 +4,16 @@ import { readBase64 } from "./localFiles";
 import { activityQuery } from "./activity";
 import { recordMilestone } from "./onboarding-metrics";
 
+/** What Ghost started on its own, as opposed to a reply: set on those messages only. */
+export type MessageKind = "reminder" | "notice" | "alert" | "routine";
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  /** Present when Ghost spoke first: a reminder, a notice, an alert or a routine. */
+  kind?: MessageKind;
   media_type?: string;
   media_url?: string;
   /** Files (not photos) sent with this message, shown as small chips. */

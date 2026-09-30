@@ -1,9 +1,15 @@
 import React from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet } from "react-native";
+import { alpha, Ghost, scheme } from "@/constants/theme";
+
+// A quiet glow drawn from the accent and faded into the canvas colour, so it is
+// cool in light and dark alike and never tints the page brown or tan.
+const GLOW = scheme === "dark" ? { a: 0.16, b: 0.05 } : { a: 0.09, b: 0.03 };
+const CLEAR = alpha(Ghost.bg.base, 0);
 
 /**
- * ScreenBackground — the warm amber wash that lives *behind* all content.
+ * ScreenBackground — the soft accent wash that lives *behind* all content.
  *
  * Design intent: a soft, low-opacity glow anchored to the lower corner,
  * fading to transparent toward the top so text contrast is never reduced.
@@ -18,7 +24,7 @@ export function ScreenBackground({ variant = "bottom" }: { variant?: "bottom" | 
   if (variant === "top") {
     return (
       <LinearGradient
-        colors={["rgba(255,180,92,0.18)", "rgba(255,196,120,0.06)", "rgba(250,250,247,0)"]}
+        colors={[alpha(Ghost.accent.primary, GLOW.a), alpha(Ghost.accent.primary, GLOW.b), CLEAR]}
         locations={[0, 0.5, 1]}
         start={{ x: 0.15, y: 0 }}
         end={{ x: 0.85, y: 1 }}
@@ -29,7 +35,7 @@ export function ScreenBackground({ variant = "bottom" }: { variant?: "bottom" | 
   }
   return (
     <LinearGradient
-      colors={["rgba(255,180,92,0.22)", "rgba(255,196,120,0.08)", "rgba(250,250,247,0)"]}
+      colors={[alpha(Ghost.accent.primary, GLOW.a), alpha(Ghost.accent.primary, GLOW.b), CLEAR]}
       locations={[0, 0.45, 1]}
       start={{ x: 0.12, y: 1 }}
       end={{ x: 0.88, y: 0 }}
@@ -47,7 +53,7 @@ export function ScreenBackground({ variant = "bottom" }: { variant?: "bottom" | 
 export function ScreenGlow() {
   return (
     <LinearGradient
-      colors={["rgba(255,190,90,0)", "rgba(255,190,90,0.20)"]}
+      colors={[alpha(Ghost.accent.primary, 0), alpha(Ghost.accent.primary, GLOW.a)]}
       style={styles.glow}
       pointerEvents="none"
     />

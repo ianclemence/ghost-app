@@ -28,7 +28,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
-import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Radius, shadowRGB, Space, Type } from "@/constants/theme";
 
 const AnimatedActionButton = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -144,6 +144,7 @@ export function Composer({
   streaming = false,
   onStop,
 }: ComposerProps) {
+  const reduceMotion = useReducedMotion();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [recording, setRecording] = useState(false);
   const [recordElapsed, setRecordElapsed] = useState(0);
@@ -357,7 +358,7 @@ export function Composer({
       {streaming && onStop ? (
         <View style={styles.trailingRow}>
           {canSend ? (
-            <Animated.View entering={FadeIn.duration(150)}>
+            <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(150)}>
               <ActionPressButton
                 style={styles.sendBtn}
                 accessibilityLabel="Send message. Joins the current turn"
@@ -367,7 +368,7 @@ export function Composer({
               </ActionPressButton>
             </Animated.View>
           ) : null}
-          <Animated.View entering={FadeIn.duration(150)}>
+          <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(150)}>
             <ActionPressButton
               style={styles.stopBtn}
               accessibilityLabel="Stop Ghost's response"
@@ -378,7 +379,7 @@ export function Composer({
           </Animated.View>
         </View>
       ) : showSend ? (
-        <Animated.View entering={FadeIn.duration(150)}>
+        <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(150)}>
           <ActionPressButton
             style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
             accessibilityLabel="Send message"
@@ -408,7 +409,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: Space.xs,
-    boxShadow: "0 4px 12px rgba(26, 22, 17, 0.08)",
+    boxShadow: `0 4px 12px rgba(${shadowRGB}, 0.10)`,
   },
   input: {
     ...Type.body,

@@ -6,7 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { Ghost, Space } from "@/constants/theme";
+import { alpha, Ghost, Space } from "@/constants/theme";
 
 const BARS = 24;
 
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     borderColor: Ghost.border.default,
   },
   orbSpeaking: {
-    backgroundColor: "rgba(255,180,92,0.22)",
+    backgroundColor: alpha(Ghost.ember, 0.22),
     borderColor: Ghost.ember,
   },
   orbCore: {

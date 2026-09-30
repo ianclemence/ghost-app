@@ -1,13 +1,17 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import Animated, { Easing, FadeInUp, useReducedMotion } from "react-native-reanimated";
-import { Ghost, Radius, Space } from "@/constants/theme";
+import Animated, { Easing, FadeInUp, FadeOut, LinearTransition, useReducedMotion } from "react-native-reanimated";
+import { Ghost, Radius, shadowRGB, Space } from "@/constants/theme";
 import { GhostButton } from "@/components/ghost";
 import { isValidGrant, resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
 import { riskCaution, riskNote } from "@/lib/permission-risk";
 
 const CARD_ENTER = FadeInUp.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
+// Answering a card should feel like putting it away, not like it blinked out:
+// a short fade that lets the items below slide up into its place.
+const CARD_EXIT = FadeOut.duration(180).easing(Easing.bezier(0.23, 1, 0.32, 1));
+const CARD_LAYOUT = LinearTransition.duration(220).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
 /**
  * A decision Ghost cannot make for you. Deterministic UI, not prose: the
@@ -56,6 +60,8 @@ export function PermissionCard({
   return (
     <Animated.View
       entering={reduceMotion ? undefined : CARD_ENTER}
+      exiting={reduceMotion ? undefined : CARD_EXIT}
+      layout={reduceMotion ? undefined : CARD_LAYOUT}
       style={[styles.card, caution ? styles.cardCaution : null]}
       accessibilityLabel={`Ghost is asking: ${title}`}
       accessibilityLiveRegion="polite"
@@ -109,7 +115,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.lg,
     paddingVertical: Space.md + 2,
     gap: 4,
-    boxShadow: "0 6px 20px rgba(26, 22, 17, 0.08)",
+    boxShadow: `0 6px 20px rgba(${shadowRGB}, 0.10)`,
   },
   cardCaution: {
     borderColor: Ghost.status.warning,

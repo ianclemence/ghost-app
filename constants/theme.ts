@@ -1,129 +1,123 @@
-import { Platform } from "react-native";
+import { Appearance, Platform } from "react-native";
 
 /**
- * Ghost Design System — Warm, quiet, premium, human.
+ * Ghost Design System: cool, quiet, confident.
  *
- * This replaces the terminal aesthetic with a calm, personal interface.
- * Light-first design. Monospace only for actual technical values.
+ * One palette in light and one in dark, chosen from the system setting when
+ * the app starts (the root layout reloads the app if the setting changes, so
+ * no screen is ever half one and half the other). Dark is true black. Nothing
+ * here is borrowed from anyone else's palette: neutral greys with a cool cast,
+ * one ink-blue accent, and amber as the single warm signal, used only when
+ * Ghost is working or needs the owner. Monospace only for technical values.
  */
 
-// ─── Colors ────────────────────────────────────────────────────────────────
+/** The scheme this run of the app uses. */
+export const scheme: "light" | "dark" = Appearance.getColorScheme() === "dark" ? "dark" : "light";
 
-export const Colors = {
-  light: {
-    text: "#1A1611",
-    background: "#FAFAF7",
-    tint: "#3d3b5c",
-    icon: "#6B6560",
-    tabIconDefault: "#9C9590",
-    tabIconSelected: "#3d3b5c",
-    border: "rgba(26,22,17,0.12)",
-    card: "#F5F3EE",
-    success: "#2d7a4a",
-    error: "#C24B3C",
-    warning: "#B07C2E",
-  },
-  dark: {
-    text: "#EFE9DF",
-    background: "#0E0C09",
-    tint: "#9b99c9",
-    icon: "#A79C8C",
-    tabIconDefault: "#6E665A",
-    tabIconSelected: "#9b99c9",
-    border: "#26201A",
-    card: "#17130E",
-    success: "#57b07a",
-    error: "#D4685A",
-    warning: "#D6A05A",
-  },
+// ─── Palettes ──────────────────────────────────────────────────────────────
+
+const lightPalette = {
+  bg: { base: "#F6F7F9", raised: "#FFFFFF", sunken: "#ECEEF2" },
+  text: { primary: "#0B0D12", secondary: "#4B505C", tertiary: "#6A6F7B", inverse: "#FFFFFF" },
+  accent: { primary: "#2C3AA8", soft: "rgba(44,58,168,0.08)", medium: "rgba(44,58,168,0.16)" },
+  status: { success: "#1F7A4D", warning: "#8A5A00", error: "#C0392B", info: "#1F5F99" },
+  border: { subtle: "rgba(8,10,16,0.06)", default: "rgba(8,10,16,0.12)", strong: "rgba(8,10,16,0.20)" },
+  bubble: { user: "#E6E8EE" },
+  ember: "#F5B942",
+  emberBright: "#F8CF72",
+  emberDeep: "#B8710A",
 };
+
+const darkPalette = {
+  bg: { base: "#000000", raised: "#0C0D10", sunken: "#060608" },
+  text: { primary: "#EDEDF0", secondary: "#B1B4BD", tertiary: "#868A94", inverse: "#05070D" },
+  accent: { primary: "#9FB0FF", soft: "rgba(159,176,255,0.13)", medium: "rgba(159,176,255,0.24)" },
+  status: { success: "#58C58F", warning: "#F0C25A", error: "#FF7A6B", info: "#7AB8EE" },
+  border: { subtle: "rgba(255,255,255,0.07)", default: "rgba(255,255,255,0.13)", strong: "rgba(255,255,255,0.22)" },
+  bubble: { user: "#1C1D22" },
+  ember: "#F5B942",
+  emberBright: "#F8CF72",
+  emberDeep: "#F5B942",
+};
+
+type Palette = typeof lightPalette;
+
+function tokens(p: Palette) {
+  return {
+    ...p,
+    // Backward compat aliases (for gradual migration)
+    background: p.bg.base,
+    card: p.bg.raised,
+    hairline: p.border.subtle,
+    hairlineStrong: p.border.default,
+  };
+}
+
+/** "#RRGGBB" with an opacity, as an rgba() string. */
+export function alpha(hex: string, a: number): string {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+/** The colour shadows are cast in: near-black ink in light, pure black in dark. */
+export const shadowRGB = scheme === "dark" ? "0, 0, 0" : "8, 10, 16";
 
 // ─── Ghost Tokens (canonical) ──────────────────────────────────────────────
 
-export const Ghost = {
-  // Canvas
-  bg: {
-    base: "#FAFAF7",
-    raised: "#F5F3EE",
-    sunken: "#EDEBE6",
-  },
+export const Ghost = tokens(scheme === "dark" ? darkPalette : lightPalette);
 
-  // Text
-  text: {
-    primary: "#1A1611",
-    secondary: "#6B6560",
-    tertiary: "#6F6A63",
-    inverse: "#FAFAF7",
+/** Navigation and tab colours for the same scheme. */
+export const Colors = {
+  light: {
+    text: lightPalette.text.primary,
+    background: lightPalette.bg.base,
+    tint: lightPalette.accent.primary,
+    icon: lightPalette.text.secondary,
+    tabIconDefault: lightPalette.text.tertiary,
+    tabIconSelected: lightPalette.accent.primary,
+    border: lightPalette.border.default,
+    card: lightPalette.bg.raised,
+    success: lightPalette.status.success,
+    error: lightPalette.status.error,
+    warning: lightPalette.status.warning,
   },
+  dark: {
+    text: darkPalette.text.primary,
+    background: darkPalette.bg.base,
+    tint: darkPalette.accent.primary,
+    icon: darkPalette.text.secondary,
+    tabIconDefault: darkPalette.text.tertiary,
+    tabIconSelected: darkPalette.accent.primary,
+    border: darkPalette.border.default,
+    card: darkPalette.bg.raised,
+    success: darkPalette.status.success,
+    error: darkPalette.status.error,
+    warning: darkPalette.status.warning,
+  },
+};
 
-  // Accent
-  accent: {
-    primary: "#3d3b5c",
-    soft: "rgba(61,59,92,0.10)",
-    medium: "rgba(61,59,92,0.18)",
-  },
-
-  // Status
-  status: {
-    success: "#2d7a4a",
-    warning: "#B07C2E",
-    error: "#C24B3C",
-    info: "#5A7A9A",
-  },
-
-  // Borders
-  border: {
-    subtle: "rgba(26,22,17,0.06)",
-    default: "rgba(26,22,17,0.12)",
-    strong: "rgba(26,22,17,0.20)",
-  },
-
-  // Bubbles
-  bubble: {
-    user: "#E4E2DC",
-  },
-
-  // Backward compat getters (for gradual migration)
-  get background() {
-    return this.bg.base;
-  },
-  get card() {
-    return this.bg.raised;
-  },
-  get hairline() {
-    return this.border.subtle;
-  },
-  get hairlineStrong() {
-    return this.border.default;
-  },
-
-  // Ember — Ghost's presence light (warm midnight accent)
-  ember: "#ffb45c",
-  emberBright: "#ffca8f",
-  emberDeep: "#d88a33",
-} as const;
-
-// ─── Midnight Tokens (warm dark conversation world) ────────────────────────
+// ─── Camera overlay tokens (always dark: they sit over the live camera) ────
 
 export const Midnight = {
-  bg: "#17130f",
-  bgSoft: "#1d1813",
-  surface: "#241e17",
-  surface2: "#2c251d",
-  surface3: "#352c22",
+  bg: "#000000",
+  bgSoft: "#08090B",
+  surface: "#0C0D10",
+  surface2: "#131418",
+  surface3: "#1B1C21",
 
-  ink: "#f1e9dc",
-  inkDim: "#c3b6a6",
-  muted: "#a3927f",
-  faint: "#7a6c5d",
+  ink: "#EDEDF0",
+  inkDim: "#B1B4BD",
+  muted: "#868A94",
+  faint: "#5C606A",
 
-  line: "rgba(240,233,223,0.07)",
-  lineStrong: "rgba(240,233,223,0.14)",
+  line: "rgba(255,255,255,0.07)",
+  lineStrong: "rgba(255,255,255,0.14)",
 
-  ok: "#86b28f",
-  clay: "#e08667",
-  clayDeep: "#a64f36",
-  warn: "#e8c06a",
+  ok: "#58C58F",
+  clay: "#FF7A6B",
+  clayDeep: "#C0392B",
+  warn: "#F0C25A",
 } as const;
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────

@@ -1,4 +1,7 @@
 import { useEffect } from 'react';
+import { Appearance } from 'react-native';
+import * as Updates from 'expo-updates';
+import { Ghost, scheme } from '../constants/theme';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -25,6 +28,19 @@ const notifiedEventIds = new Set<string>();
 
 export default function RootLayout() {
   const router = useRouter();
+
+  // The palette is chosen when the app starts. If the phone's light/dark
+  // setting changes while the app is open, restart cleanly into the other one
+  // rather than leave some screens in each.
+  useEffect(() => {
+    const sub = Appearance.addChangeListener(({ colorScheme }) => {
+      const next = colorScheme === 'dark' ? 'dark' : 'light';
+      if (next !== scheme) {
+        Updates.reloadAsync().catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -160,8 +176,8 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Ghost.bg.base } }}>
         {/* Tabs — main app */}
         <Stack.Screen name="(tabs)" />
 

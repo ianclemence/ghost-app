@@ -127,7 +127,7 @@ export default function QrScannerScreen() {
 
   const cornerColor = invalidFlash.interpolate({
     inputRange: [0, 1],
-    outputRange: ["rgba(250,250,247,0.8)", Ghost.status.error],
+    outputRange: ["rgba(237,237,240,0.8)", Ghost.status.error],
   });
 
   // Loading
@@ -201,9 +201,9 @@ export default function QrScannerScreen() {
                 <LinearGradient
                   colors={[
                     "transparent",
-                    "rgba(250,250,247,0.4)",
-                    "rgba(250,250,247,0.6)",
-                    "rgba(250,250,247,0.4)",
+                    "rgba(237,237,240,0.4)",
+                    "rgba(237,237,240,0.6)",
+                    "rgba(237,237,240,0.4)",
                     "transparent",
                   ]}
                   start={{ x: 0, y: 0 }}
@@ -238,7 +238,7 @@ export default function QrScannerScreen() {
       <View
         style={[styles.headerOverlay, { paddingTop: insets.top + Space.lg }]}
       >
-        <GhostMark size={24} color="rgba(250,250,247,0.7)" />
+        <GhostMark size={24} color="rgba(237,237,240,0.7)" />
         <Text style={styles.headerTitle}>Scan your Ghost Pod</Text>
         <Text style={styles.headerHint}>
           Center the QR code in the frame
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   },
   maskTop: {
     flex: 1,
-    backgroundColor: "rgba(23,19,15,0.65)",
+    backgroundColor: "rgba(0,0,0,0.65)",
   },
   maskMiddle: {
     flexDirection: "row",
@@ -305,11 +305,11 @@ const styles = StyleSheet.create({
   },
   maskSide: {
     flex: 1,
-    backgroundColor: "rgba(23,19,15,0.65)",
+    backgroundColor: "rgba(0,0,0,0.65)",
   },
   maskBottom: {
     flex: 1,
-    backgroundColor: "rgba(23,19,15,0.65)",
+    backgroundColor: "rgba(0,0,0,0.65)",
   },
 
   // ─── Scan Window ─────────────────────────────────────────────────────────
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   },
   headerHint: {
     ...Type.subhead,
-    color: "rgba(250,250,247,0.55)",
+    color: "rgba(237,237,240,0.55)",
   },
 
   bottomOverlay: {
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   },
   invalidText: {
     ...Type.subhead,
-    color: "rgba(250,250,247,0.7)",
+    color: "rgba(237,237,240,0.7)",
     fontWeight: "500",
   },
   loadingRow: {
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     ...Type.subhead,
-    color: "rgba(250,250,247,0.8)",
+    color: "rgba(237,237,240,0.8)",
     fontWeight: "500",
   },
   cancelButton: {
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     ...Type.callout,
-    color: "rgba(250,250,247,0.55)",
+    color: "rgba(237,237,240,0.55)",
   },
 
   // ─── Permission Denied ───────────────────────────────────────────────────
