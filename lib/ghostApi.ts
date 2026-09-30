@@ -181,7 +181,8 @@ export function baseURL(cfg: GhostConfig): string {
   return `http://${normalizeHost(cfg.piHost)}:${normalizePort(cfg.piPort)}`;
 }
 
-function wsURL(cfg: GhostConfig): string {
+/** The WebSocket base address for this Pod (direct, or through the relay). */
+export function wsURL(cfg: GhostConfig): string {
   if (resolveTransport(cfg) === "relay" && cfg.relayServer) {
     return cfg.relayServer.replace(/^http/i, "ws").replace(/\/+$/, "");
   }
@@ -1692,6 +1693,35 @@ async function postSurfaceAction(
     return { ok: true, surface: (data?.surface as LiveSurface | undefined) ?? null };
   } catch (e: unknown) {
     return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+/**
+ * A one-time ticket for the live view of Ghost's browser. The ticket is the
+ * socket's authorization (a phone's WebSocket can't set headers), lasts a
+ * minute and works once. Input sent on it reaches the page only while the owner
+ * holds a takeover.
+ */
+export async function mintBrowserScreencast(
+  cfg: GhostConfig,
+  sessionId: string,
+): Promise<{ ok: true; wsPath: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/browser/screencast`,
+      { method: "POST", headers: headers(cfg), body: JSON.stringify({ session_id: sessionId }) },
+      12000,
+    );
+    const body = await res.json().catch(() => null);
+    if (res.status === 501) {
+      return { ok: false, error: "Live view isn't available for this browser. The still picture on the card still works." };
+    }
+    if (!res.ok || !body?.ws_path) {
+      return { ok: false, error: body?.error?.message ?? "Couldn't open the live view." };
+    }
+    return { ok: true, wsPath: String(body.ws_path) };
+  } catch {
+    return { ok: false, error: "Couldn't reach your Pod." };
   }
 }
 
