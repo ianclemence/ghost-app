@@ -7,19 +7,21 @@
  * - fence: Mermaid diagrams render as diagrams; all other code gets a
  *   language label, a copy button, and horizontal scroll.
  * - code_block (indented): same treatment without a language label.
- * - table: wrapped in a horizontal ScrollView so wide tables scroll
- *   instead of squeezing or clipping the chat layout.
+ * - table: columns sized to their content, sideways scroll for wide
+ *   ones, and a full-screen view (see md-table).
  * - text: GFM task markers (`- [ ]` / `- [x]`) at the start of a list
  *   item render as an accessible checkbox glyph + remainder text.
  * - image: https-only sources with loading, failure, and tap-to-view
  *   states; anything else degrades to its alt text.
  */
 import React from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { hasParents } from "react-native-markdown-display";
 import { Ghost } from "@/constants/theme";
 import { CodeBlock } from "@/components/code-block";
 import { ChatImage } from "@/components/chat-image";
+import { MdCell, MdRow, MdTable } from "@/components/md-table";
+import { measureTable, tableRows, type TableModel, type TableNode } from "@/lib/tables";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
 import { isMermaidLanguage } from "@/lib/mermaid";
 import { isSafeImageUrl } from "@/lib/link-policy";
@@ -76,17 +78,54 @@ function textRule(node: ASTNode, children: React.ReactNode[], parents: ASTNode[]
   );
 }
 
-function tableRule(node: ASTNode, children: React.ReactNode[], _parents: ASTNode[], styles: any) {
+const tableModels = new WeakMap<object, TableModel>();
+function modelFor(table: ASTNode): TableModel {
+  let m = tableModels.get(table);
+  if (!m) {
+    m = measureTable(tableRows(table as TableNode));
+    tableModels.set(table, m);
+  }
+  return m;
+}
+
+const isType = (n: ASTNode | undefined, t: string) => n?.type === t;
+
+function tableRule(node: ASTNode, children: React.ReactNode[]) {
   return (
-    <ScrollView
-      key={node.key}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      accessibilityLabel="Data table. Scroll sideways for more columns."
-    >
-      <View style={styles._VIEW_SAFE_table}>{children}</View>
-    </ScrollView>
+    <MdTable key={node.key} model={modelFor(node)}>
+      {children}
+    </MdTable>
   );
+}
+
+function trRule(node: ASTNode, children: React.ReactNode[], parents: ASTNode[]) {
+  const header = parents.some((p) => isType(p, "thead"));
+  const body = parents.find((p) => isType(p, "tbody"));
+  const last = !!body && body.children?.[body.children.length - 1] === node;
+  return (
+    <MdRow key={node.key} header={header} last={last}>
+      {children}
+    </MdRow>
+  );
+}
+
+function cellRule(header: boolean) {
+  const rule = (node: ASTNode, children: React.ReactNode[]) => (
+    <MdCell key={node.key} column={node.index} header={header}>
+      <Text
+        style={{
+          color: header ? Ghost.text.secondary : Ghost.text.primary,
+          fontSize: header ? 12.5 : 14.5,
+          lineHeight: header ? 17 : 20,
+          fontWeight: header ? "600" : node.index === 0 ? "600" : "400",
+          letterSpacing: header ? 0.1 : 0,
+        }}
+      >
+        {children}
+      </Text>
+    </MdCell>
+  );
+  return rule;
 }
 
 function imageRule(node: ASTNode) {
@@ -108,6 +147,11 @@ export const markdownRules = {
     <CodeBlock key={node.key} language="" code={trimTrailingNewline(node.content ?? "")} />
   ),
   table: tableRule,
+  thead: (node: ASTNode, children: React.ReactNode[]) => <View key={node.key}>{children}</View>,
+  tbody: (node: ASTNode, children: React.ReactNode[]) => <View key={node.key}>{children}</View>,
+  tr: trRule,
+  th: cellRule(true),
+  td: cellRule(false),
   text: textRule,
   image: imageRule,
 };

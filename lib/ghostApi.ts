@@ -1312,6 +1312,73 @@ export async function connectConnectedApp(
   return { note: app?.status === "unverified" && app?.note ? String(app.note) : null };
 }
 
+// ─── Signing in to Google, Microsoft and Spotify ───────────────────────────
+// These apps only let an app the owner has registered with them sign in. The
+// Pod walks the owner through it: keep their app's ID and secret (sealed), hand
+// back the provider's sign-in address, then finish from the address the browser
+// ended on.
+
+export interface OAuthSetupInfo {
+  name: string;
+  configured: boolean;
+  /** The redirect address to register with the provider. */
+  redirect: string;
+  steps: string[];
+  consoleUrl: string;
+  needsTenant: boolean;
+  provider: string;
+}
+
+async function oauthCall(cfg: GhostConfig, id: string, step: string, method: "GET" | "POST", body?: unknown) {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/connected-apps/${encodeURIComponent(id)}/oauth${step ? `/${step}` : ""}`,
+    { method, headers: headers(cfg), ...(body === undefined ? {} : { body: JSON.stringify(body) }) },
+    20000,
+  );
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error?.message ?? data?.error ?? `That didn't work (HTTP ${res.status})`);
+  return data;
+}
+
+export async function fetchOAuthSetup(cfg: GhostConfig, id: string): Promise<OAuthSetupInfo> {
+  const d = await oauthCall(cfg, id, "", "GET");
+  return {
+    name: String(d.name ?? id),
+    configured: d.configured === true,
+    redirect: String(d.redirect ?? ""),
+    steps: Array.isArray(d.steps) ? d.steps.map(String) : [],
+    consoleUrl: String(d.console_url ?? ""),
+    needsTenant: d.needs_tenant === true,
+    provider: String(d.provider ?? ""),
+  };
+}
+
+export async function saveOAuthSetup(
+  cfg: GhostConfig,
+  id: string,
+  v: { clientId: string; clientSecret: string; tenant?: string },
+): Promise<void> {
+  await oauthCall(cfg, id, "setup", "POST", { client_id: v.clientId, client_secret: v.clientSecret, tenant: v.tenant ?? "" });
+}
+
+/** The address to open in the browser, or null when setup comes first. */
+export async function startOAuth(cfg: GhostConfig, id: string): Promise<{ authUrl: string | null }> {
+  const d = await oauthCall(cfg, id, "start", "POST", {});
+  return { authUrl: d.status === "needs_authorization" && d.auth_url ? String(d.auth_url) : null };
+}
+
+/** Finish from the address the browser ended on. The Pod says why, in words, if it can't. */
+export async function finishOAuth(cfg: GhostConfig, id: string, address: string): Promise<{ ok: boolean; message: string }> {
+  const d = await oauthCall(cfg, id, "paste", "POST", { url: address });
+  return { ok: d.ok === true, message: String(d.ok ? d.message ?? "Connected." : d.error ?? "That didn't work. Try again.") };
+}
+
+/** Whether a pasted or copied string looks like a finished sign-in address. */
+export function looksLikeSignInAddress(text: string): boolean {
+  const t = text.trim();
+  return /[?&]code=[^&\s]+/.test(t) && /[?&]state=[^&\s]+/.test(t);
+}
+
 export async function disconnectConnectedApp(cfg: GhostConfig, id: string): Promise<void> {
   const res = await fetchWithTimeout(
     `${baseURL(cfg)}/v1/connected-apps/${encodeURIComponent(id)}/disconnect`,

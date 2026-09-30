@@ -1,16 +1,12 @@
 import { useState } from "react";
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-} from "react-native";
+import { View, StyleSheet, KeyboardAvoidingView } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton, GhostInput } from "@/components/ghost";
 import { Ghost, Space, UI } from "@/constants/theme";
 import { startPairing } from "@/lib/connection";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 /**
  * Parse a ghost://pair?… or ghost://connect?… link and pull out the fields
@@ -90,7 +86,7 @@ export default function ManualScreen() {
       style={{ flex: 1 }}
       behavior={process.env.EXPO_OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView
+      <EdgeScrollView
         style={{ flex: 1, backgroundColor: Ghost.bg.base }}
         contentContainerStyle={[styles.container, { paddingTop: insets.top + UI.modal.bottom, paddingBottom: insets.bottom + UI.modal.bottom }]}
         keyboardShouldPersistTaps="handled"
@@ -154,7 +150,7 @@ export default function ManualScreen() {
             fullWidth
           />
         </View>
-      </ScrollView>
+      </EdgeScrollView>
     </KeyboardAvoidingView>
   );
 }

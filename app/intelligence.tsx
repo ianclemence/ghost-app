@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ghost, Space, Type } from "@/constants/theme";
@@ -22,6 +22,7 @@ import {
   type RoutingPrefs,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 // Provider display names, ported from the web console's modelFriendly map.
 const PROVIDER_NAMES: Record<string, string> = {
@@ -315,7 +316,7 @@ export default function IntelligenceScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView
+        <EdgeScrollView
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.primary} />}
@@ -464,7 +465,7 @@ export default function IntelligenceScreen() {
               style={{ alignSelf: "center" }}
             />
           </View>
-        </ScrollView>
+        </EdgeScrollView>
       )}
       <GhostSheet
         visible={selected !== null}

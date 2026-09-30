@@ -1,4 +1,4 @@
-import { View, StyleSheet, ScrollView, Linking, TouchableOpacity } from "react-native";
+import { View, StyleSheet, Linking, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import Constants from "expo-constants";
@@ -7,6 +7,7 @@ import { ScreenHeader } from "@/components/screen-header";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostMark } from "@/components/ghost-mark";
 import { useGhostStore } from "@/lib/store";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
@@ -17,7 +18,7 @@ export default function AboutScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: Ghost.bg.base }}>
     <ScreenHeader title="About" />
-    <ScrollView
+    <EdgeScrollView
       style={{ flex: 1 }}
       contentContainerStyle={[styles.container, { paddingTop: Space.md, paddingBottom: insets.bottom + Space.huge }]}
     >
@@ -101,7 +102,7 @@ export default function AboutScreen() {
       <GhostText type="caption" style={styles.license}>
         Ghost Mobile v{appVersion} · Open source under the MIT License.
       </GhostText>
-    </ScrollView>
+    </EdgeScrollView>
     </View>
   );
 }
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
   },
   brand: {
     alignItems: "center",
-    paddingVertical: Space.xxxl,
+    paddingVertical: Space.xl,
     gap: Space.sm,
   },
   brandTagline: {
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
   license: {
     color: Ghost.text.tertiary,
     textAlign: "center",
-    marginTop: Space.xxxl,
+    marginTop: Space.xxl,
     paddingBottom: Space.xl,
   },
 });

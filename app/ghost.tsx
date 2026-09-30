@@ -2,7 +2,7 @@
 // and the AI models installed on it. The Pod is Ghost's local brain; the
 // phone is a window into it, so there is no second, weaker Ghost here.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
@@ -23,6 +23,7 @@ import {
   type PiStats,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 function fmtBytes(n?: number): string {
   if (!n) return "0 B";
@@ -186,7 +187,7 @@ export default function PodScreen() {
         title="Your Pod"
         subtitle={connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"}
       />
-      <ScrollView
+      <EdgeScrollView
         contentContainerStyle={styles.body}
         refreshControl={
           <RefreshControl
@@ -336,7 +337,7 @@ export default function PodScreen() {
           </View>
           {note ? <Text style={styles.meta} accessibilityLiveRegion="polite">{note}</Text> : null}
         </View>
-      </ScrollView>
+      </EdgeScrollView>
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ghost, Radius, Space } from "@/constants/theme";
@@ -25,6 +25,7 @@ import {
   type StreamInput,
 } from "@/lib/browserInput";
 import { MAIN_SESSION_ID, useGhostStore } from "@/lib/store";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 /**
  * Steer Ghost's browser. For the steps only a person can do: a "Verify you are
@@ -146,7 +147,7 @@ export default function BrowserScreen() {
         subtitle={state === "live" ? "You have control. Ghost is paused." : undefined}
         variant="close"
       />
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <EdgeScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {state === "starting" ? (
           <View style={styles.center}>
             <ActivityIndicator color={Ghost.text.tertiary} />
@@ -217,7 +218,7 @@ export default function BrowserScreen() {
             </Pressable>
           </>
         )}
-      </ScrollView>
+      </EdgeScrollView>
     </View>
   );
 }

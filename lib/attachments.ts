@@ -1,4 +1,4 @@
-// What the owner can send with a message: photos and files, up to a few at a
+// What the owner can send with a message: photos and files, up to ten at a
 // time. The Pod detects each file's real type; the phone only enforces the
 // limits the Pod would enforce anyway, so an oversize file fails here, at the
 // picker, instead of after a long upload.
@@ -14,7 +14,9 @@ export type Attachment = {
 
 /** Must match the Pod's uploads.MaxBytes. */
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
-export const MAX_ATTACHMENTS = 4;
+export const MAX_ATTACHMENTS = 10;
+/** Everything in one message. The Pod accepts a little more; this keeps an upload quick. */
+export const MAX_TOTAL_BYTES = 60 * 1024 * 1024;
 
 /** "1.4 MB", "320 KB", "88 B". */
 export function fileSize(bytes: number): string {
@@ -27,11 +29,15 @@ export function fileSize(bytes: number): string {
 export function attachmentProblem(
   size: number | undefined,
   count: number,
+  usedBytes = 0,
 ): string | null {
   if (count >= MAX_ATTACHMENTS) return `You can attach up to ${MAX_ATTACHMENTS} files at a time.`;
   if (size === 0) return "That file is empty.";
   if (size && size > MAX_ATTACHMENT_BYTES) {
     return `That file is ${fileSize(size)}. The limit is ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`;
+  }
+  if (size && usedBytes + size > MAX_TOTAL_BYTES) {
+    return `That would make this message ${fileSize(usedBytes + size)}. Send the rest in another message; the limit is ${MAX_TOTAL_BYTES / (1024 * 1024)} MB together.`;
   }
   return null;
 }

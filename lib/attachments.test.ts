@@ -21,6 +21,10 @@ describe("attachments", () => {
     expect(attachmentProblem(0, 0)).toBe("That file is empty.");
     expect(attachmentProblem(MAX_ATTACHMENT_BYTES + 1, 0)).toContain("The limit is 25 MB");
     expect(attachmentProblem(1024, MAX_ATTACHMENTS)).toContain(`up to ${MAX_ATTACHMENTS}`);
+    expect(MAX_ATTACHMENTS).toBe(10);
+    // Ten big files together are too much for one message, even if each is fine.
+    expect(attachmentProblem(20 * 1024 * 1024, 3, 45 * 1024 * 1024)).toContain("Send the rest in another message");
+    expect(attachmentProblem(20 * 1024 * 1024, 2, 20 * 1024 * 1024)).toBeNull();
   });
 
   test("the wire shape carries name and type so the Pod can identify the file", () => {

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import { ArrowDown, FileText, X } from "lucide-react-native";
+import { ArrowDown, ArrowUpRight, FileText } from "lucide-react-native";
 import {
   attachmentProblem,
   base64Bytes,
@@ -17,6 +17,8 @@ import { readBase64 } from "@/lib/localFiles";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
 import { Ghost, Radius, shadowRGB, Space } from "@/constants/theme";
 import { Composer } from "@/components/composer";
+import { AttachmentStrip } from "@/components/attachment-strip";
+import { EdgeTarget, TopEdge, useScrollEdge } from "@/components/scroll-edge";
 import { ScreenBackground } from "@/components/screen-glow";
 import { PresenceHeader } from "@/components/presence-header";
 import { DaySeparator, GhostMessage, UserMessage } from "@/components/thread";
@@ -619,7 +621,7 @@ export default function ConversationScreen() {
     let next = attachments;
     for (const a of res.assets ?? []) {
       if (!a.base64) continue;
-      const problem = attachmentProblem(base64Bytes(a.base64), next.length);
+      const problem = attachmentProblem(base64Bytes(a.base64), next.length, next.reduce((n, x) => n + x.size, 0));
       if (problem) {
         setSendError(problem);
         break;
@@ -639,7 +641,7 @@ export default function ConversationScreen() {
     if (!res || res.canceled) return;
     let next = attachments;
     for (const a of res.assets ?? []) {
-      const problem = attachmentProblem(a.size, next.length);
+      const problem = attachmentProblem(a.size, next.length, next.reduce((n, x) => n + x.size, 0));
       if (problem) {
         setSendError(problem);
         break;
@@ -720,6 +722,7 @@ export default function ConversationScreen() {
     approvalsWaiting: approvals.length,
     keeping,
   });
+  const edge = useScrollEdge();
   const starters = conversationStarters({ pod: paired });
   const ready = paired;
   const podOnline = paired && connectionState === "online";
@@ -747,10 +750,8 @@ export default function ConversationScreen() {
         <View style={styles.empty}>
           {ready ? (
             <>
-              <Text style={styles.emptyTitle}>What can I take off your plate?</Text>
-              <Text style={styles.emptySub}>
-                Tell me anything. I remember, keep watch, and ask before I act for you.
-              </Text>
+              <Text style={styles.emptyTitle}>{greeting()}</Text>
+              <Text style={styles.emptySub}>Ask, tell, or hand something off.</Text>
               <View style={styles.starters}>
                 {starters.map((st) => (
                   <Pressable
@@ -761,6 +762,7 @@ export default function ConversationScreen() {
                     accessibilityHint="Puts this in the message box"
                   >
                     <Text style={styles.starterText}>{st.label}</Text>
+                    <ArrowUpRight size={16} color={Ghost.text.tertiary} />
                   </Pressable>
                 ))}
               </View>
@@ -783,6 +785,8 @@ export default function ConversationScreen() {
           )}
         </View>
       ) : (
+        <View style={styles.listWrap}>
+        <EdgeTarget targetRef={edge.target}>
         <FlatList
           ref={listRef}
           data={thread}
@@ -821,11 +825,15 @@ export default function ConversationScreen() {
             const sc = contentOffset.y > 4;
             if (sc !== scrolled) setScrolled(sc);
             if (contentOffset.y < 160) void loadEarlier();
+            edge.y.set(contentOffset.y);
           }}
           onContentSizeChange={() => {
             if (nearBottom.current) listRef.current?.scrollToEnd({ animated: true });
           }}
         />
+        </EdgeTarget>
+        <TopEdge y={edge.y} blurTarget={edge.target} />
+        </View>
       )}
       <Animated.View style={[styles.dock, dockPad]}>
         {awayFromLatest || unseen > 0 ? (
@@ -876,29 +884,12 @@ export default function ConversationScreen() {
         {cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{cancelLine}</Text> : null}
         {statusLine && !clarify && !cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{statusLine}</Text> : null}
         {sendError ? <Text style={styles.error} accessibilityLiveRegion="polite">{sendError}</Text> : null}
-        {attachments.length > 0 ? (
-          <View style={styles.chipRow}>
-            {attachments.map((a, i) => (
-              <View key={`${a.uri}-${i}`} style={styles.photoChip}>
-                {a.kind === "image" ? (
-                  <Image source={{ uri: a.uri }} style={styles.photoThumb} accessibilityLabel={`Attached photo ${a.name}`} />
-                ) : (
-                  <View style={[styles.photoThumb, styles.fileThumb]}><FileText size={16} color={Ghost.text.secondary} /></View>
-                )}
-                <Text style={styles.photoText} numberOfLines={1}>{a.kind === "image" ? a.name : `${a.name} · ${fileSize(a.size)}`}</Text>
-                <Pressable onPress={() => setAttachments((l) => l.filter((_, j) => j !== i))} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ${a.name}`}>
-                  <X size={16} color={Ghost.text.secondary} />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        ) : null}
+        <AttachmentStrip items={attachments} onRemove={(i) => setAttachments((l) => l.filter((_, j) => j !== i))} />
         <Composer
           value={draft}
           onChangeText={setDraft}
           onSubmit={send}
-          placeholder="Message Ghost"
-          minimal
+          placeholder={podOnline ? undefined : "Sends when your Pod is back"}
           // Photos and files go to the Pod, which identifies and reads them.
           onPhoto={podOnline ? () => void attachPhoto() : undefined}
           onFile={podOnline ? () => void attachFile() : undefined}
@@ -923,6 +914,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Ghost.bg.base,
+  },
+  listWrap: {
+    flex: 1,
   },
   list: {
     flex: 1,
@@ -954,36 +948,36 @@ const styles = StyleSheet.create({
     gap: Space.sm,
   },
   emptyTitle: {
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 28,
+    lineHeight: 34,
     fontWeight: "600",
-    letterSpacing: -0.3,
+    letterSpacing: -0.6,
     color: Ghost.text.primary,
   },
   emptySub: {
     fontSize: 16,
-    lineHeight: 23,
-    color: Ghost.text.secondary,
+    lineHeight: 22,
+    color: Ghost.text.tertiary,
   },
   starters: {
-    marginTop: Space.lg,
-    gap: Space.sm,
-    alignItems: "flex-start",
+    marginTop: Space.xxl,
+    alignSelf: "stretch",
   },
   starter: {
-    borderRadius: Radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.strong,
-    paddingHorizontal: Space.lg,
-    paddingVertical: 11,
-    minHeight: 44,
-    justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Space.md,
+    minHeight: 50,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Ghost.border.default,
   },
   starterPressed: {
-    backgroundColor: Ghost.bg.raised,
+    opacity: 0.5,
   },
   starterText: {
-    fontSize: 15,
+    flex: 1,
+    fontSize: 15.5,
     color: Ghost.text.primary,
   },
   dock: {
@@ -1097,3 +1091,12 @@ const styles = StyleSheet.create({
     color: Ghost.text.secondary,
   },
 });
+
+/** A greeting for the time of day. */
+function greeting(now = new Date()): string {
+  const h = now.getHours();
+  if (h < 5) return "Still up?";
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}

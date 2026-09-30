@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
 import { Ghost, Space } from "@/constants/theme";
@@ -16,6 +16,7 @@ import {
 import { proactiveLine } from "@/lib/proactive";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo, whenAhead } from "@/lib/when";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 /**
  * Ghost, opened up. Everything here is runtime state read just now — what
@@ -61,7 +62,7 @@ export default function PanelScreen() {
   return (
     <View style={styles.container}>
       <ScreenHeader title="Ghost" subtitle={where} variant="close" />
-      <ScrollView
+      <EdgeScrollView
         contentContainerStyle={styles.content}
         refreshControl={
           config ? (
@@ -145,7 +146,7 @@ export default function PanelScreen() {
           {!config ? <Row title="Connect your Pod" onPress={() => router.push("/connect" as never)} /> : null}
           <Row title="About" onPress={() => router.push("/about" as never)} />
         </Section>
-      </ScrollView>
+      </EdgeScrollView>
     </View>
   );
 }

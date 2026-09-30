@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
@@ -8,6 +8,7 @@ import { deleteFile, fetchFiles, type StoredFile } from "@/lib/ghostApi";
 import { fileSize } from "@/lib/attachments";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo } from "@/lib/when";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 const KIND_WORD: Record<string, string> = {
   image: "Photo",
@@ -80,7 +81,7 @@ export default function FilesScreen() {
       ) : !files && !error ? (
         <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} />
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+        <EdgeScrollView contentContainerStyle={styles.content}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {files && files.length === 0 ? (
             <Text style={styles.empty}>
@@ -113,7 +114,7 @@ export default function FilesScreen() {
               ))}
             </View>
           ) : null}
-        </ScrollView>
+        </EdgeScrollView>
       )}
     </View>
   );

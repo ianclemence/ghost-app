@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import Markdown, { MarkdownIt } from "react-native-markdown-display";
-import { Ghost, Type } from "@/constants/theme";
+import { StyleSheet } from "react-native";
+import { Fonts, Ghost, Type } from "@/constants/theme";
 import { prepareStreamingMarkdown } from "@/lib/streaming";
 import { openExternalUrl } from "@/lib/links";
 import { markdownRules } from "@/components/markdown-rules";
@@ -19,54 +20,61 @@ const markdownIt = MarkdownIt({
   html: false,
 });
 
+// Quiet typography: one ink colour, weight and space doing the hierarchy, and
+// the accent kept for things you can tap.
 const markdownStyle = {
   body: {
     color: Ghost.text.primary,
     ...Type.body,
   },
   heading1: {
-    color: Ghost.accent.primary,
-    fontSize: 21,
+    color: Ghost.text.primary,
+    fontSize: 22,
     lineHeight: 28,
     fontWeight: "700" as const,
-    marginTop: 10,
-    marginBottom: 4,
+    letterSpacing: -0.35,
+    marginTop: 18,
+    marginBottom: 6,
   },
   heading2: {
-    color: Ghost.accent.primary,
-    fontSize: 18,
-    lineHeight: 25,
-    fontWeight: "700" as const,
-    marginTop: 8,
-    marginBottom: 3,
+    color: Ghost.text.primary,
+    fontSize: 19,
+    lineHeight: 26,
+    fontWeight: "600" as const,
+    letterSpacing: -0.25,
+    marginTop: 16,
+    marginBottom: 5,
   },
   heading3: {
-    color: Ghost.accent.primary,
-    fontSize: 16,
+    color: Ghost.text.primary,
+    fontSize: 16.5,
     lineHeight: 23,
     fontWeight: "600" as const,
-    marginTop: 6,
-    marginBottom: 2,
+    letterSpacing: -0.1,
+    marginTop: 14,
+    marginBottom: 3,
   },
   heading4: {
-    color: Ghost.text.primary,
-    fontSize: 16,
-    lineHeight: 23,
+    color: Ghost.text.secondary,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: "600" as const,
+    marginTop: 12,
+    marginBottom: 2,
   },
   heading5: {
-    color: Ghost.text.primary,
-    fontSize: 15,
+    color: Ghost.text.secondary,
+    fontSize: 13,
     fontWeight: "600" as const,
   },
   heading6: {
     color: Ghost.text.tertiary,
-    fontSize: 14,
+    fontSize: 12.5,
     fontWeight: "600" as const,
   },
   strong: {
     color: Ghost.text.primary,
-    fontWeight: "700" as const,
+    fontWeight: "600" as const,
   },
   em: {
     color: Ghost.text.primary,
@@ -78,35 +86,37 @@ const markdownStyle = {
   },
   link: {
     color: Ghost.accent.primary,
-    textDecorationLine: "underline" as const,
+    fontWeight: "500" as const,
+    textDecorationLine: "none" as const,
   },
   code_inline: {
     color: Ghost.text.primary,
     backgroundColor: Ghost.bg.sunken,
-    fontSize: 14,
-    paddingHorizontal: 4,
-    borderRadius: 4,
-    fontFamily: "monospace",
+    fontSize: 13.5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+    fontFamily: Fonts?.mono ?? "monospace",
   },
   fence: {
-    backgroundColor: Ghost.bg.sunken,
+    backgroundColor: "transparent",
     padding: 0,
-    borderRadius: 8,
-    marginVertical: 6,
+    marginVertical: 8,
   },
   code_block: {
-    backgroundColor: Ghost.bg.sunken,
+    backgroundColor: "transparent",
     padding: 0,
-    borderRadius: 8,
-    marginVertical: 6,
+    marginVertical: 8,
   },
   blockquote: {
-    backgroundColor: Ghost.bg.raised,
-    borderLeftColor: Ghost.accent.medium,
-    borderLeftWidth: 3,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginVertical: 6,
+    backgroundColor: "transparent",
+    borderLeftColor: Ghost.border.strong,
+    borderLeftWidth: 2,
+    paddingLeft: 14,
+    paddingRight: 4,
+    paddingVertical: 2,
+    marginVertical: 8,
+    marginLeft: 0,
   },
   bullet_list: {
     marginVertical: 4,
@@ -115,42 +125,27 @@ const markdownStyle = {
     marginVertical: 4,
   },
   list_item: {
-    marginVertical: 2,
+    marginVertical: 3,
   },
   bullet_list_icon: {
-    color: Ghost.text.secondary,
-    marginRight: 8,
+    color: Ghost.text.tertiary,
+    marginLeft: 2,
+    marginRight: 10,
   },
   ordered_list_icon: {
-    color: Ghost.text.secondary,
+    color: Ghost.text.tertiary,
+    marginLeft: 2,
     marginRight: 8,
-  },
-  table: {
-    borderColor: Ghost.border.default,
-    borderWidth: 1,
-    marginVertical: 6,
-  },
-  tr: {
-    borderBottomColor: Ghost.border.subtle,
-    borderBottomWidth: 1,
-  },
-  th: {
-    color: Ghost.text.primary,
-    fontWeight: "700" as const,
-    padding: 8,
-    backgroundColor: Ghost.bg.sunken,
-  },
-  td: {
-    color: Ghost.text.primary,
-    padding: 8,
+    fontVariant: ["tabular-nums" as const],
   },
   hr: {
     backgroundColor: Ghost.border.default,
-    height: 1,
-    marginVertical: 10,
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 18,
   },
   paragraph: {
-    marginVertical: 2,
+    marginTop: 0,
+    marginBottom: 10,
   },
 };
 

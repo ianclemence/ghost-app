@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Ghost, Space } from "@/constants/theme";
@@ -8,6 +8,7 @@ import { deleteFile, fetchFileContent, fetchFilePreview, type FilePreview } from
 import { fileSize } from "@/lib/attachments";
 import { writeCacheFile } from "@/lib/localFiles";
 import { useGhostStore } from "@/lib/store";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 /**
  * One file the owner sent Ghost: shown as itself when it is a photo or text,
@@ -91,7 +92,7 @@ export default function FileScreen() {
       {!p && !error ? (
         <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} />
       ) : p ? (
-        <ScrollView contentContainerStyle={styles.content}>
+        <EdgeScrollView contentContainerStyle={styles.content}>
           {p.previewable && p.image_base64 ? (
             <Image
               source={{ uri: `data:${p.mime};base64,${p.image_base64}` }}
@@ -107,7 +108,7 @@ export default function FileScreen() {
             </>
           ) : null}
           {!p.previewable ? <Text style={styles.note}>{p.reason ?? "There is no preview for this file. Open it instead."}</Text> : null}
-        </ScrollView>
+        </EdgeScrollView>
       ) : null}
     </View>
   );

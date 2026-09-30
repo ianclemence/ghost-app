@@ -11,7 +11,7 @@ import React, { memo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Check, Copy } from "lucide-react-native";
-import { Ghost } from "@/constants/theme";
+import { Fonts, Ghost, Radius } from "@/constants/theme";
 
 interface Props {
   /** Fence info string, e.g. "go". Empty when the model gave none. */
@@ -64,25 +64,30 @@ export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: Ghost.bg.sunken,
-    borderRadius: 8,
-    marginVertical: 6,
-    padding: 10,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.border.subtle,
+    marginVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   lang: {
     color: Ghost.text.tertiary,
     fontSize: 12,
     fontWeight: "600",
+    letterSpacing: 0.2,
   },
   code: {
     color: Ghost.text.primary,
-    fontSize: 14,
+    fontSize: 13.5,
     lineHeight: 20,
-    fontFamily: "monospace",
+    fontFamily: Fonts?.mono ?? "monospace",
   },
 });

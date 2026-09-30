@@ -1,39 +1,37 @@
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { Check, Mic, MicOff, Phone, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ghost, Space, Type } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
-import { GhostButton } from "@/components/ghost";
-import { LiveOrb, LiveWaveform } from "@/components/live-waveform";
+import { GhostButton, GhostSheet } from "@/components/ghost";
+import { VoiceOrb } from "@/components/live-waveform";
 import { useLiveSession } from "@/lib/live/use-live-session";
 import { fetchLiveStatus } from "@/lib/live/ghostSessionApi";
 import { VOICES } from "@/lib/live/voices";
 import { useGhostStore } from "@/lib/store";
 
-function fmtElapsed(s: number): string {
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}:${String(r).padStart(2, "0")}`;
+const LIMIT_SECONDS = 600;
+
+function clock(s: number): string {
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/**
+ * Talk to Ghost out loud. One shape that listens and speaks, what was just said
+ * under it, and three controls docked at the bottom. The voice and the full
+ * transcript are a tap away, not on the screen.
+ */
 export default function LiveVoiceScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { config, connectionState } = useGhostStore();
   const { live, snapshot, voice, setVoice } = useLiveSession(config);
-  const [status, setStatus] = useState<{ enabled: boolean; checked: boolean }>({
-    enabled: false,
-    checked: false,
-  });
+  const [status, setStatus] = useState<{ enabled: boolean; checked: boolean }>({ enabled: false, checked: false });
+  const [picking, setPicking] = useState(false);
+  const [reading, setReading] = useState(false);
 
   useEffect(() => {
     if (!config) {
@@ -41,12 +39,9 @@ export default function LiveVoiceScreen() {
       return;
     }
     let cancelled = false;
-    fetchLiveStatus(config).then((s) => {
-      if (cancelled) return;
-      setStatus({ enabled: s?.enabled === true, checked: true });
-    }).catch(() => {
-      if (!cancelled) setStatus({ enabled: false, checked: true });
-    });
+    fetchLiveStatus(config)
+      .then((s) => !cancelled && setStatus({ enabled: s?.enabled === true, checked: true }))
+      .catch(() => !cancelled && setStatus({ enabled: false, checked: true }));
     return () => {
       cancelled = true;
     };
@@ -58,296 +53,217 @@ export default function LiveVoiceScreen() {
     };
   }, [live]);
 
-  const busy =
-    snapshot.status === "connecting" || snapshot.status === "disconnecting";
+  const connecting = snapshot.status === "connecting";
+  const ending = snapshot.status === "disconnecting";
+  const busy = connecting || ending;
   const connected = snapshot.status === "connected";
-  const voiceLocked = busy || connected;
   const offline = !config || connectionState !== "online";
   const speaking = connected && snapshot.outputLevel > 0.035;
   const listening = connected && !snapshot.muted && !speaking;
+  const canStart = !offline && status.enabled && !busy;
+  const level = speaking ? snapshot.outputLevel : listening ? snapshot.inputLevel : 0;
+
+  const state = connected
+    ? speaking
+      ? "Ghost is speaking"
+      : snapshot.muted
+        ? "Muted"
+        : "Listening"
+    : connecting
+      ? "Connecting"
+      : ending
+        ? "Ending"
+        : snapshot.status === "error"
+          ? "Call ended"
+          : "Ready";
+
+  // One quiet line for whatever is in the way, most important first.
+  const notice = snapshot.error
+    ? snapshot.error
+    : !config
+      ? "Pair your Ghost Pod to talk by voice."
+      : offline
+        ? "Your Ghost is offline, so voice is paused. Text still works."
+        : status.checked && !status.enabled
+          ? "Voice needs an OpenAI key. Add one under Intelligence."
+          : !status.checked
+            ? "Checking voice…"
+            : null;
+
+  const left = LIMIT_SECONDS - snapshot.elapsedSeconds;
+  const timer = connected ? (left <= 120 ? `Ends in ${clock(Math.max(0, left))}` : clock(snapshot.elapsedSeconds)) : null;
+
+  // What was just said, largest first: the last thing, and the one before it softer.
+  const recent = useMemo(() => snapshot.transcript.slice(-2), [snapshot.transcript]);
+  const voiceName = VOICES.find((v) => v.id === voice)?.label ?? "Voice";
 
   const start = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     void live?.start(voice).catch(() => {});
   };
-  const toggleMute = () => {
-    void Haptics.selectionAsync().catch(() => {});
-    live?.toggleMute();
-  };
   const end = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     void live?.stop().catch(() => {});
   };
-
-  const transcript = [...snapshot.transcript].reverse();
+  const mute = () => {
+    void Haptics.selectionAsync().catch(() => {});
+    live?.toggleMute();
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScreenBackground />
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-          hitSlop={12}
-          style={styles.backHit}
-        >
-          <Text style={styles.back}>{"‹ Back"}</Text>
+
+      <View style={styles.top}>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
+          <X size={22} color={Ghost.text.primary} strokeWidth={2} />
         </Pressable>
-        <Text style={styles.title}>Live voice</Text>
-        <Text style={styles.route}>{config ? "via home Pod" : "no Pod"}</Text>
+        <Text style={styles.route}>{config ? "Home Pod" : "No Pod"}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        <LiveOrb speaking={speaking} listening={listening} />
-        <Text style={styles.state}>
-          {snapshot.status === "connected"
-            ? speaking
-              ? "Ghost is speaking, jump in anytime"
-              : snapshot.muted
-                ? "Mic muted"
-                : "Listening"
-            : snapshot.status === "connecting"
-              ? "Connecting…"
-              : snapshot.status === "disconnecting"
-                ? "Ending…"
-                : snapshot.status === "error"
-                  ? "Call ended"
-                  : "Tap Start to talk"}
-        </Text>
-        {connected ? (
-          <>
-            <Text style={styles.elapsed}>{fmtElapsed(snapshot.elapsedSeconds)} / 10:00</Text>
-            <Text style={styles.honest}>
-              {snapshot.elapsedSeconds >= 480
-                ? "Ending soon, so wrap up. The transcript stays here."
-                : "Calls end at 10:00. The transcript stays here."}
-            </Text>
-          </>
-        ) : null}
-        {snapshot.error ? <Text style={styles.error}>{snapshot.error}</Text> : null}
-        {!status.checked ? (
-          <Text style={styles.honest}>Checking live voice…</Text>
-        ) : null}
-        {offline ? (
-          <>
-            <Text style={styles.honest}>
-              {config
-                ? "Your Ghost is offline, so live voice is paused. Text still works."
-                : "Pair your Ghost Pod for live voice. Text chat works on this phone."}
-            </Text>
-            {!config ? (
-              <>
-                <View style={{ height: Space.md }} />
-                <GhostButton title="Connect a Ghost Pod" onPress={() => router.push("/connect")} />
-              </>
-            ) : null}
-          </>
-        ) : null}
-        {status.checked && !status.enabled && !offline ? (
-          <Text style={styles.honest}>
-            {"Live voice needs an OpenAI key. Add one under Intelligence."}
-          </Text>
-        ) : null}
-        {!connected && !busy && !offline && status.enabled ? (
-          <Text style={styles.honest}>Calls last up to 10 minutes.</Text>
+      <View style={styles.stage}>
+        <VoiceOrb level={level} speaking={speaking} listening={listening} connecting={connecting} />
+        <Text style={styles.state} accessibilityLiveRegion="polite">{state}</Text>
+        {timer ? <Text style={styles.timer}>{timer}</Text> : null}
+        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+        {!config ? (
+          <View style={{ marginTop: Space.lg }}>
+            <GhostButton title="Connect a Ghost Pod" onPress={() => router.push("/connect")} />
+          </View>
         ) : null}
 
-        <LiveWaveform
-          level={Math.max(snapshot.inputLevel, snapshot.outputLevel)}
-          speaking={speaking}
-        />
-
-        <View style={styles.controls}>
-          <Pressable
-            style={[styles.mute, snapshot.muted && styles.muteOn, !connected && styles.disabled]}
-            disabled={!connected}
-            onPress={toggleMute}
-            accessibilityLabel={snapshot.muted ? "Unmute" : "Mute"}
-            accessibilityRole="button"
-          >
-            <Text style={styles.muteText}>
-              {snapshot.muted ? "Unmute" : "Mute"}
-            </Text>
+        {recent.length > 0 ? (
+          <Pressable onPress={() => setReading(true)} style={styles.captions} accessibilityRole="button" accessibilityLabel="Open the transcript">
+            {recent.map((t, i) => (
+              <Text
+                key={t.id}
+                numberOfLines={3}
+                style={[styles.caption, t.role === "user" && styles.captionYou, i < recent.length - 1 && styles.captionOld]}
+              >
+                {t.text}
+              </Text>
+            ))}
           </Pressable>
-          {connected || busy ? (
-            <Pressable
-              style={[styles.end, busy && styles.disabled]}
-              disabled={busy}
-              onPress={end}
-              accessibilityLabel="End call"
-              accessibilityRole="button"
-            >
-              {busy ? (
-                <ActivityIndicator color={Ghost.text.inverse} />
-              ) : (
-                <Text style={styles.endText}>End</Text>
-              )}
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[styles.start, (offline || !status.enabled) && styles.disabled]}
-              disabled={offline || !status.enabled}
-              onPress={start}
-              accessibilityLabel="Start live call"
-              accessibilityRole="button"
-            >
-              <Text style={styles.startText}>Start</Text>
-            </Pressable>
-          )}
+        ) : null}
+      </View>
+
+      <View style={[styles.dock, { paddingBottom: insets.bottom + Space.xl }]}>
+        <View style={styles.side}>
+          <Pressable
+            onPress={mute}
+            disabled={!connected}
+            style={[styles.round, snapshot.muted && styles.roundOn, !connected && styles.dim]}
+            accessibilityRole="button"
+            accessibilityLabel={snapshot.muted ? "Unmute" : "Mute"}
+          >
+            {snapshot.muted ? <MicOff size={22} color={Ghost.text.primary} /> : <Mic size={22} color={Ghost.text.primary} />}
+          </Pressable>
+          <Text style={styles.sideLabel}>{snapshot.muted ? "Unmute" : "Mute"}</Text>
         </View>
 
-        <Text style={styles.section}>Voice</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.voiceRow}
-          style={styles.voiceScroll}
-        >
+        {connected || busy ? (
+          <Pressable
+            onPress={end}
+            disabled={busy}
+            style={[styles.main, styles.mainEnd, busy && styles.dim]}
+            accessibilityRole="button"
+            accessibilityLabel="End call"
+          >
+            {busy ? <ActivityIndicator color="#fff" /> : <Phone size={26} color="#fff" style={{ transform: [{ rotate: "135deg" }] }} />}
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={start}
+            disabled={!canStart}
+            style={[styles.main, !canStart && styles.dim]}
+            accessibilityRole="button"
+            accessibilityLabel="Start talking"
+          >
+            <Mic size={28} color={Ghost.text.inverse} />
+          </Pressable>
+        )}
+
+        <View style={styles.side}>
+          <Pressable
+            onPress={() => setPicking(true)}
+            disabled={connected || busy}
+            style={[styles.round, (connected || busy) && styles.dim]}
+            accessibilityRole="button"
+            accessibilityLabel={`Voice: ${voiceName}. Change`}
+          >
+            <Text style={styles.voiceInitial}>{voiceName.slice(0, 1)}</Text>
+          </Pressable>
+          <Text style={styles.sideLabel}>{voiceName}</Text>
+        </View>
+      </View>
+
+      <GhostSheet visible={picking} onClose={() => setPicking(false)} title="Voice">
+        <View style={styles.voices}>
           {VOICES.map((v) => {
-            const active = v.id === voice;
+            const on = v.id === voice;
             return (
               <Pressable
                 key={v.id}
-                disabled={voiceLocked}
-                onPress={() => setVoice(v.id)}
-                style={[styles.chip, active && styles.chipActive, voiceLocked && styles.disabled]}
-                accessibilityLabel={`Voice ${v.label}`}
+                onPress={() => {
+                  setVoice(v.id);
+                  setPicking(false);
+                }}
+                style={({ pressed }) => [styles.voiceRow, pressed && { opacity: 0.55 }]}
                 accessibilityRole="button"
-                accessibilityState={{ selected: active, disabled: voiceLocked }}
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`Voice ${v.label}`}
               >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{v.label}</Text>
+                <Text style={[styles.voiceLabel, on && styles.voiceLabelOn]}>{v.label}</Text>
+                {on ? <Check size={18} color={Ghost.accent.primary} strokeWidth={2.4} /> : null}
               </Pressable>
             );
           })}
-        </ScrollView>
-        {voiceLocked ? <Text style={styles.lock}>Voice stays fixed for this call.</Text> : null}
+        </View>
+      </GhostSheet>
 
-        <Text style={styles.section}>Transcript</Text>
-        {transcript.length === 0 ? (
-          <Text style={styles.empty}>What you both say appears here while you talk.</Text>
-        ) : (
-          <View style={styles.thread}>
-            {transcript.map((item) => (
-              <View
-                key={item.id}
-                style={[styles.bubble, item.role === "user" ? styles.user : styles.ghost]}
-              >
-                <Text style={styles.bubbleText}>{item.text}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-        <View style={{ height: 120 }} />
-      </ScrollView>
+      <GhostSheet visible={reading} onClose={() => setReading(false)} title="Transcript">
+        <View style={styles.thread}>
+          {snapshot.transcript.map((t) => (
+            <View key={t.id} style={[styles.line, t.role === "user" && styles.lineYou]}>
+              <Text style={styles.lineWho}>{t.role === "user" ? "You" : "Ghost"}</Text>
+              <Text style={styles.lineText}>{t.text}</Text>
+            </View>
+          ))}
+        </View>
+      </GhostSheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Space.xl,
-    paddingVertical: Space.sm,
-    minHeight: 52,
-  },
-  backHit: { minWidth: 72, minHeight: 44, justifyContent: "center" },
-  back: { fontSize: 16, color: Ghost.accent.primary },
-  title: { ...Type.headline, color: Ghost.text.primary },
-  route: { fontSize: 12, color: Ghost.text.secondary, minWidth: 72, textAlign: "right" },
-  body: { alignItems: "stretch", paddingHorizontal: Space.xl, paddingTop: Space.md },
-  state: { ...Type.headline, color: Ghost.text.primary, marginTop: Space.md, textAlign: "center" },
-  elapsed: {
-    fontSize: 13,
-    color: Ghost.text.secondary,
-    marginTop: 4,
-    textAlign: "center",
-    fontVariant: ["tabular-nums"],
-  },
-  error: { fontSize: 13, color: Ghost.status.error, marginTop: Space.sm, textAlign: "center" },
-  honest: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: Ghost.text.secondary,
-    marginTop: Space.sm,
-    textAlign: "center",
-    maxWidth: 480,
-    alignSelf: "center",
-  },
-  controls: {
-    flexDirection: "row",
-    gap: Space.md,
-    marginTop: Space.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mute: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: Space.xl,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    backgroundColor: Ghost.bg.raised,
-  },
-  muteOn: { backgroundColor: Ghost.accent.soft, borderColor: Ghost.accent.primary },
-  muteText: { fontSize: 16, fontWeight: "600", color: Ghost.text.primary },
-  start: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: Space.xxxl,
-    borderRadius: 999,
-    backgroundColor: Ghost.accent.primary,
-  },
-  startText: { fontSize: 16, fontWeight: "700", color: Ghost.text.inverse },
-  end: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: Space.xxxl,
-    borderRadius: 999,
-    backgroundColor: Ghost.status.error,
-  },
-  endText: { fontSize: 16, fontWeight: "700", color: Ghost.text.inverse },
-  disabled: { opacity: 0.45 },
-  section: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Ghost.text.secondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginTop: Space.xxl,
-    marginBottom: Space.sm,
-  },
-  voiceScroll: { marginHorizontal: -Space.xl },
-  voiceRow: { gap: Space.sm, paddingHorizontal: Space.xl, paddingVertical: 4 },
-  chip: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: Space.lg,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    backgroundColor: Ghost.bg.raised,
-  },
-  chipActive: { backgroundColor: Ghost.accent.primary, borderColor: Ghost.accent.primary },
-  chipText: { fontSize: 14, color: Ghost.text.primary },
-  chipTextActive: { color: Ghost.text.inverse, fontWeight: "600" },
-  lock: { fontSize: 12, color: Ghost.text.tertiary, marginTop: Space.sm },
-  empty: { fontSize: 14, lineHeight: 20, color: Ghost.text.tertiary, maxWidth: 480 },
-  thread: { gap: Space.sm },
-  bubble: {
-    borderRadius: 14,
-    paddingHorizontal: Space.md,
-    paddingVertical: Space.sm,
-    backgroundColor: Ghost.bg.raised,
-    borderWidth: 1,
-    borderColor: Ghost.border.subtle,
-    maxWidth: "92%",
-  },
-  user: { alignSelf: "flex-end", backgroundColor: Ghost.bubble.user, borderColor: "transparent" },
-  ghost: { alignSelf: "flex-start", backgroundColor: Ghost.bg.raised },
-  bubbleText: { fontSize: 15, lineHeight: 21, color: Ghost.text.primary },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Space.lg, minHeight: 48 },
+  close: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginLeft: -6 },
+  route: { ...Type.subhead, color: Ghost.text.tertiary },
+  stage: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: Space.xxl },
+  state: { ...Type.title, color: Ghost.text.primary, marginTop: Space.lg },
+  timer: { ...Type.callout, color: Ghost.text.tertiary, marginTop: 4, fontVariant: ["tabular-nums"] },
+  notice: { ...Type.callout, color: Ghost.text.secondary, marginTop: Space.md, textAlign: "center", maxWidth: 300 },
+  captions: { marginTop: Space.xxl, gap: Space.sm, alignSelf: "stretch", minHeight: 96 },
+  caption: { fontSize: 19, lineHeight: 26, fontWeight: "500", letterSpacing: -0.2, color: Ghost.text.primary, textAlign: "center" },
+  captionYou: { color: Ghost.text.secondary },
+  captionOld: { fontSize: 15, lineHeight: 21, color: Ghost.text.tertiary },
+  dock: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: Space.xxxl },
+  side: { width: 64, alignItems: "center", gap: 6, paddingTop: 8 },
+  sideLabel: { ...Type.footnote, color: Ghost.text.tertiary },
+  round: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: Ghost.bg.sunken },
+  roundOn: { backgroundColor: Ghost.accent.soft, borderWidth: 1.5, borderColor: Ghost.accent.primary },
+  main: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: Ghost.text.primary },
+  mainEnd: { backgroundColor: Ghost.status.error },
+  dim: { opacity: 0.4 },
+  voiceInitial: { fontSize: 18, fontWeight: "600", color: Ghost.text.primary },
+  voices: { paddingBottom: Space.sm },
+  voiceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Ghost.border.subtle },
+  voiceLabel: { ...Type.body, color: Ghost.text.primary },
+  voiceLabelOn: { fontWeight: "600", color: Ghost.accent.primary },
+  thread: { gap: Space.lg, paddingBottom: Space.sm },
+  line: { gap: 2, alignItems: "flex-start" },
+  lineYou: { alignItems: "flex-end" },
+  lineWho: { ...Type.footnote, color: Ghost.text.tertiary, fontWeight: "600" },
+  lineText: { ...Type.body, color: Ghost.text.primary, maxWidth: "88%", borderRadius: Radius.lg },
 });

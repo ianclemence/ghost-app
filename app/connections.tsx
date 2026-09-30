@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { ChevronRight } from "lucide-react-native";
 import { Ghost, Space, Type } from "@/constants/theme";
-import { GhostText } from "@/components/themed-text";
 import { ScreenHeader } from "@/components/screen-header";
-import { EmptyState, GhostButton, GhostInput, OfflineBadge } from "@/components/ghost";
+import { EmptyState, GhostButton, GhostInput, GhostSheet, OfflineBadge, SectionHeader } from "@/components/ghost";
+import { OAuthConnect } from "@/components/oauth-connect";
 import {
   connectConnectedApp,
   disconnectConnectedApp,
@@ -13,34 +14,18 @@ import {
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 import { WebsiteLogins } from "@/components/website-logins";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
-function statusLabel(s: string): string {
-  switch (s) {
-    case "connected":
-      return "Connected";
-    case "not_configured":
-      return "Not connected";
-    case "configuring":
-      return "Setting up";
-    case "expired":
-    case "invalid":
-    case "revoked":
-      return "Needs attention";
-    case "error":
-      return "Error";
-    default:
-      return s ? s.replace(/_/g, " ") : "Unknown";
-  }
-}
+const isOAuth = (a: ConnectedAppInfo) => a.auth_kind === "oauth" || a.setup === "console_oauth";
+const isPair = (a: ConnectedAppInfo) => a.setup === "paste_pair";
+const nameOf = (a: ConnectedAppInfo) => a.display_name || a.provider || a.id;
 
-function setupHint(app: ConnectedAppInfo): string {
-  if (app.setup === "console_oauth" || app.auth_kind === "oauth") {
-    return "Browser sign-in required. Use the web console, then pull to refresh.";
-  }
-  if (app.setup === "paste_pair") {
-    return "Needs instance URL + token.";
-  }
-  return "Paste a key to connect.";
+/** The right-hand side of a row: what state it is in, or what tapping does. */
+function trailing(a: ConnectedAppInfo): { text: string; tone: "ok" | "warn" | "action" } {
+  if (a.status === "connected") return { text: "Connected", tone: "ok" };
+  if (a.needs_reauth) return { text: "Reconnect", tone: "warn" };
+  if (a.status === "error") return { text: "Error", tone: "warn" };
+  return { text: "Connect", tone: "action" };
 }
 
 export default function ConnectionsScreen() {
@@ -51,82 +36,88 @@ export default function ConnectionsScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [keyInput, setKeyInput] = useState<Record<string, string>>({});
-  const [urlInput, setUrlInput] = useState<Record<string, string>>({});
+  // What is open: the key sheet, the manage sheet, or the sign-in flow.
+  const [keyFor, setKeyFor] = useState<ConnectedAppInfo | null>(null);
+  const [manage, setManage] = useState<ConnectedAppInfo | null>(null);
+  const [signIn, setSignIn] = useState<ConnectedAppInfo | null>(null);
+  const [keyValue, setKeyValue] = useState("");
+  const [urlValue, setUrlValue] = useState("");
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [sheetNote, setSheetNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async (silent = false) => {
-    if (!config) return;
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      setItems(await fetchConnectedApps(config));
-    } catch {
-      setError("Couldn't load connected apps.");
-    }
-    setLoading(false);
-  }, [config]);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!config) return;
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        setItems(await fetchConnectedApps(config));
+      } catch {
+        setError("Couldn't load connected apps.");
+      }
+      setLoading(false);
+    },
+    [config],
+  );
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  const handleConnect = useCallback(async (app: ConnectedAppInfo) => {
-    if (!config || busyId) return;
-    if (app.auth_kind === "oauth" || app.setup === "console_oauth") {
-      Alert.alert(
-        "Browser sign-in needed",
-        `${app.display_name || app.id} uses secure OAuth. Connect in the Ghost web console, then pull to refresh here.`,
-      );
-      return;
-    }
-    const value = (keyInput[app.id] ?? "").trim();
-    const extra = (urlInput[app.id] ?? "").trim();
-    // paste_pair (Home Assistant): value=token, extra=url — accept either order.
-    if (app.setup === "paste_pair" && (!value || !extra)) {
-      Alert.alert("Missing details", "Enter both the instance URL and token.");
-      return;
-    }
-    if (app.setup !== "paste_pair" && !value) {
-      Alert.alert("Missing key", "Paste the key first.");
-      return;
-    }
-    setBusyId(app.id);
-    try {
-      const result = app.setup === "paste_pair"
-        ? await connectConnectedApp(config, app.id, extra, value)
-        : await connectConnectedApp(config, app.id, value);
-      setKeyInput((m) => ({ ...m, [app.id]: "" }));
-      setUrlInput((m) => ({ ...m, [app.id]: "" }));
-      await load(true);
-      // Saved, but the service couldn't be reached to check it: say so.
-      if (result.note) Alert.alert("Saved", result.note);
-    } catch (e) {
-      // The Pod says why in plain words ("GitHub didn't accept that").
-      Alert.alert("Couldn't connect", e instanceof Error ? e.message : "Something went wrong. Try again.");
-    }
-    setBusyId(null);
-  }, [config, busyId, keyInput, urlInput, load]);
+  const open = (a: ConnectedAppInfo) => {
+    setSheetError(null);
+    setSheetNote(null);
+    if (a.status === "connected") return setManage(a);
+    if (isOAuth(a)) return setSignIn(a);
+    setKeyValue("");
+    setUrlValue("");
+    setKeyFor(a);
+  };
 
-  const handleDisconnect = useCallback(async (app: ConnectedAppInfo) => {
-    if (!config || busyId) return;
-    Alert.alert("Disconnect?", `${app.display_name || app.id} will stop working until you reconnect.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Disconnect", style: "destructive",
-        onPress: async () => {
-          setBusyId(app.id);
-          try {
-            await disconnectConnectedApp(config, app.id);
-            await load(true);
-          } catch (e) {
-            Alert.alert("Disconnect failed", e instanceof Error ? e.message : "Unknown error");
-          }
-          setBusyId(null);
-        },
-      },
-    ]);
-  }, [config, busyId, load]);
+  const saveKey = async () => {
+    if (!config || !keyFor || busy) return;
+    const value = keyValue.trim();
+    const extra = urlValue.trim();
+    if (isPair(keyFor) ? !value || !extra : !value) {
+      setSheetError(isPair(keyFor) ? "Enter both the address and the token." : "Paste the key first.");
+      return;
+    }
+    setBusy(true);
+    setSheetError(null);
+    try {
+      // Home Assistant is the address and the token; everything else is one key.
+      const result = isPair(keyFor)
+        ? await connectConnectedApp(config, keyFor.id, extra, value)
+        : await connectConnectedApp(config, keyFor.id, value);
+      // Saved, but the service couldn't be reached to check it: say so and stay.
+      if (result.note) {
+        setSheetNote(result.note);
+        setKeyFor(null);
+        setManage({ ...keyFor, status: "connected" });
+      } else {
+        setKeyFor(null);
+      }
+      await load(true);
+    } catch (e) {
+      // The Pod says why, in plain words ("GitHub didn't accept that").
+      setSheetError(e instanceof Error ? e.message : "Something went wrong. Try again.");
+    }
+    setBusy(false);
+  };
+
+  const disconnect = async () => {
+    if (!config || !manage || busy) return;
+    setBusy(true);
+    try {
+      await disconnectConnectedApp(config, manage.id);
+      setManage(null);
+      await load(true);
+    } catch (e) {
+      setSheetError(e instanceof Error ? e.message : "Couldn't disconnect.");
+    }
+    setBusy(false);
+  };
 
   return (
     <View style={styles.container}>
@@ -143,141 +134,113 @@ export default function ConnectionsScreen() {
           action={<GhostButton title="Connect a Ghost Pod" onPress={() => router.push("/connect")} />}
         />
       ) : loading ? (
-        <View style={styles.center}><ActivityIndicator color={Ghost.text.primary} size="large" /></View>
+        <View style={styles.center}><ActivityIndicator color={Ghost.text.secondary} /></View>
       ) : error && items.length === 0 ? (
-        <View style={styles.center}><EmptyState title="Couldn't load apps." subtitle={error} action={<GhostButton title="Retry" onPress={() => load()} />} /></View>
-      ) : items.length === 0 ? (
-        <View style={styles.center}><EmptyState title="No apps yet." subtitle="Connected services will appear here." /></View>
+        <View style={styles.center}><EmptyState title="Couldn't load apps." subtitle={error} action={<GhostButton title="Retry" onPress={() => void load()} />} /></View>
       ) : (
-        <ScrollView
+        <EdgeScrollView
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.secondary} />}
         >
           {items.map((c) => {
-            const connected = c.status === "connected";
-            const busy = busyId === c.id;
+            const t = trailing(c);
             return (
-              <View key={c.id} style={styles.row}>
+              <Pressable
+                key={c.id}
+                onPress={() => open(c)}
+                style={({ pressed }) => [styles.row, pressed && { opacity: 0.55 }]}
+                accessibilityRole="button"
+                accessibilityLabel={`${nameOf(c)}, ${t.text}`}
+              >
                 <View style={styles.rowBody}>
-                  <GhostText type="headline" style={styles.rowTitle}>{c.display_name || c.provider}</GhostText>
-                  <GhostText type="footnote" style={styles.rowMeta}>
-                    {statusLabel(c.status)}{c.needs_reauth ? " (reconnect needed)" : ""}
-                  </GhostText>
-                  {Array.isArray(c.capabilities) && c.capabilities.length > 0 ? (
-                    <GhostText type="footnote" style={styles.rowCaps}>{c.capabilities.join(" · ")}</GhostText>
-                  ) : null}
-                  {!connected ? (
-                    <GhostText type="footnote" style={styles.rowHint}>{setupHint(c)}</GhostText>
-                  ) : null}
-                  {connected && (c.setup === "paste_key" || c.setup === "paste_pair" || c.auth_kind === "api_key" || c.auth_kind === "token") ? (
-                    <GhostText type="footnote" style={styles.rowHint}>Key saved on your Pod. To replace it, disconnect then reconnect.</GhostText>
-                  ) : null}
-                  {c.help ? (
-                    <GhostText type="footnote" style={styles.rowHint}>{c.help}</GhostText>
-                  ) : null}
-                  {!connected && c.setup === "paste_pair" ? (
-                    <GhostInput
-                      placeholder="https://homeassistant.local:8123"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      keyboardType="url"
-                      value={urlInput[c.id] ?? ""}
-                      onChangeText={(t) => setUrlInput((m) => ({ ...m, [c.id]: t }))}
-                      editable={!busy}
-                    />
-                  ) : null}
-                  {!connected && c.setup !== "console_oauth" && c.auth_kind !== "oauth" ? (
-                    <GhostInput
-                      placeholder={c.setup === "paste_pair" ? "Long-lived token" : "Paste key"}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      secureTextEntry
-                      value={keyInput[c.id] ?? ""}
-                      onChangeText={(t) => setKeyInput((m) => ({ ...m, [c.id]: t }))}
-                      editable={!busy}
-                    />
-                  ) : null}
-                  <View style={styles.actions}>
-                    {!connected && c.setup !== "console_oauth" && c.auth_kind !== "oauth" ? (
-                      <GhostButton title={busy ? "Working…" : "Connect"} onPress={() => handleConnect(c)} />
-                    ) : null}
-                    {connected ? (
-                      <GhostButton title={busy ? "Working…" : "Disconnect"} onPress={() => handleDisconnect(c)} />
-                    ) : null}
-                  </View>
+                  <Text style={styles.name}>{nameOf(c)}</Text>
+                  {c.help ? <Text style={styles.help} numberOfLines={2}>{c.help}</Text> : null}
                 </View>
-              </View>
+                <View style={styles.trail}>
+                  {t.tone === "ok" ? <View style={styles.dot} /> : null}
+                  <Text style={[styles.trailText, t.tone === "ok" && styles.ok, t.tone === "warn" && styles.warn, t.tone === "action" && styles.action]}>{t.text}</Text>
+                  {t.tone !== "ok" ? <ChevronRight size={16} color={Ghost.text.tertiary} /> : null}
+                </View>
+              </Pressable>
             );
           })}
-          <GhostText type="footnote" style={styles.note}>OAuth apps (Gmail, Outlook, Calendar, Spotify) connect via browser sign-in. GitHub, Notion, and provider keys can be pasted here. Keys never leave your Ghost.</GhostText>
+          <SectionHeader title="Website logins" style={styles.section} />
           <WebsiteLogins config={config} />
-        </ScrollView>
+        </EdgeScrollView>
       )}
+
+      {/* A key, or an address and a token. */}
+      <GhostSheet
+        visible={keyFor !== null}
+        onClose={() => { if (!busy) setKeyFor(null); }}
+        title={keyFor ? `Connect ${nameOf(keyFor)}` : ""}
+      >
+        {keyFor ? (
+          <>
+            {keyFor.help ? <Text style={styles.sheetText}>{keyFor.help}</Text> : null}
+            {isPair(keyFor) ? (
+              <GhostInput value={urlValue} onChangeText={setUrlValue} placeholder="https://homeassistant.local:8123" keyboardType="url" editable={!busy} />
+            ) : null}
+            <GhostInput value={keyValue} onChangeText={setKeyValue} placeholder={isPair(keyFor) ? "Long-lived token" : "Paste your key"} secureTextEntry editable={!busy} />
+            <Text style={styles.sheetText}>Kept sealed on your Pod, never shown back or sent to the AI.</Text>
+            {sheetError ? <Text style={styles.sheetError} accessibilityLiveRegion="polite">{sheetError}</Text> : null}
+            <GhostButton title="Connect" fullWidth loading={busy} onPress={() => void saveKey()} />
+          </>
+        ) : null}
+      </GhostSheet>
+
+      {/* Something already connected: the one thing to do with it. */}
+      <GhostSheet
+        visible={manage !== null}
+        onClose={() => { if (!busy) setManage(null); }}
+        title={manage ? nameOf(manage) : ""}
+        message={sheetNote ?? "Connected. Ghost stops using it the moment you disconnect."}
+      >
+        {sheetError ? <Text style={styles.sheetError}>{sheetError}</Text> : null}
+        <GhostButton title="Disconnect" variant="danger" fullWidth loading={busy} onPress={() => void disconnect()} />
+      </GhostSheet>
+
+      {/* Google, Microsoft and Spotify: your own app, then sign in. */}
+      {config ? (
+        <OAuthConnect
+          config={config}
+          app={signIn ? { id: signIn.id, name: nameOf(signIn) } : null}
+          onClose={() => setSignIn(null)}
+          onConnected={() => {
+            setSignIn(null);
+            void load(true);
+          }}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Ghost.bg.base,
-  },
-  header: {
-    paddingHorizontal: Space.xl,
-    paddingVertical: Space.lg,
-  },
-  title: {
-    ...Type.largeTitle,
-    color: Ghost.text.primary,
-  },
-  sub: {
-    ...Type.subhead,
-    color: Ghost.text.secondary,
-    marginTop: 2,
-  },
-  offlineWrap: {
-    alignItems: "center",
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  list: {
-    paddingHorizontal: Space.xl,
-    // FAB clearance: button height + edge distance.
-    paddingBottom: Space.huge + Space.edge,
-  },
+  container: { flex: 1, backgroundColor: Ghost.bg.base },
+  offlineWrap: { alignItems: "center" },
+  center: { flex: 1, justifyContent: "center" },
+  list: { paddingHorizontal: Space.xl, paddingBottom: Space.huge },
   row: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: Space.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Ghost.border?.subtle ?? "transparent",
+    alignItems: "center",
+    minHeight: 52,
+    paddingVertical: Space.sm,
+    gap: Space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Ghost.border.subtle,
   },
-  rowBody: {
-    flex: 1,
-    gap: 4,
-  },
-  rowTitle: {
-    color: Ghost.text.primary,
-  },
-  rowMeta: {
-    color: Ghost.text.secondary,
-  },
-  rowCaps: {
-    color: Ghost.text.tertiary,
-  },
-  rowHint: {
-    color: Ghost.text.tertiary,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: Space.sm,
-    marginTop: 6,
-  },
-  note: {
-    color: Ghost.text.tertiary,
-    marginTop: Space.lg,
-  },
+  rowBody: { flex: 1, gap: 1 },
+  name: { ...Type.body, fontWeight: "500", color: Ghost.text.primary },
+  help: { ...Type.subhead, color: Ghost.text.tertiary },
+  trail: { flexDirection: "row", alignItems: "center", gap: 6 },
+  trailText: { ...Type.callout },
+  ok: { color: Ghost.text.secondary },
+  warn: { color: Ghost.emberDeep, fontWeight: "500" },
+  action: { color: Ghost.accent.primary, fontWeight: "500" },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Ghost.status.success },
+  section: { paddingHorizontal: 0, paddingTop: Space.xxl },
+  sheetText: { ...Type.subhead, color: Ghost.text.tertiary },
+  sheetError: { ...Type.callout, color: Ghost.status.error },
 });

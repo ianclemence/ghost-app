@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Pressable,
-} from "react-native";
+import { View, StyleSheet, KeyboardAvoidingView, Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
@@ -14,6 +8,7 @@ import { Ghost, Space, UI } from "@/constants/theme";
 import { setupPod } from "@/lib/setupPod";
 import { BRAINS, brainByKey, brainProblem } from "@/lib/brains";
 import { completePairing } from "@/lib/connection";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 /**
  * Set up a brand-new Ghost Pod from the phone.
@@ -112,7 +107,7 @@ export default function SetupPodScreen() {
       style={{ flex: 1 }}
       behavior={process.env.EXPO_OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView
+      <EdgeScrollView
         style={{ flex: 1, backgroundColor: Ghost.bg.base }}
         contentContainerStyle={[styles.container, { paddingTop: insets.top + UI.modal.bottom, paddingBottom: insets.bottom + UI.modal.bottom }]}
         keyboardShouldPersistTaps="handled"
@@ -242,7 +237,7 @@ export default function SetupPodScreen() {
             fullWidth
           />
         </View>
-      </ScrollView>
+      </EdgeScrollView>
     </KeyboardAvoidingView>
   );
 }

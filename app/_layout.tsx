@@ -15,7 +15,6 @@ import {
   isPaired,
   handlePairingDeepLink,
 } from '../lib/connection';
-import { isFirstRunDismissed } from '../lib/firstRun';
 import { recordMilestone } from '../lib/onboarding-metrics';
 import { useGhostStore } from '../lib/store';
 
@@ -65,10 +64,9 @@ export default function RootLayout() {
       const paired = await isPaired();
       // Stamps once per install; the funnel's zero point for time-to-milestone.
       void recordMilestone('first_launch');
-      const dismissed = await isFirstRunDismissed();
 
-      if (!paired && !dismissed) {
-        // First launch — show the front door
+      if (!paired) {
+        // Not connected to a Pod yet — the front door, every time
         router.replace('/onboarding');
       } else if (paired) {
         // Paired — initialize connection in background, load Home immediately

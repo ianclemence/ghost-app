@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeOut, LinearTransition } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
@@ -7,6 +7,7 @@ import { ScreenHeader } from "@/components/screen-header";
 import { fetchMemorySelf, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo } from "@/lib/when";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 /**
  * What Ghost remembers, readable and deletable. It lives on the owner's
@@ -77,7 +78,7 @@ export default function MemoryScreen() {
       ) : !mem && !error ? (
         <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} />
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+        <EdgeScrollView contentContainerStyle={styles.content}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {total === 0 && mem ? (
             <Text style={styles.empty}>
@@ -112,7 +113,7 @@ export default function MemoryScreen() {
               ))}
             </Group>
           ) : null}
-        </ScrollView>
+        </EdgeScrollView>
       )}
     </View>
   );

@@ -7,8 +7,9 @@ import { Ghost, Space } from "@/constants/theme";
 
 /**
  * Header for every screen that isn't the conversation. The conversation is
- * home; everything else is a short trip away from it and back, so the only
- * navigation a screen needs is the way back.
+ * home; everything else is a short trip away from it and back, so the header is
+ * one line: the way back, where you are, and at most one thing to do here.
+ * A subtitle, when it earns its place, is a single quiet line under it.
  */
 export function ScreenHeader({
   title,
@@ -37,16 +38,16 @@ export function ScreenHeader({
       <View style={styles.row}>
         <Pressable
           onPress={leave}
-          hitSlop={10}
+          hitSlop={8}
           style={({ pressed }) => [styles.btn, pressed && { opacity: 0.5 }]}
           accessibilityRole="button"
           accessibilityLabel={variant === "close" ? "Close" : "Back"}
         >
-          <Icon size={24} color={Ghost.text.primary} strokeWidth={2} />
+          <Icon size={22} color={Ghost.text.primary} strokeWidth={2} />
         </Pressable>
+        <Text style={styles.title} numberOfLines={1} accessibilityRole="header">{title}</Text>
         <View style={styles.trailing}>{trailing}</View>
       </View>
-      <Text style={styles.title} accessibilityRole="header">{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
@@ -55,38 +56,38 @@ export function ScreenHeader({
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: Space.xl,
-    paddingBottom: Space.md,
+    paddingBottom: Space.sm,
     backgroundColor: Ghost.bg.base,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     minHeight: 44,
-    marginLeft: -10,
+    marginLeft: -8,
+    gap: 2,
   },
   btn: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  title: {
+    flex: 1,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "600",
+    letterSpacing: -0.3,
+    color: Ghost.text.primary,
   },
   trailing: {
     flexDirection: "row",
     alignItems: "center",
   },
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: "600",
-    letterSpacing: -0.4,
-    color: Ghost.text.primary,
-    marginTop: Space.xs,
-  },
   subtitle: {
-    fontSize: 15,
-    lineHeight: 21,
+    fontSize: 13.5,
+    lineHeight: 19,
     color: Ghost.text.secondary,
-    marginTop: 2,
+    marginTop: 0,
   },
 });

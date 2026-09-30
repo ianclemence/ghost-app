@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
@@ -17,6 +17,7 @@ import {
   type RoutineItem,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
+import { EdgeScrollView } from "@/components/scroll-edge";
 
 // Routines — the one place that answers "what does Ghost do for me?".
 //
@@ -204,7 +205,7 @@ export default function RoutinesScreen() {
           <ActivityIndicator color={Ghost.text.primary} size="large" />
         </View>
       ) : (
-        <ScrollView
+        <EdgeScrollView
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -372,7 +373,7 @@ export default function RoutinesScreen() {
               );
             })
           )}
-        </ScrollView>
+        </EdgeScrollView>
       )}
     </View>
   );
