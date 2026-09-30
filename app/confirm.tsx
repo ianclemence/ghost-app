@@ -6,7 +6,7 @@ import { GhostMark } from "@/components/ghost-mark";
 import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
 import { completePairing } from "@/lib/connection";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
@@ -31,7 +31,7 @@ export default function PairingProgressScreen() {
   const hasStarted = useRef(false);
   const reduceMotion = useReducedMotion();
 
-  const startPairing = async () => {
+  const startPairing = useCallback(async () => {
     if (!params.token || (!params.host && params.transport !== "relay")) {
       setError("Missing pairing information.");
       setStatus("error");
@@ -57,13 +57,15 @@ export default function PairingProgressScreen() {
       setError(result.error || "Ghost couldn't connect.");
       setStatus("error");
     }
-  };
+  }, [params.token, params.host, params.port, params.transport, params.relayServer, params.ghostId, router]);
 
+  // Pairing must run once per visit. The guard makes that explicit while the
+  // dependency list stays honest about what the function reads.
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
-    startPairing();
-  }, []);
+    void startPairing();
+  }, [startPairing]);
 
   if (status === "success") {
     return (

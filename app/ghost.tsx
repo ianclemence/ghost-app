@@ -1,7 +1,7 @@
 // Your Pod: the machine Ghost lives on. Health, anything needing attention,
 // and the AI models installed on it. The Pod is Ghost's local brain; the
 // phone is a window into it, so there is no second, weaker Ghost here.
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
@@ -14,6 +14,7 @@ import {
   fetchOllamaModels,
   fetchPodUpdate,
   startPodUpdate,
+  requestConsoleResetCode,
   type PodUpdate,
   fetchStats,
   pullOllamaModel,
@@ -49,6 +50,9 @@ export default function PodScreen() {
   const [note, setNote] = useState<string | null>(null);
   const [busyModel, setBusyModel] = useState<string | null>(null);
   const [update, setUpdate] = useState<PodUpdate | null>(null);
+  const [resetCode, setResetCode] = useState<string | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [updating, setUpdating] = useState(false);
 
   const load = useCallback(async (silent = false) => {
@@ -247,6 +251,43 @@ export default function PodScreen() {
               )}
             </View>
 
+            <Text style={styles.group}>Web console</Text>
+            <View style={styles.card}>
+              {resetCode ? (
+                <>
+                  <Text style={styles.meta}>Enter this on the console&apos;s sign-in page, under Forgot your password. It works once and lasts 10 minutes.</Text>
+                  <Text selectable style={styles.code} accessibilityLabel={`Reset code ${resetCode.split("").join(" ")}`}>
+                    {resetCode}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.meta}>
+                  Forgot the password for the web console? This phone can get you a one-time code to set a new one. No terminal needed.
+                </Text>
+              )}
+              <GhostButton
+                title={resetCode ? "Get a new code" : "Get a reset code"}
+                variant="secondary"
+                loading={resetBusy}
+                disabled={resetBusy}
+                onPress={async () => {
+                  if (!config) return;
+                  setResetBusy(true);
+                  try {
+                    const r = await requestConsoleResetCode(config);
+                    setResetCode(r.code);
+                    if (resetTimer.current) clearTimeout(resetTimer.current);
+                    resetTimer.current = setTimeout(() => setResetCode(null), r.expiresIn * 1000);
+                    setNote(null);
+                  } catch (e) {
+                    setNote(e instanceof Error ? e.message : "Couldn't get a reset code.");
+                  } finally {
+                    setResetBusy(false);
+                  }
+                }}
+              />
+            </View>
+
             <Text style={styles.group}>Needs attention</Text>
             <View style={styles.card}>
               {!doctor ? (
@@ -332,6 +373,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { color: Ghost.text.primary, fontSize: 16, fontWeight: "600" },
   meta: { color: Ghost.text.secondary, fontSize: 14, lineHeight: 20 },
+  code: { color: Ghost.text.primary, fontSize: 30, fontWeight: "700", letterSpacing: 3, textAlign: "center", paddingVertical: Space.md, fontVariant: ["tabular-nums"] },
   check: { gap: 2, paddingBottom: Space.sm },
   info: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
   infoDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Ghost.border.subtle },

@@ -1282,16 +1282,28 @@ export async function fetchConnections(cfg: GhostConfig): Promise<ConnectionInfo
   return apps.map((a) => ({ id: a.id, provider: a.provider, display_name: a.display_name, status: a.status, capabilities: a.capabilities }));
 }
 
-export async function connectConnectedApp(cfg: GhostConfig, id: string, value: string, extra?: string): Promise<void> {
+/**
+ * Connects an app with a pasted key. The Pod tries it against the service first:
+ * a refusal throws with the reason in plain words, and a key that was saved but
+ * could not be checked comes back with a note to show.
+ */
+export async function connectConnectedApp(
+  cfg: GhostConfig,
+  id: string,
+  value: string,
+  extra?: string,
+): Promise<{ note: string | null }> {
   const res = await fetchWithTimeout(
     `${baseURL(cfg)}/v1/connected-apps/${encodeURIComponent(id)}`,
     { method: "POST", headers: headers(cfg), body: JSON.stringify(extra ? { value, extra } : { value }) },
-    15000,
+    20000,
   );
+  const body = await res.json().catch(() => null);
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(body || `Connect failed (HTTP ${res.status})`);
+    throw new Error(body?.error?.message ?? body?.error ?? `Connect failed (HTTP ${res.status})`);
   }
+  const app = body?.connected_app;
+  return { note: app?.status === "unverified" && app?.note ? String(app.note) : null };
 }
 
 export async function disconnectConnectedApp(cfg: GhostConfig, id: string): Promise<void> {
@@ -1872,10 +1884,10 @@ let wsReconnectConfig: GhostConfig | null = null;
 
 export function connectWebSocket(cfg: GhostConfig): void {
   // Credentials are never placed in URLs (they leak into logs, history, and
-  // referer headers). The gateway trusts localhost traffic and validates
-  // device credentials on relay-forwarded requests; the relay authenticates
-  // the app tunnel itself. React Native WebSocket cannot send custom
-  // headers, so the connection is unauthenticated by design.
+  // referer headers); they travel as connection headers. React Native's
+  // WebSocket accepts headers as its third argument. Without them the Pod
+  // refuses the connection from any device on the home network, and nothing
+  // live (a reminder, an alert, a reply from another device) would ever arrive.
   const url = `${wsURL(cfg)}/v1/ws`;
   wsReconnectConfig = cfg;
   wsShouldReconnect = true;
@@ -1913,7 +1925,13 @@ export function connectWebSocket(cfg: GhostConfig): void {
   trace("ws_connecting", { url });
   wsCurrentURL = url;
   wsIsConnecting = true;
-  wsInstance = new WebSocket(url);
+  // Headers on the handshake are a React Native extension the DOM typings lack.
+  type RNWebSocket = new (
+    u: string,
+    protocols?: string | string[] | null,
+    options?: { headers: Record<string, string> },
+  ) => WebSocket;
+  wsInstance = new (WebSocket as unknown as RNWebSocket)(url, undefined, { headers: authHeaders(cfg) });
 
   wsInstance.onopen = () => {
     wsIsConnecting = false;
@@ -2164,6 +2182,24 @@ export async function fetchPodUpdate(cfg: GhostConfig): Promise<PodUpdate> {
   const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/system/update`, { headers: headers(cfg) }, 20000);
   if (!res.ok) throw new Error(`Failed to check for updates (HTTP ${res.status})`);
   return (await res.json()) as PodUpdate;
+}
+
+/**
+ * Asks the Pod for a one-time code that resets the web console's password.
+ * A paired phone can vouch for its owner, so a forgotten console password does
+ * not need a terminal. The code works once and expires in ten minutes.
+ */
+export async function requestConsoleResetCode(cfg: GhostConfig): Promise<{ code: string; expiresIn: number }> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/console/password-reset`,
+    { method: "POST", headers: headers(cfg), body: "{}" },
+    10000,
+  );
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.code) {
+    throw new Error(body?.error?.message ?? `Couldn't get a reset code (HTTP ${res.status})`);
+  }
+  return { code: String(body.code), expiresIn: Number(body.expires_in) || 600 };
 }
 
 export async function startPodUpdate(cfg: GhostConfig): Promise<void> {

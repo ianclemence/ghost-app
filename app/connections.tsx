@@ -93,16 +93,17 @@ export default function ConnectionsScreen() {
     }
     setBusyId(app.id);
     try {
-      if (app.setup === "paste_pair") {
-        await connectConnectedApp(config, app.id, extra, value);
-      } else {
-        await connectConnectedApp(config, app.id, value);
-      }
+      const result = app.setup === "paste_pair"
+        ? await connectConnectedApp(config, app.id, extra, value)
+        : await connectConnectedApp(config, app.id, value);
       setKeyInput((m) => ({ ...m, [app.id]: "" }));
       setUrlInput((m) => ({ ...m, [app.id]: "" }));
       await load(true);
+      // Saved, but the service couldn't be reached to check it: say so.
+      if (result.note) Alert.alert("Saved", result.note);
     } catch (e) {
-      Alert.alert("Connect failed", e instanceof Error ? e.message : "Unknown error");
+      // The Pod says why in plain words ("GitHub didn't accept that").
+      Alert.alert("Couldn't connect", e instanceof Error ? e.message : "Something went wrong. Try again.");
     }
     setBusyId(null);
   }, [config, busyId, keyInput, urlInput, load]);

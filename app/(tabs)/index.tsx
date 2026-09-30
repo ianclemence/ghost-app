@@ -46,6 +46,7 @@ import {
 } from "@/lib/ghostApi";
 import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
 import { dispatchMode } from "@/lib/dispatch";
+import { applyLiveEffect, liveEffect } from "@/lib/liveTurn";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
 import { parseCardMessage, type RichCard } from "@/lib/cards";
@@ -118,6 +119,7 @@ function ThreadExtras({
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const ownRequestRef = useRef<string | null>(null);
   const { config, messages, setMessages, appendMessage, removeMessage, updateMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
@@ -318,6 +320,27 @@ export default function ConversationScreen() {
     loadArtifacts();
     loadCards();
     const off = onWSMessage((msg) => {
+      // A reply that another surface started (a message sent from the terminal):
+      // follow it live instead of finding it finished the next time we look.
+      const live = liveEffect(msg, { session: MAIN_SESSION_ID, ownRequestId: ownRequestRef.current });
+      if (live) {
+        const st = useGhostStore.getState();
+        const ended = applyLiveEffect(live, {
+          messages: () => useGhostStore.getState().messages,
+          appendMessage: st.appendMessage,
+          updateMessage: st.updateMessage,
+          removeMessage: st.removeMessage,
+          setToolActivity: st.setToolActivity,
+        });
+        if (ended) {
+          fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+            .then(({ messages: h }) => {
+              if (!cancelled) setMessages(reconcileHistory(useGhostStore.getState().messages, h));
+            })
+            .catch(() => {});
+        }
+        return;
+      }
       const t = typeof msg.type === "string" ? msg.type : (msg.metadata as Record<string, unknown> | undefined)?.type;
       if (t === "background_started" || t === "background_done") {
         // Detached work for THIS conversation only; other threads never
@@ -434,6 +457,7 @@ export default function ConversationScreen() {
     setToolActivity(null);
     servedRef.current = null;
     const requestId = `m-${Date.now()}`;
+    ownRequestRef.current = requestId;
     const ctrl = new AbortController();
     localAbort.current = ctrl;
     await sendMessage(config, {
