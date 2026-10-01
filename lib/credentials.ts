@@ -30,6 +30,7 @@ const ASYNC = {
   RELAY_SERVER: "ghost:relay_server",
   GHOST_ID: "ghost:ghost_id",
   GHOST_NAME: "ghost:ghost_name",
+  POD_KEY: "ghost:pod_key", // the Pod's public key, pinned at pairing; not secret
 } as const;
 
 // ─── Credential Types ────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ export interface ConnectionMeta {
   relayServer?: string;
   ghostId?: string;
   ghostName?: string;
+  podKey?: string;
 }
 
 // ─── Device Credential Operations ────────────────────────────────────────
@@ -85,6 +87,7 @@ export async function saveConnectionMeta(meta: ConnectionMeta): Promise<void> {
   if (meta.relayServer) await AsyncStorage.setItem(ASYNC.RELAY_SERVER, meta.relayServer);
   if (meta.ghostId) await AsyncStorage.setItem(ASYNC.GHOST_ID, meta.ghostId);
   if (meta.ghostName) await AsyncStorage.setItem(ASYNC.GHOST_NAME, meta.ghostName);
+  if (meta.podKey) await AsyncStorage.setItem(ASYNC.POD_KEY, meta.podKey);
 }
 
 export async function getConnectionMeta(): Promise<ConnectionMeta | null> {
@@ -98,6 +101,7 @@ export async function getConnectionMeta(): Promise<ConnectionMeta | null> {
     relayServer: (await AsyncStorage.getItem(ASYNC.RELAY_SERVER)) || undefined,
     ghostId: (await AsyncStorage.getItem(ASYNC.GHOST_ID)) || undefined,
     ghostName: (await AsyncStorage.getItem(ASYNC.GHOST_NAME)) || undefined,
+    podKey: (await AsyncStorage.getItem(ASYNC.POD_KEY)) || undefined,
   };
 }
 
@@ -121,6 +125,7 @@ export async function clearAllCredentials(): Promise<void> {
   await AsyncStorage.removeItem(ASYNC.RELAY_SERVER);
   await AsyncStorage.removeItem(ASYNC.GHOST_ID);
   await AsyncStorage.removeItem(ASYNC.GHOST_NAME);
+  await AsyncStorage.removeItem(ASYNC.POD_KEY);
 }
 
 // ─── Redacted Logging ───────────────────────────────────────────────────

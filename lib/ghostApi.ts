@@ -1,3 +1,4 @@
+import { sealedFetch } from "./sealedFetch";
 import { normalizeHistoryTimestamps } from "./reconcile";
 import { toMediaItems, type Attachment } from "./attachments";
 import { readBase64 } from "./localFiles";
@@ -32,6 +33,9 @@ export interface GhostConfig {
   relayServer?: string; // relay HTTP endpoint, e.g. "https://relay.example.com"
   ghostId?: string; // device ID for relay client auth
   clientToken?: string; // raw token for relay auth (stored in SecureStore)
+  // The Pod's public key, pinned from the pairing link. When present, every
+  // request through the relay is sealed end to end and the relay reads nothing.
+  podKey?: string;
   // Per-device auth (paired devices — set after secure pairing)
   deviceID?: string;
   credential?: string;
@@ -174,6 +178,22 @@ function resolveTransport(cfg: GhostConfig): "lan" | "relay" {
   return cfg.transport ?? "relay";
 }
 
+/**
+ * fetch for this Pod. Through a relay with a pinned Pod key the request is
+ * sealed end to end; otherwise (at home, or a relay paired before keys were
+ * pinned) it is an ordinary request.
+ */
+export function gfetch(cfg: GhostConfig, input: string, init?: RequestInit): Promise<Response> {
+  if (resolveTransport(cfg) === "relay" && cfg.relayServer && cfg.podKey && cfg.ghostId && cfg.clientToken) {
+    return sealedFetch(
+      { relayServer: cfg.relayServer, ghostId: cfg.ghostId, clientToken: cfg.clientToken, podKey: cfg.podKey },
+      input,
+      init,
+    );
+  }
+  return fetch(input, init);
+}
+
 export function baseURL(cfg: GhostConfig): string {
   if (resolveTransport(cfg) === "relay" && cfg.relayServer) {
     return cfg.relayServer.replace(/\/+$/, "");
@@ -248,12 +268,14 @@ async function fetchWithTimeout(
   url: string,
   init: RequestInit,
   timeoutMs: number,
+  cfg?: GhostConfig,
 ): Promise<Response> {
-  if (typeof AbortController === "undefined") return fetch(url, init);
+  const go = (u: string, i: RequestInit) => (cfg ? gfetch(cfg, u, i) : fetch(u, i));
+  if (typeof AbortController === "undefined") return go(url, init);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await go(url, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -270,7 +292,7 @@ export interface HealthStatus {
 export async function checkHealthInfo(cfg: GhostConfig): Promise<HealthStatus> {
   const url = `${baseURL(cfg)}/v1/health`;
   try {
-    const res = await fetchWithTimeout(url, { headers: headers(cfg) }, 5000);
+    const res = await fetchWithTimeout(url, { headers: headers(cfg) }, 5000, cfg);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       noteAuthFailure(res.status, body);
@@ -342,7 +364,7 @@ export async function fetchHistory(
   if (typeof since === "number" && Number.isFinite(since) && since > 0) {
     qs.set("since", String(Math.floor(since)));
   }
-  const res = await fetch(`${baseURL(cfg)}/v1/history?${qs.toString()}`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/history?${qs.toString()}`, {
     headers: {
       ...headers(cfg),
       "X-Ghost-Session": session,
@@ -676,7 +698,7 @@ export async function sendMessage(
   const isCancelled = () => !!opts.signal?.aborted;
 
   try {
-    const res = await fetch(url, {
+    const res = await gfetch(cfg, url, {
       method: "POST",
       headers: {
         ...messageHeaders(cfg),
@@ -794,7 +816,7 @@ export interface MemorySelf {
 }
 
 export async function fetchMemorySelf(cfg: GhostConfig): Promise<MemorySelf> {
-  const res = await fetch(`${baseURL(cfg)}/v1/memory/self`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/memory/self`, {
     headers: headers(cfg),
   });
   if (!res.ok) throw new Error(`Failed to load memory (HTTP ${res.status})`);
@@ -807,7 +829,7 @@ export async function fetchMemorySelf(cfg: GhostConfig): Promise<MemorySelf> {
 }
 
 export async function forgetMemoryFact(cfg: GhostConfig, id: string): Promise<void> {
-  const res = await fetch(`${baseURL(cfg)}/v1/memory/self/forget`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/memory/self/forget`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ id }),
@@ -820,7 +842,7 @@ export async function forgetMemoryNote(
   target: "user" | "memory",
   entry: string,
 ): Promise<void> {
-  const res = await fetch(`${baseURL(cfg)}/v1/memory/self/forget`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/memory/self/forget`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ target, entry }),
@@ -831,7 +853,7 @@ export async function forgetMemoryNote(
 // ─── Pi System ────────────────────────────────────────────────────────────
 
 export async function fetchStats(cfg: GhostConfig): Promise<PiStats> {
-  const res = await fetch(`${baseURL(cfg)}/v1/stats`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/stats`, {
     headers: headers(cfg),
   });
   if (!res.ok) throw new Error("Failed to fetch stats");
@@ -914,7 +936,7 @@ export async function fetchActivity(
   opts?: { limit?: number; sinceSeq?: number; conversationId?: string },
 ): Promise<ActivityChip[]> {
   const qs = activityQuery(opts?.limit ?? 50, opts?.sinceSeq, opts?.conversationId);
-  const res = await fetch(`${baseURL(cfg)}/v1/activity?${qs}`, { headers: headers(cfg) });
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/activity?${qs}`, { headers: headers(cfg) });
   if (!res.ok) throw new Error(`Activity failed (HTTP ${res.status})`);
   const data = await res.json().catch(() => null);
   return Array.isArray(data?.activity) ? data.activity : [];
@@ -952,7 +974,7 @@ export interface PendingApproval {
 }
 
 export async function fetchPendingApprovals(cfg: GhostConfig): Promise<PendingApproval[]> {
-  const res = await fetch(`${baseURL(cfg)}/v1/permissions/requests?status=pending`, { headers: headers(cfg) });
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/permissions/requests?status=pending`, { headers: headers(cfg) });
   if (!res.ok) return [];
   const data = await res.json().catch(() => null);
   return Array.isArray(data?.requests) ? data.requests : [];
@@ -1180,7 +1202,7 @@ export async function controlRoutineItem(
   const url = isRoutine
     ? `${baseURL(cfg)}/v1/routines/${encodeURIComponent(routine.id)}/${action}`
     : `${baseURL(cfg)}/v1/scheduled/${encodeURIComponent(routine.id)}/${action}`;
-  const res = await fetch(url, { method: "POST", headers: headers(cfg) });
+  const res = await gfetch(cfg, url, { method: "POST", headers: headers(cfg) });
   if (!res.ok) throw new Error(`Routine ${action} failed (HTTP ${res.status})`);
 }
 
@@ -1826,7 +1848,7 @@ export async function watchSurface(cfg: GhostConfig, kind: SurfaceKind, id: stri
     opts.signal.addEventListener("abort", onAbort, { once: true });
   }
   try {
-    const res = await fetch(livePath(cfg, kind, id, "stream"), {
+    const res = await gfetch(cfg, livePath(cfg, kind, id, "stream"), {
       headers: headers(cfg),
       signal: ctrl?.signal,
     });
@@ -2191,7 +2213,7 @@ export interface StoredFile {
 }
 
 export async function fetchFiles(cfg: GhostConfig): Promise<{ files: StoredFile[]; retentionDays: number }> {
-  const res = await fetch(`${baseURL(cfg)}/v1/files`, { headers: headers(cfg) });
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/files`, { headers: headers(cfg) });
   if (!res.ok) throw new Error(`Failed to load files (HTTP ${res.status})`);
   const data = await res.json();
   return {
@@ -2201,7 +2223,7 @@ export async function fetchFiles(cfg: GhostConfig): Promise<{ files: StoredFile[
 }
 
 export async function deleteFile(cfg: GhostConfig, id: string): Promise<void> {
-  const res = await fetch(`${baseURL(cfg)}/v1/files/${encodeURIComponent(id)}`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/files/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: headers(cfg),
   });
@@ -2252,7 +2274,7 @@ export async function fetchFileContent(
 
 /** Hand the Pod this phone's push token so it can notify when the app is closed. */
 export async function registerPushToken(cfg: GhostConfig, token: string, platform: string): Promise<void> {
-  const res = await fetch(`${baseURL(cfg)}/v1/push/register`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/push/register`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ token, platform }),
@@ -2261,7 +2283,7 @@ export async function registerPushToken(cfg: GhostConfig, token: string, platfor
 }
 
 export async function unregisterPushToken(cfg: GhostConfig): Promise<void> {
-  const res = await fetch(`${baseURL(cfg)}/v1/push/register`, { method: "DELETE", headers: headers(cfg) });
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/push/register`, { method: "DELETE", headers: headers(cfg) });
   if (!res.ok) throw new Error(`Failed to unregister (HTTP ${res.status})`);
 }
 
@@ -2305,7 +2327,7 @@ export async function requestConsoleResetCode(cfg: GhostConfig): Promise<{ code:
 }
 
 export async function startPodUpdate(cfg: GhostConfig): Promise<void> {
-  const res = await fetch(`${baseURL(cfg)}/v1/system/update`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/system/update`, {
     method: "POST",
     headers: headers(cfg),
     body: JSON.stringify({ confirm: true }),

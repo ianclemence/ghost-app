@@ -162,6 +162,7 @@ async function buildConfig(): Promise<GhostConfig | null> {
     transport: meta.transport ?? "relay",
     relayServer: meta.relayServer,
     ghostId: meta.ghostId,
+    podKey: meta.podKey,
     clientToken,
     deviceID: cred?.deviceID,
     credential: cred?.credential,
@@ -255,6 +256,7 @@ export interface PairingRequest {
   transport: "lan" | "relay";
   relayServer?: string;
   ghostId?: string;
+  podKey?: string;
 }
 
 /**
@@ -277,6 +279,7 @@ export async function completePairing(
       transport: req.transport,
       relayServer: req.relayServer,
       ghostId: req.ghostId,
+      podKey: req.podKey,
     };
 
     // Get platform for device metadata.
@@ -295,6 +298,7 @@ export async function completePairing(
       transport: req.transport,
       relayServer: req.relayServer,
       ghostId: req.ghostId,
+      podKey: req.podKey,
       ghostName: result.ghost_name,
     });
     resetAuthFailureState();
@@ -412,6 +416,7 @@ async function adoptLegacyRelayLink(config: GhostConfig): Promise<void> {
     transport: "relay",
     relayServer: config.relayServer,
     ghostId: config.ghostId,
+    podKey: config.podKey,
   });
 
   const store = useGhostStore.getState();
@@ -455,6 +460,7 @@ export async function handlePairingDeepLink(url: string): Promise<{ ok: boolean;
       transport: payload.transport,
       relayServer: payload.relayServer,
       ghostId: payload.ghostId,
+      podKey: payload.podKey,
     });
     return { ok: result.ok, error: result.error };
   }

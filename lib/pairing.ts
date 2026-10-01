@@ -35,6 +35,8 @@ export interface SecurePairingPayload {
   // Relay-specific
   relayServer?: string;
   ghostId?: string;
+  // The Pod's public key (base64url) for end-to-end encryption through the relay
+  podKey?: string;
 }
 
 export interface LegacyPairingPayload {
@@ -129,6 +131,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
         podId,
         relayServer,
         ghostId,
+        podKey: validPodKey(qp.pk),
       };
     }
 
@@ -179,11 +182,17 @@ export function parsePairingURI(url: string): PairingPayload | null {
         relayServer,
         ghostId,
         clientToken: token,
+        podKey: validPodKey(qp.pk),
       },
     };
   }
 
   return null;
+}
+
+/** A Pod key is 32 bytes, base64url: 43 characters. Anything else is ignored rather than trusted. */
+function validPodKey(v: string | undefined): string | undefined {
+  return v && /^[A-Za-z0-9_-]{43}$/.test(v) ? v : undefined;
 }
 
 // ─── Validation Helpers ──────────────────────────────────────────────────

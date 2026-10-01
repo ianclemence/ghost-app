@@ -1,4 +1,4 @@
-import { authHeaders, baseURL, type GhostConfig } from "../ghostApi";
+import { authHeaders, baseURL, gfetch, type GhostConfig } from "../ghostApi";
 import type { SessionAPI } from "./types";
 import { createToolConnection } from "./tool-connection";
 import { isLiveVoice } from "./voices";
@@ -11,7 +11,7 @@ async function requestJson(cfg: GhostConfig, path: string, method: "POST" | "DEL
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${baseURL(cfg)}${path}`, {
+    const res = await gfetch(cfg, `${baseURL(cfg)}${path}`, {
       method,
       headers: { "Content-Type": "application/json", ...authHeaders(cfg) },
       body: JSON.stringify(body),
@@ -79,7 +79,7 @@ export function createGhostSessionAPI(cfg: GhostConfig): SessionAPI {
       return createToolConnection({
         onFailure,
         open: async (signal) => {
-          return fetch(`${baseURL(cfg)}/v1/voice/live/tools`, {
+          return gfetch(cfg, `${baseURL(cfg)}/v1/voice/live/tools`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -110,7 +110,7 @@ export async function fetchLiveStatus(cfg: GhostConfig): Promise<LiveStatus | nu
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const res = await fetch(`${baseURL(cfg)}/v1/voice/live/status`, {
+      const res = await gfetch(cfg, `${baseURL(cfg)}/v1/voice/live/status`, {
         headers: authHeaders(cfg),
         signal: controller.signal,
       });
