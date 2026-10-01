@@ -257,6 +257,7 @@ export interface PairingRequest {
   relayServer?: string;
   ghostId?: string;
   podKey?: string;
+  clientToken?: string;
 }
 
 /**
@@ -280,6 +281,7 @@ export async function completePairing(
       relayServer: req.relayServer,
       ghostId: req.ghostId,
       podKey: req.podKey,
+      clientToken: req.clientToken,
     };
 
     // Get platform for device metadata.
@@ -288,6 +290,7 @@ export async function completePairing(
     const result = await apiCompletePairing(tempConfig, req.token, "Phone", platform);
 
     // Store credentials securely.
+    if (req.clientToken) await saveClientToken(req.clientToken);
     await saveDeviceCredential({
       deviceID: result.device_id,
       credential: result.credential,
@@ -461,6 +464,7 @@ export async function handlePairingDeepLink(url: string): Promise<{ ok: boolean;
       relayServer: payload.relayServer,
       ghostId: payload.ghostId,
       podKey: payload.podKey,
+      clientToken: payload.clientToken,
     });
     return { ok: result.ok, error: result.error };
   }

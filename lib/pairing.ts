@@ -37,6 +37,9 @@ export interface SecurePairingPayload {
   ghostId?: string;
   // The Pod's public key (base64url) for end-to-end encryption through the relay
   podKey?: string;
+  // A relay credential for this phone, from the link. It lets the phone reach
+  // the Pod through the relay long enough to redeem the pairing token.
+  clientToken?: string;
 }
 
 export interface LegacyPairingPayload {
@@ -132,6 +135,7 @@ export function parsePairingURI(url: string): PairingPayload | null {
         relayServer,
         ghostId,
         podKey: validPodKey(qp.pk),
+        clientToken: qp.client && VALID_TOKEN_PATTERN.test(qp.client) ? qp.client : undefined,
       };
     }
 

@@ -127,3 +127,25 @@ describe("pairing validators", () => {
     expect(isSecurePairingURI("ghost://connect?transport=relay")).toBe(false);
   });
 });
+
+describe("pairing through the relay", () => {
+  const key = "A".repeat(43);
+  const tok = "a".repeat(64);
+  test("the link carries the relay, the pinned Pod key, a relay credential and the pairing token", () => {
+    const p = parsePairingURI(
+      `ghost://pair?v=1&pod=p1&transport=relay&relay=${encodeURIComponent("https://relay.example.com")}&ghost=p1&token=${"b".repeat(64)}&client=${tok}&pk=${key}`,
+    );
+    expect(p?.type).toBe("secure");
+    if (p?.type !== "secure") return;
+    expect(p.transport).toBe("relay");
+    expect(p.relayServer).toBe("https://relay.example.com");
+    expect(p.podKey).toBe(key);
+    expect(p.clientToken).toBe(tok);
+  });
+  test("a malformed key or credential is ignored, not trusted", () => {
+    const p = parsePairingURI(`ghost://pair?v=1&pod=p1&transport=relay&relay=https%3A%2F%2Fr&ghost=p1&token=${"b".repeat(64)}&client=zz&pk=short`);
+    if (p?.type !== "secure") throw new Error("expected a secure payload");
+    expect(p.podKey).toBeUndefined();
+    expect(p.clientToken).toBeUndefined();
+  });
+});

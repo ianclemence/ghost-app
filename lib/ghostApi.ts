@@ -331,7 +331,7 @@ export async function completePairing(
   displayName: string,
   platform: string,
 ): Promise<PairingCompleteResult> {
-  const res = await fetch(`${baseURL(cfg)}/v1/pairing/complete`, {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/pairing/complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token, display_name: displayName, platform }),

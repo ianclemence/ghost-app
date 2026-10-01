@@ -75,8 +75,17 @@ function nonceFor(n: number): Uint8Array {
 /** Random bytes from the platform; tests may replace it. */
 export function randomBytes(n: number): Uint8Array {
   const g = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto;
-  if (!g?.getRandomValues) throw new Error("no secure random source on this device");
-  return g.getRandomValues(new Uint8Array(n));
+  if (g?.getRandomValues) return g.getRandomValues(new Uint8Array(n));
+  // The phone's JavaScript runtime has no global crypto; the platform's own
+  // secure generator comes from expo-crypto. Loaded only here, so tests and
+  // anything that never seals never touch the native module.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getRandomValues } = require("expo-crypto") as { getRandomValues: (a: Uint8Array) => Uint8Array };
+    return getRandomValues(new Uint8Array(n));
+  } catch {
+    throw new Error("no secure random source on this device");
+  }
 }
 
 // ─── the sealed session ───────────────────────────────────────────────────
