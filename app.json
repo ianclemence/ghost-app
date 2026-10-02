@@ -19,7 +19,9 @@
         "NSMicrophoneUsageDescription": "Ghost needs microphone access to dictate messages",
         "NSPhotoLibraryUsageDescription": "Ghost needs photo library access to send images",
         "NSCameraUsageDescription": "Ghost needs camera access to capture images",
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -44,6 +46,19 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000",
+          "image": "./assets/icons/splash-icon-dark.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#000000",
+            "image": "./assets/icons/splash-icon-dark.png"
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -86,6 +101,7 @@
     },
     "updates": {
       "url": "https://u.expo.dev/5a5e72fe-7bdf-4eef-be5c-d7dbe6d4a680"
-    }
+    },
+    "backgroundColor": "#000000"
   }
 }

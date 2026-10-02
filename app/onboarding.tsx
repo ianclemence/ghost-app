@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import { ScreenBackground } from "@/components/screen-glow";
-import { Fonts, Ghost, Space, Type } from "@/constants/theme";
+import { Fonts, Ghost, Inter, Space, Type } from "@/constants/theme";
 
 /**
  * First launch.
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   hero: { flex: 1, justifyContent: "center", gap: Space.xxl },
   lines: { gap: 2 },
   line: { fontFamily: Fonts.voice, fontSize: 52, lineHeight: 62, letterSpacing: -1, color: Ghost.text.primary },
-  explain: { ...Type.prose, fontSize: 19, lineHeight: 27, color: "rgba(255,255,255,0.78)", maxWidth: 310 },
+  explain: { ...Type.prose, fontFamily: Inter.light, fontSize: 19, lineHeight: 27, color: "rgba(255,255,255,0.78)", maxWidth: 310 },
   bottom: { gap: Space.xs },
   secondary: { alignItems: "center", justifyContent: "center", minHeight: 48 },
   secondaryText: { ...Type.callout, fontWeight: "500", color: Ghost.text.secondary },

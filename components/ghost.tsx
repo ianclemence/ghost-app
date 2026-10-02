@@ -130,6 +130,7 @@ export function GhostButton({
       activeOpacity={disabled || loading ? 1 : 0.7}
       accessibilityLabel={title}
       accessibilityRole="button"
+      hitSlop={size === "sm" ? { top: 5, bottom: 5, left: 4, right: 4 } : undefined}
       accessibilityState={{ disabled: !!(disabled || loading) }}
       onPress={disabled || loading ? undefined : onPress}
       onPressIn={() => setPressed(true)}

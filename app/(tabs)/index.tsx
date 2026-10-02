@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
+import Animated, { Easing, FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { ArrowDown, ArrowUpRight } from "lucide-react-native";
@@ -797,7 +797,7 @@ export default function ConversationScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenBackground variant={messages.length === 0 && settled ? "hero" : "calm"} />
+      <ScreenBackground variant={messages.length === 0 && settled ? "hero" : "calm"} alive={isStreaming} />
       <PresenceHeader
         name={ghostName ?? "Ghost"}
         status={status}
@@ -816,17 +816,22 @@ export default function ConversationScreen() {
               <Text style={styles.emptyTitle}>{greeting()}</Text>
               <Text style={styles.emptySub}>Ask, tell, or hand something off.</Text>
               <View style={styles.starters}>
-                {starters.map((st) => (
-                  <Pressable
+                {starters.map((st, i) => (
+                  // They arrive one after another, a breath apart: the first thing the owner sees is alive.
+                  <Animated.View
                     key={st.label}
-                    onPress={() => setDraft(st.text)}
-                    style={({ pressed }) => [styles.starter, pressed && styles.starterPressed]}
-                    accessibilityRole="button"
-                    accessibilityHint="Puts this in the message box"
+                    entering={reduceMotion ? undefined : FadeInDown.duration(260).delay(220 + i * 70).easing(Easing.bezier(0.23, 1, 0.32, 1))}
                   >
-                    <Text style={styles.starterText}>{st.label}</Text>
-                    <ArrowUpRight size={15} color={Ghost.text.secondary} />
-                  </Pressable>
+                    <Pressable
+                      onPress={() => setDraft(st.text)}
+                      style={({ pressed }) => [styles.starter, pressed && styles.starterPressed]}
+                      accessibilityRole="button"
+                      accessibilityHint="Puts this in the message box"
+                    >
+                      <Text style={styles.starterText}>{st.label}</Text>
+                      <ArrowUpRight size={15} color={Ghost.text.secondary} />
+                    </Pressable>
+                  </Animated.View>
                 ))}
               </View>
             </>

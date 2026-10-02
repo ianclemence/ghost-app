@@ -66,14 +66,27 @@ function Layer({ spots, dx, dy, seconds }: { spots: Spot[]; dx: number; dy: numb
   );
 }
 
-export function ScreenBackground({ variant = "hero" }: { variant?: "hero" | "calm" }) {
+/** How far the light swells when Ghost is working. Small: a breath, not a flash. */
+const SWELL = 0.14;
+
+export function ScreenBackground({ variant = "hero", alive = false }: { variant?: "hero" | "calm"; alive?: boolean }) {
   const reduce = useReducedMotion();
   const level = useSharedValue(variant === "hero" ? 1 : 0.34);
+  // While Ghost is working the aurora breathes with it, slowly. It is the one
+  // place the whole screen says "someone is here".
+  const breath = useSharedValue(0);
+  useEffect(() => {
+    if (!alive || reduce) {
+      breath.set(withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) }));
+      return;
+    }
+    breath.set(withRepeat(withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.sin) }), -1, true));
+  }, [alive, reduce, breath]);
   useEffect(() => {
     const to = variant === "hero" ? 1 : 0.34;
     level.set(reduce ? to : withTiming(to, { duration: 600, easing: Easing.out(Easing.cubic) }));
   }, [variant, level, reduce]);
-  const fade = useAnimatedStyle(() => ({ opacity: level.get() }));
+  const fade = useAnimatedStyle(() => ({ opacity: Math.min(1, level.get() + breath.get() * SWELL) }));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Animated.View style={[StyleSheet.absoluteFill, fade]}>

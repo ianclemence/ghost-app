@@ -16,7 +16,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { AlarmClock, Info, Repeat, TriangleAlert } from "lucide-react-native";
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Ghost, Inter, Radius, Space } from "@/constants/theme";
 import { MarkdownBubble, UserMarkdown } from "@/components/markdown-bubble";
 import { NoticeCard } from "@/components/notice-card";
 import { clockTime } from "@/lib/thread";
@@ -263,6 +263,7 @@ const styles = StyleSheet.create({
     marginTop: Space.lg,
   },
   kindText: {
+    fontFamily: Inter.regular,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "700",
@@ -296,6 +297,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   meta: {
+    fontFamily: Inter.regular,
     fontSize: 12,
     lineHeight: 16,
     color: Ghost.text.tertiary,
@@ -328,6 +330,7 @@ const styles = StyleSheet.create({
     minHeight: 18,
   },
   thinkingText: {
+    fontFamily: Inter.regular,
     fontSize: 15,
     lineHeight: 20,
     color: Ghost.text.tertiary,

@@ -18,6 +18,7 @@ import {
 import { recordMilestone } from '../lib/onboarding-metrics';
 import { useGhostStore } from '../lib/store';
 import { restoreForBoot } from '../lib/boot';
+import { BootVeil } from '../components/boot-veil';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
@@ -293,6 +294,7 @@ export default function RootLayout() {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
       </Stack>
+      <BootVeil ready={bootReady} />
     </GestureHandlerRootView>
   );
 }

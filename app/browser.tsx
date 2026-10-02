@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, TextInput, View } from
 import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ghost, Radius, Space } from "@/constants/theme";
+import { Ghost, Inter, Radius, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import {
@@ -248,10 +248,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     paddingHorizontal: Space.md,
-    borderRadius: Radius.md,
+    borderRadius: Radius.xxl,
     borderCurve: "continuous",
-    backgroundColor: Ghost.bg.raised,
+    backgroundColor: Ghost.glass.fill,
     color: Ghost.text.primary,
+    fontFamily: Inter.regular,
     fontSize: 16,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.border.default,
