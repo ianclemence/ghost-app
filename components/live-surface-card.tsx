@@ -170,7 +170,14 @@ export function LiveSurfaceCard({ config, kind, surfaceId, ownDeviceId, onGone }
     setSurface(r.surface);
   }, [config, kind, surfaceId, watching, startWatch, stopWatch, onGone, router]);
 
-  if (!surface) return null;
+  // A finished task leaves nothing behind. The card is pinned below the
+  // newest message, so once it was over it sat under every later reply and
+  // covered the end of the conversation.
+  const finished = surface?.state === "completed" || surface?.state === "expired";
+  useEffect(() => {
+    if (finished && !watching) onGone(surfaceId);
+  }, [finished, watching, onGone, surfaceId]);
+  if (!surface || (finished && !watching)) return null;
   const view = presentSurface(surface, ownDeviceId);
   const actionLabels: Record<SurfaceActionId, string> = {
     watch: watching ? "Hide" : "Watch",
@@ -191,7 +198,7 @@ export function LiveSurfaceCard({ config, kind, surfaceId, ownDeviceId, onGone }
           {view.detail ? <Text style={styles.detail}>{view.detail}</Text> : null}
         </View>
       </View>
-      {view.actions.includes("takeover") ? (
+      {surface.state === "waiting" ? (
         <Text style={styles.credential}>Ghost needs you to sign in. Your password stays private.</Text>
       ) : null}
       {watching ? (

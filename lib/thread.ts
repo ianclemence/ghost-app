@@ -106,6 +106,9 @@ export function buildThread(
       continue;
     }
     const m = e.msg!;
+    // Ghost saying the same notice twice in a row ("My browser got stuck",
+    // after each reset) is one notice, not a stack of identical cards.
+    if (m.kind && prev && prev.kind === m.kind && prev.content.trim() === m.content.trim()) continue;
     const gap = prev ? m.timestamp - prev.timestamp : Infinity;
     const outOfTurn =
       m.role === "assistant" &&

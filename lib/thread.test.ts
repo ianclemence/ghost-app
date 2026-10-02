@@ -80,3 +80,11 @@ describe("buildThread places cards where they were shown", () => {
     expect(items.filter((i) => i.kind === "card").map((i) => (i as { card: { id: string } }).card.id)).toEqual(["a", "b"]);
   });
 });
+
+describe("repeated notices", () => {
+  test("the same notice twice in a row is shown once", () => {
+    const n = (id: string, at: number) => ({ id, role: "assistant", content: "My browser got stuck", timestamp: at, kind: "notice" }) as never;
+    const items = buildThread([n("a", 1000), n("b", 2000)], [], 3000);
+    expect(items.filter((i) => i.kind === "message").length).toBe(1);
+  });
+});
