@@ -337,7 +337,7 @@ export default function PodScreen() {
             <View style={{ flex: 1 }}>
               <GhostInput value={installName} onChangeText={setInstallName} placeholder="Add a model, e.g. qwen3:8b" />
             </View>
-            <GhostButton title="Add" variant="primary" size="sm" onPress={() => void install()} disabled={installing || installName.trim() === ""} loading={installing} />
+            <GhostButton title="Install" variant="secondary" size="sm" onPress={() => void install()} disabled={installing || installName.trim() === ""} loading={installing} />
           </View>
           {note ? <Text style={styles.meta} accessibilityLiveRegion="polite">{note}</Text> : null}
         </View>

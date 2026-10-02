@@ -161,7 +161,7 @@ export default function ConnectionsScreen() {
                     <GhostButton
                       title={t.text}
                       size="sm"
-                      variant={t.tone === "warn" ? "primary" : "secondary"}
+                      variant="secondary"
                       onPress={() => open(c)}
                     />
                   )}

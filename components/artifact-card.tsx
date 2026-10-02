@@ -138,10 +138,10 @@ export function ArtifactCard({ config, artifact }: Props) {
           />
         ) : null}
         {artifact.kind === "link" ? (
-          <GhostButton title="Open" variant="primary" onPress={openLink} />
+          <GhostButton title="Open" variant="secondary" onPress={openLink} />
         ) : null}
         {actions.some((a) => a.kind === "download") && artifact.kind === "file" ? (
-          <GhostButton title="Download" variant="primary" onPress={() => void download()} />
+          <GhostButton title="Download" variant="secondary" onPress={() => void download()} />
         ) : null}
       </View>
       {previewBusy ? <Text style={styles.status}>Loading preview…</Text> : null}

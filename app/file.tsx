@@ -86,8 +86,8 @@ export default function FileScreen() {
       <ScreenBackground variant="calm" />
       <ScreenHeader title={title} subtitle={p ? `${fileSize(p.size)}${p.extracted ? " · text Ghost reads from it" : ""}` : undefined} />
       <View style={styles.actions}>
-        <GhostButton title={busy === "open" ? "Opening…" : "Open"} variant="primary" onPress={open} disabled={!!busy} />
-        <GhostButton title={busy === "delete" ? "Deleting…" : "Delete"} variant="danger" onPress={remove} disabled={!!busy} />
+        <GhostButton title={busy === "open" ? "Opening…" : "Open"} variant="secondary" onPress={open} disabled={!!busy} />
+        <GhostButton title={busy === "delete" ? "Deleting…" : "Delete"} variant="secondary" onPress={remove} disabled={!!busy} />
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!p && !error ? (

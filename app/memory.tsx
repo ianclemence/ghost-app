@@ -176,7 +176,7 @@ function Item({
       {busy ? (
         <ActivityIndicator size="small" color={Ghost.text.tertiary} />
       ) : (
-        <GhostButton title="Forget" variant="danger" size="sm" onPress={onForget} />
+        <GhostButton title="Forget" variant="ghost" size="sm" onPress={onForget} />
       )}
     </Animated.View>
   );

@@ -402,8 +402,8 @@ export default function IntelligenceScreen() {
                       </GhostText>
                     </View>
                     <GhostButton
-                      title={info.configured ? "Configure" : "Set up"}
-                      variant={info.configured ? "secondary" : "primary"}
+                      title="Configure"
+                      variant="secondary"
                       size="sm"
                       onPress={() => openConfigure(key)}
                     />

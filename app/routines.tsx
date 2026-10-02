@@ -272,7 +272,7 @@ export default function RoutinesScreen() {
                       <GhostButton title={busy ? "\u2026" : "Pause"} variant="secondary" size="sm" onPress={() => handleOp(t, "pause")} />
                     ) : null}
                     {canResume ? (
-                      <GhostButton title={busy ? "\u2026" : "Resume"} variant="primary" size="sm" onPress={() => handleOp(t, "resume")} />
+                      <GhostButton title={busy ? "\u2026" : "Resume"} variant="secondary" size="sm" onPress={() => handleOp(t, "resume")} />
                     ) : null}
                     {canStop ? (
                       <GhostButton title={busy ? "\u2026" : "Stop"} variant="danger" size="sm" onPress={() => handleOp(t, "cancel")} />
@@ -331,7 +331,7 @@ export default function RoutinesScreen() {
                     {isActive ? (
                       <GhostButton title={busy ? "…" : "Pause"} variant="secondary" size="sm" onPress={() => handleGoalOp(g, "pause")} />
                     ) : g.status === "paused" || g.status === "expired" ? (
-                      <GhostButton title={busy ? "…" : "Resume"} variant="primary" size="sm" onPress={() => handleGoalOp(g, "resume")} />
+                      <GhostButton title={busy ? "…" : "Resume"} variant="secondary" size="sm" onPress={() => handleGoalOp(g, "resume")} />
                     ) : null}
                     {g.status !== "completed" ? (
                       <GhostButton title={busy ? "…" : "Done"} variant="secondary" size="sm" onPress={() => handleGoalOp(g, "complete")} />

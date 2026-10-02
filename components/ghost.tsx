@@ -113,9 +113,12 @@ export function GhostButton({
   // One hierarchy everywhere: the action glows, the alternative is dark
   // glass, the quiet one is only text, and danger stays soft until pressed.
   const palette = {
-    primary: { bg: "rgba(58,46,240,0.40)", fg: Ghost.text.primary, border: "rgba(140,128,255,0.50)", glow: true },
-    secondary: { bg: "rgba(0,0,0,0.38)", fg: Ghost.text.primary, border: Ghost.glass.border, glow: false },
-    ghost: { bg: "transparent", fg: Ghost.text.secondary, border: "transparent", glow: false },
+    // The same values as the console's .ghost-btn variants, so a button is the
+    // same button on every surface. The glowing one is for submitting a form
+    // (Save, Connect); nearly everything else is the dark glass.
+    primary: { bg: "rgba(58,46,240,0.38)", fg: Ghost.text.primary, border: "rgba(140,128,255,0.42)", glow: true },
+    secondary: { bg: "rgba(0,0,0,0.36)", fg: Ghost.text.primary, border: "rgba(255,255,255,0.13)", glow: false },
+    ghost: { bg: "#000000", fg: Ghost.text.primary, border: "rgba(255,255,255,0.18)", glow: false },
     danger: { bg: alpha(Ghost.status.error, 0.12), fg: Ghost.status.error, border: alpha(Ghost.status.error, 0.34), glow: false },
   }[variant];
   const [pressed, setPressed] = useState(false);
@@ -144,12 +147,12 @@ export function GhostButton({
           paddingHorizontal: size === "sm" ? 16 : 22,
           borderRadius: Radius.full,
           backgroundColor: disabled ? Ghost.glass.fill : palette.bg,
-          borderWidth: variant === "ghost" ? 0 : StyleSheet.hairlineWidth,
+          borderWidth: StyleSheet.hairlineWidth,
           borderColor: disabled ? Ghost.border.subtle : palette.border,
           opacity: disabled ? 0.45 : 1,
           alignSelf: fullWidth ? "stretch" : "flex-start",
-          minHeight: size === "sm" ? 34 : 44,
-          boxShadow: palette.glow && interactive ? "0 0 20px rgba(58,46,240,0.5)" : undefined,
+          minHeight: size === "sm" ? 34 : 42,
+          boxShadow: palette.glow && interactive ? "0 0 22px rgba(58,46,240,0.55)" : undefined,
         },
         style,
       ]}
@@ -166,7 +169,7 @@ export function GhostButton({
             type="headline"
             style={{
               color: disabled ? Ghost.text.tertiary : palette.fg,
-              fontSize: size === "sm" ? 13.5 : 14.5,
+              fontSize: size === "sm" ? 13 : 14,
               fontWeight: "500",
               letterSpacing: -0.1,
             }}
