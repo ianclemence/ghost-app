@@ -54,6 +54,9 @@ export function ScreenHeader({
 
 const styles = StyleSheet.create({
   wrap: {
+    // Above the scroll shade that reaches up over this area, so the title never dims.
+    position: "relative",
+    zIndex: 3,
     paddingHorizontal: Space.xl,
     paddingBottom: Space.lg,
     alignItems: "center",

@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { ActivityTree } from "@/components/activity-tree";
+import { EdgeScrollView } from "@/components/scroll-edge";
 import { fetchActivity, type ActivityChip } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 
@@ -41,7 +42,7 @@ export default function ActivityScreen() {
       ) : items === null && !error ? (
         <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} />
       ) : (
-        <ScrollView
+        <EdgeScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -61,7 +62,7 @@ export default function ActivityScreen() {
             <Text style={styles.empty}>Nothing yet. Every action Ghost takes for you is recorded here.</Text>
           ) : null}
           {items ? <ActivityTree items={items} foldable /> : null}
-        </ScrollView>
+        </EdgeScrollView>
       )}
     </View>
   );

@@ -1,16 +1,68 @@
 import React, { forwardRef, useRef } from "react";
 import { StyleSheet, View, type ScrollViewProps } from "react-native";
-import Animated, { useAnimatedScrollHandler, useSharedValue, type SharedValue } from "react-native-reanimated";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
 
 /**
- * Scrolling containers for screens under a header.
+ * The edge of a scrolling screen, under its header.
  *
- * The fade that used to dissolve content under the header is retired: with the
- * aurora behind every screen, a fade to a solid colour would show as a dark
- * band. TopEdge stays as a no-op so screens that mount it need no change.
+ * A header sits above the list, so content used to be cut off hard at its
+ * lower edge. The aurora behind every screen rules out a fade to a solid
+ * colour (it would show as a flat band) and a true fade to transparent needs a
+ * native mask that is not in the build. So: once content has scrolled under the
+ * header, a soft shade comes in over the top of the screen. It is eased, it is
+ * strongest at the cut and it ramps away below it, so content melts into the
+ * aurora's darkness before it reaches the edge instead of being sliced. At rest
+ * it is not there at all, and the header (above it) never dims.
  */
-export function TopEdge(_props: { y: SharedValue<number>; blurTarget?: React.RefObject<View | null> }) {
-  return null;
+const FADE_RAMP = 76;   // px below the edge it takes to clear
+const FADE_ABOVE = 520; // covers the header and status bar above the edge
+const SHADE_EDGE = 0.8; // strength at the cut, where it matters
+const SHADE_TOP = 0.32; // strength at the top of the screen, so the aurora still shows there
+
+/**
+ * Eased stops, so there is no visible start or end to either slope: it deepens
+ * gently toward the cut, then clears below it. The strength is continuous
+ * across the cut, which is what hides it.
+ */
+const STOPS = (() => {
+  const total = FADE_ABOVE + FADE_RAMP;
+  const out: { at: number; a: number }[] = [];
+  const up = 6;
+  for (let i = 0; i <= up; i++) {
+    const t = i / up;
+    const ease = t * t * (3 - 2 * t); // smoothstep, rising
+    out.push({ at: (t * FADE_ABOVE) / total, a: SHADE_TOP + (SHADE_EDGE - SHADE_TOP) * ease });
+  }
+  const down = 8;
+  for (let i = 1; i <= down; i++) {
+    const t = i / down;
+    const ease = 1 - t * t * (3 - 2 * t); // smoothstep, falling
+    out.push({ at: (FADE_ABOVE + t * FADE_RAMP) / total, a: SHADE_EDGE * ease });
+  }
+  return out;
+})();
+
+export function TopEdge({ y }: { y: SharedValue<number>; blurTarget?: React.RefObject<View | null> }) {
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(y.get(), [0, 32], [0, 1], Extrapolation.CLAMP),
+  }));
+  return (
+    <Animated.View pointerEvents="none" style={[styles.shade, style]}>
+      <LinearGradient
+        colors={STOPS.map((s) => `rgba(0,0,0,${s.a.toFixed(3)})`) as [string, string, ...string[]]}
+        locations={STOPS.map((s) => s.at) as [number, number, ...number[]]}
+        style={StyleSheet.absoluteFill}
+      />
+    </Animated.View>
+  );
 }
 
 /** Kept so screens need no change: the edge is a fade now, so there is nothing to wrap. */
@@ -58,4 +110,6 @@ export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewPro
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  // Reaches up over the header, which paints above it (see ScreenHeader's zIndex).
+  shade: { position: "absolute", left: 0, right: 0, top: -FADE_ABOVE, height: FADE_ABOVE + FADE_RAMP, zIndex: 1 },
 });
