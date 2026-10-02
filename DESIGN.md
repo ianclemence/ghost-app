@@ -30,6 +30,9 @@ Pure black with one aurora of light. No light theme. All colour comes from the a
 - Tables never scroll sideways: columns share the width and wrap, wide ones stack as records
 - Code in replies is coloured like an editor (highlight.js, common languages only, `lib/highlight.ts`) in the app's palette (`lib/syntax-theme.ts`), with line numbers from 5 lines. Only labelled fences are coloured: guessing paints plain output as code. Highlighting never changes the code (tokens always join back to it)
 - What Ghost starts by itself (reminder, noticed, needs you, routine) is a card (`components/notice-card.tsx`, shaped by `lib/notice.ts`): indigo, blue, amber with a glow, green; a short one is a serif headline, a long one keeps its formatting
+- Dynamic cards (`components/present-card.tsx`, `card-blocks.tsx`, `lib/blocks.ts`): Ghost presents an answer as a card built only from a fixed set of blocks (metric, facts, list, timeline, progress, note, text, code) that the Pod validates. Choices are only a reply or a dismissal; a resolved card puts itself away into one line. The Pod and the phone are pinned together by `lib/cards-contract.json`, the same file the Pod tests
+- Alive, not busy: the aurora breathes while Ghost works, the mark's light shows presence, the step you are at on a timeline glows, a progress bar fills once, starter chips arrive in turn, and a short veil blooms the aurora in at cold start. Each runs once or while something is happening, and every one respects reduced motion
+- Scrolled content dims into the header (`TopEdge`) instead of being cut off
 - No light theme, no header bars, no blur strips
 
 ## Motion
