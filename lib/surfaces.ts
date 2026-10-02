@@ -69,6 +69,17 @@ export function presentSurface(
         actions: ["watch"],
       };
     case "waiting":
+      // The page needs a person (a "verify you are human" check): the owner's
+      // move, on the real page.
+      if (s.waiting_for === "human") {
+        return {
+          ...base,
+          headline: s.activity?.trim() || "Needs you",
+          detail: "Take over, do the check, then tap Done. Ghost carries on from there.",
+          actions: ["takeover", "watch"],
+          attention: true,
+        };
+      }
       if (ctx.approvalWaiting) {
         return { ...base, headline: s.activity?.trim() || "Waiting for your OK", detail: null, actions: ["watch"], attention: true };
       }

@@ -1776,6 +1776,8 @@ export interface LiveSurface {
   activity?: string;
   /** What Ghost has done on it so far, oldest first, one plain line each. */
   steps?: string[];
+  /** "human": the page needs a person (a "verify you are human" check). */
+  waiting_for?: string;
 }
 
 export interface SurfaceObservationResult {

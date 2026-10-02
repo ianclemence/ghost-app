@@ -75,6 +75,13 @@ describe("presentSurface", () => {
     expect(presentSurface(surface({ state: "expired" }), "d1").actions).toEqual([]);
   });
 
+  test("a human check is the owner's move: take over, with attention", () => {
+    const p = presentSurface(surface({ state: "waiting", waiting_for: "human", activity: "Needs you to prove you're human" }), "d1");
+    expect(p.headline).toBe("Needs you to prove you're human");
+    expect(p.actions).toEqual(["takeover", "watch"]);
+    expect(p.attention).toBe(true);
+  });
+
   test("active says what Ghost is doing now", () => {
     expect(presentSurface(surface({ activity: "Opening news.ycombinator.com" })).headline).toBe("Opening news.ycombinator.com");
     expect(presentSurface(surface({})).headline).toBe("Working on it");

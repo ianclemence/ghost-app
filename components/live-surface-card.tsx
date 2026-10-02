@@ -263,7 +263,8 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
   const title = surface.observation?.title?.trim() || null;
   const actionLabels: Record<SurfaceActionId, string> = {
     watch: watching ? (live ? "Stop live view" : "Hide") : picture ? "Watch live" : "Watch",
-    takeover: "Take over",
+    // The words Ghost uses when it asks ("tap Take over and steer").
+    takeover: kind === "browser" ? "Take over and steer" : "Take over",
     giveback: "Give control back",
     resume: "Give control back",
   };
