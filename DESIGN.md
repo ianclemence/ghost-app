@@ -28,6 +28,8 @@ Pure black with one aurora of light. No light theme. All colour comes from the a
 - Presence: a small glass pill with a status light and one live line; opens the panel
 - Panel: serif greeting, light sentences with inline icon chips, a floating icon dock
 - Tables never scroll sideways: columns share the width and wrap, wide ones stack as records
+- Code in replies is coloured like an editor (highlight.js, common languages only, `lib/highlight.ts`) in the app's palette (`lib/syntax-theme.ts`), with line numbers from 5 lines. Only labelled fences are coloured: guessing paints plain output as code. Highlighting never changes the code (tokens always join back to it)
+- What Ghost starts by itself (reminder, noticed, needs you, routine) is a card (`components/notice-card.tsx`, shaped by `lib/notice.ts`): indigo, blue, amber with a glow, green; a short one is a serif headline, a long one keeps its formatting
 - No light theme, no header bars, no blur strips
 
 ## Motion

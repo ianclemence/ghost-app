@@ -18,6 +18,7 @@ import Animated, {
 import { AlarmClock, Info, Repeat, TriangleAlert } from "lucide-react-native";
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { MarkdownBubble, UserMarkdown } from "@/components/markdown-bubble";
+import { NoticeCard } from "@/components/notice-card";
 import { clockTime } from "@/lib/thread";
 import type { ExtendedMessage } from "@/lib/store";
 
@@ -157,6 +158,17 @@ export const GhostMessage = memo(function GhostMessage({
   const streaming = message.status === "streaming";
   const empty = !message.content.trim();
   const [exact, setExact] = useState(false);
+  // What Ghost started by itself is a card, not a paragraph with a label.
+  if (message.kind && !empty) {
+    return (
+      <Animated.View entering={enter(reduce, animate)} style={[styles.ghostRow, groupStart && styles.groupGap]}>
+        <Pressable onLongPress={copy} delayLongPress={350} accessibilityHint="Long press to copy">
+          <NoticeCard kind={message.kind} time={clockTime(message.timestamp)} content={message.content} />
+        </Pressable>
+        {copied ? <Copied align="left" /> : null}
+      </Animated.View>
+    );
+  }
   return (
     <Animated.View entering={enter(reduce, animate)} style={[styles.ghostRow, groupStart && styles.groupGap]}>
       {message.kind ? (

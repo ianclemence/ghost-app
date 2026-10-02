@@ -1,6 +1,6 @@
 # Dynamic components: how Ghost should draw UI it decides on
 
-Status: research and recommendation. Nothing here is built yet.
+Status: research and recommendation. First slice built on the phone: messages Ghost starts itself (reminder, notice, alert, routine) are drawn as cards from the existing `kind` tag (`components/notice-card.tsx`). The block catalog on the Pod, and everything else below, is not built yet.
 
 ## What exists today
 

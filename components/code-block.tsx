@@ -1,18 +1,21 @@
 /**
- * Code fence block: language label, copy button, horizontal scroll.
+ * Code fence block: language label, copy button, syntax colours, line
+ * numbers on longer blocks, horizontal scroll.
  *
- * Long lines scroll sideways instead of pushing the chat layout wider;
- * the copy control is labelled for screen readers. No syntax
- * highlighting library: highlighting would cost a large dependency for
- * marginal gains on a phone screen, and monochrome code on the sunken
- * surface stays readable. (Deliberate, documented trade-off.)
+ * Long lines scroll sideways instead of pushing the chat layout wider; the
+ * copy control is labelled for screen readers. Colours come from
+ * lib/highlight.ts (highlight.js, only the common languages) and an editor-style
+ * theme in the app's palette (lib/syntax-theme.ts). Highlighting only ever
+ * colours the code: what you copy is exactly what Ghost wrote.
  */
-import React, { memo, useState } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import * as Clipboard from "expo-clipboard";
 import { Check, Copy } from "lucide-react-native";
-import { Fonts, Ghost, Radius } from "@/constants/theme";
+import { Fonts, Ghost } from "@/constants/theme";
+import { highlightTokens } from "@/lib/highlight";
+import { syntaxStyle } from "@/lib/syntax-theme";
 
 interface Props {
   /** Fence info string, e.g. "go". Empty when the model gave none. */
@@ -21,9 +24,16 @@ interface Props {
   code: string;
 }
 
+/** Numbers appear once a block is long enough to refer to a line. */
+const NUMBERED_FROM = 5;
+
 export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
   const [copied, setCopied] = useState(false);
   const label = language.trim().toLowerCase() || "code";
+  const tokens = useMemo(() => highlightTokens(code, language), [code, language]);
+  const lines = code.split("\n").length;
+  const numbered = lines >= NUMBERED_FROM;
+  const numbers = useMemo(() => (numbered ? Array.from({ length: lines }, (_, i) => String(i + 1)).join("\n") : ""), [numbered, lines]);
 
   async function onCopy() {
     try {
@@ -41,22 +51,46 @@ export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
         <Text style={styles.lang}>{label}</Text>
         <Pressable
           onPress={onCopy}
-          hitSlop={8}
+          hitSlop={10}
+          style={styles.copy}
           accessibilityRole="button"
           accessibilityLabel={copied ? "Copied" : `Copy ${label} code`}
           accessibilityState={{ selected: copied }}
         >
           {copied ? (
-            <Check size={15} color={Ghost.status.success} />
+            <Check size={14} color={Ghost.status.success} strokeWidth={2} />
           ) : (
-            <Copy size={15} color={Ghost.text.secondary} />
+            <Copy size={14} color={Ghost.text.secondary} strokeWidth={1.8} />
           )}
         </Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <Text selectable style={styles.code}>
-          {code}
-        </Text>
+        <View style={styles.row}>
+          {numbered ? (
+            <Text style={[styles.code, styles.gutter]} selectable={false} accessibilityElementsHidden importantForAccessibility="no">
+              {numbers}
+            </Text>
+          ) : null}
+          <Text selectable style={styles.code}>
+            {tokens.map((t, i) => {
+              const s = syntaxStyle(t.kind);
+              if (!s) return t.text;
+              return (
+                <Text
+                  key={i}
+                  style={{
+                    color: s.color,
+                    fontStyle: s.italic ? "italic" : undefined,
+                    // Bold names the mono face too: a weight alone would swap it for the interface font.
+                    ...(s.bold ? { fontWeight: "700" as const, fontFamily: Fonts?.mono ?? "monospace" } : null),
+                  }}
+                >
+                  {t.text}
+                </Text>
+              );
+            })}
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -64,14 +98,15 @@ export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: Ghost.bg.sunken,
-    borderRadius: Radius.lg,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: 22,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.subtle,
+    borderColor: Ghost.glass.border,
     marginVertical: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
   },
   header: {
     flexDirection: "row",
@@ -81,14 +116,30 @@ const styles = StyleSheet.create({
   },
   lang: {
     color: Ghost.text.tertiary,
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.2,
+    fontSize: 11.5,
+    fontWeight: "500",
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
+  copy: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Ghost.glass.fill,
+  },
+  row: { flexDirection: "row" },
   code: {
     color: Ghost.text.primary,
     fontSize: 13.5,
     lineHeight: 20,
     fontFamily: Fonts?.mono ?? "monospace",
+  },
+  gutter: {
+    color: "rgba(255,255,255,0.28)",
+    textAlign: "right",
+    marginRight: 14,
+    minWidth: 18,
   },
 });
