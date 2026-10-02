@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
@@ -225,6 +225,17 @@ export default function ConversationScreen() {
   const nearBottom = useRef(true);
   const dragging = useRef(false);
   const openedRef = useRef(false);
+  // For a moment after the conversation opens (or comes back into view) rows
+  // are still measuring themselves, so each growth of the list would leave the
+  // newest message just off-screen. Until the owner touches the list, stay on
+  // the last message without animation, and don't treat the top as "load more".
+  const settleUntil = useRef(0);
+  const settle = useCallback(() => {
+    settleUntil.current = Date.now() + 1800;
+    nearBottom.current = true;
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+  }, []);
+  useFocusEffect(useCallback(() => { settle(); }, [settle]));
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
 
   // First paint from the on-device copy of the thread, so the conversation
@@ -283,7 +294,7 @@ export default function ConversationScreen() {
         // Open on the latest message even if layout settles late.
         if (!openedRef.current) {
           openedRef.current = true;
-          setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 60);
+          settle();
         }
         // Deliver anything queued while offline.
         void flushOutbox().catch(() => {});
@@ -889,9 +900,9 @@ export default function ConversationScreen() {
             if (away !== awayFromLatest) setAwayFromLatest(away);
             const sc = contentOffset.y > 4;
             if (sc !== scrolled) setScrolled(sc);
-            if (contentOffset.y < 160) void loadEarlier();
+            if (contentOffset.y < 160 && Date.now() > settleUntil.current) void loadEarlier();
           }}
-          onScrollBeginDrag={() => { dragging.current = true; }}
+          onScrollBeginDrag={() => { dragging.current = true; settleUntil.current = 0; }}
           onScrollEndDrag={(e) => {
             const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
             nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
@@ -904,6 +915,7 @@ export default function ConversationScreen() {
           onContentSizeChange={() => {
             // While a reply streams in, stay on its newest line without an
             // animation fighting every chunk; otherwise glide.
+            if (Date.now() < settleUntil.current) { listRef.current?.scrollToEnd({ animated: false }); return; }
             if (nearBottom.current) listRef.current?.scrollToEnd({ animated: !isStreaming });
           }}
         />

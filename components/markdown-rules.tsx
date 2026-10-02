@@ -168,45 +168,28 @@ function imageRule(node: ASTNode) {
 }
 
 /**
- * Inline code as a rounded chip. React Native cannot round the background of
- * a run of text, so a short command (`allow once`, `deny`) is drawn as a small
- * pill that sits inside the line. Long inline code is left as a plain run so
- * it can still wrap instead of overflowing.
+ * Inline code is a tinted run of text, padded with non-breaking spaces.
+ * It used to be a rounded pill drawn as a View inside the line, but Android
+ * measures an inline View before the monospace font is applied, so the pill
+ * came out narrower than its text and the words after it were laid over the
+ * code. A run of text is measured with its own font, so it can never overlap,
+ * and it wraps like any other word. The cost is square corners: React Native
+ * cannot round the background of text.
  */
-const CHIP_MAX = 36;
-function codeInlineRule(node: ASTNode, _children: React.ReactNode[], _parents: ASTNode[], styles: Record<string, object>) {
+function codeInlineRule(node: ASTNode, _children: React.ReactNode[], _parents: ASTNode[], _styles: Record<string, object>) {
   const code: string = node.content ?? "";
-  if (code.length > CHIP_MAX) {
-    return <Text key={node.key} style={styles.code_inline}>{code}</Text>;
-  }
   return (
-    <Text key={node.key}>
-      <View style={chipStyles.chip}>
-        <Text style={chipStyles.code}>{code}</Text>
-      </View>
+    <Text key={node.key} style={inlineCodeStyle}>
+      {"\u00a0" + code + "\u00a0"}
     </Text>
   );
 }
 
-const chipStyles = {
-  chip: {
-    backgroundColor: "rgba(255,255,255,0.10)",
-    borderRadius: 10,
-    borderCurve: "continuous" as const,
-    borderWidth: 0.5,
-    borderColor: "rgba(255,255,255,0.14)",
-    paddingHorizontal: 8,
-    paddingVertical: 1,
-    // Inline views sit on the baseline; pull the chip down so its text lines
-    // up with the words around it.
-    marginBottom: -3,
-  },
-  code: {
-    fontFamily: Fonts?.mono ?? "monospace",
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: Ghost.text.primary,
-  },
+const inlineCodeStyle = {
+  fontFamily: Fonts?.mono ?? "monospace",
+  fontSize: 13.5,
+  color: Ghost.text.primary,
+  backgroundColor: "rgba(255,255,255,0.10)",
 };
 
 export const markdownRules = {

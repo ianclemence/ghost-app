@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from "react-native-svg";
 import Animated, {
   Easing,
@@ -66,6 +66,9 @@ function Layer({ spots, dx, dy, seconds }: { spots: Spot[]; dx: number; dy: numb
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const GRAIN = require("../assets/grain.png");
+
 /** How far the light swells when Ghost is working. Small: a breath, not a flash. */
 const SWELL = 0.14;
 
@@ -102,6 +105,9 @@ export function ScreenBackground({ variant = "hero", alive = false }: { variant?
         </Defs>
         <Rect x="0" y="0" width="100" height="100" fill="url(#floor)" />
       </Svg>
+      {/* Fine grain over the whole screen: it keeps the black from banding and
+          gives the aurora some texture. Tiled, so it costs one small image. */}
+      <Image source={GRAIN} resizeMode="repeat" style={[StyleSheet.absoluteFill, { opacity: 0.55 }]} />
     </View>
   );
 }
