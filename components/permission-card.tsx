@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import Animated, { Easing, FadeInUp, FadeOut, LinearTransition, useReducedMotion } from "react-native-reanimated";
 import { Ghost, Radius, shadowRGB, Space } from "@/constants/theme";

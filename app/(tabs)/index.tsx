@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
@@ -14,13 +15,12 @@ import {
 } from "@/lib/attachments";
 import { readBase64 } from "@/lib/localFiles";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
-import { Ghost, Radius, shadowRGB, Space, Fonts } from "@/constants/theme";
+import { Ghost, Radius, shadowRGB, Space, Fonts, Type } from "@/constants/theme";
 import { Composer } from "@/components/composer";
 import { AttachmentStrip } from "@/components/attachment-strip";
 import { SentAttachments } from "@/components/sent-attachments";
 import { composerPlaceholder } from "@/lib/placeholder";
 import { shouldAskForSuggestion } from "@/lib/suggestion";
-import { EdgeTarget, TopEdge, useScrollEdge } from "@/components/scroll-edge";
 import { ScreenBackground } from "@/components/screen-glow";
 import { PresenceHeader } from "@/components/presence-header";
 import { DaySeparator, GhostMessage, UserMessage } from "@/components/thread";
@@ -720,7 +720,6 @@ export default function ConversationScreen() {
     approvalsWaiting: approvals.length,
     keeping,
   });
-  const edge = useScrollEdge();
   const starters = conversationStarters({ pod: paired });
   const ready = paired;
   const podOnline = paired && connectionState === "online";
@@ -749,11 +748,10 @@ export default function ConversationScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenBackground />
+      <ScreenBackground variant={messages.length === 0 ? "hero" : "calm"} />
       <PresenceHeader
         name={ghostName ?? "Ghost"}
         status={status}
-        scrolled={scrolled}
         topInset={insets.top}
         onOpenPanel={() => router.push("/panel" as never)}
       />
@@ -774,7 +772,7 @@ export default function ConversationScreen() {
                     accessibilityHint="Puts this in the message box"
                   >
                     <Text style={styles.starterText}>{st.label}</Text>
-                    <ArrowUpRight size={16} color={Ghost.text.tertiary} />
+                    <ArrowUpRight size={15} color={Ghost.text.secondary} />
                   </Pressable>
                 ))}
               </View>
@@ -798,14 +796,13 @@ export default function ConversationScreen() {
         </View>
       ) : (
         <View style={styles.listWrap}>
-        <EdgeTarget targetRef={edge.target}>
         <FlatList
           ref={listRef}
           data={thread}
           keyExtractor={(it) => it.key}
           renderItem={renderItem}
           style={styles.list}
-          contentContainerStyle={[styles.listContent, { paddingBottom: Space.lg }]}
+          contentContainerStyle={[styles.listContent, { paddingTop: insets.top + 72, paddingBottom: Space.lg }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
@@ -837,14 +834,11 @@ export default function ConversationScreen() {
             const sc = contentOffset.y > 4;
             if (sc !== scrolled) setScrolled(sc);
             if (contentOffset.y < 160) void loadEarlier();
-            edge.y.set(contentOffset.y);
           }}
           onContentSizeChange={() => {
             if (nearBottom.current) listRef.current?.scrollToEnd({ animated: true });
           }}
         />
-        </EdgeTarget>
-        <TopEdge y={edge.y} />
         </View>
       )}
       <Animated.View style={[styles.dock, dockPad]}>
@@ -949,41 +943,45 @@ const styles = StyleSheet.create({
   empty: {
     flex: 1,
     justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: Space.sm,
+    paddingHorizontal: 28,
+    paddingBottom: Space.huge,
+    gap: Space.md,
   },
   emptyTitle: {
     fontFamily: Fonts.voice,
-    fontSize: 36,
-    lineHeight: 40,
+    fontSize: 52,
+    lineHeight: 54,
     fontWeight: "400",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
     color: Ghost.text.primary,
   },
   emptySub: {
-    fontSize: 16,
-    lineHeight: 22,
-    color: Ghost.text.tertiary,
+    ...Type.prose,
+    color: "rgba(255,255,255,0.72)",
+    maxWidth: 330,
   },
   starters: {
-    marginTop: Space.xxl,
-    alignSelf: "stretch",
+    marginTop: Space.xl,
+    alignSelf: "flex-start",
+    gap: Space.sm,
   },
   starter: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    alignSelf: "flex-start",
     gap: Space.md,
-    minHeight: 50,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Ghost.border.default,
+    minHeight: 44,
+    paddingHorizontal: 18,
+    borderRadius: Radius.full,
+    backgroundColor: Ghost.glass.fill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
   },
   starterPressed: {
-    opacity: 0.5,
+    opacity: 0.55,
   },
   starterText: {
-    flex: 1,
-    fontSize: 15.5,
+    fontSize: 14.5,
     color: Ghost.text.primary,
   },
   dock: {

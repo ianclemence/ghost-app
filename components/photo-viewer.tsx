@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { FlatList, Image, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { FlatList, Image, Modal, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Text } from "@/components/text";
 import { X } from "lucide-react-native";
 import { Midnight } from "@/constants/theme";
 

@@ -1,4 +1,4 @@
-import { ArrowUp, Camera, Check, Image as ImageIcon, Mic, Paperclip, Plus, Square, X } from "lucide-react-native";
+import { ArrowUp, AudioLines, Camera, Check, Image as ImageIcon, Paperclip, Plus, Square, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Animated, {
   Easing,
@@ -11,7 +11,6 @@ import Animated, {
   useSharedValue,
   withRepeat,
   withSequence,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import {
@@ -21,22 +20,16 @@ import {
   useAudioRecorder,
 } from "expo-audio";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  type TextInput as RNTextInput,
-} from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View, type TextInput as RNTextInput } from "react-native";
+import { Text } from "@/components/text";
 
 import { Ghost, Radius, shadowRGB, Space, Type } from "@/constants/theme";
 import { composerPlaceholder } from "@/lib/placeholder";
 import { showSuggestion } from "@/lib/suggestion";
 
 const MAX_VOICE_MS = 120_000;
-const SPRING = { damping: 18, stiffness: 240, mass: 0.6 };
+// Strong ease-out: the element is already moving on the first frame.
+const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 interface ComposerProps {
   value: string;
@@ -91,10 +84,10 @@ function Round({
       disabled={disabled}
       hitSlop={6}
       onPressIn={() => {
-        if (!reduceMotion) scale.set(withSpring(0.9, SPRING));
+        if (!reduceMotion) scale.set(withTiming(0.95, { duration: 100, easing: EASE_OUT }));
       }}
       onPressOut={() => {
-        if (!reduceMotion) scale.set(withSpring(1, SPRING));
+        if (!reduceMotion) scale.set(withTiming(1, { duration: 140, easing: EASE_OUT }));
       }}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -161,7 +154,7 @@ export function Composer({
   const canAttach = !!(onPhoto || onFile || onCamera);
   const spin = useSharedValue(0);
   useEffect(() => {
-    spin.set(reduceMotion ? (tray ? 1 : 0) : withTiming(tray ? 1 : 0, { duration: 220, easing: Easing.out(Easing.exp) }));
+    spin.set(reduceMotion ? (tray ? 1 : 0) : withTiming(tray ? 1 : 0, { duration: 180, easing: EASE_OUT }));
   }, [tray, spin, reduceMotion]);
   const plusStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.get() * 45}deg` }] }));
 
@@ -265,8 +258,8 @@ export function Composer({
   let action: React.ReactNode = null;
   if (recording) {
     action = (
-      <Round label="Finish and transcribe" style={styles.solid} onPress={() => finishRecording(true)}>
-        <Check size={20} color={Ghost.text.inverse} strokeWidth={2.4} />
+      <Round label="Finish and transcribe" style={styles.glow} onPress={() => finishRecording(true)}>
+        <Check size={20} color={Ghost.text.primary} strokeWidth={2} />
       </Round>
     );
   } else if (transcribing) {
@@ -280,13 +273,13 @@ export function Composer({
       <View style={styles.pair}>
         {canSend ? (
           <Animated.View entering={fade} exiting={fadeOut}>
-            <Round label="Send. Joins what Ghost is doing" style={styles.solid} onPress={submit}>
-              <ArrowUp size={20} color={Ghost.text.inverse} strokeWidth={2.4} />
+            <Round label="Send. Joins what Ghost is doing" style={styles.glow} onPress={submit}>
+              <ArrowUp size={20} color={Ghost.text.primary} strokeWidth={2} />
             </Round>
           </Animated.View>
         ) : null}
         <Round label="Stop" style={styles.ring} onPress={onStop}>
-          <Square size={13} color={Ghost.text.primary} fill={Ghost.text.primary} />
+          <Square size={12} color={Ghost.text.primary} fill={Ghost.text.primary} />
         </Round>
       </View>
     );
@@ -294,11 +287,11 @@ export function Composer({
     action = (
       <Round
         label="Send"
-        style={canSend ? styles.solid : styles.quiet}
+        style={canSend ? styles.glow : styles.quiet}
         disabled={!canSend}
         onPress={submit}
       >
-        <ArrowUp size={20} color={canSend ? Ghost.text.inverse : Ghost.text.tertiary} strokeWidth={2.4} />
+        <ArrowUp size={20} color={canSend ? Ghost.text.primary : Ghost.text.tertiary} strokeWidth={2} />
       </Round>
     );
   } else {
@@ -306,10 +299,10 @@ export function Composer({
       <Round
         label={micReady ? "Dictate a message" : "Dictation needs your Pod. Type instead"}
         disabled={!micReady}
-        style={!micReady ? { opacity: 0.4 } : undefined}
+        style={[styles.glow, !micReady && { opacity: 0.4 }]}
         onPress={startRecording}
       >
-        <Mic size={20} color={Ghost.text.secondary} />
+        <AudioLines size={20} color="#B4AEFF" strokeWidth={1.8} />
       </Round>
     );
   }
@@ -321,13 +314,13 @@ export function Composer({
   ].filter(<T,>(c: T | null): c is T => c !== null);
 
   return (
-    <Animated.View layout={reduceMotion ? undefined : LinearTransition.duration(200).easing(Easing.out(Easing.exp))}>
+    <Animated.View layout={reduceMotion ? undefined : LinearTransition.duration(180).easing(EASE_OUT)}>
       {tray && canAttach ? (
         <View style={styles.tray}>
           {chips.map(({ key, label, hint, Icon, fn }, i) => (
             <Animated.View
               key={key}
-              entering={reduceMotion ? undefined : FadeInDown.duration(200).delay(i * 40).easing(Easing.out(Easing.exp))}
+              entering={reduceMotion ? undefined : FadeInDown.duration(180).delay(i * 30).easing(EASE_OUT).withInitialValues({ opacity: 0, transform: [{ translateY: 8 }, { scale: 0.95 }] })}
               exiting={fadeOut}
             >
               <Pressable style={styles.chip} onPress={pick(fn)} accessibilityRole="button" accessibilityLabel={hint}>
@@ -340,46 +333,47 @@ export function Composer({
       ) : null}
       <Animated.View layout={reduceMotion ? undefined : LinearTransition.duration(160)} style={styles.pill}>
 
+      {recording ? (
+        <View style={styles.rec} accessible accessibilityLiveRegion="polite" accessibilityLabel={`Recording, ${clock}`}>
+          <RecDot />
+          <Text style={styles.clock}>{clock}</Text>
+          <Text style={styles.recHint}>Listening</Text>
+        </View>
+      ) : (
+        <TextInput
+          ref={inputRef}
+          style={[styles.input, minHeight ? { minHeight } : null]}
+          value={value}
+          onChangeText={onChangeText}
+          accessibilityLabel="Message Ghost"
+          placeholder={transcribing ? "Transcribing…" : (offered || placeholder || composerPlaceholder({ online: true, streaming, firstTime: false }))}
+          placeholderTextColor={Ghost.text.secondary}
+          multiline
+          maxLength={maxLength}
+          onSubmitEditing={submit}
+          blurOnSubmit={false}
+          returnKeyType="send"
+          textAlignVertical="top"
+          selectionColor={Ghost.accent.primary}
+          editable={editable && !busy && !transcribing}
+          autoFocus={autoFocus}
+          onFocus={() => setTray(false)}
+        />
+      )}
+
       <View style={styles.line}>
         {canAttach && !recording ? (
           <Round
             label={tray ? "Close attachments" : "Attach something"}
             onPress={() => setTray((t) => !t)}
             state={{ selected: tray }}
+            style={styles.plus}
           >
             <Animated.View style={plusStyle}>
-              <Plus size={22} color={Ghost.text.secondary} strokeWidth={1.8} />
+              <Plus size={20} color={Ghost.text.primary} strokeWidth={1.6} />
             </Animated.View>
           </Round>
         ) : null}
-
-        {recording ? (
-          <View style={styles.rec} accessible accessibilityLiveRegion="polite" accessibilityLabel={`Recording, ${clock}`}>
-            <RecDot />
-            <Text style={styles.clock}>{clock}</Text>
-            <Text style={styles.recHint}>Listening</Text>
-          </View>
-        ) : (
-          <TextInput
-            ref={inputRef}
-            style={[styles.input, !canAttach && styles.inputLeading, minHeight ? { minHeight } : null]}
-            value={value}
-            onChangeText={onChangeText}
-            accessibilityLabel="Message Ghost"
-            placeholder={transcribing ? "Transcribing…" : (offered || placeholder || composerPlaceholder({ online: true, streaming, firstTime: false }))}
-            placeholderTextColor={Ghost.text.tertiary}
-            multiline
-            maxLength={maxLength}
-            onSubmitEditing={submit}
-            blurOnSubmit={false}
-            returnKeyType="send"
-            textAlignVertical="center"
-            selectionColor={Ghost.accent.primary}
-            editable={editable && !busy && !transcribing}
-            autoFocus={autoFocus}
-            onFocus={() => setTray(false)}
-          />
-        )}
 
         {offered ? (
           <Pressable
@@ -389,13 +383,15 @@ export function Composer({
             accessibilityRole="button"
             accessibilityLabel={`Use suggestion: ${offered}`}
           >
-            <Text style={styles.useText}>Use</Text>
+            <Text style={styles.useText}>Use suggestion</Text>
           </Pressable>
         ) : null}
 
+        <View style={styles.spacer} />
+
         {recording ? (
-          <Round label="Discard recording" onPress={() => finishRecording(false)}>
-            <X size={20} color={Ghost.text.secondary} />
+          <Round label="Discard recording" onPress={() => finishRecording(false)} style={styles.plus}>
+            <X size={18} color={Ghost.text.secondary} />
           </Round>
         ) : null}
         {action}
@@ -409,37 +405,35 @@ const BTN = 40;
 
 const styles = StyleSheet.create({
   pill: {
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: 28,
+    backgroundColor: Ghost.glass.fill,
+    borderRadius: 32,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.default,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    maxHeight: 200,
-    boxShadow: `0 1px 2px rgba(${shadowRGB}, 0.05), 0 10px 28px rgba(${shadowRGB}, 0.07)`,
+    borderColor: Ghost.glass.border,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    maxHeight: 260,
   },
   line: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 2,
-    minHeight: BTN + 4,
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
   },
+  spacer: { flex: 1 },
   input: {
     ...Type.body,
-    fontSize: 16.5,
+    fontSize: 16,
     lineHeight: 22,
     color: Ghost.text.primary,
-    flex: 1,
-    minHeight: BTN,
+    minHeight: 24,
     maxHeight: 132,
-    paddingTop: 9,
-    paddingBottom: 9,
-    paddingHorizontal: 6,
-    // Android: no extra font padding, so the text centres on the same line as the buttons.
+    padding: 0,
+    paddingHorizontal: 2,
+    // Android: no extra font padding, so the text sits where the placeholder was.
     includeFontPadding: false,
   },
-  inputLeading: { paddingLeft: 14 },
   round: {
     width: BTN,
     height: BTN,
@@ -447,19 +441,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  solid: { backgroundColor: Ghost.text.primary },
-  quiet: { backgroundColor: Ghost.bg.sunken },
-  use: {
-    alignSelf: "center",
-    height: 30,
-    paddingHorizontal: 12,
-    borderRadius: 15,
-    marginRight: 2,
-    justifyContent: "center",
-    backgroundColor: Ghost.accent.soft,
+  plus: { width: 36, height: 36, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border, backgroundColor: Ghost.glass.fill },
+  glow: {
+    width: 56,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(58,46,240,0.34)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(140,128,255,0.45)",
+    boxShadow: "0 0 18px rgba(58,46,240,0.55)",
   },
-  useText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.1, color: Ghost.accent.primary },
-  ring: { borderWidth: 1.5, borderColor: Ghost.border.strong },
+  quiet: { width: 56, height: 36, borderRadius: 18, backgroundColor: Ghost.glass.fill },
+  use: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    justifyContent: "center",
+    backgroundColor: Ghost.glass.fill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
+  useText: { fontSize: 13, fontWeight: "500", color: Ghost.text.primary },
+  ring: { width: 56, height: 36, borderRadius: 18, borderWidth: 1, borderColor: Ghost.border.strong },
   pair: { flexDirection: "row", alignItems: "center", gap: 2 },
   tray: { flexDirection: "row", gap: Space.sm, paddingLeft: 6, marginBottom: Space.sm },
   chip: {
@@ -471,11 +474,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     backgroundColor: Ghost.bg.raised,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.default,
-    boxShadow: `0 6px 18px rgba(${shadowRGB}, 0.14)`,
+    borderColor: Ghost.glass.border,
   },
   chipText: { ...Type.callout, fontWeight: "500", color: Ghost.text.primary },
-  rec: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minHeight: BTN, paddingLeft: 14 },
+  rec: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 24, paddingHorizontal: 2 },
   recDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: Ghost.status.error },
   clock: { ...Type.body, color: Ghost.text.primary, fontVariant: ["tabular-nums"], fontWeight: "500" },
   recHint: { ...Type.callout, color: Ghost.text.tertiary },

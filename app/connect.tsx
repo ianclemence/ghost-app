@@ -3,7 +3,8 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
-import { Ghost, Space, UI } from "@/constants/theme";
+import { Fonts, Ghost, Space, Type, UI } from "@/constants/theme";
+import { ScreenBackground } from "@/components/screen-glow";
 
 /**
  * Connect to Ghost screen.
@@ -16,6 +17,7 @@ export default function ConnectToGhostScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + UI.modal.top }]}>
+      <ScreenBackground variant="hero" />
       <View style={styles.content}>
         <GhostText type="largeTitle" style={styles.title}>
           Connect to Ghost
@@ -55,17 +57,21 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   title: {
+    fontFamily: Fonts.voice,
+    fontSize: 52,
+    lineHeight: 54,
+    letterSpacing: -1,
     color: Ghost.text.primary,
-    textAlign: "center",
     marginBottom: Space.md,
   },
   description: {
-    color: Ghost.text.secondary,
-    textAlign: "center",
-    lineHeight: 24,
+    ...Type.prose,
+    fontSize: 20,
+    lineHeight: 29,
+    color: "rgba(255,255,255,0.78)",
   },
   bottom: {
     gap: Space.md,

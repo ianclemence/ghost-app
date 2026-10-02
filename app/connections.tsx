@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
 import { Ghost, Space, Type } from "@/constants/theme";

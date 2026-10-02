@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { Appearance } from 'react-native';
 import * as Updates from 'expo-updates';
 import { Ghost, scheme } from '../constants/theme';
 import { Stack, useRouter } from 'expo-router';
@@ -36,23 +35,14 @@ export default function RootLayout() {
   const [fontsReady, fontError] = useFonts({
     InstrumentSerif: require('../assets/fonts/InstrumentSerif-Regular.ttf'),
     'InstrumentSerif-Italic': require('../assets/fonts/InstrumentSerif-Italic.ttf'),
+    Inter_300Light: require('../assets/fonts/Inter_300Light.ttf'),
+    Inter_400Regular: require('../assets/fonts/Inter_400Regular.ttf'),
+    Inter_500Medium: require('../assets/fonts/Inter_500Medium.ttf'),
+    Inter_600SemiBold: require('../assets/fonts/Inter_600SemiBold.ttf'),
   });
   useEffect(() => {
     if (fontsReady || fontError) SplashScreen.hideAsync().catch(() => {});
   }, [fontsReady, fontError]);
-
-  // The palette is chosen when the app starts. If the phone's light/dark
-  // setting changes while the app is open, restart cleanly into the other one
-  // rather than leave some screens in each.
-  useEffect(() => {
-    const sub = Appearance.addChangeListener(({ colorScheme }) => {
-      const next = colorScheme === 'dark' ? 'dark' : 'light';
-      if (next !== scheme) {
-        Updates.reloadAsync().catch(() => {});
-      }
-    });
-    return () => sub.remove();
-  }, []);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -232,6 +222,10 @@ export default function RootLayout() {
         <Stack.Screen
           name="pairing-success"
           options={{ animation: 'fade' }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="manual"

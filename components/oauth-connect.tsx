@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Linking, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { Ghost, Radius, Space, Type, Fonts } from "@/constants/theme";

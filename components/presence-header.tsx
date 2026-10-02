@@ -1,25 +1,26 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
-import { GhostMark } from "@/components/ghost-mark";
 import { EmberDot } from "@/components/thread";
 import type { Presence } from "@/lib/presence";
 
 /**
- * The top of the one conversation: who you're talking to and what it is
- * doing right now. Tapping Ghost opens its panel (what it's working on,
- * what's coming up, what it remembers, what it did).  */
+ * Who you're talking to and what it is doing right now, as one small glass
+ * pill floating over the conversation: a status light and one live line.
+ * There is no header bar. Tapping it opens Ghost's panel (what it's working
+ * on, what's coming up, what it remembers, what it did).
+ */
 export function PresenceHeader({
   name,
   status,
-  scrolled,
   topInset,
   onOpenPanel,
 }: {
   name: string;
   status: Presence;
-  scrolled: boolean;
+  scrolled?: boolean;
   topInset: number;
   onOpenPanel: () => void;
 }) {
@@ -29,25 +30,19 @@ export function PresenceHeader({
     status.tone === "offline" ? <View style={[styles.light, { backgroundColor: Ghost.text.tertiary }]} /> :
     <View style={[styles.light, { backgroundColor: Ghost.status.success }]} />;
   return (
-    <View style={[styles.wrap, { paddingTop: topInset }, scrolled && styles.wrapScrolled]}>
+    <View style={[styles.wrap, { paddingTop: topInset + Space.sm }]} pointerEvents="box-none">
       <Pressable
         onPress={onOpenPanel}
-        style={({ pressed }) => [styles.who, pressed && { opacity: 0.6 }]}
+        style={({ pressed }) => [styles.pill, pressed && { opacity: 0.6 }]}
         accessibilityRole="button"
         accessibilityLabel={`${name}. ${status.text}.`}
         accessibilityHint="Opens what Ghost is doing, what's coming up, and what it remembers"
         hitSlop={6}
       >
-        <View style={styles.markWrap}>
-          <GhostMark size={18} />
-          <View style={styles.lightWrap}>{light}</View>
-        </View>
-        <View style={styles.text}>
-          <Text style={styles.name} numberOfLines={1}>{name}</Text>
-          <Animated.Text key={status.text} entering={FadeIn.duration(200)} style={styles.status} numberOfLines={1}>
-            {status.text}
-          </Animated.Text>
-        </View>
+        {light}
+        <Animated.Text key={status.text} entering={FadeIn.duration(200)} style={styles.status} numberOfLines={1}>
+          {status.text}
+        </Animated.Text>
       </Pressable>
     </View>
   );
@@ -55,56 +50,36 @@ export function PresenceHeader({
 
 const styles = StyleSheet.create({
   wrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Space.lg,
-    paddingBottom: Space.xs,
-    backgroundColor: Ghost.bg.base,
-  },
-  wrapScrolled: {},
-  who: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.md,
-    minHeight: 44,
-  },
-  markWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: Ghost.bg.raised,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.default,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lightWrap: {
     position: "absolute",
-    right: -1,
-    bottom: -1,
-    padding: 2,
-    borderRadius: 8,
-    backgroundColor: Ghost.bg.base,
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    paddingHorizontal: Space.lg,
+    alignItems: "flex-start",
+  },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 40,
+    maxWidth: "88%",
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.38)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
   },
   light: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-  text: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 16,
-    lineHeight: 20,
-    fontWeight: "600",
-    letterSpacing: -0.15,
-    color: Ghost.text.primary,
-  },
   status: {
-    fontSize: 12.5,
-    lineHeight: 16,
-    color: Ghost.text.secondary,
+    flexShrink: 1,
+    fontFamily: "Inter_400Regular",
+    fontSize: 13.5,
+    lineHeight: 18,
+    color: Ghost.text.primary,
   },
 });

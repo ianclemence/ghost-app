@@ -1,10 +1,12 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown, useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Space, Type } from "@/constants/theme";
+import { ScreenBackground } from "@/components/screen-glow";
+import { Fonts, Ghost, Space, Type } from "@/constants/theme";
 
 /**
  * First launch.
@@ -15,7 +17,7 @@ import { Ghost, Space, Type } from "@/constants/theme";
  * way to skip it.
  */
 const LINES = ["Your AI.", "Your Memory.", "Your Machine."];
-const FADE = [1, 0.5, 0.26];
+const FADE = [1, 0.72, 0.5];
 
 export default function FirstLaunchScreen() {
   const router = useRouter();
@@ -25,6 +27,7 @@ export default function FirstLaunchScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + Space.xl }]}>
+      <ScreenBackground variant="hero" />
       <View style={styles.hero}>
         <Animated.View entering={reduce ? undefined : FadeIn.duration(600)}>
           <GhostMark size={44} />
@@ -59,8 +62,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base, paddingHorizontal: 28 },
   hero: { flex: 1, justifyContent: "center", gap: Space.xxl },
   lines: { gap: 2 },
-  line: { fontSize: 38, lineHeight: 44, fontWeight: "600", letterSpacing: -1.1, color: Ghost.text.primary },
-  explain: { ...Type.body, color: Ghost.text.secondary, maxWidth: 300 },
+  line: { fontFamily: Fonts.voice, fontSize: 52, lineHeight: 54, letterSpacing: -1, color: Ghost.text.primary },
+  explain: { ...Type.prose, fontSize: 19, lineHeight: 27, color: "rgba(255,255,255,0.78)", maxWidth: 310 },
   bottom: { gap: Space.xs },
   secondary: { alignItems: "center", justifyContent: "center", minHeight: 48 },
   secondaryText: { ...Type.callout, fontWeight: "500", color: Ghost.text.secondary },

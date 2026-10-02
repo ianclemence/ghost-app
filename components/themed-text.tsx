@@ -1,4 +1,5 @@
-import { Text, type TextProps, type StyleProp, type TextStyle } from "react-native";
+import { type TextProps, type StyleProp, type TextStyle } from "react-native";
+import { Text } from "@/components/text";
 
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Fonts, Ghost, Type } from "@/constants/theme";
@@ -71,7 +72,7 @@ export function ThemedText({
   const color = useThemeColor({ light: lightColor, dark: darkColor }, "text");
   return (
     <Text
-      style={[{ color, fontFamily: Fonts.sans }, typeStyle(type), style]}
+      style={[{ color }, typeStyle(type), style]}
       {...rest}
     />
   );

@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -256,17 +257,21 @@ const styles = StyleSheet.create({
   bubble: {
     maxWidth: "84%",
     backgroundColor: Ghost.bubble.user,
-    borderRadius: Radius.xl + 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+    borderRadius: 24,
     borderCurve: "continuous",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
   },
   bubblePressed: {
     opacity: 0.85,
   },
   userText: {
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 17,
+    lineHeight: 25,
+    fontWeight: "300",
+    letterSpacing: -0.2,
     color: Ghost.text.primary,
   },
   ghostRow: {

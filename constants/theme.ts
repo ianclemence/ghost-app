@@ -1,48 +1,43 @@
-import { Appearance, Platform } from "react-native";
+import { Platform } from "react-native";
 
 /**
- * Ghost Design System: warm, quiet, alive.
+ * Ghost Design System: black, one aurora of light, and quiet glass.
  *
- * Warm paper by day and warm midnight by night, the same two worlds as the web
- * console. One palette in light and one in dark, chosen from the system
- * setting when the app starts (the root layout reloads the app if the setting
- * changes, so no screen is ever half one and half the other). Deep indigo for
- * structure and the primary action, ember (amber) as the single warm signal,
- * used only when Ghost is working or needs the owner. Instrument Serif for the
- * few moments that should read as written; the system face for everything you
- * act on. Monospace only for technical values.
+ * Pure black is the canvas. All colour comes from a single aurora (amber,
+ * magenta, violet, electric blue) that glows behind the screen and fades to
+ * black, so nothing else needs to be coloured. Controls are glass: a faint
+ * white fill with a hairline edge. Headlines are Instrument Serif; everything
+ * else is Inter, light and large where Ghost speaks, regular where you act.
+ * Dark only: there is no light theme.
  */
 
-/** The scheme this run of the app uses. */
-export const scheme: "light" | "dark" = Appearance.getColorScheme() === "dark" ? "dark" : "light";
+/** Kept for the screens that still ask which scheme this run is in. */
+export const scheme = "dark" as const;
 
-// ─── Palettes ──────────────────────────────────────────────────────────────
+/** The aurora's four colours, sampled from the design reference. */
+export const Aurora = {
+  amber: "#FF9A1A",
+  magenta: "#C23DEB",
+  violet: "#7A3CF0",
+  blue: "#3A2EF0",
+} as const;
 
-const lightPalette = {
-  bg: { base: "#F8F6F1", raised: "#FFFEFB", sunken: "#F0ECE3" },
-  text: { primary: "#1A1611", secondary: "#5B554C", tertiary: "#6F6A63", inverse: "#FFFFFF" },
-  accent: { primary: "#3D3B5C", soft: "rgba(61,59,92,0.09)", medium: "rgba(61,59,92,0.17)" },
-  status: { success: "#2D7A4A", warning: "#8A5A00", error: "#C24B3C", info: "#34688F" },
-  border: { subtle: "rgba(60,45,25,0.07)", default: "rgba(60,45,25,0.13)", strong: "rgba(60,45,25,0.22)" },
-  bubble: { user: "#EAE5DA" },
-  ember: "#FFB45C",
-  emberBright: "#FFCB8A",
-  emberDeep: "#A8620A",
-};
+// ─── Palette ───────────────────────────────────────────────────────────────
 
 const darkPalette = {
-  bg: { base: "#14110D", raised: "#1C1813", sunken: "#0F0C09" },
-  text: { primary: "#F1E9DC", secondary: "#CDBFAC", tertiary: "#A3927F", inverse: "#14110D" },
-  accent: { primary: "#B9B6F2", soft: "rgba(185,182,242,0.13)", medium: "rgba(185,182,242,0.24)" },
-  status: { success: "#6FCB93", warning: "#F0C25A", error: "#FF8576", info: "#86B8E0" },
-  border: { subtle: "rgba(240,233,223,0.07)", default: "rgba(240,233,223,0.13)", strong: "rgba(240,233,223,0.22)" },
-  bubble: { user: "#26211A" },
-  ember: "#FFB45C",
-  emberBright: "#FFCB8A",
-  emberDeep: "#FFB45C",
+  bg: { base: "#000000", raised: "#0E0E12", sunken: "#07070A" },
+  text: { primary: "#FFFFFF", secondary: "#B3B1BD", tertiary: "#7C7A88", inverse: "#000000" },
+  accent: { primary: "#9C95FF", soft: "rgba(86,72,255,0.20)", medium: "rgba(86,72,255,0.34)" },
+  status: { success: "#6FE3A0", warning: "#FFC24D", error: "#FF7A7A", info: "#8FB8FF" },
+  border: { subtle: "rgba(255,255,255,0.07)", default: "rgba(255,255,255,0.12)", strong: "rgba(255,255,255,0.22)" },
+  bubble: { user: "rgba(255,255,255,0.09)" },
+  glass: { fill: "rgba(255,255,255,0.06)", fillStrong: "rgba(255,255,255,0.11)", border: "rgba(255,255,255,0.14)" },
+  ember: "#FFA928",
+  emberBright: "#FFC266",
+  emberDeep: "#FFA928",
 };
 
-type Palette = typeof lightPalette;
+type Palette = typeof darkPalette;
 
 function tokens(p: Palette) {
   return {
@@ -62,28 +57,16 @@ export function alpha(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
-/** The colour shadows are cast in: warm brown-black in light, pure black in dark. */
-export const shadowRGB = scheme === "dark" ? "0, 0, 0" : "60, 45, 25";
+/** Shadows are pure black. */
+export const shadowRGB = "0, 0, 0";
 
 // ─── Ghost Tokens (canonical) ──────────────────────────────────────────────
 
-export const Ghost = tokens(scheme === "dark" ? darkPalette : lightPalette);
+export const Ghost = tokens(darkPalette);
 
 /** Navigation and tab colours for the same scheme. */
 export const Colors = {
-  light: {
-    text: lightPalette.text.primary,
-    background: lightPalette.bg.base,
-    tint: lightPalette.accent.primary,
-    icon: lightPalette.text.secondary,
-    tabIconDefault: lightPalette.text.tertiary,
-    tabIconSelected: lightPalette.accent.primary,
-    border: lightPalette.border.default,
-    card: lightPalette.bg.raised,
-    success: lightPalette.status.success,
-    error: lightPalette.status.error,
-    warning: lightPalette.status.warning,
-  },
+  light: undefined as never,
   dark: {
     text: darkPalette.text.primary,
     background: darkPalette.bg.base,
@@ -102,27 +85,35 @@ export const Colors = {
 // ─── Camera overlay tokens (always dark: they sit over the live camera) ────
 
 export const Midnight = {
-  bg: "#0F0C09",
-  bgSoft: "#14110D",
-  surface: "#1C1813",
-  surface2: "#26211A",
-  surface3: "#302A21",
+  bg: "#000000",
+  bgSoft: "#07070A",
+  surface: "#0E0E12",
+  surface2: "#17171D",
+  surface3: "#202028",
 
-  ink: "#F1E9DC",
-  inkDim: "#CDBFAC",
-  muted: "#A3927F",
-  faint: "#7A6D5E",
+  ink: "#FFFFFF",
+  inkDim: "#B3B1BD",
+  muted: "#7C7A88",
+  faint: "#55535F",
 
-  line: "rgba(240,233,223,0.08)",
-  lineStrong: "rgba(240,233,223,0.15)",
+  line: "rgba(255,255,255,0.08)",
+  lineStrong: "rgba(255,255,255,0.15)",
 
-  ok: "#6FCB93",
-  clay: "#FF8576",
+  ok: "#6FE3A0",
+  clay: "#FF7A7A",
   clayDeep: "#C24B3C",
-  warn: "#F0C25A",
+  warn: "#FFC24D",
 } as const;
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
+
+/** Inter, by weight. Android and iOS pick a custom family per weight, not by fontWeight. */
+export const Inter = {
+  light: "Inter_300Light",
+  regular: "Inter_400Regular",
+  medium: "Inter_500Medium",
+  semibold: "Inter_600SemiBold",
+} as const;
 
 export const Fonts = Platform.select({
   ios: {
@@ -188,6 +179,13 @@ export const Radius = {
 // ─── Typography ────────────────────────────────────────────────────────────
 
 export const Type = {
+  /** Ghost speaking: large, light, quiet. */
+  prose: {
+    fontSize: 21,
+    lineHeight: 30,
+    fontWeight: "300" as const,
+    letterSpacing: -0.35,
+  },
   display: {
     fontSize: 30,
     lineHeight: 36,
@@ -261,7 +259,7 @@ export const UI = {
     top: 100,
     bottom: 80,
     side: Space.xl,
-    backdrop: scheme === "dark" ? "rgba(8,6,4,0.72)" : "rgba(26,22,17,0.46)",
+    backdrop: "rgba(0,0,0,0.74)",
     headerPadding: Space.lg,
     bodyPadding: Space.lg,
     buttonY: Space.sm,

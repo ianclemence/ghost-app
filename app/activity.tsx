@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, RefreshControl, SectionList, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { fetchActivity, type ActivityChip } from "@/lib/ghostApi";

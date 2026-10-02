@@ -6,15 +6,8 @@
  * viewer; a failed load degrades to the alt text instead of a broken box.
  */
 import React, { memo, useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { ImageOff, X } from "lucide-react-native";
 import { Ghost } from "@/constants/theme";
 

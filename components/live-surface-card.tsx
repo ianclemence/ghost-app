@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import {

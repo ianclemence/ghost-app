@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { Text } from "@/components/text";
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { fitWidths, type TableModel } from "@/lib/tables";
 
@@ -13,7 +14,7 @@ const Ctx = createContext<{ widths: number[]; numeric: boolean[] }>({ widths: []
 
 export function MdTable({ model, children }: { model: TableModel; children: React.ReactNode }) {
   const [available, setAvailable] = useState(0);
-  const widths = useMemo(() => fitWidths(model.widths, available), [model.widths, available]);
+  const widths = useMemo(() => fitWidths(model.widths, available, model.mins), [model.widths, model.mins, available]);
   const value = useMemo(() => ({ widths: widths ?? model.widths, numeric: model.numeric }), [widths, model.widths, model.numeric]);
   const onLayout = useCallback((e: LayoutChangeEvent) => setAvailable(Math.floor(e.nativeEvent.layout.width)), []);
 

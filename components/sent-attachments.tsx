@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { Ghost } from "@/constants/theme";
 import { mosaic } from "@/lib/mosaic";
 import { FileCard } from "@/components/file-card";

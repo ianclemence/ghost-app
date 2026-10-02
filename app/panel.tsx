@@ -1,37 +1,51 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
-import { ChevronRight } from "lucide-react-native";
-import { Ghost, Space } from "@/constants/theme";
-import { ScreenHeader } from "@/components/screen-header";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Asterisk, Calendar, ChevronRight, Folder, ShieldCheck, SlidersHorizontal, Sparkles, X } from "lucide-react-native";
+import { Fonts, Ghost, Space, Type } from "@/constants/theme";
+import { ScreenBackground } from "@/components/screen-glow";
+import { Dock } from "@/components/dock";
+import { GhostButton } from "@/components/ghost";
 import {
-  fetchActivity,
   fetchMemorySelf,
   fetchPendingApprovals,
   fetchProactiveStatus,
   fetchRoutines,
-  type ActivityChip,
   type RoutineItem,
 } from "@/lib/ghostApi";
 import { proactiveLine } from "@/lib/proactive";
 import { useGhostStore } from "@/lib/store";
-import { whenAgo, whenAhead } from "@/lib/when";
-import { EdgeScrollView } from "@/components/scroll-edge";
+import { whenAhead } from "@/lib/when";
 
 /**
- * Ghost, opened up. Everything here is runtime state read just now — what
- * needs you, what's coming, what it did and why, what it remembers, and
- * where it runs. Nothing is summarized by a model.
+ * Ghost, opened up: the front page. One serif greeting and a few light
+ * sentences, each read from the Pod just now (what needs you, what is next,
+ * what it remembers), with the rest one tap away in the dock. Nothing here is
+ * summarized by a model.
  */
+function greeting(now = new Date()): string {
+  const h = now.getHours();
+  if (h < 5) return "Still up?";
+  if (h < 12) return "Good morning.";
+  if (h < 18) return "Good afternoon.";
+  return "Good evening.";
+}
+
+/** A small glass circle that sits inside a sentence. */
+function Chip({ children }: { children: React.ReactNode }) {
+  return <View style={styles.chip}>{children}</View>;
+}
+
 export default function PanelScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { config, connectionState } = useGhostStore();
   const [approvals, setApprovals] = useState(0);
-  const [upcoming, setUpcoming] = useState<RoutineItem[]>([]);
-  const [activity, setActivity] = useState<ActivityChip[]>([]);
+  const [next, setNext] = useState<RoutineItem | null>(null);
   const [memoryCount, setMemoryCount] = useState<number | null>(null);
   const [quietLine, setQuietLine] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!config) return;
@@ -41,9 +55,8 @@ export default function PanelScreen() {
         const active = r
           .filter((x) => x.state === "active" || x.state === "waiting")
           .sort((a, b) => Date.parse(a.next_run_at ?? "9999") - Date.parse(b.next_run_at ?? "9999"));
-        setUpcoming(active.slice(0, 4));
+        setNext(active[0] ?? null);
       }).catch(() => {}),
-      fetchActivity(config, { limit: 5 }).then(setActivity).catch(() => {}),
       fetchMemorySelf(config).then((m) => setMemoryCount(m.entries.length + m.notes.length)).catch(() => {}),
       fetchProactiveStatus(config).then((p) => setQuietLine(proactiveLine(p).text)).catch(() => {}),
     ]);
@@ -53,251 +66,131 @@ export default function PanelScreen() {
     void load();
   }, [load]);
 
-  const where = config
-    ? connectionState === "online" ? "On your Pod, online"
-      : connectionState === "syncing" ? "On your Pod, reconnecting"
-      : "Pod offline · messages will wait"
-    : "Not connected to a Pod yet";
+  const go = (path: string) => () => router.push(path as never);
+  const where = !config
+    ? null
+    : connectionState === "online" ? "Ghost is on your Pod, online."
+      : connectionState === "syncing" ? "Ghost is on your Pod, reconnecting."
+      : "Your Pod is offline. Messages will wait.";
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Ghost" subtitle={where} variant="close" />
-      <EdgeScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          config ? (
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={async () => {
-                setRefreshing(true);
-                await load();
-                setRefreshing(false);
-              }}
-              tintColor={Ghost.text.tertiary}
-            />
-          ) : undefined
-        }
+      <ScreenBackground variant="hero" />
+      <Pressable
+        onPress={() => router.back()}
+        hitSlop={10}
+        style={[styles.close, { top: insets.top + Space.sm }]}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
       >
+        <X size={20} color={Ghost.text.primary} strokeWidth={1.6} />
+      </Pressable>
+
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 96, paddingBottom: insets.bottom + 120 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title} accessibilityRole="header">{config ? greeting() : "Hello."}</Text>
+
         {config ? (
           <>
-            {approvals > 0 || quietLine ? (
-              <Section title="Right now">
-                {approvals > 0 ? (
-                  <Row
-                    title={approvals === 1 ? "1 thing needs your OK" : `${approvals} things need your OK`}
-                    accent
-                    onPress={() => router.back()}
-                  />
-                ) : null}
-                {quietLine ? <Row title={quietLine} /> : null}
-              </Section>
+            <Text style={styles.prose}>{where}</Text>
+            <Text style={styles.prose}>
+              {approvals > 0
+                ? `${approvals === 1 ? "One thing needs" : `${approvals} things need`} your OK `
+                : (quietLine ?? "Nothing needs you right now.")}
+              {approvals > 0 ? (
+                <Chip>
+                  <ShieldCheck size={14} color={Ghost.text.primary} strokeWidth={1.5} />
+                </Chip>
+              ) : null}
+            </Text>
+            {next ? (
+              <Text style={styles.prose}>
+                Next, {next.title.charAt(0).toLowerCase() + next.title.slice(1)}, {whenAhead(next.next_run_at) ?? next.schedule}{" "}
+                <Chip>
+                  <Calendar size={14} color={Ghost.text.primary} strokeWidth={1.5} />
+                </Chip>
+              </Text>
             ) : null}
-
-            <Section title="Coming up" action={{ label: "All", onPress: () => router.push("/routines" as never) }}>
-              {upcoming.length === 0 ? (
-                <Empty text="Nothing scheduled. Say “every Monday at 8, brief me on my week” and it lands here." />
-              ) : (
-                upcoming.map((r) => (
-                  <Row
-                    key={r.id}
-                    title={r.title}
-                    detail={[whenAhead(r.next_run_at), r.schedule].filter(Boolean).join(" · ")}
-                    note={r.state === "waiting" ? r.waiting_on || "Waiting on you" : undefined}
-                    onPress={() => router.push("/routines" as never)}
-                  />
-                ))
-              )}
-            </Section>
-
-            <Section title="What Ghost did" action={{ label: "All", onPress: () => router.push("/activity" as never) }}>
-              {activity.length === 0 ? (
-                <Empty text="Nothing yet. Every action Ghost takes is recorded here." />
-              ) : (
-                activity.map((a) => (
-                  <Row
-                    key={a.id}
-                    title={a.title}
-                    detail={[a.summary, whenAgo(a.timestamp)].filter(Boolean).join(" · ")}
-                    note={a.why}
-                  />
-                ))
-              )}
-            </Section>
-
-            <Section title="Memory">
-              <Row
-                title="What Ghost remembers"
-                detail={memoryCount === null ? undefined : memoryCount === 1 ? "1 thing" : `${memoryCount} things`}
-                onPress={() => router.push("/memory" as never)}
-              />
-            </Section>
+            {memoryCount !== null ? (
+              <Text style={styles.prose}>
+                Ghost remembers {memoryCount === 1 ? "1 thing" : `${memoryCount} things`}{" "}
+                <Chip>
+                  <Sparkles size={14} color={Ghost.text.primary} strokeWidth={1.5} />
+                </Chip>
+              </Text>
+            ) : null}
+            <GhostButton
+              title="What Ghost did"
+              variant="secondary"
+              onPress={go("/activity")}
+              rightIcon={<ChevronRight size={16} color={Ghost.text.primary} />}
+              style={styles.button}
+            />
           </>
         ) : (
-          <Section title="Right now">
-            <Empty text="Ghost lives on your Pod. Connect it to see what Ghost is doing for you." />
-          </Section>
+          <>
+            <Text style={styles.prose}>Ghost lives on your Pod, a small computer you own. Connect it to see what Ghost is doing for you.</Text>
+            <View style={styles.buttons}>
+              <GhostButton title="Scan QR code" onPress={go("/scan")} />
+              <GhostButton title="Enter manually" variant="secondary" onPress={go("/manual")} />
+            </View>
+          </>
         )}
+      </ScrollView>
 
-        <Section title="Settings">
-          {config ? <Row title="Intelligence" detail="Which AI Ghost thinks with" onPress={() => router.push("/intelligence" as never)} /> : null}
-          {config ? <Row title="Connected apps" detail="Email, calendar, and logins" onPress={() => router.push("/connections" as never)} /> : null}
-          {config ? <Row title="Files" detail="What you have sent Ghost, and delete it" onPress={() => router.push("/files" as never)} /> : null}
-          <Row title="Your Pod" detail="Health and the models on it" onPress={() => router.push("/ghost" as never)} />
-          {!config ? <Row title="Connect your Pod" onPress={() => router.push("/connect" as never)} /> : null}
-          <Row title="About" onPress={() => router.push("/about" as never)} />
-        </Section>
-      </EdgeScrollView>
-    </View>
-  );
-}
-
-function Section({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: { label: string; onPress: () => void };
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle} accessibilityRole="header">{title}</Text>
-        {action ? (
-          <Pressable onPress={action.onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel={`${action.label} ${title.toLowerCase()}`}>
-            <Text style={styles.sectionAction}>{action.label}</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      <View style={styles.group}>{children}</View>
-    </View>
-  );
-}
-
-function Row({
-  title,
-  detail,
-  note,
-  accent,
-  onPress,
-}: {
-  title: string;
-  detail?: string;
-  note?: string;
-  accent?: boolean;
-  onPress?: () => void;
-}) {
-  const body = (
-    <View style={styles.row}>
-      {accent ? <View style={styles.accentDot} /> : null}
-      <View style={styles.rowText}>
-        <Text style={[styles.rowTitle, accent && styles.rowTitleAccent]}>{title}</Text>
-        {detail ? <Text style={styles.rowDetail}>{detail}</Text> : null}
-        {note ? <Text style={styles.rowNote}>{note}</Text> : null}
-      </View>
-      {onPress ? <ChevronRight size={18} color={Ghost.text.tertiary} /> : null}
-    </View>
-  );
-  if (!onPress) return body;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => pressed && { backgroundColor: Ghost.bg.sunken }}
-      accessibilityRole="button"
-      accessibilityLabel={[title, detail].filter(Boolean).join(", ")}
-    >
-      {body}
-    </Pressable>
-  );
-}
-
-function Empty({ text }: { text: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.empty}>{text}</Text>
+      {config ? (
+        <Dock
+          items={[
+            { label: "What Ghost did", icon: Asterisk, onPress: go("/activity") },
+            { label: "Coming up", icon: Calendar, onPress: go("/routines") },
+            { label: "What Ghost remembers", icon: Sparkles, onPress: go("/memory") },
+            { label: "Files", icon: Folder, onPress: go("/files") },
+          ]}
+          action={{ label: "Settings", icon: SlidersHorizontal, onPress: go("/settings") }}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Ghost.bg.base,
+  container: { flex: 1, backgroundColor: Ghost.bg.base },
+  close: {
+    position: "absolute",
+    left: Space.lg,
+    zIndex: 3,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.38)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
   },
-  content: {
-    paddingBottom: Space.huge,
-  },
-  section: {
-    marginTop: Space.xl,
-  },
-  sectionHead: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    paddingHorizontal: Space.xl,
+  content: { paddingHorizontal: 28, gap: Space.md },
+  title: {
+    fontFamily: Fonts.voice,
+    fontSize: 52,
+    lineHeight: 54,
+    letterSpacing: -1,
+    color: Ghost.text.primary,
     marginBottom: Space.xs,
   },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-    color: Ghost.text.tertiary,
-  },
-  sectionAction: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Ghost.accent.primary,
-  },
-  group: {
-    marginHorizontal: Space.lg,
-    borderRadius: 16,
-    borderCurve: "continuous",
-    backgroundColor: Ghost.bg.raised,
-    overflow: "hidden",
-  },
-  row: {
-    flexDirection: "row",
+  prose: { ...Type.prose, fontSize: 22, lineHeight: 31, letterSpacing: -0.45, color: "rgba(255,255,255,0.8)" },
+  chip: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
-    gap: Space.md,
-    paddingHorizontal: Space.lg,
-    paddingVertical: 13,
-    minHeight: 52,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Ghost.border.subtle,
+    justifyContent: "center",
+    marginHorizontal: 4,
+    backgroundColor: Ghost.glass.fillStrong,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
   },
-  rowText: {
-    flex: 1,
-    gap: 2,
-  },
-  rowTitle: {
-    fontSize: 16,
-    lineHeight: 21,
-    color: Ghost.text.primary,
-  },
-  rowTitleAccent: {
-    fontWeight: "600",
-  },
-  rowDetail: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: Ghost.text.secondary,
-  },
-  rowNote: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: Ghost.text.tertiary,
-  },
-  accentDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Ghost.emberDeep,
-  },
-  empty: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-    color: Ghost.text.tertiary,
-  },
+  button: { marginTop: Space.md },
+  buttons: { marginTop: Space.lg, gap: Space.sm, alignItems: "flex-start" },
 });

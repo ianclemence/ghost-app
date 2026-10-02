@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from "react-native-reanimated";
 import { X } from "lucide-react-native";
 import { Ghost, Radius } from "@/constants/theme";

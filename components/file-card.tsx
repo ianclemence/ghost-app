@@ -1,5 +1,6 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { alpha, Ghost, Radius } from "@/constants/theme";
 import { fileKind, fileSize, type FileTone } from "@/lib/attachments";
 

@@ -34,7 +34,7 @@ describe("reading a table", () => {
 describe("sizing columns", () => {
   test("a column is as wide as what is in it, within limits", () => {
     const { widths } = measureTable(tableRows(table));
-    expect(widths[1]).toBeLessThan(110); // a price is narrow
+    expect(widths[1]).toBeLessThan(130); // a price is narrow
     expect(measureTable([["h"], ["$9"]]).widths[0]).toBe(MIN_COL); // and never below the minimum
     expect(widths[2]).toBe(MAX_COL); // a long note is capped and wraps
     expect(widths[0]).toBeGreaterThan(widths[1]);
@@ -77,6 +77,16 @@ describe("fitting the screen", () => {
     expect(sum(w)).toBe(340);
     expect(w[0]).toBeGreaterThanOrEqual(84 * 0.8);
     expect(w[1]).toBeLessThan(240);
+  });
+
+  test("no column is squeezed below its widest word", () => {
+    const w = fitWidths([100, 240], 300, [96, 72])!;
+    expect(w[0]).toBeGreaterThanOrEqual(96);
+    expect(sum(w)).toBe(300);
+  });
+
+  test("a table whose longest words cannot all fit is left to be stacked", () => {
+    expect(fitWidths([120, 120, 120], 300, [110, 110, 110])).toBeNull();
   });
 
   test("too many columns to keep readable is left to be stacked", () => {

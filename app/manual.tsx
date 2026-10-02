@@ -4,9 +4,10 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton, GhostInput } from "@/components/ghost";
-import { Ghost, Space, UI } from "@/constants/theme";
+import { Fonts, Ghost, Space, UI } from "@/constants/theme";
 import { startPairing } from "@/lib/connection";
 import { EdgeScrollView } from "@/components/scroll-edge";
+import { ScreenBackground } from "@/components/screen-glow";
 
 /**
  * Parse a ghost://pair?… or ghost://connect?… link and pull out the fields
@@ -83,11 +84,12 @@ export default function ManualScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: Ghost.bg.base }}
       behavior={process.env.EXPO_OS === "ios" ? "padding" : "height"}
     >
+      <ScreenBackground variant="calm" />
       <EdgeScrollView
-        style={{ flex: 1, backgroundColor: Ghost.bg.base }}
+        style={{ flex: 1, backgroundColor: "transparent" }}
         contentContainerStyle={[styles.container, { paddingTop: insets.top + UI.modal.bottom, paddingBottom: insets.bottom + UI.modal.bottom }]}
         keyboardShouldPersistTaps="handled"
       >
@@ -160,6 +162,10 @@ const styles = StyleSheet.create({
     padding: Space.xl,
   },
   title: {
+    fontFamily: Fonts.voice,
+    fontSize: 44,
+    lineHeight: 48,
+    letterSpacing: -0.8,
     color: Ghost.text.primary,
     marginBottom: Space.sm,
   },

@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 import Markdown, { MarkdownIt } from "react-native-markdown-display";
 import { StyleSheet } from "react-native";
-import { Fonts, Ghost, Type } from "@/constants/theme";
+import { Fonts, Ghost, Inter } from "@/constants/theme";
 import { prepareStreamingMarkdown } from "@/lib/streaming";
 import { openExternalUrl } from "@/lib/links";
 import { markdownRules } from "@/components/markdown-rules";
@@ -24,14 +24,17 @@ const markdownIt = MarkdownIt({
 // the accent kept for things you can tap.
 const markdownStyle = {
   body: {
-    color: Ghost.text.primary,
-    ...Type.body,
+    color: "rgba(255,255,255,0.86)",
+    fontFamily: Inter.light,
+    fontSize: 18.5,
+    lineHeight: 28,
+    letterSpacing: -0.25,
   },
   heading1: {
     color: Ghost.text.primary,
     fontSize: 22,
     lineHeight: 28,
-    fontWeight: "700" as const,
+    fontFamily: Inter.semibold,
     letterSpacing: -0.35,
     marginTop: 18,
     marginBottom: 6,
@@ -40,7 +43,7 @@ const markdownStyle = {
     color: Ghost.text.primary,
     fontSize: 19,
     lineHeight: 26,
-    fontWeight: "600" as const,
+    fontFamily: Inter.semibold,
     letterSpacing: -0.25,
     marginTop: 16,
     marginBottom: 5,
@@ -49,7 +52,7 @@ const markdownStyle = {
     color: Ghost.text.primary,
     fontSize: 16.5,
     lineHeight: 23,
-    fontWeight: "600" as const,
+    fontFamily: Inter.semibold,
     letterSpacing: -0.1,
     marginTop: 14,
     marginBottom: 3,
@@ -58,23 +61,23 @@ const markdownStyle = {
     color: Ghost.text.secondary,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: "600" as const,
+    fontFamily: Inter.semibold,
     marginTop: 12,
     marginBottom: 2,
   },
   heading5: {
     color: Ghost.text.secondary,
     fontSize: 13,
-    fontWeight: "600" as const,
+    fontFamily: Inter.semibold,
   },
   heading6: {
     color: Ghost.text.tertiary,
     fontSize: 12.5,
-    fontWeight: "600" as const,
+    fontFamily: Inter.semibold,
   },
   strong: {
     color: Ghost.text.primary,
-    fontWeight: "600" as const,
+    fontFamily: Inter.semibold,
   },
   em: {
     color: Ghost.text.primary,
@@ -86,7 +89,7 @@ const markdownStyle = {
   },
   link: {
     color: Ghost.accent.primary,
-    fontWeight: "500" as const,
+    fontFamily: Inter.medium,
     textDecorationLine: "none" as const,
   },
   code_inline: {

@@ -24,7 +24,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { alpha, Ghost, Fonts, Radius, Space, UI } from "@/constants/theme";
+import { alpha, Ghost, Inter, Radius, Space, UI } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { GhostMark } from "@/components/ghost-mark";
 
@@ -108,12 +108,12 @@ export function GhostButton({
 }) {
   const palette = {
     primary: {
-      bg: Ghost.text.primary,
-      fg: Ghost.text.inverse,
-      border: "transparent",
+      bg: Ghost.glass.fillStrong,
+      fg: Ghost.text.primary,
+      border: Ghost.glass.border,
     },
     secondary: {
-      bg: "transparent",
+      bg: Ghost.glass.fill,
       fg: Ghost.text.primary,
       border: Ghost.border.default,
     },
@@ -166,7 +166,7 @@ export function GhostButton({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === "primary" ? Ghost.text.inverse : Ghost.text.primary}
+          color={Ghost.text.primary}
         />
       ) : (
         <>
@@ -608,15 +608,15 @@ export function GhostInput({
       onBlur={() => setFocused(false)}
       style={[
         {
-          backgroundColor: Ghost.bg.sunken,
+          backgroundColor: Ghost.glass.fill,
           borderWidth: 1,
-          borderColor: focused ? Ghost.accent.primary : "transparent",
-          borderRadius: Radius.lg,
+          borderColor: focused ? Ghost.accent.primary : Ghost.glass.border,
+          borderRadius: Radius.xxl,
           borderCurve: "continuous",
           paddingVertical: Space.md,
           paddingHorizontal: Space.lg,
           color: Ghost.text.primary,
-          fontFamily: Fonts.sans,
+          fontFamily: Inter.regular,
           fontSize: 16,
           lineHeight: 22,
           textAlignVertical: multiline ? "top" : "center",

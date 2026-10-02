@@ -2,7 +2,8 @@
 // and the AI models installed on it. The Pod is Ghost's local brain; the
 // phone is a window into it, so there is no second, weaker Ghost here.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";

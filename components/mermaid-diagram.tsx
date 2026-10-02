@@ -13,7 +13,8 @@
  *   source stays accessible to screen readers via the fallback label.
  */
 import React, { memo, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { WebView } from "react-native-webview";
 import { Ghost } from "@/constants/theme";
 import {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";

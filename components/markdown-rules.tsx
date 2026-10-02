@@ -15,7 +15,8 @@
  *   states; anything else degrades to its alt text.
  */
 import React from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { Text } from "@/components/text";
 import { hasParents } from "react-native-markdown-display";
 import { Ghost } from "@/constants/theme";
 import { CodeBlock } from "@/components/code-block";

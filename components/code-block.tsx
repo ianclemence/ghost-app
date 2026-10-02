@@ -8,7 +8,8 @@
  * surface stays readable. (Deliberate, documented trade-off.)
  */
 import React, { memo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import * as Clipboard from "expo-clipboard";
 import { Check, Copy } from "lucide-react-native";
 import { Fonts, Ghost, Radius } from "@/constants/theme";

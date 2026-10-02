@@ -1,6 +1,7 @@
 import { writeCacheFile } from "@/lib/localFiles";
 import React, { useState } from "react";
-import { Image, Linking, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, StyleSheet, View } from "react-native";
+import { Text } from "@/components/text";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostButton } from "@/components/ghost";
 import { MarkdownBubble } from "@/components/markdown-bubble";
