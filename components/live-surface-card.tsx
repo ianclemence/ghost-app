@@ -44,12 +44,16 @@ export function LiveSurfaceCard({ config, kind, surfaceId, ownDeviceId, onGone }
   watchingRef.current = watching;
 
   const load = useCallback(async () => {
-    const s = await fetchLiveSurface(config, kind, surfaceId);
-    if (!s) {
-      onGone(surfaceId);
-      return;
+    try {
+      const s = await fetchLiveSurface(config, kind, surfaceId);
+      if (!s) {
+        onGone(surfaceId);
+        return;
+      }
+      setSurface(s);
+    } catch {
+      // Could not ask (offline, waking up): keep what is on screen.
     }
-    setSurface(s);
   }, [config, kind, surfaceId, onGone]);
 
   useEffect(() => {
@@ -207,10 +211,10 @@ export function LiveSurfaceCard({ config, kind, surfaceId, ownDeviceId, onGone }
           {obsImage ? (
             <Image source={{ uri: obsImage }} style={styles.shot} accessibilityLabel="Latest surface screenshot" />
           ) : null}
-          {obsText ? (
-            <Text style={styles.obsText} selectable>{obsText.slice(0, 2000)}</Text>
-          ) : !obsImage ? (
-            <Text style={styles.obsEmpty}>No observation recorded yet.</Text>
+          {/* The page's own text is an accessibility tree ("- generic - button
+              ref=e1"): machinery, not something to read. Only the picture. */}
+          {!obsImage ? (
+            <Text style={styles.obsEmpty}>Waiting for the first picture of the page…</Text>
           ) : null}
           {streamFailed ? <Text style={styles.streamNote}>Live updates unavailable. State above is current.</Text> : null}
         </View>

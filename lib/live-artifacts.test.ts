@@ -68,6 +68,11 @@ describe("live surface clients", () => {
     expect(await ghostApi.fetchLiveSurface(CFG, "browser", "nope")).toBeNull();
     expect(await ghostApi.fetchSurfaceObservation(CFG, "browser", "nope")).toBeNull();
   });
+
+  test("a surface we could not reach is not a surface that is gone", async () => {
+    stubFetch(() => ({ ok: false, status: 503, json: async () => ({}) }) as Response);
+    await expect(ghostApi.fetchLiveSurface(CFG, "browser", "x")).rejects.toThrow();
+  });
 });
 
 describe("artifact clients", () => {

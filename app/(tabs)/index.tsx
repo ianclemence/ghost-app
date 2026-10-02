@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, AppState, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { Easing, FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
@@ -33,6 +33,7 @@ import {
   fetchHistory,
   fetchIdentity,
   fetchLiveSurface,
+  fetchLiveSurfaces,
   fetchPendingApprovals,
   fetchSuggestion,
   fetchRoutines,
@@ -246,7 +247,27 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
   }, []);
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
-  useFocusEffect(useCallback(() => { settle(); }, [settle]));
+  // The browser/computer cards are announced over the live connection, so one
+  // that began while the app was away (or whose announcement was missed) was
+  // never added, and a card the app lost on coming back stayed lost. Ask the
+  // Pod what is running now, on opening, on returning to the conversation and on
+  // coming back to the app.
+  const refreshSurfaces = useCallback(() => {
+    if (!config) return;
+    fetchLiveSurfaces(config).then((list) => {
+      const running = list.filter((s) => s.state !== "completed" && s.state !== "expired" && s.state !== "failed");
+      setSurfaces((prev) => {
+        const known = new Set(prev.map((x) => x.id));
+        const add = running.filter((s) => !known.has(s.id)).map((s) => ({ id: s.id, kind: s.kind }));
+        return add.length ? [...prev, ...add] : prev;
+      });
+    }).catch(() => {});
+  }, [config]);
+  useFocusEffect(useCallback(() => { settle(); refreshSurfaces(); }, [settle, refreshSurfaces]));
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (st) => { if (st === "active") refreshSurfaces(); });
+    return () => sub.remove();
+  }, [refreshSurfaces]);
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
 
   // First paint from the on-device copy of the thread, so the conversation

@@ -1785,15 +1785,18 @@ export async function fetchLiveSurfaces(cfg: GhostConfig, kind?: SurfaceKind): P
   return Array.isArray(data?.surfaces) ? data.surfaces : [];
 }
 
+/**
+ * null means the Pod says the surface is gone (404). Anything else that goes
+ * wrong (no network after the app was in the background, a timeout) throws:
+ * "I could not ask" must never be read as "it is gone", which is how a running
+ * browser card used to vanish whenever the phone came back from sleep.
+ */
 export async function fetchLiveSurface(cfg: GhostConfig, kind: SurfaceKind, id: string): Promise<LiveSurface | null> {
-  try {
-    const res = await fetchWithTimeout(livePath(cfg, kind, id), { headers: headers(cfg) }, 10000);
-    if (!res.ok) return null;
-    const data = await res.json().catch(() => null);
-    return (data?.surface as LiveSurface | undefined) ?? null;
-  } catch {
-    return null;
-  }
+  const res = await fetchWithTimeout(livePath(cfg, kind, id), { headers: headers(cfg) }, 10000);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Live surface unavailable (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  return (data?.surface as LiveSurface | undefined) ?? null;
 }
 
 export async function fetchSurfaceObservation(
