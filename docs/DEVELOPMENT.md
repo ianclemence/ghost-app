@@ -30,7 +30,7 @@ app/                       screens (expo-router)
   panel.tsx                Ghost, opened up
   browser.tsx              steer Ghost's browser
   activity.tsx memory.tsx files.tsx file.tsx routines.tsx
-  intelligence.tsx connections.tsx ghost.tsx (Your Pod) live.tsx about.tsx
+  intelligence.tsx connections.tsx ghost.tsx (Your Pod) about.tsx
   onboarding.tsx connect.tsx scan.tsx confirm.tsx manual.tsx setup-pod.tsx
   pairing-success.tsx auth-failure.tsx revoked.tsx
 components/                thread, approval card, composer, presence header, live surface card

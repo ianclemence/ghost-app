@@ -1,6 +1,5 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { AudioLines } from "lucide-react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostMark } from "@/components/ghost-mark";
@@ -10,22 +9,19 @@ import type { Presence } from "@/lib/presence";
 /**
  * The top of the one conversation: who you're talking to and what it is
  * doing right now. Tapping Ghost opens its panel (what it's working on,
- * what's coming up, what it remembers, what it did). Voice is one tap away.
- */
+ * what's coming up, what it remembers, what it did).  */
 export function PresenceHeader({
   name,
   status,
   scrolled,
   topInset,
   onOpenPanel,
-  onVoice,
 }: {
   name: string;
   status: Presence;
   scrolled: boolean;
   topInset: number;
   onOpenPanel: () => void;
-  onVoice?: () => void;
 }) {
   const light =
     status.tone === "working" ? <EmberDot size={8} /> :
@@ -53,17 +49,6 @@ export function PresenceHeader({
           </Animated.Text>
         </View>
       </Pressable>
-      {onVoice ? (
-        <Pressable
-          onPress={onVoice}
-          style={({ pressed }) => [styles.voice, pressed && { opacity: 0.6 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Talk to Ghost by voice"
-          hitSlop={8}
-        >
-          <AudioLines size={20} color={Ghost.text.primary} />
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -121,12 +106,5 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 16,
     color: Ghost.text.secondary,
-  },
-  voice: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

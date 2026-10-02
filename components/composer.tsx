@@ -1,7 +1,9 @@
 import { ArrowUp, Camera, Check, Image as ImageIcon, Mic, Paperclip, Plus, Square, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Animated, {
+  Easing,
   FadeIn,
+  FadeInDown,
   FadeOut,
   LinearTransition,
   useAnimatedStyle,
@@ -159,7 +161,7 @@ export function Composer({
   const canAttach = !!(onPhoto || onFile || onCamera);
   const spin = useSharedValue(0);
   useEffect(() => {
-    spin.set(reduceMotion ? (tray ? 1 : 0) : withSpring(tray ? 1 : 0, SPRING));
+    spin.set(reduceMotion ? (tray ? 1 : 0) : withTiming(tray ? 1 : 0, { duration: 220, easing: Easing.out(Easing.exp) }));
   }, [tray, spin, reduceMotion]);
   const plusStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.get() * 45}deg` }] }));
 
@@ -312,30 +314,31 @@ export function Composer({
     );
   }
 
+  const chips = [
+    onPhoto ? { key: "photo", label: "Photo", hint: "Attach a photo", Icon: ImageIcon, fn: onPhoto } : null,
+    onCamera ? { key: "camera", label: "Camera", hint: "Take a photo", Icon: Camera, fn: onCamera } : null,
+    onFile ? { key: "file", label: "File", hint: "Attach a file", Icon: Paperclip, fn: onFile } : null,
+  ].filter(<T,>(c: T | null): c is T => c !== null);
+
   return (
-    <Animated.View layout={reduceMotion ? undefined : LinearTransition.duration(160)} style={styles.pill}>
+    <Animated.View layout={reduceMotion ? undefined : LinearTransition.duration(200).easing(Easing.out(Easing.exp))}>
       {tray && canAttach ? (
-        <Animated.View entering={fade} exiting={fadeOut} style={styles.tray}>
-          {onPhoto ? (
-            <Pressable style={styles.chip} onPress={pick(onPhoto)} accessibilityRole="button" accessibilityLabel="Attach a photo">
-              <ImageIcon size={16} color={Ghost.text.primary} />
-              <Text style={styles.chipText}>Photo</Text>
-            </Pressable>
-          ) : null}
-          {onCamera ? (
-            <Pressable style={styles.chip} onPress={pick(onCamera)} accessibilityRole="button" accessibilityLabel="Take a photo">
-              <Camera size={16} color={Ghost.text.primary} />
-              <Text style={styles.chipText}>Camera</Text>
-            </Pressable>
-          ) : null}
-          {onFile ? (
-            <Pressable style={styles.chip} onPress={pick(onFile)} accessibilityRole="button" accessibilityLabel="Attach a file">
-              <Paperclip size={16} color={Ghost.text.primary} />
-              <Text style={styles.chipText}>File</Text>
-            </Pressable>
-          ) : null}
-        </Animated.View>
+        <View style={styles.tray}>
+          {chips.map(({ key, label, hint, Icon, fn }, i) => (
+            <Animated.View
+              key={key}
+              entering={reduceMotion ? undefined : FadeInDown.duration(200).delay(i * 40).easing(Easing.out(Easing.exp))}
+              exiting={fadeOut}
+            >
+              <Pressable style={styles.chip} onPress={pick(fn)} accessibilityRole="button" accessibilityLabel={hint}>
+                <Icon size={16} color={Ghost.text.primary} />
+                <Text style={styles.chipText}>{label}</Text>
+              </Pressable>
+            </Animated.View>
+          ))}
+        </View>
       ) : null}
+      <Animated.View layout={reduceMotion ? undefined : LinearTransition.duration(160)} style={styles.pill}>
 
       <View style={styles.line}>
         {canAttach && !recording ? (
@@ -398,6 +401,7 @@ export function Composer({
         {action}
       </View>
     </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -457,15 +461,18 @@ const styles = StyleSheet.create({
   useText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.1, color: Ghost.accent.primary },
   ring: { borderWidth: 1.5, borderColor: Ghost.border.strong },
   pair: { flexDirection: "row", alignItems: "center", gap: 2 },
-  tray: { flexDirection: "row", gap: Space.sm, paddingHorizontal: 6, paddingTop: 4, paddingBottom: 8 },
+  tray: { flexDirection: "row", gap: Space.sm, paddingLeft: 6, marginBottom: Space.sm },
   chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    minHeight: 36,
-    paddingHorizontal: 14,
+    minHeight: 40,
+    paddingHorizontal: 16,
     borderRadius: Radius.full,
-    backgroundColor: Ghost.bg.sunken,
+    backgroundColor: Ghost.bg.raised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.border.default,
+    boxShadow: `0 6px 18px rgba(${shadowRGB}, 0.14)`,
   },
   chipText: { ...Type.callout, fontWeight: "500", color: Ghost.text.primary },
   rec: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minHeight: BTN, paddingLeft: 14 },

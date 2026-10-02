@@ -10,8 +10,8 @@ import { Ghost, Space, Type } from "@/constants/theme";
  * First launch.
  *
  * Ghost lives on a Pod the owner controls: memory, permissions and tools stay
- * there. The phone is how you reach it, so the only first step is connecting (or
- * setting up) the Pod. There is nothing to look around at yet, so there is no
+ * there. The phone is how you reach it, so the only first step is connecting to the Pod,
+ * by scanning its code or entering its address. There is nothing to look around at yet, so there is no
  * way to skip it.
  */
 const LINES = ["Your AI.", "Your Memory.", "Your Machine."];
@@ -42,13 +42,13 @@ export default function FirstLaunchScreen() {
       </View>
 
       <Animated.View entering={enter(900)} style={styles.bottom}>
-        <GhostButton title="Connect your Pod" onPress={() => router.push("/connect")} fullWidth />
+        <GhostButton title="Scan QR code" onPress={() => router.push("/connect")} fullWidth />
         <Pressable
-          onPress={() => router.push("/setup-pod" as never)}
+          onPress={() => router.push("/manual")}
           style={({ pressed }) => [styles.secondary, pressed && { opacity: 0.5 }]}
           accessibilityRole="button"
         >
-          <Text style={styles.secondaryText}>Set up a new Pod</Text>
+          <Text style={styles.secondaryText}>Enter manually</Text>
         </Pressable>
       </Animated.View>
     </View>

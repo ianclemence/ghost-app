@@ -1,5 +1,5 @@
 import React, { forwardRef, useRef } from "react";
-import { Platform, StyleSheet, View, type ScrollViewProps } from "react-native";
+import { StyleSheet, View, type ScrollViewProps } from "react-native";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -9,87 +9,48 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
-import { requireOptionalNativeModule } from "expo-modules-core";
 import { alpha, Ghost, scheme } from "@/constants/theme";
 
 /**
  * The top edge of a scrolling screen.
  *
- * Content that scrolls up under the header dissolves into a progressive blur:
- * sharp where it is, softer as it nears the header, gone at the edge. It only
- * appears once something has scrolled under it, so a screen at rest is clean.
- *
- * Blur is native, so it only exists in builds that include expo-blur. Anywhere
- * else the same edge is a smooth fade into the background, which reads almost as
- * well. Nothing here can crash a build that lacks it.
+ * Content that scrolls up under the header dissolves into the header's own
+ * colour along an eased curve. It only appears once something has scrolled
+ * under it, so a screen at rest is clean. No blur: stepped blur strips smeared
+ * the first line of text and showed a hard line under the header.
  */
 
-export const EDGE_HEIGHT = 44;
+export const EDGE_HEIGHT = 32;
 
-type BlurModule = typeof import("expo-blur");
-let cached: BlurModule | null | undefined;
+/**
+ * Eased stops: an even linear fade shows a visible band where it starts and
+ * ends, so the alpha follows a smooth S curve from the header's own colour
+ * down to nothing. The top stop is the header's exact colour, so there is no
+ * seam where the two meet.
+ */
+const STOPS = Array.from({ length: 9 }, (_, i) => {
+  const t = i / 8;
+  return { at: t, a: 1 - t * t * (3 - 2 * t) };
+});
 
-/** expo-blur, only if this build actually contains its native side. */
-function blurModule(): BlurModule | null {
-  if (cached !== undefined) return cached;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    cached = requireOptionalNativeModule("ExpoBlur") ? (require("expo-blur") as BlurModule) : null;
-  } catch {
-    cached = null;
-  }
-  return cached;
-}
-
-/** Strips of blur from strong at the top to none at the bottom, stepped finely enough to read as a ramp. */
-const RAMP = [70, 48, 30, 16, 6];
-
-export function TopEdge({
-  y,
-  blurTarget,
-}: {
-  y: SharedValue<number>;
-  blurTarget?: React.RefObject<View | null>;
-}) {
+export function TopEdge({ y }: { y: SharedValue<number>; blurTarget?: React.RefObject<View | null> }) {
   const style = useAnimatedStyle(() => ({
-    opacity: interpolate(y.get(), [0, 18], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(y.get(), [0, 24], [0, 1], Extrapolation.CLAMP),
   }));
-  const blur = blurModule();
   const base = Ghost.bg.base;
-  const strip = EDGE_HEIGHT / RAMP.length;
   return (
     <Animated.View pointerEvents="none" style={[styles.edge, style]}>
-      {blur
-        ? RAMP.map((intensity, i) => (
-            <blur.BlurView
-              key={i}
-              intensity={intensity}
-              tint={scheme === "dark" ? "dark" : "light"}
-              blurTarget={Platform.OS === "android" ? blurTarget : undefined}
-              blurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
-              style={{ position: "absolute", left: 0, right: 0, top: i * strip, height: strip + 1 }}
-            />
-          ))
-        : null}
       <LinearGradient
-        colors={[alpha(base, blur ? 0.78 : 0.97), alpha(base, blur ? 0.3 : 0.75), alpha(base, 0)]}
-        locations={[0, 0.55, 1]}
+        colors={STOPS.map((s) => alpha(base, s.a)) as [string, string, ...string[]]}
+        locations={STOPS.map((s) => s.at) as [number, number, ...number[]]}
         style={StyleSheet.absoluteFill}
       />
     </Animated.View>
   );
 }
 
-/** Wraps scrolling content so Android can blur what is behind the edge. Does nothing elsewhere. */
-export function EdgeTarget({ targetRef, children }: { targetRef: React.RefObject<View | null>; children: React.ReactNode }) {
-  const blur = blurModule();
-  if (blur && Platform.OS === "android") {
-    return (
-      <blur.BlurTargetView ref={targetRef} style={styles.fill}>
-        {children}
-      </blur.BlurTargetView>
-    );
-  }
+/** Kept so screens need no change: the edge is a fade now, so there is nothing to wrap. */
+export function EdgeTarget({ children }: { targetRef?: React.RefObject<View | null>; children: React.ReactNode }) {
   return <>{children}</>;
 }
 
@@ -126,7 +87,7 @@ export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewPro
   return (
     <View style={styles.fill}>
       <EdgeTarget targetRef={target}>{scroller}</EdgeTarget>
-      <TopEdge y={y} blurTarget={target} />
+      <TopEdge y={y} />
     </View>
   );
 });

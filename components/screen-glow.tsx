@@ -11,15 +11,12 @@ import Animated, {
 } from "react-native-reanimated";
 import { alpha, Ghost, scheme } from "@/constants/theme";
 
-// Three fields of soft light, the same three hues as the web console's
-// background: indigo from the upper left, ember from the upper right, and rose
-// (teal at night) rising from below. They drift very slowly, so the screen is
-// never quite still and never asks for attention. Strengths are kept low
-// enough that text contrast on top of them is unchanged.
-const INDIGO = scheme === "dark" ? "#7066D6" : "#7066CC";
-const EMBER = "#FFB45C";
-const LOW = scheme === "dark" ? "#3C8296" : "#E28C80";
-const A = scheme === "dark" ? { indigo: 0.22, ember: 0.1, low: 0.12 } : { indigo: 0.2, ember: 0.2, low: 0.13 };
+// One field of soft light that drifts very slowly, so the screen is never quite
+// still and never asks for attention. A single warm-neutral hue replaces the
+// earlier three coloured fields, which read as smudges. Strength is low enough
+// that text contrast on top of it is unchanged.
+const SOFT = scheme === "dark" ? "#8C7AB8" : "#C9A57A";
+const A = scheme === "dark" ? { glow: 0.1 } : { glow: 0.12 };
 
 /** Concentric translucent discs: a soft round glow with no edge to see. */
 const RINGS = 30;
@@ -92,13 +89,21 @@ function Field({
  */
 export function ScreenBackground({ variant = "bottom" }: { variant?: "bottom" | "top" }) {
   const { width } = useWindowDimensions();
-  const S = Math.max(width, 360) * 1.3;
-  const k = variant === "bottom" ? 0.85 : 1;
+  const S = Math.max(width, 360) * 1.5;
+  // One quiet light, low on the screen, so the top (header and first lines)
+  // sits on the plain canvas and nothing tints the text above it.
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Field color={INDIGO} strength={A.indigo * k * 1.25} size={S} pos={{ left: -S * 0.42, top: -S * 0.5 }} dx={26} dy={18} seconds={26} scale={1.06} />
-      <Field color={EMBER} strength={A.ember * k * 1.25} size={S * 0.95} pos={{ right: -S * 0.45, top: -S * 0.5 }} dx={-30} dy={22} seconds={32} scale={1.05} />
-      <Field color={LOW} strength={A.low * (variant === "bottom" ? 1.5 : 1) * 1.25} size={S} pos={{ left: width * 0.05, bottom: -S * 0.62 }} dx={20} dy={-14} seconds={29} scale={1.08} />
+      <Field
+        color={SOFT}
+        strength={A.glow}
+        size={S}
+        pos={variant === "bottom" ? { left: (width - S) / 2, bottom: -S * 0.7 } : { left: (width - S) / 2, top: -S * 0.7 }}
+        dx={0}
+        dy={variant === "bottom" ? -10 : 10}
+        seconds={34}
+        scale={1.05}
+      />
     </View>
   );
 }

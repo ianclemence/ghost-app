@@ -174,8 +174,8 @@ export default function PodScreen() {
           <Text style={styles.lead}>
             Ghost runs on a small computer you own: your memory, permissions, and tools stay there. Connect yours to talk to it from anywhere.
           </Text>
-          <GhostButton title="Connect your Pod" onPress={() => router.push("/connect" as never)} />
-          <GhostButton title="Set up a new Pod" variant="secondary" onPress={() => router.push("/setup-pod" as never)} />
+          <GhostButton title="Scan QR code" onPress={() => router.push("/scan" as never)} />
+          <GhostButton title="Enter manually" variant="secondary" onPress={() => router.push("/manual" as never)} />
         </View>
       </View>
     );

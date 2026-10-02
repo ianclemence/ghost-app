@@ -756,7 +756,6 @@ export default function ConversationScreen() {
         scrolled={scrolled}
         topInset={insets.top}
         onOpenPanel={() => router.push("/panel" as never)}
-        onVoice={ready ? () => router.push("/live" as never) : undefined}
       />
       {historyError ? <Text style={styles.error}>{historyError}</Text> : null}
       {messages.length === 0 ? (
@@ -787,11 +786,11 @@ export default function ConversationScreen() {
                 Ghost lives on your Pod, a small computer you own. Your memory and permissions stay there; this phone is how you reach it.
               </Text>
               <View style={styles.starters}>
-                <Pressable onPress={() => router.push("/connect" as never)} style={styles.starter} accessibilityRole="button">
-                  <Text style={styles.starterText}>Connect your Pod</Text>
+                <Pressable onPress={() => router.push("/scan" as never)} style={styles.starter} accessibilityRole="button">
+                  <Text style={styles.starterText}>Scan QR code</Text>
                 </Pressable>
-                <Pressable onPress={() => router.push("/setup-pod" as never)} style={styles.starter} accessibilityRole="button">
-                  <Text style={styles.starterText}>Set up a new Pod</Text>
+                <Pressable onPress={() => router.push("/manual" as never)} style={styles.starter} accessibilityRole="button">
+                  <Text style={styles.starterText}>Enter manually</Text>
                 </Pressable>
               </View>
             </>
@@ -845,7 +844,7 @@ export default function ConversationScreen() {
           }}
         />
         </EdgeTarget>
-        <TopEdge y={edge.y} blurTarget={edge.target} />
+        <TopEdge y={edge.y} />
         </View>
       )}
       <Animated.View style={[styles.dock, dockPad]}>
