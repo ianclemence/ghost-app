@@ -7,8 +7,8 @@
  * - fence: Mermaid diagrams render as diagrams; all other code gets a
  *   language label, a copy button, and horizontal scroll.
  * - code_block (indented): same treatment without a language label.
- * - table: columns sized to their content, sideways scroll for wide
- *   ones, and a full-screen view (see md-table).
+ * - table: columns share the screen and wrap; too many columns become
+ *   stacked rows. Never scrolls sideways (see md-table).
  * - text: GFM task markers (`- [ ]` / `- [x]`) at the start of a list
  *   item render as an accessible checkbox glyph + remainder text.
  * - image: https-only sources with loading, failure, and tap-to-view

@@ -3,8 +3,8 @@
  *
  * A phone screen is narrow and a table isn't. Squeezing every column to fit
  * makes each one unreadable, so columns are sized to what is in them and the
- * table scrolls sideways when it is wider than the screen. When it is
- * narrower, the columns share the extra room so it doesn't look lost.
+ * the columns then share the screen, wrapping their text. A table with too
+ * many columns for that is shown as stacked rows. Nothing scrolls sideways.
  */
 
 /** Just enough of the markdown tree to read a table. */
@@ -48,6 +48,8 @@ export function isNumeric(text: string): boolean {
 }
 
 export interface TableModel {
+  /** The cells as plain text, header first, for showing a table as stacked rows. */
+  rows: string[][];
   /** Natural width of each column. */
   widths: number[];
   /** Columns that hold numbers, which read better aligned right. */
@@ -72,22 +74,45 @@ export function measureTable(rows: string[][]): TableModel {
     const body = rows.slice(1).map((r) => r[c] ?? "").filter((t) => t.trim() !== "");
     numeric.push(body.length > 0 && body.every(isNumeric));
   }
-  return { widths, numeric };
+  return { rows, widths, numeric };
 }
+
+/** The narrowest a column may be squeezed to before the table is stacked instead. */
+export const FLOOR_COL = 72;
 
 /**
- * Column widths to draw at, given the room available: scaled up to fill it
- * when the table is narrower, left as they are (so it scrolls) when wider.
+ * Column widths that fit the room available, so a table never scrolls sideways:
+ * scaled up to fill it when narrower, and squeezed (text wraps) when wider, with
+ * short columns left alone and the long ones giving way first. Returns null when
+ * even the squeezed columns can't each keep FLOOR_COL, which means the table is
+ * better shown as stacked rows. Before the room is known, the natural widths.
  */
-export function fitWidths(natural: number[], available: number): number[] {
+export function fitWidths(natural: number[], available: number): number[] | null {
   const total = natural.reduce((a, b) => a + b, 0);
-  if (!(available > 0) || total >= available || total === 0) return natural;
-  const k = available / total;
-  const scaled = natural.map((w) => Math.floor(w * k));
-  scaled[scaled.length - 1] += available - scaled.reduce((a, b) => a + b, 0);
-  return scaled;
-}
-
-export function isWiderThan(widths: number[], available: number): boolean {
-  return available > 0 && widths.reduce((a, b) => a + b, 0) > available + 1;
+  if (!(available > 0) || total === 0) return natural;
+  if (total <= available) {
+    const k = available / total;
+    const scaled = natural.map((w) => Math.floor(w * k));
+    scaled[scaled.length - 1] += available - scaled.reduce((a, b) => a + b, 0);
+    return scaled;
+  }
+  if (natural.length * FLOOR_COL > available) return null;
+  const fixed = new Set<number>();
+  let k = 1;
+  for (let pass = 0; pass <= natural.length; pass++) {
+    const room = available - fixed.size * FLOOR_COL;
+    const free = natural.reduce((sum, w, i) => (fixed.has(i) ? sum : sum + w), 0);
+    k = room / free;
+    let grew = false;
+    natural.forEach((w, i) => {
+      if (!fixed.has(i) && w * k < FLOOR_COL) {
+        fixed.add(i);
+        grew = true;
+      }
+    });
+    if (!grew) break;
+  }
+  const out = natural.map((w, i) => (fixed.has(i) ? FLOOR_COL : Math.floor(w * k)));
+  out[out.length - 1] += available - out.reduce((a, b) => a + b, 0);
+  return out;
 }

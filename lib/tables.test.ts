@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fitWidths, isNumeric, isWiderThan, measureTable, nodeText, tableRows, MAX_COL, MIN_COL } from "./tables";
+import { fitWidths, isNumeric, measureTable, nodeText, tableRows, MAX_COL, MIN_COL } from "./tables";
 
 const cell = (type: string, text: string) => ({ type, children: [{ type: "text", content: text }] });
 const table = {
@@ -58,21 +58,33 @@ describe("sizing columns", () => {
 });
 
 describe("fitting the screen", () => {
+  const sum = (w: number[] | null) => (w ?? []).reduce((a, b) => a + b, 0);
+
   test("a narrow table grows to fill the room, exactly", () => {
-    const w = fitWidths([100, 100, 100], 400);
-    expect(w.reduce((a, b) => a + b, 0)).toBe(400);
+    const w = fitWidths([100, 100, 100], 400)!;
+    expect(sum(w)).toBe(400);
     expect(w.every((x) => x >= 130)).toBe(true);
   });
 
-  test("a wide table keeps its widths so it can scroll", () => {
-    expect(fitWidths([200, 240, 240], 340)).toEqual([200, 240, 240]);
-    expect(isWiderThan([200, 240, 240], 340)).toBe(true);
-    expect(isWiderThan([100, 100], 340)).toBe(false);
+  test("a wide table is squeezed to the room, never wider, so nothing scrolls", () => {
+    const w = fitWidths([200, 240, 240], 340)!;
+    expect(sum(w)).toBe(340);
+    expect(w.every((x) => x >= 72)).toBe(true);
+  });
+
+  test("short columns keep their width while long ones give way", () => {
+    const w = fitWidths([84, 240, 240], 340)!;
+    expect(sum(w)).toBe(340);
+    expect(w[0]).toBeGreaterThanOrEqual(84 * 0.8);
+    expect(w[1]).toBeLessThan(240);
+  });
+
+  test("too many columns to keep readable is left to be stacked", () => {
+    expect(fitWidths([100, 100, 100, 100, 100, 100], 340)).toBeNull();
   });
 
   test("no room measured yet is safe", () => {
     expect(fitWidths([100, 100], 0)).toEqual([100, 100]);
-    expect(isWiderThan([100], 0)).toBe(false);
     expect(fitWidths([], 300)).toEqual([]);
   });
 });
