@@ -100,9 +100,13 @@ function Leaf({ entry, last }: { entry: ActivityEntry; last: boolean }) {
   const word = mapped && mapped.toLowerCase() !== (item.summary ?? "").trim().toLowerCase() ? mapped : null;
   // What a failure says is the error text, not an explanation. It is kept (it is
   // the audit trail) but only shown on a tap, so the tree reads as sentences.
-  const raw = tone === "bad" || isTechnical(item.summary);
-  const details = entry.items.map((x) => x.summary).filter((x): x is string => !!x && !!x.trim());
-  const showSummary = !!item.summary && !raw;
+  // A Pod that sends `diagnostic` has already put plain language in `summary`.
+  const hasDiagnostic = entry.items.some((x) => !!x.diagnostic);
+  const raw = hasDiagnostic || tone === "bad" || isTechnical(item.summary);
+  const details = entry.items
+    .map((x) => x.diagnostic || x.summary)
+    .filter((x): x is string => !!x && !!x.trim());
+  const showSummary = !!item.summary && (hasDiagnostic || !raw);
   return (
     <View
       style={styles.leaf}

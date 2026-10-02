@@ -935,6 +935,8 @@ export interface ActivityChip {
   timestamp: string;
   summary?: string;
   detail?: string;
+  // The raw technical text, kept behind a Details tap. Summary is plain language.
+  diagnostic?: string;
   // Why explains, in owner language, why Ghost acted or asked. Empty for
   // routine reads that need no justification.
   why?: string;
