@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import Reanimated, {
   useAnimatedKeyboard,
   useAnimatedStyle,
@@ -30,6 +30,13 @@ import { GhostText } from "@/components/themed-text";
 import { GhostMark } from "@/components/ghost-mark";
 
 const AnimatedTouchableOpacity = Reanimated.createAnimatedComponent(TouchableOpacity);
+
+/**
+ * A sheet's content scrolls inside a clipped area, which cuts a button's outer
+ * glow into a visible rectangle behind it. Inside a sheet a button keeps its
+ * fill and border and drops the glow.
+ */
+const InSheet = createContext(false);
 
 export { GhostMark };
 
@@ -124,6 +131,7 @@ export function GhostButton({
   const [pressed, setPressed] = useState(false);
   const reduceMotion = useReducedMotion();
   const interactive = !disabled && !loading;
+  const inSheet = useContext(InSheet);
 
   return (
     <AnimatedTouchableOpacity
@@ -153,7 +161,7 @@ export function GhostButton({
           opacity: disabled ? 0.45 : 1,
           alignSelf: fullWidth ? "stretch" : "flex-start",
           minHeight: size === "sm" ? 34 : 42,
-          boxShadow: palette.glow && interactive ? "0 0 22px rgba(58,46,240,0.55)" : undefined,
+          boxShadow: palette.glow && interactive && !inSheet ? "0 0 22px rgba(58,46,240,0.55)" : undefined,
         },
         style,
       ]}
@@ -308,6 +316,7 @@ export function GhostSheet({
             </GestureDetector>
 
             {isAlert ? (
+              <InSheet.Provider value>
               <View style={sheetStyles.actions}>
                 {confirmTitle && onConfirm ? (
                   <GhostButton
@@ -322,15 +331,16 @@ export function GhostSheet({
                 ) : null}
                 <GhostButton title="Cancel" variant="ghost" fullWidth onPress={onClose} />
               </View>
+              </InSheet.Provider>
             ) : (
               <ScrollView
                 style={sheetStyles.body}
-                contentContainerStyle={{ gap: Space.md, paddingTop: Space.md }}
+                contentContainerStyle={{ gap: Space.md, paddingTop: Space.md, paddingBottom: Space.sm }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="interactive"
                 showsVerticalScrollIndicator={false}
               >
-                {children}
+                <InSheet.Provider value>{children}</InSheet.Provider>
               </ScrollView>
             )}
           </Reanimated.View>

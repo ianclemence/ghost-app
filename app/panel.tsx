@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { Dock } from "@/components/dock";
 import { ActivityTree } from "@/components/activity-tree";
+import { EdgeScrollView } from "@/components/scroll-edge";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import {
@@ -87,7 +88,7 @@ export default function PanelScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="hero" />
-      <ScrollView
+      <EdgeScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -125,7 +126,10 @@ export default function PanelScreen() {
             {activity.length > 0 ? (
               <View style={styles.latest}>
                 <Text style={styles.latestLabel}>Latest</Text>
-                <ActivityTree items={activity} limit={8} />
+                {/* Dark glass, so the tree reads even where the aurora is brightest behind it. */}
+                <View style={styles.treeCard}>
+                  <ActivityTree items={activity} limit={8} />
+                </View>
               </View>
             ) : null}
           </>
@@ -138,7 +142,7 @@ export default function PanelScreen() {
             </View>
           </>
         )}
-      </ScrollView>
+      </EdgeScrollView>
 
       {config ? (
         <Dock
@@ -179,6 +183,7 @@ const styles = StyleSheet.create({
     borderColor: Ghost.glass.border,
   },
   latest: { marginTop: Space.xl },
+  treeCard: { borderRadius: 26, borderCurve: "continuous", padding: Space.lg, backgroundColor: "rgba(0,0,0,0.52)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
   latestLabel: { fontSize: 11.5, fontWeight: "500", letterSpacing: 1.1, textTransform: "uppercase", color: Ghost.text.tertiary, marginBottom: Space.sm },
   buttons: { marginTop: Space.lg, gap: Space.sm, alignItems: "flex-start" },
 });

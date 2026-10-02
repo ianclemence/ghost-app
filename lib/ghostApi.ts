@@ -1,4 +1,5 @@
 import { sealedFetch } from "./sealedFetch";
+import type { ModelOption } from "./models";
 import { normalizeCard, type RichCard } from "./cards";
 import { normalizeHistoryTimestamps } from "./reconcile";
 import { toMediaItems, type Attachment } from "./attachments";
@@ -1476,6 +1477,8 @@ export interface ModelState {
   active: string;
   provider: string;
   presets: ModelPreset[];
+  /** Every model Ghost can switch to right now, from the providers themselves. */
+  options: ModelOption[];
 }
 
 export async function fetchModelState(cfg: GhostConfig): Promise<ModelState> {
@@ -1486,6 +1489,7 @@ export async function fetchModelState(cfg: GhostConfig): Promise<ModelState> {
     active: typeof data?.active === "string" ? data.active : "",
     provider: typeof data?.provider === "string" ? data.provider : "",
     presets: Array.isArray(data?.presets) ? data.presets : [],
+    options: Array.isArray(data?.options) ? data.options : [],
   };
 }
 
@@ -1511,6 +1515,10 @@ export interface ProviderInfo {
   configured: boolean;
   models: string[];
   local: boolean;
+  /** "live" when the provider answered, "catalog" when Ghost's built-in list was used instead. */
+  source?: string;
+  /** Why a connected provider could not be reached. */
+  error?: string;
 }
 
 export interface ProvidersState {
@@ -1545,11 +1553,13 @@ function asProviderInfo(v: unknown): ProviderInfo {
     configured: o.configured === true,
     models: Array.isArray(o.models) ? (o.models as unknown[]).filter((m): m is string => typeof m === "string") : [],
     local: o.local === true,
+    source: typeof o.source === "string" ? o.source : undefined,
+    error: typeof o.error === "string" && o.error ? o.error : undefined,
   };
 }
 
-export async function fetchProviders(cfg: GhostConfig): Promise<ProvidersState> {
-  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/providers`, { headers: headers(cfg) }, 15000);
+export async function fetchProviders(cfg: GhostConfig, opts?: { refresh?: boolean }): Promise<ProvidersState> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/providers${opts?.refresh ? "?refresh=1" : ""}`, { headers: headers(cfg) }, 20000);
   if (!res.ok) throw new Error(`Providers failed (HTTP ${res.status})`);
   const data = await res.json().catch(() => null);
   const raw = (data?.providers ?? {}) as Record<string, unknown>;

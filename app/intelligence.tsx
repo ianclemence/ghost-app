@@ -4,6 +4,7 @@ import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Fonts, Ghost, Space } from "@/constants/theme";
+import { filterChoices, friendlyModel, groupChoices, pickerChoices, providerName, resolveActive, sourceNote, type ModelChoice } from "@/lib/models";
 import { GhostText } from "@/components/themed-text";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
@@ -26,23 +27,6 @@ import {
 import { useGhostStore } from "@/lib/store";
 import { EdgeScrollView } from "@/components/scroll-edge";
 
-// Provider display names, ported from the web console's modelFriendly map.
-const PROVIDER_NAMES: Record<string, string> = {
-  openai: "OpenAI",
-  anthropic: "Claude",
-  moonshot: "Kimi",
-  groq: "Groq",
-  deepseek: "DeepSeek",
-  qwen: "Qwen",
-  gemini: "Gemini",
-  zhipu: "Zhipu",
-  openrouter: "OpenRouter",
-  nvidia: "Nvidia",
-  shengsuanyun: "ShengSuanYun",
-  ollama: "Ollama",
-  vllm: "Local",
-};
-
 // Provider order, ported from the web console. Extras sort after.
 const PROVIDER_ORDER = [
   "ollama",
@@ -57,24 +41,9 @@ const PROVIDER_ORDER = [
   "openrouter",
 ];
 
-function providerName(provider: string): string {
-  const key = (provider || "").toLowerCase();
-  if (PROVIDER_NAMES[key]) return PROVIDER_NAMES[key];
-  if (!key) return "Unknown";
-  return key.charAt(0).toUpperCase() + key.slice(1);
-}
-
 function isLocalProvider(provider: string): boolean {
   const key = (provider || "").toLowerCase();
   return key === "ollama" || key === "vllm";
-}
-
-function presetSpec(p: ModelPreset): string {
-  return `${p.provider}:${p.model}`;
-}
-
-function matchesActive(p: ModelPreset, active: string): boolean {
-  return active !== "" && (active === p.name || active === presetSpec(p));
 }
 
 function orderedProviderKeys(keys: string[]): string[] {
@@ -113,7 +82,13 @@ export default function IntelligenceScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<ModelPreset | null>(null);
+  const [selected, setSelected] = useState<ModelChoice | null>(null);
+  // The model picker for one provider: its live list, searchable.
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [chosen, setChosen] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [health, setHealth] = useState<DoctorCheck[]>([]);
@@ -170,12 +145,14 @@ export default function IntelligenceScreen() {
     setSaveError(null);
   };
 
-  const reloadProviders = useCallback(async () => {
+  const reloadProviders = useCallback(async (refresh = false) => {
     if (!config) return;
-    const [providersRes, configRes] = await Promise.allSettled([
-      fetchProviders(config),
+    const [providersRes, configRes, modelRes] = await Promise.allSettled([
+      fetchProviders(config, { refresh }),
       fetchIntelligenceConfig(config),
+      fetchModelState(config),
     ]);
+    if (modelRes.status === "fulfilled") setState(modelRes.value);
     if (providersRes.status === "fulfilled") setProvidersState(providersRes.value);
     if (configRes.status === "fulfilled") setIntelConfig(configRes.value);
   }, [config]);
@@ -214,13 +191,28 @@ export default function IntelligenceScreen() {
       } else {
         await saveIntelligenceConfig(config, { api_keys: { [configuring]: key } });
       }
+      const saved = configuring;
       setConfiguring(null);
       setKeptKey(false);
-      await reloadProviders();
+      // The key is in: ask the provider what it serves and let the owner choose.
+      setPickerFor(saved);
+      setPickerQuery("");
+      setPickerLoading(true);
+      await reloadProviders(true);
+      setPickerLoading(false);
     } catch {
       setSaveError("Couldn't save. Nothing changed, try again.");
     }
     setSaving(false);
+  };
+
+  const openPicker = async (key: string) => {
+    setPickerFor(key);
+    setPickerQuery("");
+    setPickerLoading(true);
+    // A fresh question to the provider, so the list is what it serves today.
+    await reloadProviders(true);
+    setPickerLoading(false);
   };
 
   const toggleRouting = (key: keyof RoutingPrefs, on: boolean) => {
@@ -235,16 +227,17 @@ export default function IntelligenceScreen() {
     });
   };
 
-  const groups = useMemo(() => {
-    const presets = state?.presets ?? [];
-    const byProvider = new Map<string, ModelPreset[]>();
-    for (const p of presets) {
-      const key = (p.provider || "unknown").toLowerCase();
-      if (!byProvider.has(key)) byProvider.set(key, []);
-      byProvider.get(key)!.push(p);
-    }
-    return orderedProviderKeys([...byProvider.keys()]).map((key) => ({ provider: key, presets: byProvider.get(key)! }));
-  }, [state]);
+  const providersMeta = useMemo(() => {
+    const out: Record<string, { configured: boolean; source?: string; error?: string }> = {};
+    for (const [k, v] of Object.entries(providersState?.providers ?? {})) out[k] = { configured: v.configured, source: v.source, error: v.error };
+    return out;
+  }, [providersState]);
+
+  // What can be switched to, from the providers themselves (not just named presets).
+  const groups = useMemo(
+    () => groupChoices(state?.options ?? [], state?.active ?? "", providersMeta),
+    [state, providersMeta],
+  );
 
   const providerKeys = useMemo(
     () => orderedProviderKeys(Object.keys(providersState?.providers ?? {})),
@@ -253,19 +246,26 @@ export default function IntelligenceScreen() {
 
   const defaultProvider = (providersState?.provider || intelConfig?.provider || "").toLowerCase();
 
-  const activePreset = useMemo(
-    () => (state ? state.presets.find((p) => matchesActive(p, state.active)) ?? null : null),
-    [state],
-  );
+  const activeOption = useMemo(() => (state ? resolveActive(state.active, state.options) : null), [state]);
 
-  const doSwitch = async () => {
-    if (!config || !selected) return;
+  const pickerList = useMemo(() => {
+    if (!pickerFor || !state) return [];
+    const models = providersState?.providers[pickerFor]?.models ?? [];
+    return filterChoices(pickerChoices(pickerFor, models, state.active, state.options), pickerQuery);
+  }, [pickerFor, providersState, state, pickerQuery]);
+
+  const doSwitch = async (choice: ModelChoice | null = selected) => {
+    if (!config || !choice) return;
     setSwitching(true);
     setSwitchError(null);
     try {
-      const active = await switchModel(config, selected.name || presetSpec(selected));
+      const active = await switchModel(config, choice.target);
       setState((prev) => (prev ? { ...prev, active } : prev));
       setSelected(null);
+      setChosen(choice.label);
+      // The owner has chosen: the picker has done its job.
+      setPickerFor(null);
+      void reloadProviders();
     } catch {
       setSwitchError("Couldn't switch. Still on the current model.");
     }
@@ -325,14 +325,17 @@ export default function IntelligenceScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.primary} />}
         >
           <SectionHeader title="Active model" style={styles.first} />
-          {activePreset ? (
+          {activeOption || state?.active ? (
             <Panel style={{ marginTop: 0 }}>
               <View style={[styles.row, styles.rowFlush]}>
                 <View style={styles.rowBody}>
-                  <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{activePreset.name}</GhostText>
+                  <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>
+                    {activeOption ? friendlyModel(activeOption.model, activeOption.provider) : state!.active}
+                  </GhostText>
                   <GhostText type="footnote" style={styles.rowMeta} numberOfLines={2}>
-                    {providerName(activePreset.provider)}{activePreset.model ? ` · ${activePreset.model}` : ""}
-                    {isLocalProvider(activePreset.provider) ? " · Local" : ""}
+                    {activeOption
+                      ? `${providerName(activeOption.provider)} \u00b7 ${activeOption.model}${isLocalProvider(activeOption.provider) ? " \u00b7 On your Pod" : ""}`
+                      : "Set on your Pod"}
                   </GhostText>
                 </View>
                 <StatusPill label="Active" tone="ok" />
@@ -340,45 +343,65 @@ export default function IntelligenceScreen() {
             </Panel>
           ) : (
             <GhostText type="footnote" style={styles.none}>
-              {state?.active ? state.active : "No model selected."}
+              Ghost has no model yet. Connect a provider below and choose one.
             </GhostText>
           )}
-
-          {groups.map((g) => (
-            <View key={g.provider}>
-              <SectionHeader title={providerName(g.provider)} />
-              <GhostList>
-                {g.presets.map((p) => {
-                  const active = state ? matchesActive(p, state.active) : false;
-                  return (
-                    <View key={`${p.provider}:${p.name || p.model}`} style={styles.row}>
-                      <View style={styles.rowBody}>
-                        <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{p.name || p.model}</GhostText>
-                        <GhostText type="footnote" style={styles.rowMeta} numberOfLines={2}>
-                          {p.model}{isLocalProvider(p.provider) ? " · Local" : ""}
-                        </GhostText>
-                        {!p.available && p.unavailable_reason ? (
-                          <GhostText type="footnote" style={styles.rowWarn} numberOfLines={2}>{p.unavailable_reason}</GhostText>
-                        ) : null}
-                      </View>
-                      {active ? (
-                        <StatusPill label="Active" tone="ok" />
-                      ) : p.available ? (
-                        <GhostButton title="Use" variant="secondary" size="sm" onPress={() => { setSelected(p); setSwitchError(null); }} />
-                      ) : (
-                        <StatusPill label="Needs key" tone="warn" dot={false} />
-                      )}
-                    </View>
-                  );
-                })}
-              </GhostList>
-            </View>
-          ))}
-          {(state?.presets ?? []).length === 0 ? (
-            <GhostText type="footnote" style={styles.none}>No models configured yet.</GhostText>
+          {chosen ? (
+            <GhostText type="footnote" style={styles.chosen} accessibilityLiveRegion="polite">
+              Ghost now thinks with {chosen}.
+            </GhostText>
           ) : null}
 
-          <SectionHeader title="Providers" subtitle="Cloud AI services Ghost may use. Apps Ghost acts on live under Connected apps." />
+          {groups.length > 0 ? (
+            <>
+              <SectionHeader title="Models" subtitle="What Ghost can switch to now, from the providers you have connected." />
+              {groups.map((g) => {
+                const open = expanded.has(g.provider);
+                const shown = open ? g.models : g.models.slice(0, 5);
+                return (
+                  <View key={g.provider} style={styles.group}>
+                    <View style={styles.groupHead}>
+                      <GhostText type="caption" style={styles.groupName}>{g.providerName}</GhostText>
+                      <GhostText type="caption" style={styles.groupNote} numberOfLines={1}>
+                        {sourceNote(g.provider, g.source, g.error) ? (g.source === "live" || isLocalProvider(g.provider) ? "Live" : "Built-in list") : ""}
+                      </GhostText>
+                    </View>
+                    <GhostList>
+                      {shown.map((m) => (
+                        <View key={m.target} style={styles.row}>
+                          <View style={styles.rowBody}>
+                            <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{m.label}</GhostText>
+                            <GhostText type="footnote" style={styles.rowMeta} numberOfLines={1}>{friendlyModel(m.model, m.provider)}</GhostText>
+                          </View>
+                          {m.active ? (
+                            <StatusPill label="Active" tone="ok" />
+                          ) : (
+                            <GhostButton title="Use" variant="secondary" size="sm" onPress={() => { setSelected(m); setSwitchError(null); }} />
+                          )}
+                        </View>
+                      ))}
+                    </GhostList>
+                    {g.models.length > 5 ? (
+                      <GhostButton
+                        title={open ? "Show fewer" : `Show all ${g.models.length}`}
+                        variant="ghost"
+                        size="sm"
+                        style={styles.more}
+                        onPress={() => setExpanded((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(g.provider)) next.delete(g.provider);
+                          else next.add(g.provider);
+                          return next;
+                        })}
+                      />
+                    ) : null}
+                  </View>
+                );
+              })}
+            </>
+          ) : null}
+
+          <SectionHeader title="Providers" subtitle="The AI services Ghost can think with. It only uses what you connect." />
           {providerKeys.length === 0 ? (
             <GhostText type="footnote" style={styles.none}>No provider info yet.</GhostText>
           ) : (
@@ -401,12 +424,12 @@ export default function IntelligenceScreen() {
                           : local ? "Running locally" : "Not configured"}
                       </GhostText>
                     </View>
-                    <GhostButton
-                      title="Configure"
-                      variant="secondary"
-                      size="sm"
-                      onPress={() => openConfigure(key)}
-                    />
+                    <View style={styles.rowActions}>
+                      {info.configured && info.models.length > 0 ? (
+                        <GhostButton title="Models" variant="secondary" size="sm" onPress={() => void openPicker(key)} />
+                      ) : null}
+                      <GhostButton title="Configure" variant="secondary" size="sm" onPress={() => openConfigure(key)} />
+                    </View>
                   </View>
                 );
               })}
@@ -468,10 +491,57 @@ export default function IntelligenceScreen() {
       <GhostSheet
         visible={selected !== null}
         onClose={() => { if (!switching) setSelected(null); }}
-        title={selected ? `Use ${selected.name || selected.model}?` : "Switch model"}
+        title={selected ? `Use ${selected.label}?` : "Switch model"}
         message={switchError ?? "Takes effect immediately."}
       >
         <GhostButton title="Switch" fullWidth onPress={() => void doSwitch()} disabled={switching} loading={switching} />
+      </GhostSheet>
+
+      {/* Choose a model from what the provider itself serves. */}
+      <GhostSheet
+        visible={pickerFor !== null}
+        onClose={() => { if (!switching) setPickerFor(null); }}
+        title={pickerFor ? `${providerName(pickerFor)} models` : "Models"}
+        message={
+          pickerFor
+            ? (switchError ?? (sourceNote(pickerFor, providersState?.providers[pickerFor]?.source, providersState?.providers[pickerFor]?.error) || "Choose the one Ghost should think with."))
+            : undefined
+        }
+      >
+        {pickerFor ? (
+          <>
+            {(providersState?.providers[pickerFor]?.models.length ?? 0) > 8 ? (
+              <GhostInput value={pickerQuery} onChangeText={setPickerQuery} placeholder="Search models" autoCapitalize="none" autoCorrect={false} />
+            ) : null}
+            {pickerLoading ? (
+              <View style={styles.pickerLoading}>
+                <ActivityIndicator color={Ghost.text.secondary} />
+                <GhostText type="footnote" style={styles.rowMeta}>Asking {providerName(pickerFor)} for its models</GhostText>
+              </View>
+            ) : pickerList.length === 0 ? (
+              <GhostText type="footnote" style={styles.none}>
+                {pickerQuery ? "No model matches that." : `${providerName(pickerFor)} did not list any models.`}
+              </GhostText>
+            ) : (
+              <GhostList>
+                {pickerList.slice(0, 60).map((m) => (
+                  <View key={m.target} style={styles.row}>
+                    <View style={styles.rowBody}>
+                      <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{m.label}</GhostText>
+                      <GhostText type="footnote" style={styles.rowMeta} numberOfLines={1}>{friendlyModel(m.model, m.provider)}</GhostText>
+                    </View>
+                    {m.active ? (
+                      <StatusPill label="Active" tone="ok" />
+                    ) : (
+                      <GhostButton title="Use" variant="secondary" size="sm" disabled={switching} onPress={() => void doSwitch(m)} />
+                    )}
+                  </View>
+                ))}
+              </GhostList>
+            )}
+            {pickerList.length > 60 ? <GhostText type="footnote" style={styles.none}>Showing 60 of {pickerList.length}. Search to narrow it down.</GhostText> : null}
+          </>
+        ) : null}
       </GhostSheet>
       <GhostSheet
         visible={configuring !== null}
@@ -582,6 +652,14 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   rowFlush: { paddingHorizontal: 0, paddingVertical: 0 },
+  rowActions: { flexDirection: "row", alignItems: "center", gap: Space.sm },
+  group: { marginBottom: Space.md },
+  groupHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: Space.xl + 6, paddingBottom: Space.xs },
+  groupName: { fontSize: 13.5, fontWeight: "500", color: Ghost.text.secondary },
+  groupNote: { fontSize: 12, color: Ghost.text.tertiary },
+  more: { alignSelf: "center", marginTop: Space.xs },
+  chosen: { color: Ghost.status.success, textAlign: "center", marginTop: Space.sm },
+  pickerLoading: { alignItems: "center", gap: Space.sm, paddingVertical: Space.xl },
   nameLine: { flexDirection: "row", alignItems: "center", gap: Space.sm, flexWrap: "wrap" },
   rowTitle: {
     color: Ghost.text.primary,

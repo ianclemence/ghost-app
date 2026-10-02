@@ -70,3 +70,45 @@ export function activityTone(state: string | undefined): ActivityTone {
   if (s === "done" || s === "completed" || s === "succeeded" || s === "verified") return "ok";
   return "quiet";
 }
+
+/**
+ * True when text reads like an error from code rather than a sentence for an
+ * owner: a SQL or driver message, a snake_case identifier, a UUID, a very long
+ * dump. Such text is kept (it is the audit trail) but not put in front of the
+ * owner by default.
+ */
+export function isTechnical(text: string | undefined): boolean {
+  const t = (text ?? "").trim();
+  if (!t) return false;
+  if (t.length > 160) return true;
+  if (/\b[a-z]+_[a-z0-9_]+\b/.test(t)) return true;
+  if (/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(t)) return true;
+  return /(sql|driver\.|column|exception|panic|stack trace|errno|fts5|unmarshal|nil pointer|syntax error|logic error|traceback)/i.test(t);
+}
+
+/** One row of the tree: the newest of a run of identical outcomes, and how many there were. */
+export interface ActivityEntry {
+  item: ActivityChip;
+  count: number;
+  /** Every item in the run, newest first. */
+  items: ActivityChip[];
+}
+
+/**
+ * Folds consecutive items with the same title and outcome into one entry, so a
+ * failure that happened six times in a minute is one line saying so, not six.
+ * Order is kept; only neighbours merge.
+ */
+export function collapseRepeats(items: ActivityChip[]): ActivityEntry[] {
+  const out: ActivityEntry[] = [];
+  for (const it of items) {
+    const last = out[out.length - 1];
+    if (last && last.item.title === it.title && (last.item.state ?? "") === (it.state ?? "")) {
+      last.items.push(it);
+      last.count += 1;
+    } else {
+      out.push({ item: it, count: 1, items: [it] });
+    }
+  }
+  return out;
+}

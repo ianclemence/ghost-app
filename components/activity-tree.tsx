@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { ChevronDown } from "lucide-react-native";
-import { Ghost, Space } from "@/constants/theme";
-import { activityTone, groupActivityByDay, type ActivityTone } from "@/lib/activity";
+import { Fonts, Ghost, Space } from "@/constants/theme";
+import { activityTone, collapseRepeats, groupActivityByDay, isTechnical, type ActivityEntry, type ActivityTone } from "@/lib/activity";
 import type { ActivityChip } from "@/lib/ghostApi";
 import { clockTime, dayLabel } from "@/lib/thread";
 
@@ -82,7 +82,7 @@ export function ActivityTree({
                 <Text style={styles.countText}>{d.items.length}</Text>
               </View>
             </Pressable>
-            {closed ? null : d.items.map((it, i) => <Leaf key={it.id} item={it} last={i === d.items.length - 1} />)}
+            {closed ? null : collapseRepeats(d.items).map((e, i, all) => <Leaf key={e.item.id} entry={e} last={i === all.length - 1} />)}
           </View>
         );
       })}
@@ -90,17 +90,24 @@ export function ActivityTree({
   );
 }
 
-function Leaf({ item, last }: { item: ActivityChip; last: boolean }) {
+function Leaf({ entry, last }: { entry: ActivityEntry; last: boolean }) {
+  const { item, count } = entry;
+  const [open, setOpen] = useState(false);
   const t = Date.parse(item.timestamp);
   const tone = activityTone(item.state);
   const mapped = STATE_WORD[item.state?.toLowerCase()] ?? null;
   // Never say the same thing twice ("No change" / "No change").
   const word = mapped && mapped.toLowerCase() !== (item.summary ?? "").trim().toLowerCase() ? mapped : null;
+  // What a failure says is the error text, not an explanation. It is kept (it is
+  // the audit trail) but only shown on a tap, so the tree reads as sentences.
+  const raw = tone === "bad" || isTechnical(item.summary);
+  const details = entry.items.map((x) => x.summary).filter((x): x is string => !!x && !!x.trim());
+  const showSummary = !!item.summary && !raw;
   return (
     <View
       style={styles.leaf}
       accessible
-      accessibilityLabel={[item.title, word, item.summary, item.why].filter(Boolean).join(". ")}
+      accessibilityLabel={[item.title, count > 1 ? `${count} times` : null, word, showSummary ? item.summary : null, item.why].filter(Boolean).join(". ")}
     >
       <View style={styles.rail} pointerEvents="none">
         <View style={[styles.trunk, last && styles.trunkEnd]} />
@@ -109,11 +116,27 @@ function Leaf({ item, last }: { item: ActivityChip; last: boolean }) {
       <View style={styles.body}>
         <View style={styles.titleRow}>
           <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
+          {count > 1 ? (
+            <View style={styles.times}><Text style={styles.timesText}>{"\u00d7"}{count}</Text></View>
+          ) : null}
           <Text style={styles.time}>{Number.isFinite(t) ? clockTime(t) : ""}</Text>
         </View>
-        {item.summary ? <Text style={styles.summary}>{item.summary}</Text> : null}
+        {showSummary ? <Text style={styles.summary} numberOfLines={3}>{item.summary}</Text> : null}
         {word ? <Text style={[styles.state, { color: LIGHT[tone] === LIGHT.quiet ? Ghost.text.tertiary : LIGHT[tone] }]}>{word}</Text> : null}
         {item.why ? <Text style={styles.why}>{item.why}</Text> : null}
+        {raw && details.length > 0 ? (
+          <Pressable onPress={() => setOpen((v) => !v)} hitSlop={8} accessibilityRole="button" accessibilityLabel={open ? "Hide details" : "Show details"}>
+            <Text style={styles.detailsLink}>{open ? "Hide details" : "Details"}</Text>
+          </Pressable>
+        ) : null}
+        {open ? (
+          <View style={styles.raw}>
+            {details.slice(0, 6).map((d, i) => (
+              <Text key={i} style={styles.rawText} selectable>{d}</Text>
+            ))}
+            {details.length > 6 ? <Text style={styles.rawText}>and {details.length - 6} more</Text> : null}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -146,6 +169,11 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: Space.md },
   title: { flex: 1, fontSize: 15.5, lineHeight: 21, fontWeight: "500", color: Ghost.text.primary, letterSpacing: -0.15 },
   time: { fontSize: 12.5, lineHeight: 21, color: Ghost.text.tertiary, fontVariant: ["tabular-nums"] },
+  times: { height: 20, minWidth: 28, paddingHorizontal: 7, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 1, backgroundColor: Ghost.glass.fillStrong },
+  timesText: { fontSize: 12, fontWeight: "500", color: Ghost.text.secondary, fontVariant: ["tabular-nums"] },
+  detailsLink: { fontSize: 12.5, fontWeight: "500", color: Ghost.accent.primary, marginTop: 2 },
+  raw: { marginTop: 4, padding: 10, borderRadius: 14, gap: 6, backgroundColor: "rgba(255,255,255,0.05)" },
+  rawText: { fontSize: 12, lineHeight: 17, color: Ghost.text.tertiary, fontFamily: Fonts.mono },
   summary: { fontSize: 14, lineHeight: 20, fontWeight: "300", color: Ghost.text.secondary },
   state: { fontSize: 12.5, lineHeight: 18, fontWeight: "500" },
   why: { fontSize: 13, lineHeight: 18, fontWeight: "300", color: Ghost.text.tertiary },
