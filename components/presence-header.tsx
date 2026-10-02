@@ -1,16 +1,25 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { Text } from "@/components/text";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
-import { EmberDot } from "@/components/thread";
+import { GhostMark } from "@/components/ghost-mark";
 import type { Presence } from "@/lib/presence";
 
 /**
- * Who you're talking to and what it is doing right now, as one small glass
- * pill floating over the conversation: a status light and one live line.
- * There is no header bar. Tapping it opens Ghost's panel (what it's working
- * on, what's coming up, what it remembers, what it did).
+ * Who you're talking to, as one small mark centred over the conversation. No
+ * words: the amber light in the gap of the mark is Ghost's presence. It
+ * breathes while Ghost is working, glows when Ghost needs you, and goes grey
+ * when the Pod is away. Tapping it opens Ghost's panel (what it is doing,
+ * what's coming up, what it did and what it remembers); the status line it
+ * used to print is spoken to screen readers instead.
  */
 export function PresenceHeader({
   name,
@@ -24,25 +33,44 @@ export function PresenceHeader({
   topInset: number;
   onOpenPanel: () => void;
 }) {
-  const light =
-    status.tone === "working" ? <EmberDot size={8} /> :
-    status.tone === "attention" ? <View style={[styles.light, { backgroundColor: Ghost.emberDeep }]} /> :
-    status.tone === "offline" ? <View style={[styles.light, { backgroundColor: Ghost.text.tertiary }]} /> :
-    <View style={[styles.light, { backgroundColor: Ghost.status.success }]} />;
+  const reduce = useReducedMotion();
+  const breathe = useSharedValue(1);
+  const working = status.tone === "working";
+  useEffect(() => {
+    if (!working || reduce) {
+      breathe.set(1);
+      return;
+    }
+    breathe.set(
+      withRepeat(
+        withSequence(
+          withTiming(0.45, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+          withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+      ),
+    );
+  }, [working, reduce, breathe]);
+  const pulse = useAnimatedStyle(() => ({ opacity: breathe.get() }));
+
+  const light = status.tone === "offline" ? Ghost.text.tertiary : Ghost.ember;
   return (
     <View style={[styles.wrap, { paddingTop: topInset + Space.sm }]} pointerEvents="box-none">
       <Pressable
         onPress={onOpenPanel}
-        style={({ pressed }) => [styles.pill, pressed && { opacity: 0.6 }]}
+        style={({ pressed }) => [
+          styles.mark,
+          status.tone === "attention" && styles.attention,
+          pressed && { opacity: 0.6 },
+        ]}
         accessibilityRole="button"
         accessibilityLabel={`${name}. ${status.text}.`}
         accessibilityHint="Opens what Ghost is doing, what's coming up, and what it remembers"
-        hitSlop={6}
+        hitSlop={8}
       >
-        {light}
-        <Animated.Text key={status.text} entering={FadeIn.duration(200)} style={styles.status} numberOfLines={1}>
-          {status.text}
-        </Animated.Text>
+        <Animated.View style={pulse}>
+          <GhostMark size={22} dot={light} />
+        </Animated.View>
       </Pressable>
     </View>
   );
@@ -55,31 +83,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 2,
-    paddingHorizontal: Space.lg,
-    alignItems: "flex-start",
-  },
-  pill: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    minHeight: 40,
-    maxWidth: "88%",
-    paddingHorizontal: 16,
-    borderRadius: 20,
+  },
+  mark: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.38)",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.glass.border,
   },
-  light: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  status: {
-    flexShrink: 1,
-    fontFamily: "Inter_400Regular",
-    fontSize: 13.5,
-    lineHeight: 18,
-    color: Ghost.text.primary,
+  attention: {
+    borderColor: "rgba(255,169,40,0.6)",
+    boxShadow: "0 0 18px rgba(255,169,40,0.35)",
   },
 });

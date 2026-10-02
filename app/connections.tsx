@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
-import { ChevronRight } from "lucide-react-native";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
-import { EmptyState, GhostButton, GhostInput, GhostSheet, OfflineBadge, SectionHeader } from "@/components/ghost";
+import { ScreenBackground } from "@/components/screen-glow";
+import { EmptyState, GhostButton, GhostInput, GhostList, GhostSheet, OfflineBadge, SectionHeader, StatusPill } from "@/components/ghost";
 import { OAuthConnect } from "@/components/oauth-connect";
 import {
   connectConnectedApp,
@@ -122,6 +122,7 @@ export default function ConnectionsScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenBackground variant="calm" />
       <ScreenHeader title="Connected apps" subtitle="What Ghost can read and act on. It asks before anything consequential." />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>
@@ -144,29 +145,31 @@ export default function ConnectionsScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.secondary} />}
         >
-          {items.map((c) => {
-            const t = trailing(c);
-            return (
-              <Pressable
-                key={c.id}
-                onPress={() => open(c)}
-                style={({ pressed }) => [styles.row, pressed && { opacity: 0.55 }]}
-                accessibilityRole="button"
-                accessibilityLabel={`${nameOf(c)}, ${t.text}`}
-              >
-                <View style={styles.rowBody}>
-                  <Text style={styles.name}>{nameOf(c)}</Text>
-                  {c.help ? <Text style={styles.help} numberOfLines={2}>{c.help}</Text> : null}
+          <SectionHeader title="Apps" style={styles.firstSection} />
+          <GhostList>
+            {items.map((c) => {
+              const t = trailing(c);
+              return (
+                <View key={c.id} style={styles.row} accessible accessibilityLabel={`${nameOf(c)}, ${t.text}`}>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.name}>{nameOf(c)}</Text>
+                    {c.help ? <Text style={styles.help} numberOfLines={2}>{c.help}</Text> : null}
+                  </View>
+                  {t.tone === "ok" ? (
+                    <GhostButton title="Manage" size="sm" variant="secondary" onPress={() => open(c)} />
+                  ) : (
+                    <GhostButton
+                      title={t.text}
+                      size="sm"
+                      variant={t.tone === "warn" ? "primary" : "secondary"}
+                      onPress={() => open(c)}
+                    />
+                  )}
                 </View>
-                <View style={styles.trail}>
-                  {t.tone === "ok" ? <View style={styles.dot} /> : null}
-                  <Text style={[styles.trailText, t.tone === "ok" && styles.ok, t.tone === "warn" && styles.warn, t.tone === "action" && styles.action]}>{t.text}</Text>
-                  {t.tone !== "ok" ? <ChevronRight size={16} color={Ghost.text.tertiary} /> : null}
-                </View>
-              </Pressable>
-            );
-          })}
-          <SectionHeader title="Website logins" style={styles.section} />
+              );
+            })}
+          </GhostList>
+          <SectionHeader title="Website logins" />
           <WebsiteLogins config={config} />
         </EdgeScrollView>
       )}
@@ -222,26 +225,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
   offlineWrap: { alignItems: "center" },
   center: { flex: 1, justifyContent: "center" },
-  list: { paddingHorizontal: Space.xl, paddingBottom: Space.huge },
+  list: { paddingBottom: 96 },
+  firstSection: { paddingTop: Space.xs },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 52,
-    paddingVertical: Space.sm,
+    minHeight: 64,
+    paddingVertical: Space.md,
+    paddingHorizontal: Space.xl,
     gap: Space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Ghost.border.subtle,
   },
   rowBody: { flex: 1, gap: 1 },
-  name: { ...Type.body, fontWeight: "500", color: Ghost.text.primary },
-  help: { ...Type.subhead, color: Ghost.text.tertiary },
-  trail: { flexDirection: "row", alignItems: "center", gap: 6 },
-  trailText: { ...Type.callout },
-  ok: { color: Ghost.text.secondary },
-  warn: { color: Ghost.emberDeep, fontWeight: "500" },
-  action: { color: Ghost.accent.primary, fontWeight: "500" },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Ghost.status.success },
-  section: { paddingHorizontal: 0, paddingTop: Space.xxl },
+  name: { fontSize: 16, lineHeight: 21, fontWeight: "500", letterSpacing: -0.15, color: Ghost.text.primary },
+  help: { fontSize: 13.5, lineHeight: 19, fontWeight: "300", color: Ghost.text.secondary },
   sheetText: { ...Type.subhead, color: Ghost.text.tertiary },
   sheetError: { ...Type.callout, color: Ghost.status.error },
 });

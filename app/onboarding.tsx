@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base, paddingHorizontal: 28 },
   hero: { flex: 1, justifyContent: "center", gap: Space.xxl },
   lines: { gap: 2 },
-  line: { fontFamily: Fonts.voice, fontSize: 52, lineHeight: 54, letterSpacing: -1, color: Ghost.text.primary },
+  line: { fontFamily: Fonts.voice, fontSize: 52, lineHeight: 62, letterSpacing: -1, color: Ghost.text.primary },
   explain: { ...Type.prose, fontSize: 19, lineHeight: 27, color: "rgba(255,255,255,0.78)", maxWidth: 310 },
   bottom: { gap: Space.xs },
   secondary: { alignItems: "center", justifyContent: "center", minHeight: 48 },

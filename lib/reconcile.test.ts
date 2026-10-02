@@ -125,3 +125,34 @@ describe("reconcileHistory with real units", () => {
     expect(out[0].timestamp).toBe(1_790_000_000_123);
   });
 });
+
+describe("a reply cut off mid-stream", () => {
+  const server = (id: string, content: string, ts = 1_000): Message => ({ id, role: "assistant", content, timestamp: ts }) as Message;
+
+  test("is replaced by the Pod's full copy", () => {
+    const local: ExtendedMessage[] = [
+      { id: "msg-1", role: "assistant", content: "1. Apples\n", timestamp: 1_000, status: "completed", incomplete: true },
+    ];
+    const out = reconcileHistory(local, [server("s1", "1. Apples\n2. Bananas\n3. Cherries")]);
+    expect(out).toHaveLength(1);
+    expect(out[0].content).toBe("1. Apples\n2. Bananas\n3. Cherries");
+    expect(out[0].incomplete).toBe(false);
+  });
+
+  test("stays as it is while the Pod has no more than the phone does", () => {
+    const local: ExtendedMessage[] = [
+      { id: "msg-1", role: "assistant", content: "1. Apples\n", timestamp: 1_000, status: "completed", incomplete: true },
+    ];
+    const out = reconcileHistory(local, [server("s1", "1. Apples\n")]);
+    expect(out[0].content).toBe("1. Apples\n");
+    expect(out[0].incomplete).toBe(true);
+  });
+
+  test("a complete reply is never rewritten, even if the Pod's copy is longer", () => {
+    const local: ExtendedMessage[] = [
+      { id: "msg-1", role: "assistant", content: "Hello", timestamp: 1_000, status: "completed" },
+    ];
+    const out = reconcileHistory(local, [server("s1", "Hello there, with hidden machinery")]);
+    expect(out[0].content).toBe("Hello");
+  });
+});

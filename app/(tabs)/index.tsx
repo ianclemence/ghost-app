@@ -38,7 +38,6 @@ import {
   fetchRoutines,
   onWSMessage,
   phaseLabel,
-  servedByLabel,
   sendMessage,
   sendSteering,
   voiceTranscribeUri,
@@ -224,7 +223,11 @@ export default function ConversationScreen() {
     }
   }, [config, appendStream, clearStreamBuffer, removeMessage, setMessages, setStreaming, setToolActivity, router]);
   const listRef = useRef<FlatList>(null);
+  // Whether the list should follow new content (a reply as it streams in).
+  // Only the owner's own finger changes it: a scroll event the list raises by
+  // growing is not the owner leaving the bottom.
   const nearBottom = useRef(true);
+  const dragging = useRef(false);
   const openedRef = useRef(false);
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
 
@@ -410,6 +413,20 @@ export default function ConversationScreen() {
     };
   }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox, appendMessage]);
 
+  // A reply cut off mid-stream is finished by the Pod, which keeps writing it
+  // after the connection drops. Ask for the full copy a few times, with room for
+  // a long answer to finish, and stop as soon as nothing is incomplete.
+  const settleIncomplete = useCallback((cfg: GhostConfig) => {
+    [1500, 4000, 9000, 20000].forEach((delay) => {
+      setTimeout(() => {
+        if (!useGhostStore.getState().messages.some((m) => m.incomplete)) return;
+        fetchHistory(cfg, 50, 0, undefined, MAIN_SESSION_ID)
+          .then(({ messages: h }) => setMessages(reconcileHistory(useGhostStore.getState().messages, h)))
+          .catch(() => {});
+      }, delay);
+    });
+  }, [setMessages]);
+
   const send = useCallback(async (text: string) => {
     // A paired Pod or an active local model — either makes Ghost reachable.
     if (!config) {
@@ -469,7 +486,9 @@ export default function ConversationScreen() {
     appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
     // Sending always returns the eye to the bottom, even from mid-thread.
     nearBottom.current = true;
-    listRef.current?.scrollToEnd({ animated: true });
+    dragging.current = false;
+    // The new rows are not laid out yet; scroll again once they are.
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     setStreaming(true);
     setToolActivity(null);
     servedRef.current = null;
@@ -493,7 +512,7 @@ export default function ConversationScreen() {
       onLifecycle: () => {},
       onOutcome: (_rid, o) => setOutcome(o),
       onClarify: (info) => setClarify({ questionId: info.questionId, question: info.question }),
-      onDone: (full) => {
+      onDone: (full, info) => {
         // Commit-stream-first: the streamed text stays on screen. History
         // is reconciled underneath (matched rows keep local content, new
         // server rows append) instead of replacing the thread — so a just
@@ -505,7 +524,12 @@ export default function ConversationScreen() {
         // Stamp where this ran before commit: the ids change underneath,
         // but commitStream preserves the row fields.
         if (servedRef.current) updateMessage(asstId, { servedBy: servedRef.current });
+        // The connection ended without the closing marker: what is on screen may
+        // be only the start of the reply. Keep it, mark it, and fetch the rest.
+        const cutOff = info?.complete === false && full.trim() !== "";
+        if (cutOff) updateMessage(asstId, { incomplete: true });
         commitStream();
+        if (cutOff && config) settleIncomplete(config);
         if (config) {
           fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
             .then(({ messages: h }) =>
@@ -537,6 +561,21 @@ export default function ConversationScreen() {
       },
       onError: (e) => {
         setCancelPhase((p) => nextCancelState(p, "settled"));
+        // If some of the reply had already arrived, Ghost did receive the
+        // message and was answering: keep what came, mark it incomplete, and
+        // fetch the rest. Deleting it, or sending the message again, would
+        // lose a reply or ask Ghost twice.
+        const partial = useGhostStore.getState().messages.find((m) => m.id === asstId)?.content ?? "";
+        if (e.kind !== "auth" && partial.trim() !== "") {
+          updateMessage(asstId, { incomplete: true });
+          commitStream();
+          setStreaming(false);
+          setToolActivity(null);
+          localAbort.current = null;
+          setSendError(null);
+          if (config) settleIncomplete(config);
+          return;
+        }
         removeMessage(asstId);
         setStreaming(false);
         setToolActivity(null);
@@ -571,7 +610,7 @@ export default function ConversationScreen() {
       setToolActivity(null);
       setSendError(e instanceof Error ? e.message : String(e));
     });
-  }, [config, isStreaming, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox]);
+  }, [config, isStreaming, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox, settleIncomplete]);
 
   const stopTurn = useCallback(async () => {
     if (!isStreaming) return;
@@ -694,7 +733,6 @@ export default function ConversationScreen() {
         />
       );
     }
-    const badge = servedByLabel(m.servedBy);
     return (
       <GhostMessage
         message={m}
@@ -702,7 +740,6 @@ export default function ConversationScreen() {
         showTime={item.showTime}
         groupStart={item.groupStart}
         phase={m.status === "streaming" ? toolActivity : null}
-        origin={badge ?? null}
         animate={animate}
       />
     );
@@ -827,7 +864,7 @@ export default function ConversationScreen() {
           onScroll={(e) => {
             const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
             const atBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
-            nearBottom.current = atBottom;
+            if (dragging.current) nearBottom.current = atBottom;
             if (atBottom && unseen > 0) setUnseen(0);
             const away = layoutMeasurement.height + contentOffset.y < contentSize.height - 600;
             if (away !== awayFromLatest) setAwayFromLatest(away);
@@ -835,8 +872,20 @@ export default function ConversationScreen() {
             if (sc !== scrolled) setScrolled(sc);
             if (contentOffset.y < 160) void loadEarlier();
           }}
+          onScrollBeginDrag={() => { dragging.current = true; }}
+          onScrollEndDrag={(e) => {
+            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+            nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
+          }}
+          onMomentumScrollEnd={(e) => {
+            dragging.current = false;
+            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+            nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
+          }}
           onContentSizeChange={() => {
-            if (nearBottom.current) listRef.current?.scrollToEnd({ animated: true });
+            // While a reply streams in, stay on its newest line without an
+            // animation fighting every chunk; otherwise glide.
+            if (nearBottom.current) listRef.current?.scrollToEnd({ animated: !isStreaming });
           }}
         />
         </View>
@@ -950,7 +999,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontFamily: Fonts.voice,
     fontSize: 52,
-    lineHeight: 54,
+    lineHeight: 62,
     fontWeight: "400",
     letterSpacing: -1,
     color: Ghost.text.primary,

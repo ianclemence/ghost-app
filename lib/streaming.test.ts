@@ -43,8 +43,23 @@ describe("prepareStreamingMarkdown", () => {
     const text = "Data:\n| a | b |\n|---|---|\n| 1 | 2 |";
     expect(prepareStreamingMarkdown(text)).toBe(text);
   });
-  test("holds unclosed math", () => {
-    expect(prepareStreamingMarkdown("Result $$x^2").trim()).toBe("Result");
+  // The app draws no math, so "$$" is only ever text (a price tier, a joke).
+  // Holding it back once hid the rest of the reply, list items included, until
+  // the stream ended.
+  test("never hides text after a $$", () => {
+    const text = "Dining is $$ for most places.\n\nHere are your options:\n\n1. Cafe\n2. Diner\n3. Bistro";
+    expect(prepareStreamingMarkdown(text)).toBe(text);
+  });
+
+  test("a $$ does not hide a list that follows it, at any point in the stream", () => {
+    const text = "The $$ symbol means moderate.\n- One\n- Two\n- Three";
+    for (let i = 1; i <= text.length; i++) {
+      const cut = text.slice(0, i);
+      const out = prepareStreamingMarkdown(cut);
+      // Whatever has fully arrived on earlier lines is on screen.
+      const done = cut.slice(0, cut.lastIndexOf("\n") + 1).trimEnd();
+      expect(out.startsWith(done)).toBe(true);
+    }
   });
   test("empty stays empty", () => {
     expect(prepareStreamingMarkdown("")).toBe("");

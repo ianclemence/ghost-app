@@ -419,7 +419,11 @@ export interface SendOptions {
   onSanitized?: (reason: string) => void;
   onToolStatus?: (tool: string, label: string) => void;
   onCancelled?: () => void;
-  onDone: (fullText: string) => void;
+  /**
+   * The turn is over. `complete` is false when the connection ended without the
+   * runtime's closing marker: what arrived may be only the start of the reply.
+   */
+  onDone: (fullText: string, info?: { complete: boolean }) => void;
   onError: (err: GhostError) => void;
 }
 
@@ -742,7 +746,7 @@ export async function sendMessage(
       // Stream ended without [DONE]
       if (session.fullText.length > 0) {
         trace("stream_done_no_marker", { fullLength: session.fullText.length });
-        opts.onDone(session.fullText);
+        opts.onDone(session.fullText, { complete: false });
       } else {
         opts.onError({
           kind: "empty_stream",
@@ -2287,6 +2291,40 @@ export async function fetchFileContent(
   if (!res.ok) throw new Error(`Failed to open the file (HTTP ${res.status})`);
   const d = await res.json();
   return { name: String(d?.name ?? "file"), mime: String(d?.mime ?? ""), base64: String(d?.base64 ?? "") };
+}
+
+/** Bytes to base64, in chunks so a large array does not blow the argument limit. */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+const thumbCache = new Map<string, string | null>();
+
+/**
+ * A small JPEG for the gallery, as a data URI, so a page of photos does not
+ * mean downloading every original. Files with no picture (a PDF, a sheet)
+ * give null and the screen draws a type tile instead. Remembered per file for
+ * this run of the app.
+ */
+export async function fetchFileThumb(cfg: GhostConfig, id: string): Promise<string | null> {
+  if (thumbCache.has(id)) return thumbCache.get(id) ?? null;
+  try {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/files/${encodeURIComponent(id)}/thumb`, { headers: headers(cfg) }, 20000);
+    if (!res.ok) {
+      thumbCache.set(id, null);
+      return null;
+    }
+    const uri = `data:image/jpeg;base64,${bytesToBase64(new Uint8Array(await res.arrayBuffer()))}`;
+    thumbCache.set(id, uri);
+    return uri;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Push ──────────────────────────────────────────────────────────────────

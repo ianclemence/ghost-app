@@ -1,16 +1,9 @@
 import { useState } from "react";
-import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
-import { GhostMark } from "@/components/ghost-mark";
-import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
-import { Ghost, Space, UI } from "@/constants/theme";
+import { StatusScreen } from "@/components/status-screen";
 import { ensureNotificationPermission } from "@/lib/notify";
 import { useGhostStore } from "@/lib/store";
-
-const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
 /**
  * Pairing success screen.
@@ -18,12 +11,10 @@ const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1
  * Optionally prompts for notification permission.
  */
 export default function PairingSuccessScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [askedNotifications, setAskedNotifications] = useState(false);
   const [notifStatus, setNotifStatus] = useState<"granted" | "denied" | "undetermined">("undetermined");
   const [busy, setBusy] = useState(false);
-  const reduceMotion = useReducedMotion();
 
   const handleContinue = async () => {
     if (busy) return;
@@ -55,84 +46,25 @@ export default function PairingSuccessScreen() {
   // After notifications handled, show the final state
   if (askedNotifications) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + UI.modal.top }]}>
-        <View style={styles.content}>
-          <Animated.View entering={reduceMotion ? undefined : SUCCESS_ENTER} style={styles.successMark}>
-            <GhostMark size={48} />
-          </Animated.View>
-          <GhostText type="largeTitle" style={styles.title}>
-            Ghost connected.
-          </GhostText>
-          <GhostText type="body" style={styles.description}>
-            {notifStatus === "granted"
-              ? "Ghost can reach you when something needs your attention."
-              : notifStatus === "denied"
-                ? "You can enable notifications later in Settings."
-                : "Your Ghost is ready."}
-          </GhostText>
-        </View>
-
-        <View style={[styles.bottom, { paddingBottom: insets.bottom + UI.modal.bottom }]}>
-          <GhostButton
-            title="Continue"
-            variant="primary"
-            onPress={() => router.replace("/(tabs)")}
-            fullWidth
-          />
-        </View>
-      </View>
+      <StatusScreen
+        title="Ghost connected."
+        body={
+          notifStatus === "granted"
+            ? "Ghost can reach you when something needs your attention."
+            : notifStatus === "denied"
+              ? "You can enable notifications later in Settings."
+              : "Your Ghost is ready."
+        }
+        actions={<GhostButton title="Continue" onPress={() => router.replace("/(tabs)")} fullWidth />}
+      />
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + UI.modal.top }]}>
-      <View style={styles.content}>
-        <GhostMark size={48} />
-        <GhostText type="largeTitle" style={styles.title}>
-          Ghost connected.
-        </GhostText>
-        <GhostText type="body" style={styles.description}>
-          Your Ghost is ready.
-        </GhostText>
-      </View>
-
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + UI.modal.bottom }]}>
-        <GhostButton
-          title="Continue"
-          variant="primary"
-          onPress={handleContinue}
-          loading={busy}
-          disabled={busy}
-          fullWidth
-        />
-      </View>
-    </View>
+    <StatusScreen
+      title="Ghost connected."
+      body="Your Ghost is ready."
+      actions={<GhostButton title="Continue" onPress={handleContinue} loading={busy} disabled={busy} fullWidth />}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Ghost.bg.base,
-    paddingHorizontal: Space.xl,
-  },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: Space.md,
-  },
-  successMark: {
-    alignItems: "center",
-  },
-  title: {
-    color: Ghost.text.primary,
-    textAlign: "center",
-  },
-  description: {
-    color: Ghost.text.secondary,
-    textAlign: "center",
-    lineHeight: 24,
-  },
-  bottom: {},
-});

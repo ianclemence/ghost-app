@@ -152,6 +152,52 @@ const markdownStyle = {
   },
 };
 
+/**
+ * What the owner writes is rendered with only the syntaxes that are chosen on
+ * purpose: code spans, fenced code and links, with line breaks kept. Emphasis,
+ * lists, headings and quotes stay literal, so a stray "*" or "1." in an
+ * ordinary sentence never changes how your own words look.
+ */
+const userMarkdownIt = MarkdownIt("zero", { breaks: true, linkify: true, html: false }).enable([
+  "paragraph",
+  "newline",
+  "text",
+  "fence",
+  "code",
+  "backticks",
+  "escape",
+  "entity",
+  "linkify",
+]);
+
+const userMarkdownStyle = {
+  ...markdownStyle,
+  body: {
+    color: Ghost.text.primary,
+    fontFamily: Inter.light,
+    fontSize: 17,
+    lineHeight: 25,
+    letterSpacing: -0.2,
+  },
+  paragraph: { marginTop: 0, marginBottom: 0 },
+};
+
+export const UserMarkdown = memo(function UserMarkdown({ content }: { content: string }) {
+  return (
+    <Markdown
+      style={userMarkdownStyle}
+      rules={markdownRules}
+      markdownit={userMarkdownIt}
+      onLinkPress={(url) => {
+        void openExternalUrl(url);
+        return true;
+      }}
+    >
+      {content}
+    </Markdown>
+  );
+});
+
 interface Props {
   /** Full message text. */
   content: string;

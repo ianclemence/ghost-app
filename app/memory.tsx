@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeOut, LinearTransition } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
+import { GhostButton } from "@/components/ghost";
 import { ScreenHeader } from "@/components/screen-header";
+import { ScreenBackground } from "@/components/screen-glow";
 import { fetchMemorySelf, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo } from "@/lib/when";
@@ -70,6 +72,7 @@ export default function MemoryScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenBackground variant="calm" />
       <ScreenHeader
         title="Memory"
         subtitle={mem ? (total === 0 ? "Nothing yet" : `${total} ${total === 1 ? "thing" : "things"}, kept on your Pod`) : undefined}
@@ -173,9 +176,7 @@ function Item({
       {busy ? (
         <ActivityIndicator size="small" color={Ghost.text.tertiary} />
       ) : (
-        <Pressable onPress={onForget} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Forget ${title}`} style={styles.forget}>
-          <Text style={styles.forgetText}>Forget</Text>
-        </Pressable>
+        <GhostButton title="Forget" variant="danger" size="sm" onPress={onForget} />
       )}
     </Animated.View>
   );
@@ -183,48 +184,52 @@ function Item({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
-  content: { paddingBottom: Space.huge },
-  group: { marginTop: Space.lg },
+  content: { paddingBottom: 96 },
+  group: { marginTop: Space.xl },
   groupTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 0.2,
+    fontSize: 11.5,
+    fontWeight: "500",
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
     color: Ghost.text.tertiary,
-    paddingHorizontal: Space.xl,
-    marginBottom: Space.xs,
+    paddingHorizontal: Space.xl + 6,
+    marginBottom: Space.sm,
   },
   card: {
     marginHorizontal: Space.lg,
-    borderRadius: 16,
+    borderRadius: 26,
     borderCurve: "continuous",
-    backgroundColor: Ghost.bg.raised,
+    backgroundColor: "rgba(0,0,0,0.42)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
     overflow: "hidden",
   },
   item: {
     flexDirection: "row",
     alignItems: "center",
     gap: Space.md,
-    paddingHorizontal: Space.lg,
-    paddingVertical: 13,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Ghost.border.subtle,
   },
   itemText: { flex: 1, gap: 2 },
-  itemTitle: { fontSize: 16, lineHeight: 21, color: Ghost.text.primary },
-  itemValue: { fontSize: 14, lineHeight: 19, color: Ghost.text.secondary },
-  itemMeta: { fontSize: 12, lineHeight: 16, color: Ghost.text.tertiary },
-  forget: { minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
-  forgetText: { fontSize: 14, fontWeight: "600", color: Ghost.status.error },
+  itemTitle: { fontSize: 16, lineHeight: 21, fontWeight: "500", letterSpacing: -0.15, color: Ghost.text.primary },
+  itemValue: { fontSize: 14.5, lineHeight: 20, fontWeight: "300", color: Ghost.text.secondary },
+  itemMeta: { fontSize: 12.5, lineHeight: 17, color: Ghost.text.tertiary },
   empty: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 15.5,
+    lineHeight: 23,
+    fontWeight: "300",
     color: Ghost.text.secondary,
+    textAlign: "center",
     paddingHorizontal: Space.xl,
     marginTop: Space.lg,
   },
   error: {
     fontSize: 14,
     color: Ghost.status.error,
+    textAlign: "center",
     paddingHorizontal: Space.xl,
     marginTop: Space.md,
   },

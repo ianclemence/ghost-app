@@ -3,14 +3,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Linking, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Animated, Easing, Linking, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
-import { Ghost, Midnight, Space, Type } from "@/constants/theme";
+import { Fonts, Ghost, Midnight, Space } from "@/constants/theme";
+import { StatusScreen } from "@/components/status-screen";
 import { parsePairingURI } from "@/lib/pairing";
 import { startPairing } from "@/lib/connection";
 
@@ -119,7 +119,7 @@ export default function QrScannerScreen() {
 
   const cornerColor = invalidFlash.interpolate({
     inputRange: [0, 1],
-    outputRange: ["rgba(237,237,240,0.8)", Ghost.status.error],
+    outputRange: ["rgba(255,255,255,0.92)", Ghost.status.error],
   });
 
   // Loading
@@ -134,32 +134,26 @@ export default function QrScannerScreen() {
   // Permission denied
   if (!permission.granted) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <GhostMark size={40} color={Ghost.text.tertiary} />
-        <GhostText type="headline" style={styles.deniedTitle}>
-          Camera access needed
-        </GhostText>
-        <GhostText type="body" style={styles.deniedBody}>
-          Ghost needs camera access to scan the pairing code.
-        </GhostText>
-        <View style={styles.deniedActions}>
-          <GhostButton
-            title={permission.canAskAgain ? "Grant permission" : "Open Settings"}
-            variant="primary"
-            onPress={() => {
-              if (permission.canAskAgain) requestPermission();
-              else Linking.openSettings();
-            }}
-            fullWidth
-          />
-          <GhostButton
-            title="Cancel"
-            variant="ghost"
-            onPress={() => router.back()}
-            fullWidth
-          />
-        </View>
-      </View>
+      <StatusScreen
+        tone="off"
+        hero={false}
+        title="Camera access needed"
+        body="Ghost needs the camera to read the pairing code on your Pod."
+        actions={
+          <>
+            <GhostButton
+              title={permission.canAskAgain ? "Allow camera" : "Open Settings"}
+              onPress={() => {
+                if (permission.canAskAgain) requestPermission();
+                else Linking.openSettings();
+              }}
+              fullWidth
+            />
+            <GhostButton title="Enter manually" variant="secondary" onPress={() => router.replace("/manual")} fullWidth />
+            <GhostButton title="Cancel" variant="ghost" onPress={() => router.back()} fullWidth />
+          </>
+        }
+      />
     );
   }
 
@@ -191,13 +185,7 @@ export default function QrScannerScreen() {
                 ]}
               >
                 <LinearGradient
-                  colors={[
-                    "transparent",
-                    "rgba(237,237,240,0.4)",
-                    "rgba(237,237,240,0.6)",
-                    "rgba(237,237,240,0.4)",
-                    "transparent",
-                  ]}
+                  colors={["transparent", "rgba(255,154,26,0.7)", "rgba(194,61,235,0.85)", "rgba(58,46,240,0.7)", "transparent"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={StyleSheet.absoluteFill}
@@ -230,14 +218,14 @@ export default function QrScannerScreen() {
       <View
         style={[styles.headerOverlay, { paddingTop: insets.top + Space.lg }]}
       >
-        <GhostMark size={24} color="rgba(237,237,240,0.7)" />
-        <Text style={styles.headerTitle}>Scan your Ghost Pod</Text>
+        <GhostMark size={28} />
+        <Text style={styles.headerTitle}>Scan your Pod</Text>
         <Text style={styles.headerHint}>
           Center the QR code in the frame
         </Text>
       </View>
 
-      {/* Bottom feedback + cancel */}
+      {/* Bottom feedback + ways out */}
       <View
         style={[
           styles.bottomOverlay,
@@ -245,25 +233,22 @@ export default function QrScannerScreen() {
         ]}
       >
         {status === "invalid" && (
-          <Text style={styles.invalidText}>
-            Not a Ghost pairing code
-          </Text>
+          <View style={styles.notice}>
+            <Text style={styles.invalidText}>Not a Ghost pairing code</Text>
+          </View>
         )}
 
         {status === "scanned" && (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={Ghost.text.inverse} size="small" />
+          <View style={styles.notice}>
+            <ActivityIndicator color={Ghost.text.primary} size="small" />
             <Text style={styles.loadingText}>Connecting…</Text>
           </View>
         )}
 
-        <TouchableOpacity
-          style={styles.cancelButton}
-          activeOpacity={0.7}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
+        <View style={styles.ways}>
+          <GhostButton title="Enter manually" variant="secondary" onPress={() => router.replace("/manual")} />
+          <GhostButton title="Cancel" variant="secondary" onPress={() => router.back()} />
+        </View>
       </View>
     </View>
   );
@@ -289,7 +274,7 @@ const styles = StyleSheet.create({
   },
   maskTop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(0,0,0,0.74)",
   },
   maskMiddle: {
     flexDirection: "row",
@@ -297,11 +282,11 @@ const styles = StyleSheet.create({
   },
   maskSide: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(0,0,0,0.74)",
   },
   maskBottom: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(0,0,0,0.74)",
   },
 
   // ─── Scan Window ─────────────────────────────────────────────────────────
@@ -367,13 +352,17 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerTitle: {
-    ...Type.headline,
-    color: Ghost.text.inverse,
+    fontFamily: Fonts.voice,
+    fontSize: 34,
+    lineHeight: 42,
+    letterSpacing: -0.6,
+    color: Ghost.text.primary,
     marginTop: Space.sm,
   },
   headerHint: {
-    ...Type.subhead,
-    color: "rgba(237,237,240,0.55)",
+    fontSize: 15,
+    fontWeight: "300",
+    color: "rgba(255,255,255,0.7)",
   },
 
   bottomOverlay: {
@@ -382,35 +371,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
-    gap: Space.md,
+    gap: Space.lg,
     paddingHorizontal: Space.xxl,
     zIndex: 10,
   },
-  invalidText: {
-    ...Type.subhead,
-    color: "rgba(237,237,240,0.7)",
-    fontWeight: "500",
-  },
-  loadingRow: {
+  notice: {
     flexDirection: "row",
     alignItems: "center",
     gap: Space.sm,
+    paddingHorizontal: 16,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
   },
-  loadingText: {
-    ...Type.subhead,
-    color: "rgba(237,237,240,0.8)",
-    fontWeight: "500",
-  },
-  cancelButton: {
-    paddingVertical: Space.sm,
-    paddingHorizontal: Space.xl,
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  cancelText: {
-    ...Type.callout,
-    color: "rgba(237,237,240,0.55)",
-  },
+  invalidText: { fontSize: 14, fontWeight: "500", color: Ghost.status.error },
+  loadingText: { fontSize: 14, fontWeight: "500", color: Ghost.text.primary },
+  ways: { flexDirection: "row", gap: Space.sm },
 
   // ─── Permission Denied ───────────────────────────────────────────────────
   deniedTitle: {

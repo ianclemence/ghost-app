@@ -4,7 +4,7 @@ import { Text } from "@/components/text";
 import { alpha, Ghost } from "@/constants/theme";
 import { fileKind, fileSize, type FileTone } from "@/lib/attachments";
 
-const TONE: Record<FileTone, string> = {
+export const TONE: Record<FileTone, string> = {
   error: Ghost.status.error,
   info: Ghost.status.info,
   success: Ghost.status.success,

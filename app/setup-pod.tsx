@@ -9,6 +9,7 @@ import { setupPod } from "@/lib/setupPod";
 import { BRAINS, brainByKey, brainProblem } from "@/lib/brains";
 import { completePairing } from "@/lib/connection";
 import { EdgeScrollView } from "@/components/scroll-edge";
+import { ScreenBackground } from "@/components/screen-glow";
 
 /**
  * Set up a brand-new Ghost Pod from the phone.
@@ -86,6 +87,7 @@ export default function SetupPodScreen() {
   if (pending) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + UI.modal.top }]}>
+        <ScreenBackground variant="calm" />
         <View style={styles.centered}>
           <GhostText type="largeTitle" style={styles.title}>
             Ghost Pod is set up.
@@ -104,11 +106,12 @@ export default function SetupPodScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: Ghost.bg.base }}
       behavior={process.env.EXPO_OS === "ios" ? "padding" : "height"}
     >
+      <ScreenBackground variant="calm" />
       <EdgeScrollView
-        style={{ flex: 1, backgroundColor: Ghost.bg.base }}
+        style={{ flex: 1, backgroundColor: "transparent" }}
         contentContainerStyle={[styles.container, { paddingTop: insets.top + UI.modal.bottom, paddingBottom: insets.bottom + UI.modal.bottom }]}
         keyboardShouldPersistTaps="handled"
       >

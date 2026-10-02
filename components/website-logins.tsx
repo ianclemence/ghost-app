@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
-import { Ghost, Space, Type } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
-import { GhostButton, GhostInput } from "@/components/ghost";
+import { GhostButton, GhostInput, Panel } from "@/components/ghost";
 import {
   deleteWebsiteLogin,
   fetchWebsiteLogins,
@@ -96,12 +96,7 @@ export function WebsiteLogins({ config }: { config: GhostConfig }) {
   }, [config]);
 
   return (
-    <View style={styles.section}>
-      <GhostText type="headline" style={styles.title}>Website logins</GhostText>
-      <GhostText type="footnote" style={styles.hint}>
-        Ghost can sign in to a site for you. Saved encrypted on your Pod and never shown in chat.
-      </GhostText>
-
+    <Panel description="Ghost can sign in to a site for you. Saved encrypted on your Pod and never shown in chat.">
       {loading ? (
         <ActivityIndicator color={Ghost.text.primary} />
       ) : logins.length === 0 ? (
@@ -113,7 +108,7 @@ export function WebsiteLogins({ config }: { config: GhostConfig }) {
               <GhostText type="body" style={styles.rowTitle}>{l.host}</GhostText>
               <GhostText type="footnote" style={styles.hint}>{displayUsername(l.username)}</GhostText>
             </View>
-            <GhostButton title="Remove" variant="ghost" onPress={() => remove(l.host)} />
+            <GhostButton title="Remove" variant="danger" size="sm" onPress={() => remove(l.host)} />
           </View>
         ))
       )}
@@ -146,38 +141,30 @@ export function WebsiteLogins({ config }: { config: GhostConfig }) {
       />
       <View style={styles.actions}>
         <GhostButton title={busy ? "Saving…" : "Save login"} onPress={add} disabled={busy} />
-        <GhostButton title="Sign out of all sites" variant="ghost" onPress={signOut} />
+        <GhostButton title="Sign out of all sites" variant="secondary" onPress={signOut} />
       </View>
-    </View>
+    </Panel>
   );
 }
 
 const styles = StyleSheet.create({
-  section: {
-    marginTop: Space.xl,
-    paddingTop: Space.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Ghost.border.subtle,
-    gap: Space.sm,
-  },
-  title: {
-    ...Type.headline,
-    color: Ghost.text.primary,
-  },
   hint: {
-    color: Ghost.text.tertiary,
+    color: Ghost.text.secondary,
+    fontWeight: "300",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: Space.sm,
+    paddingVertical: Space.xs,
   },
   rowBody: {
     flex: 1,
   },
   rowTitle: {
     color: Ghost.text.primary,
+    fontWeight: "500",
   },
   actions: {
     flexDirection: "row",

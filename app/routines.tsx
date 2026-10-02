@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Ghost, Space, Type } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { ScreenHeader } from "@/components/screen-header";
-import { GhostButton, EmptyState, GhostInput, OfflineBadge } from "@/components/ghost";
+import { ScreenBackground } from "@/components/screen-glow";
+import { GhostButton, EmptyState, GhostInput, OfflineBadge, Panel, SectionHeader, StatusPill } from "@/components/ghost";
+import { GlassCard } from "@/components/glass";
 import {
   controlRoutineItem,
   createGoal,
@@ -32,20 +34,19 @@ import { EdgeScrollView } from "@/components/scroll-edge";
 // surface is for reviewing and steering, not for filling forms — matching
 // the design principle that talk is the primary verb, not configuration.
 
-function badgeFor(t: RoutineItem): { label: string; color: string } {
+type PillTone = "ok" | "warn" | "bad" | "off";
+
+function badgeFor(t: RoutineItem): { label: string; tone: PillTone } {
   switch (t.state) {
     case "waiting":
-      return { label: stateLabel(t.state), color: Ghost.status.warning };
+      return { label: stateLabel(t.state), tone: "warn" };
     case "failed":
-      return { label: stateLabel(t.state), color: Ghost.status.error };
+      return { label: stateLabel(t.state), tone: "bad" };
     case "paused":
-      return { label: stateLabel(t.state), color: Ghost.text.tertiary };
-    case "done":
-      return { label: stateLabel(t.state), color: Ghost.status.success };
     case "cancelled":
-      return { label: stateLabel(t.state), color: Ghost.text.tertiary };
+      return { label: stateLabel(t.state), tone: "off" };
     default:
-      return { label: stateLabel(t.state), color: Ghost.status.success };
+      return { label: stateLabel(t.state), tone: "ok" };
   }
 }
 
@@ -182,6 +183,7 @@ export default function RoutinesScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenBackground variant="calm" />
       <ScreenHeader
         title="Routines"
         subtitle={active > 0
@@ -228,6 +230,7 @@ export default function RoutinesScreen() {
             />
           ) : null}
 
+          {items.length > 0 ? <SectionHeader title="Routines" style={{ paddingTop: Space.md }} /> : null}
           {!error && items.length === 0 ? (
             <EmptyState
               title="Nothing yet"
@@ -243,16 +246,12 @@ export default function RoutinesScreen() {
               const canStop =
                 t.state === "active" || t.state === "paused" || t.state === "waiting";
               return (
-                <View key={t.id} style={styles.row}>
+                <GlassCard key={t.id} style={styles.card}>
                   <View style={styles.rowHead}>
                     <GhostText type="headline" style={styles.rowTitle}>
                       {t.title}
                     </GhostText>
-                    <View style={[styles.badge, { borderColor: badge.color }]}>
-                      <GhostText type="footnote" style={{ color: badge.color }}>
-                        {badge.label}
-                      </GhostText>
-                    </View>
+                    <StatusPill label={badge.label} tone={badge.tone} />
                   </View>
                   <GhostText type="footnote" style={styles.rowMeta}>
                     {kindLabel(t.kind)} · {t.schedule}
@@ -270,38 +269,21 @@ export default function RoutinesScreen() {
                   ) : null}
                   <View style={styles.actions}>
                     {canPause ? (
-                      <GhostButton
-                        title={busy ? "\u2026" : "Pause"}
-                        variant="secondary"
-                        onPress={() => handleOp(t, "pause")}
-                      />
+                      <GhostButton title={busy ? "\u2026" : "Pause"} variant="secondary" size="sm" onPress={() => handleOp(t, "pause")} />
                     ) : null}
                     {canResume ? (
-                      <GhostButton
-                        title={busy ? "\u2026" : "Resume"}
-                        variant="secondary"
-                        onPress={() => handleOp(t, "resume")}
-                      />
+                      <GhostButton title={busy ? "\u2026" : "Resume"} variant="primary" size="sm" onPress={() => handleOp(t, "resume")} />
                     ) : null}
                     {canStop ? (
-                      <GhostButton
-                        title={busy ? "\u2026" : "Stop"}
-                        variant="ghost"
-                        onPress={() => handleOp(t, "cancel")}
-                      />
+                      <GhostButton title={busy ? "\u2026" : "Stop"} variant="danger" size="sm" onPress={() => handleOp(t, "cancel")} />
                     ) : null}
                   </View>
-                </View>
+                </GlassCard>
               );
             })
           )}
 
-          <GhostText type="caption" style={styles.sectionLabel}>
-            Goals
-          </GhostText>
-          <GhostText type="footnote" style={styles.sectionDesc}>
-            Standing intents Ghost keeps working on. Tell it once, it reports back.
-          </GhostText>
+          <SectionHeader title="Goals" subtitle="Standing intents Ghost keeps working on. Tell it once, it reports back." />
           {goalsError && goals.length === 0 ? (
             <EmptyState
               title="Couldn't load goals"
@@ -309,7 +291,7 @@ export default function RoutinesScreen() {
               action={<GhostButton title="Try again" onPress={() => load()} />}
             />
           ) : null}
-          <View style={styles.creator}>
+          <Panel style={{ marginTop: 0 }}>
             <GhostInput
               placeholder="e.g. Take care of school emails"
               value={goalText}
@@ -323,9 +305,9 @@ export default function RoutinesScreen() {
               editable={goalBusy !== "new"}
             />
             <GhostButton title={goalBusy === "new" ? "Working…" : "Set goal"} onPress={handleCreateGoal} />
-          </View>
+          </Panel>
           {goals.length === 0 && !goalsError ? (
-            <GhostText type="footnote" style={styles.rowMeta}>
+            <GhostText type="footnote" style={styles.none}>
               No goals yet. Set one above and Ghost will keep at it.
             </GhostText>
           ) : (
@@ -333,43 +315,29 @@ export default function RoutinesScreen() {
               const busy = goalBusy === g.id;
               const isActive = g.status === "active";
               return (
-                <View key={g.id} style={styles.row}>
+                <GlassCard key={g.id} style={styles.card}>
                   <View style={styles.rowHead}>
                     <GhostText type="headline" style={styles.rowTitle}>
                       {g.text}
                     </GhostText>
-                    <View style={[styles.badge, { borderColor: Ghost.text.tertiary }]}>
-                      <GhostText type="footnote" style={{ color: Ghost.text.tertiary }}>
-                        Goal
-                      </GhostText>
-                    </View>
+                    <StatusPill label={goalStatusLabel(g.status)} tone={isActive ? "ok" : g.status === "completed" ? "off" : "warn"} />
                   </View>
-                  <GhostText type="footnote" style={styles.rowMeta}>
-                    {goalStatusLabel(g.status)}{g.scope ? ` · ${g.scope}` : ""}
-                  </GhostText>
+                  {g.scope ? (
+                    <GhostText type="footnote" style={styles.rowMeta}>
+                      {g.scope}
+                    </GhostText>
+                  ) : null}
                   <View style={styles.actions}>
                     {isActive ? (
-                      <GhostButton
-                        title={busy ? "…" : "Pause"}
-                        variant="secondary"
-                        onPress={() => handleGoalOp(g, "pause")}
-                      />
+                      <GhostButton title={busy ? "…" : "Pause"} variant="secondary" size="sm" onPress={() => handleGoalOp(g, "pause")} />
                     ) : g.status === "paused" || g.status === "expired" ? (
-                      <GhostButton
-                        title={busy ? "…" : "Resume"}
-                        variant="secondary"
-                        onPress={() => handleGoalOp(g, "resume")}
-                      />
+                      <GhostButton title={busy ? "…" : "Resume"} variant="primary" size="sm" onPress={() => handleGoalOp(g, "resume")} />
                     ) : null}
                     {g.status !== "completed" ? (
-                      <GhostButton
-                        title={busy ? "…" : "Done"}
-                        variant="ghost"
-                        onPress={() => handleGoalOp(g, "complete")}
-                      />
+                      <GhostButton title={busy ? "…" : "Done"} variant="secondary" size="sm" onPress={() => handleGoalOp(g, "complete")} />
                     ) : null}
                   </View>
-                </View>
+                </GlassCard>
               );
             })
           )}
@@ -384,19 +352,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Ghost.bg.base,
   },
-  header: {
-    paddingHorizontal: Space.xl,
-    paddingVertical: Space.lg,
-  },
-  title: {
-    ...Type.largeTitle,
-    color: Ghost.text.primary,
-  },
-  sub: {
-    ...Type.subhead,
-    color: Ghost.text.secondary,
-    marginTop: 2,
-  },
   offlineWrap: {
     alignItems: "center",
   },
@@ -405,15 +360,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   list: {
-    paddingHorizontal: Space.xl,
-    // FAB clearance: button height + edge distance, so the last row
-    // never slides under the menu button.
-    paddingBottom: Space.huge + Space.edge,
+    paddingBottom: 96,
   },
-  row: {
-    paddingVertical: Space.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Ghost.border.subtle,
+  card: {
+    marginHorizontal: Space.lg,
+    marginBottom: Space.md,
     gap: 4,
   },
   rowHead: {
@@ -425,15 +376,14 @@ const styles = StyleSheet.create({
   rowTitle: {
     color: Ghost.text.primary,
     flexShrink: 1,
-  },
-  badge: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: Space.sm,
-    paddingVertical: 2,
+    fontSize: 16.5,
+    fontWeight: "500",
+    letterSpacing: -0.2,
   },
   rowMeta: {
     color: Ghost.text.secondary,
+    fontWeight: "300",
+    fontSize: 13.5,
   },
   rowWhat: {
     color: Ghost.text.tertiary,
@@ -446,20 +396,11 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     gap: Space.sm,
-    marginTop: Space.sm,
+    marginTop: Space.md,
   },
-  sectionLabel: {
+  none: {
     color: Ghost.text.tertiary,
-    textTransform: "uppercase",
-    marginTop: Space.xl,
-    marginBottom: Space.xs,
-  },
-  sectionDesc: {
-    color: Ghost.text.secondary,
-    marginBottom: Space.sm,
-  },
-  creator: {
-    gap: Space.sm,
-    marginBottom: Space.lg,
+    textAlign: "center",
+    marginTop: Space.lg,
   },
 });

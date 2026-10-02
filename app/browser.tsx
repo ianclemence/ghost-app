@@ -5,6 +5,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ghost, Radius, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
+import { ScreenBackground } from "@/components/screen-glow";
 import {
   mintBrowserScreencast,
   releaseSurfaceControl,
@@ -143,6 +144,7 @@ export default function BrowserScreen() {
 
   return (
     <View style={styles.root}>
+      <ScreenBackground variant="calm" />
       <ScreenHeader
         title="Ghost's browser"
         subtitle={state === "live" ? "You have control. Ghost is paused." : undefined}

@@ -28,7 +28,7 @@ export type ThreadItem =
   | { kind: "artifact"; key: string; artifact: Artifact; at: number };
 
 const OUT_OF_TURN_GAP_MS = 2 * 60_000;
-const RESUME_GAP_MS = 30 * 60_000;
+const RESUME_GAP_MS = 15 * 60_000;
 const DAY_MS = 86_400_000;
 
 function startOfDay(ms: number): number {

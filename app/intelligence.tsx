@@ -3,10 +3,11 @@ import { ActivityIndicator, RefreshControl, StyleSheet, TouchableOpacity, View }
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ghost, Space, Type } from "@/constants/theme";
+import { Fonts, Ghost, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { ScreenHeader } from "@/components/screen-header";
-import { GhostButton, GhostInput, GhostSheet, GhostToggle, OfflineBadge, StatusDot } from "@/components/ghost";
+import { ScreenBackground } from "@/components/screen-glow";
+import { GhostButton, GhostInput, GhostList, GhostSheet, GhostToggle, OfflineBadge, Panel, SectionHeader, StatusDot, StatusPill } from "@/components/ghost";
 import {
   fetchDoctorStatus,
   fetchIntelligenceConfig,
@@ -289,6 +290,7 @@ export default function IntelligenceScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenBackground variant="calm" />
       <ScreenHeader title="Intelligence" subtitle="Which AI Ghost thinks with" />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>
@@ -322,150 +324,145 @@ export default function IntelligenceScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.primary} />}
         >
-          <GhostText type="caption" style={styles.group}>Active model</GhostText>
+          <SectionHeader title="Active model" style={styles.first} />
           {activePreset ? (
-            <View style={styles.row}>
-              <View style={styles.rowBody}>
-                <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{activePreset.name}</GhostText>
-                <GhostText type="footnote" style={styles.rowMeta} numberOfLines={2}>
-                  {providerName(activePreset.provider)}{activePreset.model ? ` · ${activePreset.model}` : ""}
-                  {isLocalProvider(activePreset.provider) ? " · Local" : ""}
-                </GhostText>
+            <Panel style={{ marginTop: 0 }}>
+              <View style={[styles.row, styles.rowFlush]}>
+                <View style={styles.rowBody}>
+                  <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{activePreset.name}</GhostText>
+                  <GhostText type="footnote" style={styles.rowMeta} numberOfLines={2}>
+                    {providerName(activePreset.provider)}{activePreset.model ? ` · ${activePreset.model}` : ""}
+                    {isLocalProvider(activePreset.provider) ? " · Local" : ""}
+                  </GhostText>
+                </View>
+                <StatusPill label="Active" tone="ok" />
               </View>
-              <View style={styles.activePill}>
-                <StatusDot status="online" />
-                <GhostText type="footnote" style={styles.activeLabel}>Active</GhostText>
-              </View>
-            </View>
+            </Panel>
           ) : (
-            <GhostText type="footnote" style={styles.rowMeta}>
+            <GhostText type="footnote" style={styles.none}>
               {state?.active ? state.active : "No model selected."}
             </GhostText>
           )}
 
           {groups.map((g) => (
             <View key={g.provider}>
-              <GhostText type="caption" style={styles.group}>{providerName(g.provider)}</GhostText>
-              {g.presets.map((p) => {
-                const active = state ? matchesActive(p, state.active) : false;
-                return (
-                  <View key={`${p.provider}:${p.name || p.model}`} style={styles.row}>
-                    <View style={styles.rowBody}>
-                      <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{p.name || p.model}</GhostText>
-                      <GhostText type="footnote" style={styles.rowMeta} numberOfLines={2}>
-                        {p.model}{isLocalProvider(p.provider) ? " · Local" : ""}
-                      </GhostText>
-                      {!p.available && p.unavailable_reason ? (
-                        <GhostText type="footnote" style={styles.rowWarn} numberOfLines={2}>{p.unavailable_reason}</GhostText>
-                      ) : null}
-                    </View>
-                    {active ? (
-                      <View style={styles.activePill}>
-                        <StatusDot status="online" />
-                        <GhostText type="footnote" style={styles.activeLabel}>Active</GhostText>
+              <SectionHeader title={providerName(g.provider)} />
+              <GhostList>
+                {g.presets.map((p) => {
+                  const active = state ? matchesActive(p, state.active) : false;
+                  return (
+                    <View key={`${p.provider}:${p.name || p.model}`} style={styles.row}>
+                      <View style={styles.rowBody}>
+                        <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{p.name || p.model}</GhostText>
+                        <GhostText type="footnote" style={styles.rowMeta} numberOfLines={2}>
+                          {p.model}{isLocalProvider(p.provider) ? " · Local" : ""}
+                        </GhostText>
+                        {!p.available && p.unavailable_reason ? (
+                          <GhostText type="footnote" style={styles.rowWarn} numberOfLines={2}>{p.unavailable_reason}</GhostText>
+                        ) : null}
                       </View>
-                    ) : p.available ? (
-                      <GhostButton title="Use" variant="secondary" onPress={() => { setSelected(p); setSwitchError(null); }} />
-                    ) : (
-                      <GhostText type="footnote" style={styles.needsKey}>Needs key</GhostText>
-                    )}
-                  </View>
-                );
-              })}
+                      {active ? (
+                        <StatusPill label="Active" tone="ok" />
+                      ) : p.available ? (
+                        <GhostButton title="Use" variant="secondary" size="sm" onPress={() => { setSelected(p); setSwitchError(null); }} />
+                      ) : (
+                        <StatusPill label="Needs key" tone="warn" dot={false} />
+                      )}
+                    </View>
+                  );
+                })}
+              </GhostList>
             </View>
           ))}
           {(state?.presets ?? []).length === 0 ? (
-            <GhostText type="footnote" style={styles.rowMeta}>No models configured yet.</GhostText>
+            <GhostText type="footnote" style={styles.none}>No models configured yet.</GhostText>
           ) : null}
 
-          <GhostText type="caption" style={styles.group}>Providers</GhostText>
-          <GhostText type="footnote" style={styles.sectionDesc}>Cloud AI services Ghost may use. Apps Ghost acts on live under Connected Apps.</GhostText>
+          <SectionHeader title="Providers" subtitle="Cloud AI services Ghost may use. Apps Ghost acts on live under Connected apps." />
           {providerKeys.length === 0 ? (
-            <GhostText type="footnote" style={styles.rowMeta}>No provider info yet.</GhostText>
-          ) : providerKeys.map((key) => {
-            const info = providersState!.providers[key];
-            const local = info.local || isLocalProvider(key);
-            const isDefault = key === defaultProvider;
-            const modelCount = info.models.length;
-            return (
-              <View key={key} style={styles.row}>
-                <View style={styles.rowBody}>
-                  <GhostText type="headline" style={styles.rowTitle}>{providerName(key)}</GhostText>
-                  <GhostText type="footnote" style={styles.rowMeta} numberOfLines={2}>
-                    {info.configured
-                      ? `Connected${modelCount > 0 ? ` · ${modelCount} model${modelCount !== 1 ? "s" : ""}` : ""}`
-                      : local ? "Running locally" : "Not configured"}
-                    {isDefault ? (info.configured ? " · Default" : local ? " · Default · local" : " · Default · needs key") : ""}
-                  </GhostText>
-                </View>
-                <GhostButton
-                  title={info.configured ? "Configure" : "Set up"}
-                  variant="secondary"
-                  onPress={() => openConfigure(key)}
-                />
-              </View>
-            );
-          })}
+            <GhostText type="footnote" style={styles.none}>No provider info yet.</GhostText>
+          ) : (
+            <GhostList>
+              {providerKeys.map((key) => {
+                const info = providersState!.providers[key];
+                const local = info.local || isLocalProvider(key);
+                const isDefault = key === defaultProvider;
+                const modelCount = info.models.length;
+                return (
+                  <View key={key} style={styles.row}>
+                    <View style={styles.rowBody}>
+                      <View style={styles.nameLine}>
+                        <GhostText type="headline" style={styles.rowTitle}>{providerName(key)}</GhostText>
+                        {isDefault ? <StatusPill label="Default" tone="ok" /> : null}
+                      </View>
+                      <GhostText type="footnote" style={styles.rowMeta} numberOfLines={2}>
+                        {info.configured
+                          ? `Connected${modelCount > 0 ? ` · ${modelCount} model${modelCount !== 1 ? "s" : ""}` : ""}`
+                          : local ? "Running locally" : "Not configured"}
+                      </GhostText>
+                    </View>
+                    <GhostButton
+                      title={info.configured ? "Configure" : "Set up"}
+                      variant={info.configured ? "secondary" : "primary"}
+                      size="sm"
+                      onPress={() => openConfigure(key)}
+                    />
+                  </View>
+                );
+              })}
+            </GhostList>
+          )}
 
-          <GhostText type="caption" style={styles.group}>Routing</GhostText>
-          <GhostText type="footnote" style={styles.sectionDesc}>Ghost automatically chooses the best model when a task requires something different.</GhostText>
+          <SectionHeader title="Routing" subtitle="Ghost automatically chooses the best model when a task requires something different." />
           {ghostPrivacy === "local_only" ? (
-            <GhostText type="footnote" style={styles.rowMeta}>Ghost privacy is Local only, so cloud stays off no matter these toggles. Change it on the Ghost screen.</GhostText>
+            <GhostText type="footnote" style={styles.none}>Ghost privacy is Local only, so cloud stays off no matter these toggles. Change it on the Ghost screen.</GhostText>
           ) : null}
           {routingError ? <GhostText type="footnote" style={styles.rowWarn}>{routingError}</GhostText> : null}
-          {ROUTING_ROWS.map((r) => (
-            <View key={r.key} style={styles.row}>
-              <View style={styles.rowBody}>
-                <GhostText type="headline" style={styles.rowTitle}>{r.label}</GhostText>
-                <GhostText type="footnote" style={styles.rowMeta} numberOfLines={3}>{r.desc}</GhostText>
-              </View>
-              <GhostToggle
-                value={intelConfig?.routing[r.key] ?? false}
-                onValueChange={(v) => toggleRouting(r.key, v)}
-                accessibilityLabel={r.label}
-              />
-            </View>
-          ))}
-
-          <GhostText type="caption" style={styles.group}>AI health</GhostText>
-          {healthRunning ? (
-            <View style={styles.healthEmpty}>
-              <ActivityIndicator color={Ghost.text.primary} />
-            </View>
-          ) : !healthRan ? (
-            <View style={styles.healthEmpty}>
-              <Text style={styles.emptyHello}>
-                <Text style={styles.emptyMuted}>Check that Ghost AI is reachable.</Text>
-              </Text>
-            </View>
-          ) : health.length === 0 ? (
-            <View style={styles.healthEmpty}>
-              <Text style={styles.emptyHello}>
-                <Text style={styles.emptyInk}>Health check unavailable. </Text>
-                <Text style={styles.emptyMuted}>Ghost may be starting.</Text>
-              </Text>
-            </View>
-          ) : (
-            health.map((c) => (
-              <View key={c.name} style={styles.check}>
-                <StatusDot status={checkStatus(c.status)} />
-                <View style={styles.checkBody}>
-                  <GhostText type="headline" style={styles.rowTitle}>{c.name}</GhostText>
-                  {c.message ? <GhostText type="subhead" style={styles.rowMeta} numberOfLines={3}>{c.message}</GhostText> : null}
+          <GhostList>
+            {ROUTING_ROWS.map((r) => (
+              <View key={r.key} style={styles.row}>
+                <View style={styles.rowBody}>
+                  <GhostText type="headline" style={styles.rowTitle}>{r.label}</GhostText>
+                  <GhostText type="footnote" style={styles.rowMeta} numberOfLines={3}>{r.desc}</GhostText>
                 </View>
+                <GhostToggle
+                  value={intelConfig?.routing[r.key] ?? false}
+                  onValueChange={(v) => toggleRouting(r.key, v)}
+                  accessibilityLabel={r.label}
+                />
               </View>
-            ))
-          )}
-          <View style={styles.healthBtnWrap}>
+            ))}
+          </GhostList>
+
+          <SectionHeader title="AI health" />
+          <Panel style={{ marginTop: 0 }}>
+            {healthRunning ? (
+              <ActivityIndicator color={Ghost.text.primary} />
+            ) : !healthRan ? (
+              <GhostText type="footnote" style={styles.none}>Check that Ghost AI is reachable.</GhostText>
+            ) : health.length === 0 ? (
+              <GhostText type="footnote" style={styles.none}>Health check unavailable. Ghost may be starting.</GhostText>
+            ) : (
+              health.map((c) => (
+                <View key={c.name} style={styles.check}>
+                  <StatusDot status={checkStatus(c.status)} />
+                  <View style={styles.checkBody}>
+                    <GhostText type="headline" style={styles.rowTitle}>{c.name}</GhostText>
+                    {c.message ? <GhostText type="subhead" style={styles.rowMeta} numberOfLines={3}>{c.message}</GhostText> : null}
+                  </View>
+                </View>
+              ))
+            )}
             <GhostButton
               title={healthRunning ? "Checking…" : "Run check"}
               variant="secondary"
+              size="sm"
               onPress={() => void runHealth()}
               disabled={healthRunning}
               loading={healthRunning}
-              style={{ alignSelf: "center" }}
+              style={{ alignSelf: "flex-start", marginTop: Space.xs }}
             />
-          </View>
+          </Panel>
         </EdgeScrollView>
       )}
       <GhostSheet
@@ -534,19 +531,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Ghost.bg.base,
   },
-  header: {
-    paddingHorizontal: Space.xl,
-    paddingVertical: Space.lg,
-  },
-  title: {
-    ...Type.largeTitle,
-    color: Ghost.text.primary,
-  },
-  sub: {
-    ...Type.subhead,
-    color: Ghost.text.secondary,
-    marginTop: 2,
-  },
   offlineWrap: {
     alignItems: "center",
   },
@@ -557,88 +541,72 @@ const styles = StyleSheet.create({
     paddingHorizontal: 44,
   },
   emptyHello: {
-    fontSize: 21,
-    lineHeight: 30,
+    fontFamily: Fonts.voice,
+    fontSize: 30,
+    lineHeight: 36,
     textAlign: "center",
-    letterSpacing: -0.2,
+    letterSpacing: -0.5,
   },
   emptyMuted: {
-    color: Ghost.text.tertiary,
+    color: Ghost.text.secondary,
+    fontFamily: undefined,
   },
   emptyInk: {
     color: Ghost.text.primary,
-    fontWeight: "700",
   },
   retry: {
     marginTop: Space.lg,
     fontSize: 15,
-    fontWeight: "600",
-    color: Ghost.text.primary,
+    fontWeight: "500",
+    color: Ghost.accent.primary,
   },
   list: {
-    paddingHorizontal: Space.xl,
-    // FAB clearance: button height + edge distance.
-    paddingBottom: Space.huge + Space.edge,
+    paddingBottom: 96,
   },
-  group: {
+  first: { paddingTop: Space.xs },
+  none: {
     color: Ghost.text.tertiary,
-    textTransform: "uppercase",
-    marginBottom: Space.sm,
-    marginTop: Space.lg,
-  },
-  sectionDesc: {
-    color: Ghost.text.secondary,
-    marginBottom: Space.xs,
+    textAlign: "center",
+    marginTop: Space.md,
+    paddingHorizontal: Space.xl,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: Space.md,
     paddingVertical: Space.md,
+    paddingHorizontal: Space.xl,
   },
   rowBody: {
     flex: 1,
     gap: 2,
   },
+  rowFlush: { paddingHorizontal: 0, paddingVertical: 0 },
+  nameLine: { flexDirection: "row", alignItems: "center", gap: Space.sm, flexWrap: "wrap" },
   rowTitle: {
     color: Ghost.text.primary,
+    fontSize: 16,
+    fontWeight: "500",
+    letterSpacing: -0.15,
   },
   rowMeta: {
     color: Ghost.text.secondary,
+    fontWeight: "300",
+    fontSize: 13.5,
+    lineHeight: 19,
   },
   rowWarn: {
-    color: Ghost.text.primary,
-  },
-  needsKey: {
-    color: Ghost.text.tertiary,
-  },
-  activePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.xs,
-  },
-  activeLabel: {
-    color: Ghost.text.primary,
-    fontWeight: "600",
+    color: Ghost.status.warning,
   },
   check: {
     flexDirection: "row",
     alignItems: "center",
     gap: Space.md,
-    paddingVertical: Space.md,
+    paddingVertical: Space.sm,
   },
   checkBody: {
     flex: 1,
     gap: 2,
-  },
-  healthEmpty: {
-    alignItems: "center",
-    paddingVertical: Space.lg,
-    paddingHorizontal: Space.md,
-  },
-  healthBtnWrap: {
-    alignItems: "center",
-    marginTop: Space.sm,
   },
   sheetDesc: {
     color: Ghost.text.secondary,

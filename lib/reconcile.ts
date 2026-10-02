@@ -51,12 +51,14 @@ export function reconcileHistory(
   const matchedServer = new Set<string>();
   const matchedLocal = new Set<string>();
 
+  const pairs = new Map<string, Message[]>();
   const tryMatch = (s: Message, unmatchedOnly: boolean): boolean => {
     for (const m of local) {
       if (unmatchedOnly && matchedLocal.has(m.id)) continue;
       if (corresponds(m, s)) {
         matchedServer.add(s.id);
         matchedLocal.add(m.id);
+        pairs.set(m.id, [...(pairs.get(m.id) ?? []), s]);
         return true;
       }
     }
@@ -73,7 +75,15 @@ export function reconcileHistory(
     if (!matchedServer.has(s.id)) tryMatch(s, false);
   }
 
-  const out: ExtendedMessage[] = [...local];
+  // A reply that was cut off mid-stream is the one case where the Pod's copy
+  // wins: what was watched is only the start of it. Everything else keeps the
+  // local copy so a message you just watched never rewrites itself.
+  const out: ExtendedMessage[] = local.map((m) => {
+    if (!m.incomplete) return m;
+    const full = (pairs.get(m.id) ?? []).reduce((best, s) => (s.content.length > best.length ? s.content : best), "");
+    if (full.length > m.content.length) return { ...m, content: full, incomplete: false };
+    return m;
+  });
   const fresh = server
     .filter((s) => !matchedServer.has(s.id))
     .map((s) => ({ ...s }) as ExtendedMessage)

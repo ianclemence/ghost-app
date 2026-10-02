@@ -17,7 +17,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { AlarmClock, Info, Repeat, TriangleAlert } from "lucide-react-native";
 import { Ghost, Radius, Space } from "@/constants/theme";
-import { MarkdownBubble } from "@/components/markdown-bubble";
+import { MarkdownBubble, UserMarkdown } from "@/components/markdown-bubble";
 import { clockTime } from "@/lib/thread";
 import type { ExtendedMessage } from "@/lib/store";
 
@@ -104,22 +104,26 @@ export const UserMessage = memo(function UserMessage({
   const reduce = useReducedMotion();
   const { copied, copy } = useCopy(message.content);
   const hasText = message.content.trim().length > 0;
+  // Tapping a message shows when it was sent, for the one you are wondering about.
+  const [exact, setExact] = useState(false);
   return (
     <Animated.View entering={enter(reduce, animate)} style={[styles.userRow, groupStart && styles.groupGap]}>
-      {showTime ? <Text style={[styles.meta, styles.metaRight]}>{clockTime(message.timestamp)}</Text> : null}
+      {showTime ? <Text style={styles.timeCaption} accessibilityLabel={`Sent ${clockTime(message.timestamp)}`}>{clockTime(message.timestamp)}</Text> : null}
       {attachments}
       {hasText || !attachments ? (
       <Pressable
+        onPress={() => setExact((v) => !v)}
         onLongPress={copy}
         delayLongPress={350}
         accessibilityRole="text"
         accessibilityLabel={`You said: ${message.content}`}
-        accessibilityHint="Long press to copy"
+        accessibilityHint="Tap to see when you sent it. Long press to copy"
         style={({ pressed }) => [styles.bubble, pressed && styles.bubblePressed]}
       >
-        <Text style={styles.userText} selectable={false}>{message.content}</Text>
+        <UserMarkdown content={message.content} />
       </Pressable>
       ) : null}
+      {exact ? <Text style={[styles.meta, styles.metaRight]}>{clockTime(message.timestamp)}</Text> : null}
       {message.status === "queued" ? (
         <Text style={[styles.meta, styles.metaRight]} accessibilityLiveRegion="polite">
           Waiting to send · goes out when you&apos;re back online
@@ -138,7 +142,6 @@ export const GhostMessage = memo(function GhostMessage({
   showTime,
   groupStart,
   phase,
-  origin,
   animate,
 }: {
   message: ExtendedMessage;
@@ -147,38 +150,41 @@ export const GhostMessage = memo(function GhostMessage({
   groupStart: boolean;
   /** Live phase text while this message is still being produced. */
   phase: string | null;
-  /** "Answered on this phone"-style provenance, when known. */
-  origin: string | null;
   animate: boolean;
 }) {
   const reduce = useReducedMotion();
   const { copied, copy } = useCopy(message.content);
   const streaming = message.status === "streaming";
   const empty = !message.content.trim();
+  const [exact, setExact] = useState(false);
   return (
     <Animated.View entering={enter(reduce, animate)} style={[styles.ghostRow, groupStart && styles.groupGap]}>
       {message.kind ? (
         <KindLabel kind={message.kind} time={showTime || message.kind !== undefined ? clockTime(message.timestamp) : null} />
-      ) : showTime ? (
-        <View style={styles.eyebrow} accessible accessibilityLabel={outOfTurn ? `Ghost, on its own, at ${clockTime(message.timestamp)}` : clockTime(message.timestamp)}>
-          {outOfTurn ? <EmberDot size={6} active={false} /> : null}
+      ) : outOfTurn ? (
+        // Ghost spoke first: that is worth marking, with the amber light.
+        <View style={styles.eyebrow} accessible accessibilityLabel={`Ghost, on its own, at ${clockTime(message.timestamp)}`}>
+          <EmberDot size={6} active={false} />
           <Text style={styles.meta}>{clockTime(message.timestamp)}</Text>
         </View>
+      ) : showTime ? (
+        <Text style={styles.timeCaption} accessibilityLabel={clockTime(message.timestamp)}>{clockTime(message.timestamp)}</Text>
       ) : null}
       {empty && streaming ? (
         <Thinking phase={phase} />
       ) : (
         <Pressable
+          onPress={() => setExact((v) => !v)}
           onLongPress={copy}
           delayLongPress={350}
           disabled={streaming}
-          accessibilityHint={streaming ? undefined : "Long press to copy"}
+          accessibilityHint={streaming ? undefined : "Tap to see when Ghost wrote it. Long press to copy"}
         >
           <MarkdownBubble content={message.content} streaming={streaming} />
         </Pressable>
       )}
       {streaming && !empty && phase ? <Thinking phase={phase} compact /> : null}
-      {!streaming && origin ? <Text style={styles.meta}>{origin}</Text> : null}
+      {exact && !streaming ? <Text style={styles.meta}>{clockTime(message.timestamp)}</Text> : null}
       {copied ? <Copied align="left" /> : null}
     </Animated.View>
   );
@@ -267,13 +273,6 @@ const styles = StyleSheet.create({
   bubblePressed: {
     opacity: 0.85,
   },
-  userText: {
-    fontSize: 17,
-    lineHeight: 25,
-    fontWeight: "300",
-    letterSpacing: -0.2,
-    color: Ghost.text.primary,
-  },
   ghostRow: {
     alignItems: "stretch",
     marginTop: Space.xs,
@@ -292,6 +291,16 @@ const styles = StyleSheet.create({
   },
   metaRight: {
     textAlign: "right",
+  },
+  // A pause in the conversation: one centred time before what follows, the
+  // way messaging apps mark it, so it never looks like it belongs to one bubble.
+  timeCaption: {
+    alignSelf: "center",
+    fontSize: 12,
+    lineHeight: 16,
+    color: Ghost.text.tertiary,
+    marginTop: 10,
+    marginBottom: 8,
   },
   metaError: {
     color: Ghost.status.error,

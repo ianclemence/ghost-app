@@ -8,7 +8,7 @@ import Reanimated, {
   withTiming,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
-import { X } from "lucide-react-native";
+import { ChevronRight, X } from "lucide-react-native";
 import {
   ActivityIndicator,
   Modal,
@@ -24,7 +24,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { alpha, Ghost, Inter, Radius, Space, UI } from "@/constants/theme";
+import { alpha, Fonts, Ghost, Inter, Radius, Space, UI } from "@/constants/theme";
+import { GlassCard } from "@/components/glass";
 import { GhostText } from "@/components/themed-text";
 import { GhostMark } from "@/components/ghost-mark";
 
@@ -94,11 +95,14 @@ export function GhostButton({
   rightIcon,
   fullWidth,
   loading,
+  size = "md",
   style,
 }: {
   title: string;
   onPress?: () => void;
   variant?: ButtonVariant;
+  /** "sm" is the in-row size: Allow, Configure, Pause. */
+  size?: "md" | "sm";
   disabled?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -136,15 +140,15 @@ export function GhostButton({
           alignItems: "center",
           justifyContent: "center",
           gap: Space.sm,
-          paddingVertical: Space.sm,
-          paddingHorizontal: 22,
+          paddingVertical: size === "sm" ? 6 : Space.sm,
+          paddingHorizontal: size === "sm" ? 16 : 22,
           borderRadius: Radius.full,
           backgroundColor: disabled ? Ghost.glass.fill : palette.bg,
           borderWidth: variant === "ghost" ? 0 : StyleSheet.hairlineWidth,
           borderColor: disabled ? Ghost.border.subtle : palette.border,
           opacity: disabled ? 0.45 : 1,
           alignSelf: fullWidth ? "stretch" : "flex-start",
-          minHeight: 44,
+          minHeight: size === "sm" ? 34 : 44,
           boxShadow: palette.glow && interactive ? "0 0 20px rgba(58,46,240,0.5)" : undefined,
         },
         style,
@@ -162,7 +166,7 @@ export function GhostButton({
             type="headline"
             style={{
               color: disabled ? Ghost.text.tertiary : palette.fg,
-              fontSize: 14.5,
+              fontSize: size === "sm" ? 13.5 : 14.5,
               fontWeight: "500",
               letterSpacing: -0.1,
             }}
@@ -391,25 +395,28 @@ export function SectionHeader({
           flexDirection: "row",
           alignItems: "flex-end",
           justifyContent: "space-between",
-          paddingHorizontal: Space.xl,
+          paddingHorizontal: Space.xl + 6,
           paddingTop: Space.xxl,
-          paddingBottom: Space.xs,
+          paddingBottom: Space.sm,
         },
         style,
       ]}
     >
-      <View style={{ gap: Space.xxs }}>
+      <View style={{ gap: Space.xxs, flexShrink: 1 }}>
         <GhostText
           type="caption"
           style={{
             color: Ghost.text.tertiary,
-            letterSpacing: 0.3,
+            fontSize: 11.5,
+            fontWeight: "500",
+            letterSpacing: 1.1,
+            textTransform: "uppercase",
           }}
         >
           {title}
         </GhostText>
         {subtitle ? (
-          <GhostText type="subhead" style={{ color: Ghost.text.secondary }}>
+          <GhostText type="subhead" style={{ color: Ghost.text.secondary, fontWeight: "300" }}>
             {subtitle}
           </GhostText>
         ) : null}
@@ -420,33 +427,38 @@ export function SectionHeader({
 }
 
 /* ------------------------------------------------------------------ */
-/* GhostList + GhostRow                                               */
+/* GhostList + GhostRow: a glass panel of hairline-divided rows        */
 /* ------------------------------------------------------------------ */
 
 export function GhostList({
   children,
-  divided = false,
+  divided = true,
   style,
 }: {
   children: React.ReactNode;
   divided?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const items = React.Children.toArray(children).filter(Boolean);
   return (
     <View
       style={[
         {
-          marginHorizontal: Space.xl,
+          marginHorizontal: Space.lg,
+          borderRadius: 26,
+          borderCurve: "continuous",
+          backgroundColor: "rgba(0,0,0,0.42)",
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: Ghost.glass.border,
+          overflow: "hidden",
         },
         style,
       ]}
     >
-      {React.Children.map(children, (child, i) => (
+      {items.map((child, i) => (
         <View key={i}>
           {child}
-          {divided && i < React.Children.count(children) - 1 ? (
-            <Divider style={{ marginLeft: Space.xl }} />
-          ) : null}
+          {divided && i < items.length - 1 ? <Divider style={{ marginHorizontal: Space.xl }} /> : null}
         </View>
       ))}
     </View>
@@ -468,54 +480,125 @@ export function GhostRow({
   chevron?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
-  const content = (
+  const content = (pressed: boolean) => (
     <View
       style={[
         {
           flexDirection: "row",
           alignItems: "center",
-          paddingVertical: Space.sm + 2,
+          gap: Space.md,
+          paddingVertical: Space.md,
           paddingHorizontal: Space.xl,
-          minHeight: 48,
+          minHeight: 56,
+          backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent",
         },
         style,
       ]}
     >
       <View style={{ flex: 1, gap: 2 }}>
-        <GhostText type="body" style={{ color: Ghost.text.primary }}>
+        <GhostText type="body" style={{ color: Ghost.text.primary, fontSize: 16, fontWeight: "500", letterSpacing: -0.15 }}>
           {title}
         </GhostText>
         {subtitle ? (
-          <GhostText type="subhead" style={{ color: Ghost.text.secondary }}>
+          <GhostText type="subhead" style={{ color: Ghost.text.secondary, fontWeight: "300", fontSize: 13.5, lineHeight: 19 }}>
             {subtitle}
           </GhostText>
         ) : null}
       </View>
       {trailing}
-      {chevron ? (
-        <GhostText
-          type="callout"
-          style={{ color: Ghost.text.tertiary, marginLeft: Space.xs }}
-        >
-          ›
-        </GhostText>
-      ) : null}
+      {chevron ? <ChevronRight size={18} color={Ghost.text.tertiary} strokeWidth={1.6} /> : null}
     </View>
   );
 
   if (onPress) {
     return (
-      <TouchableOpacity
-        activeOpacity={0.6}
+      <Pressable
         onPress={onPress}
         accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
         accessibilityRole="button"
       >
-        {content}
-      </TouchableOpacity>
+        {({ pressed }) => content(pressed)}
+      </Pressable>
     );
   }
-  return content;
+  return content(false);
+}
+
+/* ------------------------------------------------------------------ */
+/* Panel: a titled glass card, the console's .panel                    */
+/* ------------------------------------------------------------------ */
+
+export function Panel({
+  title,
+  description,
+  action,
+  children,
+  style,
+}: {
+  title?: string;
+  description?: string;
+  action?: React.ReactNode;
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <GlassCard style={[{ marginHorizontal: Space.lg, marginTop: Space.md, gap: Space.sm }, style]}>
+      {title || action ? (
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: Space.md }}>
+          {title ? (
+            <GhostText type="headline" style={{ fontSize: 17, fontWeight: "600", letterSpacing: -0.2, flexShrink: 1 }}>
+              {title}
+            </GhostText>
+          ) : <View />}
+          {action}
+        </View>
+      ) : null}
+      {description ? (
+        <GhostText type="subhead" style={{ color: Ghost.text.secondary, fontWeight: "300", fontSize: 14.5, lineHeight: 21 }}>
+          {description}
+        </GhostText>
+      ) : null}
+      {children}
+    </GlassCard>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* StatusPill: a word with a light, the console's .status-pill         */
+/* ------------------------------------------------------------------ */
+
+const PILL = {
+  ok: Ghost.status.success,
+  warn: Ghost.status.warning,
+  bad: Ghost.status.error,
+  info: Ghost.status.info,
+  off: Ghost.text.tertiary,
+  accent: Ghost.accent.primary,
+} as const;
+
+export function StatusPill({ label, tone = "off", dot = true }: { label: string; tone?: keyof typeof PILL; dot?: boolean }) {
+  const color = PILL[tone];
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        alignSelf: "flex-start",
+        paddingHorizontal: 10,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: alpha(color, 0.12),
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: alpha(color, 0.32),
+      }}
+    >
+      {dot ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} /> : null}
+      <GhostText type="caption" style={{ color, fontSize: 12, fontWeight: "500", letterSpacing: 0.1 }}>
+        {label}
+      </GhostText>
+    </View>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -541,8 +624,8 @@ export function GhostToggle({
       accessibilityLabel={accessibilityLabel}
       // On reads as on at a glance: a green track, as in the console. Off is a
       // quiet well. The thumb is white in both, so only the track changes.
-      trackColor={{ false: Ghost.border.strong, true: Ghost.status.success }}
-      ios_backgroundColor={Ghost.border.strong}
+      trackColor={{ false: "rgba(255,255,255,0.16)", true: Ghost.status.success }}
+      ios_backgroundColor="rgba(255,255,255,0.16)"
       thumbColor="#FFFFFF"
       style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
     />
@@ -646,10 +729,10 @@ export function EmptyState({
           style={{
             textAlign: "center",
             color: Ghost.text.primary,
-            fontSize: 21,
-            lineHeight: 30,
-            fontWeight: "600",
-            letterSpacing: -0.2,
+            fontFamily: Fonts.voice,
+            fontSize: 30,
+            lineHeight: 36,
+            letterSpacing: -0.5,
           }}
         >
           {title}
@@ -659,8 +742,9 @@ export function EmptyState({
             style={{
               textAlign: "center",
               color: Ghost.text.secondary,
-              fontSize: 15,
-              lineHeight: 22,
+              fontSize: 15.5,
+              lineHeight: 23,
+              fontWeight: "300",
             }}
           >
             {subtitle}

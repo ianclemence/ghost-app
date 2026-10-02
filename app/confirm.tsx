@@ -1,14 +1,8 @@
-import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { GhostText } from "@/components/themed-text";
 import { GhostButton } from "@/components/ghost";
-import { GhostMark } from "@/components/ghost-mark";
-import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
-import { Ghost, Space } from "@/constants/theme";
+import { StatusScreen } from "@/components/status-screen";
 import { completePairing } from "@/lib/connection";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-const SUCCESS_ENTER = FadeIn.duration(300).easing(Easing.bezier(0.23, 1, 0.32, 1));
 
 /**
  * Pairing progress screen.
@@ -29,7 +23,6 @@ export default function PairingProgressScreen() {
   const [status, setStatus] = useState<"connecting" | "success" | "error">("connecting");
   const [error, setError] = useState<string | null>(null);
   const hasStarted = useRef(false);
-  const reduceMotion = useReducedMotion();
 
   const startPairing = useCallback(async () => {
     if (!params.token || (!params.host && params.transport !== "relay")) {
@@ -68,107 +61,35 @@ export default function PairingProgressScreen() {
   }, [startPairing]);
 
   if (status === "success") {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <Animated.View entering={reduceMotion ? undefined : SUCCESS_ENTER} style={styles.successMark}>
-          <GhostMark size={48} />
-        </Animated.View>
-        <GhostText type="largeTitle" style={styles.title}>
-          Ghost connected.
-        </GhostText>
-      </View>
-    );
+    return <StatusScreen title="Ghost connected." />;
   }
 
   if (status === "error") {
     return (
-      <View style={[styles.container, styles.center]}>
-        <GhostMark size={48} color={Ghost.text.tertiary} />
-        <GhostText type="headline" style={styles.title}>
-          Couldn&apos;t connect
-        </GhostText>
-        <GhostText type="body" style={styles.errorText}>
-          {error}
-        </GhostText>
-        <View style={styles.actions}>
-          <GhostButton
-            title="Try again"
-            onPress={() => {
-              setStatus("connecting");
-              setError(null);
-              hasStarted.current = false;
-              startPairing();
-            }}
-            fullWidth
-          />
-          <GhostButton
-            title="Cancel"
-            variant="ghost"
-            onPress={() => router.replace("/onboarding")}
-            fullWidth
-          />
-        </View>
-      </View>
+      <StatusScreen
+        tone="bad"
+        hero={false}
+        title="Couldn't connect"
+        body={error}
+        actions={
+          <>
+            <GhostButton
+              title="Try again"
+              onPress={() => {
+                setStatus("connecting");
+                setError(null);
+                hasStarted.current = false;
+                startPairing();
+              }}
+              fullWidth
+            />
+            <GhostButton title="Cancel" variant="secondary" onPress={() => router.replace("/onboarding")} fullWidth />
+          </>
+        }
+      />
     );
   }
 
   // Connecting state
-  return (
-    <View style={[styles.container, styles.center]}>
-      <GhostMark size={48} />
-      <GhostText type="largeTitle" style={styles.title}>
-        Ghost
-      </GhostText>
-      <View style={styles.connectingRow}>
-        <ActivityIndicator color={Ghost.text.primary} size="small" />
-        <GhostText type="body" style={styles.connectingText}>
-          Connecting…
-        </GhostText>
-      </View>
-      <GhostText type="caption" style={styles.hint}>
-        Finding your Ghost Pod
-      </GhostText>
-    </View>
-  );
+  return <StatusScreen title="Connecting" busy hint="Finding your Ghost Pod" />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Ghost.bg.base,
-  },
-  center: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Space.xxxl,
-    gap: Space.md,
-  },
-  successMark: {
-    alignItems: "center",
-  },
-  title: {
-    color: Ghost.text.primary,
-    textAlign: "center",
-  },
-  connectingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.sm,
-  },
-  connectingText: {
-    color: Ghost.text.secondary,
-  },
-  hint: {
-    color: Ghost.text.tertiary,
-    marginTop: Space.sm,
-  },
-  errorText: {
-    color: Ghost.text.secondary,
-    textAlign: "center",
-  },
-  actions: {
-    width: "100%",
-    gap: Space.sm,
-    marginTop: Space.lg,
-  },
-});

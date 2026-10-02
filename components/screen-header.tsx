@@ -2,15 +2,14 @@ import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
-import { ChevronLeft, X } from "lucide-react-native";
+import { ChevronLeft } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Fonts, Ghost, Space } from "@/constants/theme";
 
 /**
- * Header for every screen that isn't the conversation. The conversation is
- * home; everything else is a short trip away from it and back, so the header is
- * one line: the way back, where you are, and at most one thing to do here.
- * A subtitle, when it earns its place, is a single quiet line under it.
+ * Header for every screen that isn't the conversation: the way back on the
+ * left, the title and one quiet line under it centred, and at most one thing
+ * to do here on the right. No bar and no background: it sits on the aurora.
  */
 export function ScreenHeader({
   title,
@@ -33,10 +32,9 @@ export function ScreenHeader({
     if (router.canGoBack()) router.back();
     else router.replace("/");
   };
-  const Icon = variant === "close" ? X : ChevronLeft;
   return (
-    <View style={[styles.wrap, { paddingTop: (inset ? insets.top : 0) + Space.xs }]}>
-      <View style={styles.row}>
+    <View style={[styles.wrap, { paddingTop: (inset ? insets.top : 0) + Space.sm }]}>
+      <View style={styles.bar}>
         <Pressable
           onPress={leave}
           hitSlop={8}
@@ -44,11 +42,11 @@ export function ScreenHeader({
           accessibilityRole="button"
           accessibilityLabel={variant === "close" ? "Close" : "Back"}
         >
-          <Icon size={20} color={Ghost.text.primary} strokeWidth={1.6} />
+          <ChevronLeft size={20} color={Ghost.text.primary} strokeWidth={1.6} />
         </Pressable>
-        <Text style={styles.title} numberOfLines={1} accessibilityRole="header">{title}</Text>
         <View style={styles.trailing}>{trailing}</View>
       </View>
+      <Text style={styles.title} numberOfLines={1} accessibilityRole="header">{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
@@ -57,14 +55,16 @@ export function ScreenHeader({
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: Space.xl,
-    paddingBottom: Space.sm,
-    backgroundColor: Ghost.bg.base,
+    paddingBottom: Space.lg,
+    alignItems: "center",
   },
-  row: {
+  bar: {
+    alignSelf: "stretch",
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 44,
-    gap: 2,
+    justifyContent: "space-between",
+    minHeight: 40,
+    zIndex: 2,
   },
   btn: {
     width: 40,
@@ -72,27 +72,32 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: Space.sm,
-    backgroundColor: Ghost.glass.fill,
+    backgroundColor: "rgba(0,0,0,0.38)",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.glass.border,
-  },
-  title: {
-    flex: 1,
-    fontFamily: Fonts.voice,
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: -0.6,
-    color: Ghost.text.primary,
   },
   trailing: {
     flexDirection: "row",
     alignItems: "center",
+    minWidth: 40,
+    justifyContent: "flex-end",
+  },
+  title: {
+    fontFamily: Fonts.voice,
+    fontSize: 40,
+    lineHeight: 48,
+    letterSpacing: -0.8,
+    color: Ghost.text.primary,
+    textAlign: "center",
+    marginTop: 2,
   },
   subtitle: {
-    fontSize: 13.5,
-    lineHeight: 19,
-    color: Ghost.text.secondary,
-    marginTop: 2,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "300",
+    color: "rgba(255,255,255,0.72)",
+    textAlign: "center",
+    marginTop: 4,
+    maxWidth: 320,
   },
 });

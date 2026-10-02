@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.voice,
     fontSize: 44,
-    lineHeight: 48,
+    lineHeight: 53,
     letterSpacing: -0.8,
     color: Ghost.text.primary,
     marginBottom: Space.sm,

@@ -3,16 +3,20 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Asterisk, Calendar, ChevronRight, Folder, ShieldCheck, SlidersHorizontal, Sparkles, X } from "lucide-react-native";
+import { Calendar, Folder, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
 import { Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { Dock } from "@/components/dock";
+import { ActivityTree } from "@/components/activity-tree";
 import { GhostButton } from "@/components/ghost";
+import { GhostMark } from "@/components/ghost-mark";
 import {
+  fetchActivity,
   fetchMemorySelf,
   fetchPendingApprovals,
   fetchProactiveStatus,
   fetchRoutines,
+  type ActivityChip,
   type RoutineItem,
 } from "@/lib/ghostApi";
 import { proactiveLine } from "@/lib/proactive";
@@ -33,6 +37,11 @@ function greeting(now = new Date()): string {
   return "Good evening.";
 }
 
+/** The Ghost mark, drawn like an icon so the dock can take it. */
+function MarkIcon({ size, color }: { size?: number; color?: string }) {
+  return <GhostMark size={(size ?? 22) + 2} color={color} />;
+}
+
 /** A small glass circle that sits inside a sentence. */
 function Chip({ children }: { children: React.ReactNode }) {
   return <View style={styles.chip}>{children}</View>;
@@ -46,6 +55,7 @@ export default function PanelScreen() {
   const [next, setNext] = useState<RoutineItem | null>(null);
   const [memoryCount, setMemoryCount] = useState<number | null>(null);
   const [quietLine, setQuietLine] = useState<string | null>(null);
+  const [activity, setActivity] = useState<ActivityChip[]>([]);
 
   const load = useCallback(async () => {
     if (!config) return;
@@ -57,6 +67,7 @@ export default function PanelScreen() {
           .sort((a, b) => Date.parse(a.next_run_at ?? "9999") - Date.parse(b.next_run_at ?? "9999"));
         setNext(active[0] ?? null);
       }).catch(() => {}),
+      fetchActivity(config, { limit: 12 }).then(setActivity).catch(() => {}),
       fetchMemorySelf(config).then((m) => setMemoryCount(m.entries.length + m.notes.length)).catch(() => {}),
       fetchProactiveStatus(config).then((p) => setQuietLine(proactiveLine(p).text)).catch(() => {}),
     ]);
@@ -76,18 +87,8 @@ export default function PanelScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="hero" />
-      <Pressable
-        onPress={() => router.back()}
-        hitSlop={10}
-        style={[styles.close, { top: insets.top + Space.sm }]}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      >
-        <X size={20} color={Ghost.text.primary} strokeWidth={1.6} />
-      </Pressable>
-
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 96, paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.title} accessibilityRole="header">{config ? greeting() : "Hello."}</Text>
@@ -121,13 +122,12 @@ export default function PanelScreen() {
                 </Chip>
               </Text>
             ) : null}
-            <GhostButton
-              title="What Ghost did"
-              variant="secondary"
-              onPress={go("/activity")}
-              rightIcon={<ChevronRight size={16} color={Ghost.text.primary} />}
-              style={styles.button}
-            />
+            {activity.length > 0 ? (
+              <View style={styles.latest}>
+                <Text style={styles.latestLabel}>Latest</Text>
+                <ActivityTree items={activity} limit={8} />
+              </View>
+            ) : null}
           </>
         ) : (
           <>
@@ -143,7 +143,7 @@ export default function PanelScreen() {
       {config ? (
         <Dock
           items={[
-            { label: "What Ghost did", icon: Asterisk, onPress: go("/activity") },
+            { label: "Back to the conversation", icon: MarkIcon, onPress: () => router.back() },
             { label: "Coming up", icon: Calendar, onPress: go("/routines") },
             { label: "What Ghost remembers", icon: Sparkles, onPress: go("/memory") },
             { label: "Files", icon: Folder, onPress: go("/files") },
@@ -157,24 +157,11 @@ export default function PanelScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
-  close: {
-    position: "absolute",
-    left: Space.lg,
-    zIndex: 3,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.38)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.glass.border,
-  },
   content: { paddingHorizontal: 28, gap: Space.md },
   title: {
     fontFamily: Fonts.voice,
     fontSize: 52,
-    lineHeight: 54,
+    lineHeight: 62,
     letterSpacing: -1,
     color: Ghost.text.primary,
     marginBottom: Space.xs,
@@ -191,6 +178,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.glass.border,
   },
-  button: { marginTop: Space.md },
+  latest: { marginTop: Space.xl },
+  latestLabel: { fontSize: 11.5, fontWeight: "500", letterSpacing: 1.1, textTransform: "uppercase", color: Ghost.text.tertiary, marginBottom: Space.sm },
   buttons: { marginTop: Space.lg, gap: Space.sm, alignItems: "flex-start" },
 });

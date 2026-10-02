@@ -3,8 +3,11 @@ import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, View } from "re
 import { Text } from "@/components/text";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { Ghost, Space } from "@/constants/theme";
+import { Fonts, Ghost, Space } from "@/constants/theme";
+import { GhostButton } from "@/components/ghost";
+import { GlassCard } from "@/components/glass";
 import { ScreenHeader } from "@/components/screen-header";
+import { ScreenBackground } from "@/components/screen-glow";
 import { deleteFile, fetchFileContent, fetchFilePreview, type FilePreview } from "@/lib/ghostApi";
 import { fileSize } from "@/lib/attachments";
 import { writeCacheFile } from "@/lib/localFiles";
@@ -80,14 +83,11 @@ export default function FileScreen() {
   const title = p?.name ?? (typeof name === "string" ? name : "File");
   return (
     <View style={styles.container}>
+      <ScreenBackground variant="calm" />
       <ScreenHeader title={title} subtitle={p ? `${fileSize(p.size)}${p.extracted ? " · text Ghost reads from it" : ""}` : undefined} />
       <View style={styles.actions}>
-        <Pressable onPress={open} disabled={!!busy} style={[styles.btn, styles.btnPrimary]} accessibilityRole="button" accessibilityLabel="Open in another app">
-          {busy === "open" ? <ActivityIndicator size="small" color={Ghost.text.inverse} /> : <Text style={styles.btnPrimaryText}>Open</Text>}
-        </Pressable>
-        <Pressable onPress={remove} disabled={!!busy} style={styles.btn} accessibilityRole="button" accessibilityLabel="Delete file">
-          <Text style={styles.btnDangerText}>Delete</Text>
-        </Pressable>
+        <GhostButton title={busy === "open" ? "Opening…" : "Open"} variant="primary" onPress={open} disabled={!!busy} />
+        <GhostButton title={busy === "delete" ? "Deleting…" : "Delete"} variant="danger" onPress={remove} disabled={!!busy} />
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!p && !error ? (
@@ -95,20 +95,22 @@ export default function FileScreen() {
       ) : p ? (
         <EdgeScrollView contentContainerStyle={styles.content}>
           {p.previewable && p.image_base64 ? (
-            <Image
-              source={{ uri: `data:${p.mime};base64,${p.image_base64}` }}
-              style={styles.image}
-              resizeMode="contain"
-              accessibilityLabel={`Preview of ${p.name}`}
-            />
+            <View style={styles.frame}>
+              <Image
+                source={{ uri: `data:${p.mime};base64,${p.image_base64}` }}
+                style={styles.image}
+                resizeMode="contain"
+                accessibilityLabel={`Preview of ${p.name}`}
+              />
+            </View>
           ) : null}
           {p.previewable && p.content !== undefined ? (
-            <>
+            <GlassCard>
               <Text style={styles.text} selectable>{p.content}</Text>
               {p.truncated ? <Text style={styles.note}>Showing the first part. Open the file to see all of it.</Text> : null}
-            </>
+            </GlassCard>
           ) : null}
-          {!p.previewable ? <Text style={styles.note}>{p.reason ?? "There is no preview for this file. Open it instead."}</Text> : null}
+          {!p.previewable ? <Text style={[styles.note, { textAlign: "center" }]}>{p.reason ?? "There is no preview for this file. Open it instead."}</Text> : null}
         </EdgeScrollView>
       ) : null}
     </View>
@@ -117,24 +119,18 @@ export default function FileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
-  content: { padding: Space.xl, paddingBottom: Space.huge, gap: Space.md },
-  actions: { flexDirection: "row", gap: Space.sm, paddingHorizontal: Space.xl, paddingBottom: Space.sm },
-  btn: {
-    minHeight: 44,
-    minWidth: 96,
-    paddingHorizontal: Space.lg,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Ghost.bg.raised,
+  content: { padding: Space.lg, paddingBottom: 96, gap: Space.md },
+  actions: { flexDirection: "row", gap: Space.sm, justifyContent: "center", paddingHorizontal: Space.xl, paddingBottom: Space.md },
+  frame: {
+    borderRadius: 26,
+    borderCurve: "continuous",
+    overflow: "hidden",
+    backgroundColor: "rgba(0,0,0,0.42)",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.default,
+    borderColor: Ghost.glass.border,
   },
-  btnPrimary: { backgroundColor: Ghost.accent.primary, borderColor: Ghost.accent.primary },
-  btnPrimaryText: { color: Ghost.text.inverse, fontWeight: "600", fontSize: 15 },
-  btnDangerText: { color: Ghost.status.error, fontWeight: "600", fontSize: 15 },
-  image: { width: "100%", height: 420, borderRadius: 12, backgroundColor: Ghost.bg.sunken },
-  text: { fontSize: 14, lineHeight: 21, color: Ghost.text.primary, fontFamily: "Menlo" },
-  note: { fontSize: 14, lineHeight: 20, color: Ghost.text.secondary },
+  image: { width: "100%", height: 420 },
+  text: { fontSize: 13.5, lineHeight: 20, color: Ghost.text.primary, fontFamily: Fonts.mono },
+  note: { fontSize: 14, lineHeight: 20, fontWeight: "300", color: Ghost.text.secondary },
   error: { fontSize: 14, color: Ghost.status.error, paddingHorizontal: Space.xl, marginTop: Space.sm },
 });

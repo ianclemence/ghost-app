@@ -5,8 +5,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
-import { Ghost, Space } from "@/constants/theme";
+import { Fonts, Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
+import { ScreenBackground } from "@/components/screen-glow";
 import { GhostButton, GhostInput, StatusDot } from "@/components/ghost";
 import { formatUptime } from "@/lib/format";
 import {
@@ -170,6 +171,7 @@ export default function PodScreen() {
   if (!config) {
     return (
       <View style={styles.root}>
+      <ScreenBackground variant="calm" />
         <ScreenHeader title="Your Pod" subtitle="The machine Ghost lives on" />
         <View style={styles.body}>
           <Text style={styles.lead}>
@@ -184,6 +186,7 @@ export default function PodScreen() {
 
   return (
     <View style={styles.root}>
+      <ScreenBackground variant="calm" />
       <ScreenHeader
         title="Your Pod"
         subtitle={connectionState === "online" ? "Online" : connectionState === "syncing" ? "Reconnecting" : "Offline"}
@@ -326,7 +329,7 @@ export default function PodScreen() {
             models.map((m) => (
               <View key={m} style={styles.modelRow}>
                 <Text style={[styles.cardTitle, { flex: 1 }]} numberOfLines={1}>{m}</Text>
-                <GhostButton title="Use" variant="secondary" onPress={() => void use(m)} disabled={busyModel !== null} loading={busyModel === m} />
+                <GhostButton title="Use" variant="secondary" size="sm" onPress={() => void use(m)} disabled={busyModel !== null} loading={busyModel === m} />
               </View>
             ))
           )}
@@ -334,7 +337,7 @@ export default function PodScreen() {
             <View style={{ flex: 1 }}>
               <GhostInput value={installName} onChangeText={setInstallName} placeholder="Add a model, e.g. qwen3:8b" />
             </View>
-            <GhostButton title="Add" variant="secondary" onPress={() => void install()} disabled={installing || installName.trim() === ""} loading={installing} />
+            <GhostButton title="Add" variant="primary" size="sm" onPress={() => void install()} disabled={installing || installName.trim() === ""} loading={installing} />
           </View>
           {note ? <Text style={styles.meta} accessibilityLiveRegion="polite">{note}</Text> : null}
         </View>
@@ -357,31 +360,35 @@ function Info({ label, value, dot, last }: { label: string; value: string | null
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Ghost.bg.base },
-  body: { paddingHorizontal: Space.xl, gap: Space.md, paddingBottom: Space.huge },
-  lead: { fontSize: 16, lineHeight: 23, color: Ghost.text.secondary, marginBottom: Space.sm },
+  body: { paddingHorizontal: Space.lg, gap: Space.md, paddingBottom: 96 },
+  lead: { fontSize: 17, lineHeight: 25, fontWeight: "300", color: "rgba(255,255,255,0.78)", textAlign: "center", marginBottom: Space.sm, paddingHorizontal: Space.md },
   group: {
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 0.2,
+    fontSize: 11.5,
+    fontWeight: "500",
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
     color: Ghost.text.tertiary,
     marginTop: Space.lg,
+    paddingHorizontal: 6,
   },
   card: {
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.42)",
+    borderRadius: 26,
     borderCurve: "continuous",
-    padding: Space.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+    padding: Space.xl,
     gap: Space.sm,
   },
-  cardTitle: { color: Ghost.text.primary, fontSize: 16, fontWeight: "600" },
-  meta: { color: Ghost.text.secondary, fontSize: 14, lineHeight: 20 },
-  code: { color: Ghost.text.primary, fontSize: 30, fontWeight: "700", letterSpacing: 3, textAlign: "center", paddingVertical: Space.md, fontVariant: ["tabular-nums"] },
+  cardTitle: { color: Ghost.text.primary, fontSize: 16.5, fontWeight: "500", letterSpacing: -0.2 },
+  meta: { color: Ghost.text.secondary, fontSize: 14.5, lineHeight: 21, fontWeight: "300" },
+  code: { color: Ghost.text.primary, fontFamily: Fonts.voice, fontSize: 44, lineHeight: 56, letterSpacing: 4, textAlign: "center", paddingVertical: Space.md, fontVariant: ["tabular-nums"] },
   check: { gap: 2, paddingBottom: Space.sm },
-  info: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
+  info: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 11 },
   infoDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Ghost.border.subtle },
-  infoLabel: { fontSize: 15, color: Ghost.text.secondary },
+  infoLabel: { fontSize: 15, color: Ghost.text.secondary, fontWeight: "300" },
   infoRight: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, marginLeft: Space.lg },
-  infoValue: { fontSize: 15, color: Ghost.text.primary, flexShrink: 1, textAlign: "right" },
+  infoValue: { fontSize: 15, color: Ghost.text.primary, fontWeight: "500", flexShrink: 1, textAlign: "right" },
   modelRow: { flexDirection: "row", alignItems: "center", gap: Space.md },
   installRow: { flexDirection: "row", alignItems: "center", gap: Space.md, marginTop: Space.xs },
 });

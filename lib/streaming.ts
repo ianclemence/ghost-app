@@ -123,13 +123,5 @@ export function prepareStreamingMarkdown(text: string): string {
     visible = visible.slice(0, tableStart);
   }
 
-  // 3. Unclosed $$ math block: hold from the opener.
-  const joined = visible.join("\n");
-  const mathOpens = (joined.match(/\$\$/g) ?? []).length;
-  if (mathOpens % 2 === 1) {
-    const idx = joined.lastIndexOf("$$");
-    return closeInlineMarkers(joined.slice(0, idx).replace(/\s+$/, ""));
-  }
-
   return closeInlineMarkers(visible.join("\n"));
 }

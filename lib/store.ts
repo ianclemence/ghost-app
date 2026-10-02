@@ -15,6 +15,10 @@ export interface ExtendedMessage extends Message {
   // Where this reply ran, as the Pod's runtime stated it (served_by).
   // History rows carry none and render nothing: unknown stays unknown.
   servedBy?: ServedBy;
+  // The stream ended without the runtime's closing marker, so this reply may
+  // be only the start of what Ghost wrote. History reconciliation replaces it
+  // with the Pod's full copy as soon as that is available.
+  incomplete?: boolean;
 }
 
 interface GhostStore {
