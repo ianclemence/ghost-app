@@ -950,7 +950,7 @@ export default function ConversationScreen() {
               accessibilityLabel={unseen > 0 ? `${unseen} new. Jump to latest` : "Jump to latest"}
             >
               <ArrowDown size={14} color={Ghost.text.primary} />
-              <Text style={styles.jumpText}>{unseen > 0 ? `${unseen} new` : "Latest"}</Text>
+              {unseen > 0 ? <Text style={styles.jumpText}>{`${unseen} new`}</Text> : null}
             </Pressable>
           </Animated.View>
         ) : null}
@@ -1092,14 +1092,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -48,
     left: 0,
-    right: 0,
-    alignItems: "center",
+    right: Space.lg,
+    // At the right edge, not centred: centred, it sat over the middle of the
+    // very line you were reading back to.
+    alignItems: "flex-end",
   },
   jump: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 11,
+    minWidth: 34,
+    justifyContent: "center",
     height: 34,
     borderRadius: 17,
     backgroundColor: Ghost.bg.base,

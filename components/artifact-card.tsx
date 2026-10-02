@@ -130,6 +130,7 @@ export function ArtifactCard({ config, artifact }: Props) {
           <GhostButton
             title={expanded ? "Collapse" : "Preview"}
             variant="secondary"
+            size="sm"
             onPress={() => {
               const next = !expanded;
               setExpanded(next);
@@ -141,7 +142,7 @@ export function ArtifactCard({ config, artifact }: Props) {
           <GhostButton title="Open" variant="secondary" onPress={openLink} />
         ) : null}
         {actions.some((a) => a.kind === "download") && artifact.kind === "file" ? (
-          <GhostButton title="Download" variant="secondary" onPress={() => void download()} />
+          <GhostButton title="Download" variant="secondary" size="sm" onPress={() => void download()} />
         ) : null}
       </View>
       {previewBusy ? <Text style={styles.status}>Loading preview…</Text> : null}
@@ -157,8 +158,12 @@ export function ArtifactCard({ config, artifact }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // Past files are part of the history, not the headline: a compact card, so a
+  // screenshot from last week no longer takes a third of the screen.
   card: {
-    marginVertical: Space.sm,
+    marginVertical: Space.xs,
+    padding: 14,
+    gap: 4,
   },
   kicker: {
     fontSize: 12.5,
@@ -167,9 +172,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.voice,
-    fontSize: 26,
-    lineHeight: 31,
-    letterSpacing: -0.5,
+    fontSize: 21,
+    lineHeight: 25,
+    letterSpacing: -0.3,
     color: Ghost.text.primary,
   },
   summary: {
