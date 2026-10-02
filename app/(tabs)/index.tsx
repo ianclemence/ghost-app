@@ -230,11 +230,17 @@ export default function ConversationScreen() {
   // newest message just off-screen. Until the owner touches the list, stay on
   // the last message without animation, and don't treat the top as "load more".
   const settleUntil = useRef(0);
+  const [settling, setSettling] = useState(true);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settle = useCallback(() => {
     settleUntil.current = Date.now() + 1800;
     nearBottom.current = true;
+    setSettling(true);
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => setSettling(false), 1900);
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
   }, []);
+  useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
   useFocusEffect(useCallback(() => { settle(); }, [settle]));
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
 
@@ -875,7 +881,15 @@ export default function ConversationScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          // Keeps your place when earlier messages are added above. It is off
+          // while the list opens: it anchors to the first visible row, which
+          // is exactly what fights a jump to the newest one.
+          maintainVisibleContentPosition={settling ? undefined : { minIndexForVisible: 0 }}
+          // Render the whole opening page at once. With the default of ten,
+          // only the oldest rows exist when we jump to "the end", the end is
+          // a guess, and the list lands in the middle of the thread.
+          initialNumToRender={60}
+          onLayout={() => { if (Date.now() < settleUntil.current) listRef.current?.scrollToEnd({ animated: false }); }}
           ListHeaderComponent={
             hasMore ? (
               <View style={styles.earlier}>

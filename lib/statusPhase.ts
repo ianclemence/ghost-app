@@ -14,6 +14,7 @@ export type StatusPhase =
   | "Checking memory"
   | "Searching the web"
   | "Reading the page"
+  | "Using the browser"
   | "Working on it";
 
 const MEMORY_TOOLS = new Set([
@@ -36,6 +37,7 @@ export function specificPhaseForTool(tool: string): StatusPhase | null {
   if (MEMORY_TOOLS.has(name)) return "Checking memory";
   if (WEB_TOOLS.has(name)) return "Searching the web";
   if (PAGE_TOOLS.has(name)) return "Reading the page";
+  if (name.startsWith("browser_")) return "Using the browser";
   return null;
 }
 

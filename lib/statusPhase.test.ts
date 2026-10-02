@@ -60,6 +60,9 @@ describe("safeStatusLabel", () => {
 });
 
 describe("displayStatusForTool", () => {
+  test("says a browser step is the browser", () => {
+    expect(displayStatusForTool("browser_navigate", "Opening a page")).toBe("Using the browser");
+  });
   test("a known tool wins over any server label", () => {
     expect(displayStatusForTool("web_search", "Running: ls")).toBe("Searching the web");
   });

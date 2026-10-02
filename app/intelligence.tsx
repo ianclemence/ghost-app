@@ -143,6 +143,13 @@ export default function IntelligenceScreen() {
     setUrlInput(key === "ollama" ? (intelConfig?.ollama_url || "http://localhost:11434") : "");
     setTestResult(null);
     setSaveError(null);
+    // The provider's models live in this sheet: ask it what it serves today.
+    setPickerFor(key);
+    setPickerQuery("");
+    if (providersState?.providers[key]?.configured) {
+      setPickerLoading(true);
+      void reloadProviders(true).finally(() => setPickerLoading(false));
+    }
   };
 
   const reloadProviders = useCallback(async (refresh = false) => {
@@ -181,6 +188,7 @@ export default function IntelligenceScreen() {
         return;
       }
       setConfiguring(null);
+      setPickerFor(null);
       return;
     }
     setSaving(true);
@@ -192,9 +200,11 @@ export default function IntelligenceScreen() {
         await saveIntelligenceConfig(config, { api_keys: { [configuring]: key } });
       }
       const saved = configuring;
-      setConfiguring(null);
       setKeptKey(false);
-      // The key is in: ask the provider what it serves and let the owner choose.
+      setKeyInput("");
+      setTestResult(null);
+      // The key is in: stay here, ask the provider what it serves and let the
+      // owner choose from it, in the same sheet.
       setPickerFor(saved);
       setPickerQuery("");
       setPickerLoading(true);
@@ -204,15 +214,6 @@ export default function IntelligenceScreen() {
       setSaveError("Couldn't save. Nothing changed, try again.");
     }
     setSaving(false);
-  };
-
-  const openPicker = async (key: string) => {
-    setPickerFor(key);
-    setPickerQuery("");
-    setPickerLoading(true);
-    // A fresh question to the provider, so the list is what it serves today.
-    await reloadProviders(true);
-    setPickerLoading(false);
   };
 
   const toggleRouting = (key: keyof RoutingPrefs, on: boolean) => {
@@ -263,8 +264,9 @@ export default function IntelligenceScreen() {
       setState((prev) => (prev ? { ...prev, active } : prev));
       setSelected(null);
       setChosen(choice.label);
-      // The owner has chosen: the picker has done its job.
+      // The owner has chosen: this sheet has done its job.
       setPickerFor(null);
+      setConfiguring(null);
       void reloadProviders();
     } catch {
       setSwitchError("Couldn't switch. Still on the current model.");
@@ -425,9 +427,6 @@ export default function IntelligenceScreen() {
                       </GhostText>
                     </View>
                     <View style={styles.rowActions}>
-                      {info.configured && info.models.length > 0 ? (
-                        <GhostButton title="Models" variant="secondary" size="sm" onPress={() => void openPicker(key)} />
-                      ) : null}
                       <GhostButton title="Configure" variant="secondary" size="sm" onPress={() => openConfigure(key)} />
                     </View>
                   </View>
@@ -497,67 +496,14 @@ export default function IntelligenceScreen() {
         <GhostButton title="Switch" fullWidth onPress={() => void doSwitch()} disabled={switching} loading={switching} />
       </GhostSheet>
 
-      {/* Choose a model from what the provider itself serves. */}
-      <GhostSheet
-        visible={pickerFor !== null}
-        onClose={() => { if (!switching) setPickerFor(null); }}
-        title={pickerFor ? `${providerName(pickerFor)} models` : "Models"}
-        message={
-          pickerFor
-            ? (switchError ?? (sourceNote(pickerFor, providersState?.providers[pickerFor]?.source, providersState?.providers[pickerFor]?.error) || "Choose the one Ghost should think with."))
-            : undefined
-        }
-      >
-        {pickerFor ? (
-          <>
-            {(providersState?.providers[pickerFor]?.models.length ?? 0) > 8 ? (
-              <GhostInput value={pickerQuery} onChangeText={setPickerQuery} placeholder="Search models" autoCapitalize="none" autoCorrect={false} />
-            ) : null}
-            {pickerLoading ? (
-              <View style={styles.pickerLoading}>
-                <ActivityIndicator color={Ghost.text.secondary} />
-                <GhostText type="footnote" style={styles.rowMeta}>Asking {providerName(pickerFor)} for its models</GhostText>
-              </View>
-            ) : pickerList.length === 0 ? (
-              <GhostText type="footnote" style={styles.none}>
-                {pickerQuery ? "No model matches that." : `${providerName(pickerFor)} did not list any models.`}
-              </GhostText>
-            ) : (
-              <GhostList>
-                {pickerList.slice(0, 60).map((m) => (
-                  <View key={m.target} style={styles.row}>
-                    <View style={styles.rowBody}>
-                      <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{m.label}</GhostText>
-                      <GhostText type="footnote" style={styles.rowMeta} numberOfLines={1}>{friendlyModel(m.model, m.provider)}</GhostText>
-                    </View>
-                    {m.active ? (
-                      <StatusPill label="Active" tone="ok" />
-                    ) : (
-                      <GhostButton title="Use" variant="secondary" size="sm" disabled={switching} onPress={() => void doSwitch(m)} />
-                    )}
-                  </View>
-                ))}
-              </GhostList>
-            )}
-            {pickerList.length > 60 ? <GhostText type="footnote" style={styles.none}>Showing 60 of {pickerList.length}. Search to narrow it down.</GhostText> : null}
-          </>
-        ) : null}
-      </GhostSheet>
       <GhostSheet
         visible={configuring !== null}
-        onClose={() => { if (!saving && !testing) { setConfiguring(null); setKeptKey(false); } }}
+        onClose={() => { if (!saving && !testing && !switching) { setConfiguring(null); setPickerFor(null); setKeptKey(false); } }}
         title={configuring ? `Configure ${providerName(configuring)}` : "Configure provider"}
-        message={saveError ?? undefined}
+        message={saveError ?? switchError ?? undefined}
       >
-        {keptKey ? (
-          <>
-            <GhostText type="footnote" style={styles.sheetDesc}>
-              Kept the saved key. Nothing changed.
-            </GhostText>
-            <GhostButton title="Done" fullWidth onPress={() => { setConfiguring(null); setKeptKey(false); }} />
-          </>
-        ) : (
         <>
+        {keptKey ? <GhostText type="footnote" style={styles.testOk}>Kept the saved key. Nothing changed.</GhostText> : null}
         {configuring === "ollama" ? (
           <GhostText type="footnote" style={styles.sheetDesc}>Ollama runs on your Ghost. No API key needed.</GhostText>
         ) : (
@@ -588,9 +534,47 @@ export default function IntelligenceScreen() {
             Unlocks {configuringInfo.models.length} model{configuringInfo.models.length !== 1 ? "s" : ""}.
           </GhostText>
         ) : null}
-        <GhostButton title="Save" fullWidth onPress={() => void doSaveProvider()} disabled={saving || testing} loading={saving} />
+        <GhostButton title={configuring === "ollama" ? "Save" : "Save key"} fullWidth onPress={() => void doSaveProvider()} disabled={saving || testing} loading={saving} />
+
+        {configuring && configuringInfo?.configured ? (
+          <>
+            <GhostText type="headline" style={styles.modelsHead}>Models</GhostText>
+            <GhostText type="footnote" style={styles.rowMeta}>
+              {sourceNote(configuring, configuringInfo.source, configuringInfo.error) || "Choose the one Ghost should think with."}
+            </GhostText>
+            {configuringInfo.models.length > 8 ? (
+              <GhostInput value={pickerQuery} onChangeText={setPickerQuery} placeholder="Search models" autoCapitalize="none" autoCorrect={false} />
+            ) : null}
+            {pickerLoading ? (
+              <View style={styles.pickerLoading}>
+                <ActivityIndicator color={Ghost.text.secondary} />
+                <GhostText type="footnote" style={styles.rowMeta}>Asking {providerName(configuring)} for its models</GhostText>
+              </View>
+            ) : pickerList.length === 0 ? (
+              <GhostText type="footnote" style={styles.none}>
+                {pickerQuery ? "No model matches that." : `${providerName(configuring)} did not list any models.`}
+              </GhostText>
+            ) : (
+              <GhostList>
+                {pickerList.slice(0, 60).map((m) => (
+                  <View key={m.target} style={styles.row}>
+                    <View style={styles.rowBody}>
+                      <GhostText type="headline" style={styles.rowTitle} numberOfLines={1}>{m.label}</GhostText>
+                      <GhostText type="footnote" style={styles.rowMeta} numberOfLines={1}>{friendlyModel(m.model, m.provider)}</GhostText>
+                    </View>
+                    {m.active ? (
+                      <StatusPill label="Active" tone="ok" />
+                    ) : (
+                      <GhostButton title="Use" variant="secondary" size="sm" disabled={switching} onPress={() => void doSwitch(m)} />
+                    )}
+                  </View>
+                ))}
+              </GhostList>
+            )}
+            {pickerList.length > 60 ? <GhostText type="footnote" style={styles.none}>Showing 60 of {pickerList.length}. Search to narrow it down.</GhostText> : null}
+          </>
+        ) : null}
         </>
-        )}
       </GhostSheet>
     </View>
   );
@@ -659,6 +643,7 @@ const styles = StyleSheet.create({
   groupNote: { fontSize: 12, color: Ghost.text.tertiary },
   more: { alignSelf: "center", marginTop: Space.xs },
   chosen: { color: Ghost.status.success, textAlign: "center", marginTop: Space.sm },
+  modelsHead: { marginTop: Space.md },
   pickerLoading: { alignItems: "center", gap: Space.sm, paddingVertical: Space.xl },
   nameLine: { flexDirection: "row", alignItems: "center", gap: Space.sm, flexWrap: "wrap" },
   rowTitle: {

@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image, PixelRatio, StyleSheet, View } from "react-native";
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from "react-native-svg";
 import Animated, {
   Easing,
@@ -67,7 +67,12 @@ function Layer({ spots, dx, dy, seconds }: { spots: Spot[]; dx: number; dy: numb
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const GRAIN = require("../assets/grain.png");
+const GRAIN_ASSET = Image.resolveAssetSource(require("../assets/grain.png"));
+// One grain pixel per screen pixel. A tiled image is drawn at its size in
+// density-independent points, so on a phone at 2.6x or 3x each speck came out
+// two or three pixels wide and the film turned into soft blotches. Telling the
+// image its scale keeps the speck as fine as it is in the console.
+const GRAIN = { uri: GRAIN_ASSET.uri, width: GRAIN_ASSET.width, height: GRAIN_ASSET.height, scale: PixelRatio.get() };
 
 /** How far the light swells when Ghost is working. Small: a breath, not a flash. */
 const SWELL = 0.14;
