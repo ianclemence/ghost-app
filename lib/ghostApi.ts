@@ -1,5 +1,5 @@
 import { sealedFetch } from "./sealedFetch";
-import type { ModelOption } from "./models";
+import { isChatModel, type ModelOption } from "./models";
 import { normalizeCard, type RichCard } from "./cards";
 import { normalizeHistoryTimestamps } from "./reconcile";
 import { toMediaItems, type Attachment } from "./attachments";
@@ -1643,7 +1643,9 @@ export async function fetchOllamaModels(cfg: GhostConfig): Promise<string[]> {
   const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/ollama/models`, { headers: headers(cfg) }, 15000);
   if (!res.ok) throw new Error(`Local models failed (HTTP ${res.status})`);
   const data = await res.json().catch(() => null);
-  return Array.isArray(data?.models) ? (data.models as unknown[]).filter((m): m is string => typeof m === "string") : [];
+  return Array.isArray(data?.models)
+    ? (data.models as unknown[]).filter((m): m is string => typeof m === "string" && isChatModel(m))
+    : [];
 }
 
 export async function pullOllamaModel(cfg: GhostConfig, model: string): Promise<void> {
@@ -1660,6 +1662,8 @@ export async function pullOllamaModel(cfg: GhostConfig, model: string): Promise<
 
 export interface DoctorCheck {
   name: string;
+  /** The Pod's own plain-language title for the check. */
+  label?: string;
   status: string;
   message: string;
 }

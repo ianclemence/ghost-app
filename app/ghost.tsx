@@ -10,6 +10,7 @@ import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { GhostButton, GhostInput, StatusDot } from "@/components/ghost";
 import { formatUptime } from "@/lib/format";
+import { checkTitle } from "@/lib/models";
 import {
   checkHealthInfo,
   fetchDoctorStatus,
@@ -302,7 +303,7 @@ export default function PodScreen() {
               ) : (
                 attention.map((c) => (
                   <View key={c.name} style={styles.check}>
-                    <Text style={styles.cardTitle}>{c.name}</Text>
+                    <Text style={styles.cardTitle}>{checkTitle(c)}</Text>
                     <Text style={styles.meta}>{c.message}</Text>
                   </View>
                 ))

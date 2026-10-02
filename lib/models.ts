@@ -178,3 +178,20 @@ export function sourceNote(provider: string, source: string | undefined, error: 
   }
   return "";
 }
+
+/**
+ * Embedding models (nomic-embed-text and the like) are Ghost's own internal
+ * tools for memory search. They cannot chat, so they are never offered as
+ * something to use.
+ */
+export function isChatModel(name: string): boolean {
+  return !/embed/i.test(name);
+}
+
+/** A health check's name, the way a person would say it ("disk_pressure" -> "Disk pressure"). */
+export function checkTitle(check: { name: string; label?: string }): string {
+  if (check.label && check.label.trim()) return check.label.trim();
+  const words = (check.name || "").replace(/[_-]+/g, " ").trim();
+  if (!words) return "Issue";
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

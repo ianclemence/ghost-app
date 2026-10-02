@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { filterChoices, friendlyModel, groupChoices, pickerChoices, providerName, resolveActive, sourceNote, splitModelRef, type ModelOption } from "./models";
+import { checkTitle, filterChoices, friendlyModel, isChatModel, groupChoices, pickerChoices, providerName, resolveActive, sourceNote, splitModelRef, type ModelOption } from "./models";
 
 const opt = (over: Partial<ModelOption> & { provider: string; model: string }): ModelOption => ({
   name: over.model,
@@ -103,5 +103,16 @@ describe("names", () => {
     expect(splitModelRef("deepseek:deepseek-flash")).toEqual({ provider: "deepseek", model: "deepseek-flash" });
     // An Ollama tag has a colon too, and is not a provider.
     expect(splitModelRef("qwen3:4b")).toEqual({ provider: "", model: "qwen3:4b" });
+  });
+});
+
+describe("internal models and check names", () => {
+  test("an embedding model is not a chat model", () => {
+    expect(isChatModel("nomic-embed-text:latest")).toBe(false);
+    expect(isChatModel("qwen3:8b")).toBe(true);
+  });
+  test("a check is titled in words, preferring the Pod's own label", () => {
+    expect(checkTitle({ name: "disk_pressure" })).toBe("Disk pressure");
+    expect(checkTitle({ name: "skill_dependencies", label: "Skills" })).toBe("Skills");
   });
 });
