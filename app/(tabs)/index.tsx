@@ -278,15 +278,19 @@ export default function ConversationScreen() {
     loadLocalThread().then((cached) => {
       if (cancelled || cached.length === 0) return;
       const cur = useGhostStore.getState().messages;
-      if (cur.length === 0) {
-        setMessages(
-          cached.map((m) => ({
+      // Messages waiting in the outbox are already in the list; they are not
+      // the conversation, so they must not keep the saved copy from showing.
+      const real = cur.filter((m) => m.status !== "queued" && !String(m.id).startsWith("temp-"));
+      if (real.length === 0) {
+        setMessages([
+          ...cached.map((m) => ({
             id: m.id,
             role: m.role as "user" | "assistant",
             content: m.content,
             timestamp: m.timestamp,
           })),
-        );
+          ...cur,
+        ]);
       }
     }).catch(() => {});
     return () => { cancelled = true; };
@@ -306,6 +310,7 @@ export default function ConversationScreen() {
   useEffect(() => {
     if (!config) return;
     let cancelled = false;
+    let historyTimer: ReturnType<typeof setTimeout> | null = null;
     clearStreamBuffer();
     setOutcome(null);
     setClarify(null);
@@ -315,7 +320,7 @@ export default function ConversationScreen() {
     fetchRoutines(config).then((r) => {
       if (!cancelled) setKeeping(r.filter((x) => x.state === "active").length);
     }).catch(() => {});
-    fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+    const loadHistory = (attempt: number) => fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
       .then(({ messages: h, hasMore: more }) => {
         if (cancelled) return;
         initialKeysRef.current = new Set(h.map((m) => m.id));
@@ -332,11 +337,18 @@ export default function ConversationScreen() {
         void flushOutbox().catch(() => {});
       })
       .catch(() => {
-        if (!cancelled) {
-          setHistoryError("Couldn't load history.");
-          setHistoryLoaded(true);
+        if (cancelled) return;
+        // The Pod may only be busy for a moment (a build, a long task). Ask
+        // again a few times instead of leaving the conversation empty until
+        // the app is reopened.
+        if (attempt < 6) {
+          historyTimer = setTimeout(() => loadHistory(attempt + 1), 4000);
+          return;
         }
+        setHistoryError("Couldn't load history.");
+        setHistoryLoaded(true);
       });
+    loadHistory(0);
     const loadApprovals = () => {
       fetchPendingApprovals(config).then((r) => {
         if (!cancelled) setApprovals(r);
@@ -449,6 +461,7 @@ export default function ConversationScreen() {
     const t = setInterval(loadApprovals, 15000);
     return () => {
       cancelled = true;
+      if (historyTimer) clearTimeout(historyTimer);
       clearInterval(t);
       off();
     };
@@ -537,15 +550,20 @@ export default function ConversationScreen() {
     ownRequestRef.current = requestId;
     const ctrl = new AbortController();
     localAbort.current = ctrl;
+    // Ghost has the message once it starts to answer, in words or in work (a
+    // browser task shows status long before any text). A drop after that is
+    // not an unsent message, and queueing it again ran the same request twice.
+    let podHasIt = false;
     await sendMessage(config, {
       content: q,
       ...(attached.length ? { attachments: attached } : {}),
       requestId,
       sessionKey: MAIN_SESSION_ID,
       signal: ctrl.signal,
-      onChunk: (c) => appendStream(c),
-      onToolStatus: (t, label) => setToolActivity(displayStatusForTool(t, label)),
+      onChunk: (c) => { podHasIt = true; appendStream(c); },
+      onToolStatus: (t, label) => { podHasIt = true; setToolActivity(displayStatusForTool(t, label)); },
       onPhase: (phase, detail) => {
+        podHasIt = true;
         const label = phaseLabel(phase, detail);
         if (label) setToolActivity(label);
       },
@@ -614,6 +632,18 @@ export default function ConversationScreen() {
           setToolActivity(null);
           localAbort.current = null;
           setSendError(null);
+          if (config) settleIncomplete(config);
+          return;
+        }
+        if (e.kind !== "auth" && podHasIt) {
+          // It was working on it when the connection dropped. Not unsent: show
+          // what is there once the Pod's record catches up.
+          removeMessage(asstId);
+          setStreaming(false);
+          setToolActivity(null);
+          localAbort.current = null;
+          setSendError(null);
+          updateMessage(tempUserId, { status: "completed" });
           if (config) settleIncomplete(config);
           return;
         }
@@ -742,7 +772,7 @@ export default function ConversationScreen() {
     setAttachments(next);
   }, [attachments]);
 
-  const thread = React.useMemo(() => buildThread(messages, artifacts, Date.now(), cards), [messages, artifacts, cards]);
+  const thread = React.useMemo(() => buildThread(messages, artifacts, Date.now(), cards, hasMore), [messages, artifacts, cards, hasMore]);
   const lastCount = useRef(0);
   useEffect(() => {
     // Count what arrives while the owner is reading back, for the pill.

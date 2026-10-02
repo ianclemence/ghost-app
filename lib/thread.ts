@@ -75,6 +75,8 @@ export function buildThread(
   artifacts: Artifact[] = [],
   now = Date.now(),
   cards: RichCard[] = [],
+  /** More history exists above what is loaded. */
+  hasMore = false,
 ): ThreadItem[] {
   type Entry = { at: number; order: number; msg?: ExtendedMessage; art?: Artifact; card?: RichCard };
   const entries: Entry[] = messages.map((m, i) => ({ at: m.timestamp || now, order: i, msg: m }));
@@ -87,6 +89,18 @@ export function buildThread(
     entries.push({ at: c.created_at ?? lastAt + 1, order: messages.length + artifacts.length + i, card: c });
   });
   entries.sort((a, b) => (a.at - b.at) || (a.order - b.order));
+  // Only part of the conversation is loaded. A file or card from further back
+  // has none of its surrounding messages here, so it floated at the top like a
+  // stray, long after anything it belonged to. It returns when you scroll back
+  // to its time and that part of the history loads.
+  if (hasMore) {
+    const firstMsg = entries.find((e) => e.msg);
+    if (firstMsg) {
+      for (let i = entries.length - 1; i >= 0; i--) {
+        if (!entries[i].msg && entries[i].at < firstMsg.at) entries.splice(i, 1);
+      }
+    }
+  }
 
   const out: ThreadItem[] = [];
   let prevDay = -1;

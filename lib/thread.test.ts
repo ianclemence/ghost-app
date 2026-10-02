@@ -101,3 +101,12 @@ describe("browser recovery cards", () => {
     expect(items.filter((i) => i.kind === "card").length).toBe(0);
   });
 });
+
+describe("a partly loaded conversation", () => {
+  test("a file from before the loaded part does not float at the top", () => {
+    const msg = { id: "m", role: "assistant", content: "hi", timestamp: 5000 } as never;
+    const art = { id: "a", kind: "file", title: "Browser screenshot", state: "available", actions: [], created_at: new Date(1000).toISOString() } as never;
+    expect(buildThread([msg], [art], 9000, [], true).some((i) => i.kind === "artifact")).toBe(false);
+    expect(buildThread([msg], [art], 9000, [], false).some((i) => i.kind === "artifact")).toBe(true);
+  });
+});

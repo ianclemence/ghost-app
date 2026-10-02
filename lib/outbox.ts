@@ -67,6 +67,11 @@ export async function saveOutbox(entries: OutboxEntry[]): Promise<void> {
 /** Append an entry, oldest-first. Caps the queue; drops the oldest on overflow. */
 export async function enqueueOutbox(entry: OutboxEntry): Promise<OutboxEntry[]> {
   const entries = await loadOutbox();
+  // The same words queued again within a few minutes are the same request
+  // (a second tap while nothing seemed to happen), not a second one. Four taps
+  // used to mean four browser runs the moment the Pod came back.
+  const repeat = entries.some((e) => e.sessionKey === entry.sessionKey && e.content.trim() === entry.content.trim() && entry.createdAt - e.createdAt < 10 * 60_000);
+  if (repeat) return entries;
   const next = [...entries.filter((e) => e.id !== entry.id), entry];
   while (next.length > MAX_ENTRIES) next.shift();
   await saveOutbox(next);
