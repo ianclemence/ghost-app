@@ -1,4 +1,5 @@
 import { sealedFetch } from "./sealedFetch";
+import { normalizeCard, type RichCard } from "./cards";
 import { normalizeHistoryTimestamps } from "./reconcile";
 import { toMediaItems, type Attachment } from "./attachments";
 import { usableSuggestion } from "./suggestion";
@@ -1170,6 +1171,25 @@ export async function fetchCards(cfg: GhostConfig, channel = "mobile"): Promise<
   if (!res.ok) return [];
   const data = await res.json().catch(() => null);
   return Array.isArray(data?.cards) ? data.cards : [];
+}
+
+/**
+ * Tell the Pod what the owner chose on a card (an offered reply, or dismiss), so
+ * it stays put away on every device. Returns the Pod's copy of the card, which
+ * wins over the phone's guess; null if the request did not get through.
+ */
+export async function resolveCard(cfg: GhostConfig, id: string, actionId: string, channel = "mobile"): Promise<RichCard | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/cards/resolve`,
+      { method: "POST", headers: headers(cfg), body: JSON.stringify({ channel, id, action_id: actionId }) },
+      10000,
+    );
+    const data = await res.json().catch(() => null);
+    return normalizeCard(data?.card);
+  } catch {
+    return null;
+  }
 }
 
 // ─── Routines: the one feed of what Ghost runs for you ───────────────────

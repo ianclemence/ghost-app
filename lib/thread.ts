@@ -10,6 +10,7 @@
  * never guessed from wording.
  */
 import type { Artifact } from "./ghostApi";
+import type { RichCard } from "./cards";
 import type { ExtendedMessage } from "./store";
 
 export type ThreadItem =
@@ -25,7 +26,8 @@ export type ThreadItem =
       /** First message of a speaker run: gets the larger top gap. */
       groupStart: boolean;
     }
-  | { kind: "artifact"; key: string; artifact: Artifact; at: number };
+  | { kind: "artifact"; key: string; artifact: Artifact; at: number }
+  | { kind: "card"; key: string; card: RichCard; at: number };
 
 const OUT_OF_TURN_GAP_MS = 2 * 60_000;
 const RESUME_GAP_MS = 15 * 60_000;
@@ -64,19 +66,25 @@ function artifactTime(a: Artifact): number | null {
 /**
  * Build the rendered thread. Messages keep their order; artifacts with a
  * creation time are placed where they happened in the conversation, and
- * the rest (no time known) follow the latest message.
+ * the rest (no time known) follow the latest message. Cards are placed the
+ * same way: where they were shown, so the conversation reads in order and a
+ * reload puts everything back where it was.
  */
 export function buildThread(
   messages: ExtendedMessage[],
   artifacts: Artifact[] = [],
   now = Date.now(),
+  cards: RichCard[] = [],
 ): ThreadItem[] {
-  type Entry = { at: number; order: number; msg?: ExtendedMessage; art?: Artifact };
+  type Entry = { at: number; order: number; msg?: ExtendedMessage; art?: Artifact; card?: RichCard };
   const entries: Entry[] = messages.map((m, i) => ({ at: m.timestamp || now, order: i, msg: m }));
   const lastAt = entries.length ? entries[entries.length - 1].at : now;
   artifacts.forEach((a, i) => {
     const t = artifactTime(a);
     entries.push({ at: t ?? lastAt + 1, order: messages.length + i, art: a });
+  });
+  cards.forEach((c, i) => {
+    entries.push({ at: c.created_at ?? lastAt + 1, order: messages.length + artifacts.length + i, card: c });
   });
   entries.sort((a, b) => (a.at - b.at) || (a.order - b.order));
 
@@ -91,6 +99,10 @@ export function buildThread(
     }
     if (e.art) {
       out.push({ kind: "artifact", key: `art-${e.art.id}`, artifact: e.art, at: e.at });
+      continue;
+    }
+    if (e.card) {
+      out.push({ kind: "card", key: `card-${e.card.id}`, card: e.card, at: e.at });
       continue;
     }
     const m = e.msg!;

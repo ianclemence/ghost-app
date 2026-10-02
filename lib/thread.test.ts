@@ -54,3 +54,29 @@ describe("dayLabel", () => {
     expect(dayLabel(NOW - 24 * H, NOW)).toBe("Yesterday");
   });
 });
+
+
+describe("buildThread places cards where they were shown", () => {
+  const card = (id: string, at?: number) => ({ id, kind: "present" as const, title: id, created_at: at });
+
+  test("a card sits between the messages it came between, not at the end", () => {
+    const items = buildThread(
+      [m("1", "user", NOW - 3 * H), m("2", "assistant", NOW - H)],
+      [],
+      NOW,
+      [card("c1", NOW - 2 * H)],
+    );
+    const order = items.filter((i) => i.kind !== "day").map((i) => (i.kind === "card" ? "card" : i.kind === "message" ? i.message.id : i.kind));
+    expect(order).toEqual(["1", "card", "2"]);
+  });
+
+  test("a card with no time follows the latest message", () => {
+    const items = buildThread([m("1", "user", NOW - H)], [], NOW, [card("c1")]);
+    expect(items[items.length - 1].kind).toBe("card");
+  });
+
+  test("two cards keep the order they were given when made together", () => {
+    const items = buildThread([], [], NOW, [card("a", NOW - 5), card("b", NOW - 5)]);
+    expect(items.filter((i) => i.kind === "card").map((i) => (i as { card: { id: string } }).card.id)).toEqual(["a", "b"]);
+  });
+});

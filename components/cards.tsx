@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { Fonts, Ghost, Space } from "@/constants/theme";
 import { GlassCard } from "@/components/glass";
+import { PresentCard } from "@/components/present-card";
+import * as Haptics from "expo-haptics";
 import { GhostButton } from "@/components/ghost";
 import { GhostText } from "@/components/themed-text";
-import type { RichCard } from "@/lib/cards";
+import type { CardAction, RichCard } from "@/lib/cards";
 import type { GhostConfig } from "@/lib/ghostApi";
-import { decideIdea, resolveApproval } from "@/lib/ghostApi";
+import { decideIdea, resolveApproval, resolveCard } from "@/lib/ghostApi";
 
 function CardShell({ title, body, children }: { title: string; body?: string; children?: React.ReactNode }) {
   return (
@@ -71,8 +73,52 @@ function ActionRow({ card, config, onDone }: { card: RichCard; config: GhostConf
   );
 }
 
-export function RichCardView({ card, config, onDone }: { card: RichCard; config: GhostConfig; onDone: (id: string) => void }) {
+/**
+ * A presented card with its choices wired up. A choice is only ever a reply
+ * (sent to Ghost as if the owner typed it) or a dismissal. It puts the card
+ * away at once and tells the Pod, whose copy wins when it answers.
+ */
+function PresentHost({
+  card,
+  config,
+  onReply,
+  onResolved,
+}: {
+  card: RichCard;
+  config: GhostConfig;
+  onReply?: (text: string) => void;
+  onResolved?: (card: RichCard) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const act = async (a: CardAction) => {
+    if (busy) return;
+    setBusy(true);
+    Haptics.selectionAsync().catch(() => {});
+    onResolved?.({ ...card, resolved: { action_id: a.id, label: a.kind === "dismiss" ? "Dismissed" : a.label } });
+    if (a.kind === "reply" && a.text) onReply?.(a.text);
+    const theirs = await resolveCard(config, card.id, a.id);
+    if (theirs) onResolved?.(theirs);
+    setBusy(false);
+  };
+  return <PresentCard card={card} busy={busy} onAction={act} />;
+}
+
+export function RichCardView({
+  card,
+  config,
+  onDone,
+  onReply,
+  onResolved,
+}: {
+  card: RichCard;
+  config: GhostConfig;
+  onDone: (id: string) => void;
+  onReply?: (text: string) => void;
+  onResolved?: (card: RichCard) => void;
+}) {
   switch (card.kind) {
+    case "present":
+      return <PresentHost card={card} config={config} onReply={onReply} onResolved={onResolved} />;
     case "suggestion":
       return (
         <CardShell title={card.title} body={card.body}>

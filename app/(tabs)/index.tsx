@@ -53,7 +53,7 @@ import { dispatchMode } from "@/lib/dispatch";
 import { applyLiveEffect, applySay, liveEffect, sayEffect } from "@/lib/liveTurn";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
-import { parseCardMessage, type RichCard } from "@/lib/cards";
+import { normalizeCard, parseCardMessage, type RichCard } from "@/lib/cards";
 import { displayStatusForTool } from "@/lib/statusPhase";
 import { reconcileHistory } from "@/lib/reconcile";
 import { applyBackgroundEvent, formatBackgroundElapsed, type BackgroundRunningTask } from "@/lib/background";
@@ -85,22 +85,18 @@ function outcomeLine(outcome: ChatOutcome | null): string | null {
 }
 
 // Live things that belong at the end of the conversation right now: shared
-// browser/computer surfaces and runtime cards. (Artifacts are placed in the
-// thread where they were made.)
+// browser/computer surfaces. (Artifacts and cards are placed in the thread
+// where they were made.)
 function ThreadExtras({
   config,
   surfaces,
-  cards,
   onSurfaceGone,
-  onCardDone,
 }: {
   config: GhostConfig | null;
   surfaces: { id: string; kind: SurfaceKind }[];
-  cards: RichCard[];
   onSurfaceGone: (id: string) => void;
-  onCardDone: (id: string) => void;
 }) {
-  if (!config || (surfaces.length === 0 && cards.length === 0)) return null;
+  if (!config || surfaces.length === 0) return null;
   return (
     <View style={styles.extras}>
       {surfaces.map((s) => (
@@ -112,9 +108,6 @@ function ThreadExtras({
           ownDeviceId={config.deviceID}
           onGone={onSurfaceGone}
         />
-      ))}
-      {cards.map((c) => (
-        <RichCardView key={c.id} card={c} config={config} onDone={onCardDone} />
       ))}
     </View>
   );
@@ -316,18 +309,16 @@ export default function ConversationScreen() {
         if (cancelled) return;
         const parsed: RichCard[] = [];
         for (const c of fresh) {
-          const kind = (c.kind ?? "") as RichCard["kind"];
-          if (kind !== "suggestion" && kind !== "goal_update" && kind !== "cart" && kind !== "browser_view") continue;
-          if (!c.id || !c.title) continue;
-          parsed.push({
-            id: c.id, kind, title: c.title, body: c.body, topic: c.topic,
-            request_id: c.request_id, data: c.data, actions: c.actions,
-          });
+          const card = normalizeCard(c);
+          if (card) parsed.push(card);
         }
         if (parsed.length > 0) {
           setCards((prev) => {
-            const seen = new Set(prev.map((x) => x.id));
-            return [...prev, ...parsed.filter((x) => !seen.has(x.id))].slice(-20);
+            // The Pod's copy of a card wins (it knows what was chosen on another
+            // device); cards it no longer has are kept until the app closes.
+            const byId = new Map(prev.map((x) => [x.id, x]));
+            for (const p of parsed) byId.set(p.id, p);
+            return [...byId.values()].slice(-60);
           });
         }
       }).catch(() => {});
@@ -408,7 +399,7 @@ export default function ConversationScreen() {
       const card = parseCardMessage(msg, MAIN_SESSION_ID);
       if (card) {
         setCards((prev) =>
-          prev.some((x) => x.id === card.id) ? prev : [...prev, card].slice(-20),
+          prev.some((x) => x.id === card.id) ? prev : [...prev, card].slice(-60),
         );
       }
     });
@@ -708,7 +699,7 @@ export default function ConversationScreen() {
     setAttachments(next);
   }, [attachments]);
 
-  const thread = React.useMemo(() => buildThread(messages, artifacts), [messages, artifacts]);
+  const thread = React.useMemo(() => buildThread(messages, artifacts, Date.now(), cards), [messages, artifacts, cards]);
   const lastCount = useRef(0);
   useEffect(() => {
     // Count what arrives while the owner is reading back, for the pill.
@@ -723,6 +714,19 @@ export default function ConversationScreen() {
       return config ? (
         <View style={styles.inlineCard}>
           <ArtifactCard config={config} artifact={item.artifact} />
+        </View>
+      ) : null;
+    }
+    if (item.kind === "card") {
+      return config ? (
+        <View style={styles.inlineCard}>
+          <RichCardView
+            card={item.card}
+            config={config}
+            onDone={(id) => setCards((prev) => prev.filter((x) => x.id !== id))}
+            onReply={(text) => void send(text)}
+            onResolved={(next) => setCards((prev) => prev.map((x) => (x.id === next.id ? next : x)))}
+          />
         </View>
       ) : null;
     }
@@ -750,7 +754,7 @@ export default function ConversationScreen() {
         animate={animate}
       />
     );
-  }, [toolActivity, config]);
+  }, [toolActivity, config, send]);
 
   const statusLine = outcomeLine(outcome);
   const cancelLine = cancelStatusLine(cancelPhase);
@@ -867,9 +871,7 @@ export default function ConversationScreen() {
             <ThreadExtras
               config={config}
               surfaces={surfaces}
-              cards={cards}
               onSurfaceGone={(id) => setSurfaces((prev) => prev.filter((x) => x.id !== id))}
-              onCardDone={(id) => setCards((prev) => prev.filter((x) => x.id !== id))}
             />
           }
           scrollEventThrottle={32}
