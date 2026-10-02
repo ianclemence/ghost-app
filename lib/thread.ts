@@ -102,6 +102,12 @@ export function buildThread(
       continue;
     }
     if (e.card) {
+      // The same card twice in a row (a browser reset announced after each
+      // retry) is one card, and a "my browser got stuck" card is moot once
+      // Ghost has answered after it.
+      const last = out[out.length - 1];
+      if (last && last.kind === "card" && last.card.kind === e.card.kind && last.card.title === e.card.title && (last.card.body ?? "") === (e.card.body ?? "")) continue;
+      if (e.card.kind === "browser_recovery" && messages.some((m) => m.role === "assistant" && !m.kind && m.status !== "streaming" && m.content.trim() && m.timestamp > e.at)) continue;
       out.push({ kind: "card", key: `card-${e.card.id}`, card: e.card, at: e.at });
       continue;
     }

@@ -88,3 +88,16 @@ describe("repeated notices", () => {
     expect(items.filter((i) => i.kind === "message").length).toBe(1);
   });
 });
+
+describe("browser recovery cards", () => {
+  const card = (id: string, at: number) => ({ id, kind: "browser_recovery", title: "My browser got stuck", body: "Reset.", created_at: at }) as never;
+  test("two identical cards in a row show once", () => {
+    const items = buildThread([], [], 9000, [card("a", 1000), card("b", 2000)]);
+    expect(items.filter((i) => i.kind === "card").length).toBe(1);
+  });
+  test("a recovery card disappears once Ghost has answered after it", () => {
+    const answer = { id: "m", role: "assistant", content: "Here are the prices", timestamp: 5000 } as never;
+    const items = buildThread([answer], [], 9000, [card("a", 1000)]);
+    expect(items.filter((i) => i.kind === "card").length).toBe(0);
+  });
+});

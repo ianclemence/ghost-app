@@ -185,14 +185,19 @@ export default function ConversationScreen() {
         const entry = pending[0];
         setStreaming(true);
         setToolActivity(null);
+        // Once the Pod has started answering it has the message. A stream that
+        // drops after that (a long browser task, the app in the background) is
+        // not a failed send: keeping the entry would leave "Waiting to send"
+        // on a message Ghost already acted on, and send it a second time.
+        let accepted = false;
         const result = await new Promise<{ ok: boolean; auth: boolean }>((resolve) => {
           void sendMessage(config, {
             content: entry.content,
             sessionKey: entry.sessionKey,
-            onChunk: (c) => appendStream(c),
-            onToolStatus: (t, label) => setToolActivity(displayStatusForTool(t, label)),
+            onChunk: (c) => { accepted = true; appendStream(c); },
+            onToolStatus: (t, label) => { accepted = true; setToolActivity(displayStatusForTool(t, label)); },
             onDone: () => resolve({ ok: true, auth: false }),
-            onError: (e) => resolve({ ok: false, auth: e.kind === "auth" }),
+            onError: (e) => resolve({ ok: accepted && e.kind !== "auth", auth: e.kind === "auth" }),
           });
         });
         clearStreamBuffer();
