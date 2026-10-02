@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
@@ -13,11 +13,11 @@ import { notificationCopyFor, notificationKeyFor } from '../lib/notify';
 import { parsePairingURI } from '../lib/pairing';
 import {
   initializeConnection,
-  isPaired,
   handlePairingDeepLink,
 } from '../lib/connection';
 import { recordMilestone } from '../lib/onboarding-metrics';
 import { useGhostStore } from '../lib/store';
+import { restoreForBoot } from '../lib/boot';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
@@ -40,13 +40,40 @@ export default function RootLayout() {
     Inter_500Medium: require('../assets/fonts/Inter_500Medium.ttf'),
     Inter_600SemiBold: require('../assets/fonts/Inter_600SemiBold.ttf'),
   });
+  // The splash stays until the fonts are ready AND the phone has worked out,
+  // locally, whether it is paired and what the conversation held. Without the
+  // second half the first frame was drawn before that was known, and a paired
+  // owner saw the connect screen (and then an empty conversation) flash by.
+  const [bootReady, setBootReady] = useState(false);
   useEffect(() => {
-    if (fontsReady || fontError) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsReady, fontError]);
+    if (!(fontsReady || fontError) || !bootReady) return;
+    // One beat so the right route has drawn under the splash before it lifts.
+    const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 60);
+    return () => clearTimeout(t);
+  }, [fontsReady, fontError, bootReady]);
+  // Never trap the owner behind the splash if storage is slow.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setBootReady(true);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 3500);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     (async () => {
+      // First, what the first screen needs, before anything slower.
+      const paired = await restoreForBoot();
+      if (!paired) {
+        // Not connected to a Pod yet: the front door, every time.
+        router.replace('/onboarding');
+      } else {
+        // Paired: the conversation is already in place; go online behind it.
+        void initializeConnection({ reuseConfig: true });
+      }
+      setBootReady(true);
+
       // Set up notification handler
       let notifications: typeof import('expo-notifications') | null = null;
       if (!isExpoGo) {
@@ -63,18 +90,8 @@ export default function RootLayout() {
         } catch {}
       }
 
-      // Ghost lives on the owner's Pod; the phone is how they reach it.
-      const paired = await isPaired();
       // Stamps once per install; the funnel's zero point for time-to-milestone.
       void recordMilestone('first_launch');
-
-      if (!paired) {
-        // Not connected to a Pod yet — the front door, every time
-        router.replace('/onboarding');
-      } else if (paired) {
-        // Paired — initialize connection in background, load Home immediately
-        initializeConnection();
-      }
 
       // Handle deep links (QR scan or external link)
       const handleDeepLink = async (url: string) => {

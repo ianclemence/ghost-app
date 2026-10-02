@@ -129,6 +129,9 @@ export default function ConversationScreen() {
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  // Whether the Pod has told us what the conversation holds. Until it has, an
+  // empty list means "not known yet", not "nothing said".
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [outcome, setOutcome] = useState<ChatOutcome | null>(null);
   const [clarify, setClarify] = useState<{ questionId: string; question: string } | null>(null);
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
@@ -283,6 +286,7 @@ export default function ConversationScreen() {
         serverCountRef.current = h.length;
         setHasMore(more);
         setMessages(h);
+        setHistoryLoaded(true);
         // Open on the latest message even if layout settles late.
         if (!openedRef.current) {
           openedRef.current = true;
@@ -292,7 +296,10 @@ export default function ConversationScreen() {
         void flushOutbox().catch(() => {});
       })
       .catch(() => {
-        if (!cancelled) setHistoryError("Couldn't load history.");
+        if (!cancelled) {
+          setHistoryError("Couldn't load history.");
+          setHistoryLoaded(true);
+        }
       });
     const loadApprovals = () => {
       fetchPendingApprovals(config).then((r) => {
@@ -748,6 +755,7 @@ export default function ConversationScreen() {
   const statusLine = outcomeLine(outcome);
   const cancelLine = cancelStatusLine(cancelPhase);
   const paired = !!config;
+  const settled = !paired || historyLoaded;
   const status = presence({
     paired,
     connection: connectionState,
@@ -785,7 +793,7 @@ export default function ConversationScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenBackground variant={messages.length === 0 ? "hero" : "calm"} />
+      <ScreenBackground variant={messages.length === 0 && settled ? "hero" : "calm"} />
       <PresenceHeader
         name={ghostName ?? "Ghost"}
         status={status}
@@ -793,7 +801,11 @@ export default function ConversationScreen() {
         onOpenPanel={() => router.push("/panel" as never)}
       />
       {historyError ? <Text style={styles.error}>{historyError}</Text> : null}
-      {messages.length === 0 ? (
+      {messages.length === 0 && !settled ? (
+        // Paired, and the Pod has not answered yet: show nothing rather than
+        // an empty-conversation greeting that is about to be replaced.
+        <View style={styles.empty} />
+      ) : messages.length === 0 ? (
         <View style={styles.empty}>
           {ready ? (
             <>

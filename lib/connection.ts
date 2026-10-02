@@ -210,15 +210,36 @@ export async function isPaired(): Promise<boolean> {
   return !!(token && meta?.transport === "relay" && meta.relayServer);
 }
 
-/** Initialize connection on app start. Loads saved credentials and connects. */
-export async function initializeConnection(): Promise<void> {
+/**
+ * Restore who we are paired with from secure storage, without touching the
+ * network: the name and the config. Cheap enough to finish before the first
+ * screen is drawn, so a paired owner never sees the "connect" state.
+ */
+export async function restoreConfig(): Promise<boolean> {
+  const store = useGhostStore.getState();
+  const meta = await getConnectionMeta();
+  if (meta?.ghostName) store.setGhostName(meta.ghostName);
+  const config = await buildConfig();
+  if (!config) return false;
+  store.setConfig(config);
+  return true;
+}
+
+/**
+ * Initialize connection on app start. Loads saved credentials and connects.
+ * `reuseConfig` keeps a config restored a moment ago, so start-up does not
+ * replace it with an identical copy (which would restart every screen that
+ * keys on it).
+ */
+export async function initializeConnection(opts?: { reuseConfig?: boolean }): Promise<void> {
   const store = useGhostStore.getState();
   store.setConnectionState("offline");
 
   const meta = await getConnectionMeta();
   if (meta?.ghostName) store.setGhostName(meta.ghostName);
 
-  const config = await buildConfig();
+  const reused = opts?.reuseConfig ? useGhostStore.getState().config : null;
+  const config = reused ?? (await buildConfig());
   if (!config) {
     store.setConnectionState("offline");
     return;
@@ -226,7 +247,7 @@ export async function initializeConnection(): Promise<void> {
 
   resetAuthFailureState();
   registerAuthFailureHandler();
-  store.setConfig(config);
+  if (!reused) store.setConfig(config);
   store.setConnectionState("syncing");
   // Silent: only registers when notifications were already allowed.
   void import("./push").then((m) => m.syncPushToken(config)).catch(() => {});
