@@ -1,23 +1,24 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import { ArrowDown, ArrowUpRight, FileText } from "lucide-react-native";
+import { ArrowDown, ArrowUpRight } from "lucide-react-native";
 import {
   attachmentProblem,
   base64Bytes,
-  fileSize,
   photoName,
   type Attachment,
 } from "@/lib/attachments";
 import { readBase64 } from "@/lib/localFiles";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
-import { Ghost, Radius, shadowRGB, Space } from "@/constants/theme";
+import { Ghost, Radius, shadowRGB, Space, Fonts } from "@/constants/theme";
 import { Composer } from "@/components/composer";
 import { AttachmentStrip } from "@/components/attachment-strip";
+import { SentAttachments } from "@/components/sent-attachments";
+import { composerPlaceholder } from "@/lib/placeholder";
 import { EdgeTarget, TopEdge, useScrollEdge } from "@/components/scroll-edge";
 import { ScreenBackground } from "@/components/screen-glow";
 import { PresenceHeader } from "@/components/presence-header";
@@ -455,13 +456,12 @@ export default function ConversationScreen() {
     const tempUserId = `temp-${Date.now()}`;
     const attached = config ? attachments : [];
     setAttachments([]);
-    const firstImage = attached.find((a) => a.kind === "image");
+    const photos = attached.filter((a) => a.kind === "image");
+    const sentFiles = attached.filter((a) => a.kind === "file");
     appendMessage({
       id: tempUserId, role: "user", content: q, timestamp: Date.now(), status: "sending",
-      ...(firstImage ? { media_type: firstImage.mime, media_url: firstImage.uri } : {}),
-      ...(attached.some((a) => a.kind === "file")
-        ? { files: attached.filter((a) => a.kind === "file").map((a) => ({ name: a.name, size: a.size })) }
-        : {}),
+      ...(photos.length ? { media_type: photos[0].mime, media_url: photos[0].uri, media_urls: photos.map((a) => a.uri) } : {}),
+      ...(sentFiles.length ? { files: sentFiles.map((a) => ({ name: a.name, size: a.size, mime: a.mime })) } : {}),
     });
     const asstId = `temp-a-${Date.now()}`;
     appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
@@ -681,19 +681,15 @@ export default function ConversationScreen() {
     const m = item.message;
     const animate = initialKeysRef.current ? !initialKeysRef.current.has(m.id) : false;
     if (m.role === "user") {
+      const photos = m.media_urls?.length ? m.media_urls : m.media_url && m.media_type?.startsWith("image/") ? [m.media_url] : [];
       return (
-        <View>
-          {m.media_url && m.media_type?.startsWith("image/") ? (
-            <Image source={{ uri: m.media_url }} style={styles.userPhoto} accessibilityLabel="Photo you sent" />
-          ) : null}
-          {m.files?.map((f, i) => (
-            <View key={`${f.name}-${i}`} style={styles.userFile} accessibilityLabel={`File you sent: ${f.name}`}>
-              <FileText size={14} color={Ghost.text.secondary} />
-              <Text style={styles.userFileText} numberOfLines={1}>{f.name} · {fileSize(f.size)}</Text>
-            </View>
-          ))}
-          <UserMessage message={m} showTime={item.showTime} groupStart={item.groupStart} animate={animate} />
-        </View>
+        <UserMessage
+          message={m}
+          showTime={item.showTime}
+          groupStart={item.groupStart}
+          animate={animate}
+          attachments={photos.length || m.files?.length ? <SentAttachments photos={photos} files={m.files ?? []} /> : undefined}
+        />
       );
     }
     const badge = servedByLabel(m.servedBy);
@@ -889,7 +885,7 @@ export default function ConversationScreen() {
           value={draft}
           onChangeText={setDraft}
           onSubmit={send}
-          placeholder={podOnline ? undefined : "Sends when your Pod is back"}
+          placeholder={composerPlaceholder({ online: podOnline, streaming: isStreaming, firstTime: messages.length === 0 })}
           // Photos and files go to the Pod, which identifies and reads them.
           onPhoto={podOnline ? () => void attachPhoto() : undefined}
           onFile={podOnline ? () => void attachFile() : undefined}
@@ -933,14 +929,6 @@ const styles = StyleSheet.create({
   inlineCard: {
     marginTop: Space.md,
   },
-  userPhoto: {
-    alignSelf: "flex-end",
-    width: 180,
-    height: 180,
-    borderRadius: 18,
-    marginTop: Space.lg,
-    backgroundColor: Ghost.bg.sunken,
-  },
   empty: {
     flex: 1,
     justifyContent: "center",
@@ -948,10 +936,11 @@ const styles = StyleSheet.create({
     gap: Space.sm,
   },
   emptyTitle: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: "600",
-    letterSpacing: -0.6,
+    fontFamily: Fonts.voice,
+    fontSize: 36,
+    lineHeight: 40,
+    fontWeight: "400",
+    letterSpacing: -0.5,
     color: Ghost.text.primary,
   },
   emptySub: {
@@ -1035,26 +1024,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Ghost.status.error,
     paddingHorizontal: 28,
-  },
-  userFile: {
-    alignSelf: "flex-end",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Space.xs,
-    maxWidth: "80%",
-    marginRight: Space.xl,
-    marginBottom: 4,
-    paddingHorizontal: Space.md,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-    backgroundColor: Ghost.bg.raised,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.default,
-  },
-  userFileText: {
-    flexShrink: 1,
-    fontSize: 13,
-    color: Ghost.text.secondary,
   },
   chipRow: {
     flexDirection: "row",

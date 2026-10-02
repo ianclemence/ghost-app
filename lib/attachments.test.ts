@@ -45,3 +45,28 @@ describe("attachments", () => {
     expect(photoName("file:///tmp/abc", "image/jpeg", 2)).toBe("photo-3.jpg");
   });
 });
+
+import { attachmentSummary, extOf, fileKind } from "./attachments";
+
+describe("how attachments are shown", () => {
+  test("extensions", () => {
+    expect(extOf("Boarding pass.pdf")).toBe("PDF");
+    expect(extOf("README")).toBe("");
+    expect(extOf("archive.tar.gz")).toBe("GZ");
+  });
+
+  test("a file's kind comes from its name or its type", () => {
+    expect(fileKind("a.pdf")).toEqual({ label: "PDF", tone: "error" });
+    expect(fileKind("expenses.xlsx").tone).toBe("success");
+    expect(fileKind("notes", "text/csv").tone).toBe("success");
+    expect(fileKind("deck.pptx").tone).toBe("ember");
+    expect(fileKind("a.zip").tone).toBe("warning");
+    expect(fileKind("voice.m4a").label).toBe("M4A");
+    expect(fileKind("mystery")).toEqual({ label: "FILE", tone: "muted" });
+  });
+
+  test("a summary of what is about to be sent", () => {
+    expect(attachmentSummary([])).toBe("");
+    expect(attachmentSummary([{ size: 1048576 }, { size: 1048576 }])).toBe("2 attached · 2.0 MB");
+  });
+});

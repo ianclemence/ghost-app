@@ -2,33 +2,34 @@
 
 ## Theme
 
-Light-first warm paper. Midnight warm dark is reserved for the conversation world and speaking states.
+Warm paper by day, warm midnight by night: the same two worlds as the web console. The palette is chosen once, when the app starts (the root layout reloads if the phone's setting changes). Deep indigo for structure and the primary action; ember (amber) is the single warm signal and means "Ghost is here": the presence light, an out-of-turn message, an approval asking.
 
 ## Colors
 
-- `--bg-base`: #FAFAF7 (warm paper)
-- `--bg-raised`: #F5F3EE
-- `--bg-sunken`: #EDEBE6
-- `--text-primary`: #1A1611
-- `--text-secondary`: #6B6560
-- `--text-tertiary`: #6F6A63
-- `--accent-primary`: #3D3B5C
-- `--accent-soft`: rgba(61,59,92,0.10)
-- `--status-success`: #2D7A4A
-- `--status-warning`: #B07C2E
-- `--status-error`: #C24B3C
-- `--ember`: #FFB45C (presence light, speaking only)
-- `--bubble-user`: #E4E2DC (user chat bubble)
-- `--text-inverse`: #FAFAF7 (ink on dark fills and camera scrims)
+Light (`constants/theme.ts`):
+- bg: base `#F8F6F1`, raised `#FFFEFB`, sunken `#F0ECE3`
+- text: primary `#1A1611`, secondary `#5B554C`, tertiary `#6F6A63`, inverse `#FFFFFF`
+- accent `#3D3B5C`; status success `#2D7A4A`, warning `#8A5A00`, error `#C24B3C`, info `#34688F`
+- ember `#FFB45C` (bright `#FFCB8A`, deep `#A8620A`); user bubble `#EAE5DA`
 
-Dark conversation tokens (`Midnight`): bg #17130F, surface #241E17, ink #F1E9DC, muted #A3927F, line rgba(240,233,223,0.07).
+Dark ("midnight"):
+- bg: base `#14110D`, raised `#1C1813`, sunken `#0F0C09`
+- text: primary `#F1E9DC`, secondary `#CDBFAC`, tertiary `#A3927F`, inverse `#14110D`
+- accent `#B9B6F2`; status success `#6FCB93`, warning `#F0C25A`, error `#FF8576`, info `#86B8E0`
+- user bubble `#26211A`
+
+Camera and live overlays use `Midnight` (always dark, warm). Shadows are cast in warm brown-black in light, pure black in dark.
 
 ## Typography
 
-- iOS: SF Pro Text / Display, Georgia serif, SF Mono for values only
-- Android: sans-serif stacks
-- Scale: display 34, largeTitle 28, title 22, headline 17, body 16/24, callout 15, subhead 13, footnote/caption 12
-- Body line length 65ch max. Tabular numerals for timers.
+- Display: Instrument Serif (bundled, loaded behind the splash screen) for titles that should read as written: the empty conversation, big numbers. Never for anything you act on.
+- Interface: the system face (SF Pro on iOS, the platform sans on Android). Monospace only for technical values.
+- Scale: display 30, largeTitle 24, title 19, headline 16, body 15.5/22, callout 14.5, subhead 13, footnote/caption 12
+- Tabular numerals for timers.
+
+## Background
+
+`ScreenBackground` is three fields of soft light (indigo upper left, ember upper right, rose below; teal at night) built from stacked translucent discs so there is no edge to see. They drift very slowly and stop under reduced motion. It is always the first child of a screen.
 
 ## Spacing
 
@@ -50,5 +51,9 @@ Dark conversation tokens (`Midnight`): bg #17130F, surface #241E17, ink #F1E9DC,
 - Every non-conversation screen: back (or close for the panel) + large title + one-line subtitle; no floating menus
 - Status: inline honest text, error in status error, never a modal first. One offline language: `OfflineBadge` (Reconnecting/Offline) on every Pod screen
 - Inputs: `GhostInput` everywhere (sunken fill, 48px minimum, tertiary placeholder). No one-off TextInput styles
+- Message bar: one pill; its placeholder follows the time of day and changes daily (`lib/placeholder.ts`), says so when Ghost is busy or the Pod is away, and always fits one row
+- Attachments: before sending, photos are tiles and files are `FileCard`s (badge tinted by kind, name, type and size) with one line of total size; after sending they sit flush with the bubble: photos in a mosaic that opens a swipeable viewer, files as the same cards
+- Approvals: the safest yes (once) is the primary button, a yes for the task is outlined, "always" is the quietest, no is soft red (`lib/approval-variant.ts`)
+- Toggles: a green track means on
 - Copy: every word earns its place. No em dashes in user-facing strings; commas, colons, or periods instead
 - Motion: 150 to 250ms, ease out exponential, no bounce, reduced motion respected

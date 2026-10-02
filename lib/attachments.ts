@@ -60,3 +60,38 @@ export function photoName(uri: string, mime: string, index: number): string {
   const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
   return `photo-${index + 1}.${ext}`;
 }
+
+// ─── How an attachment is shown ────────────────────────────────────────────
+
+/** The file's extension in capitals, or "" when it has none. */
+export function extOf(name: string): string {
+  const m = /\.([A-Za-z0-9]{1,5})$/.exec(name);
+  return m ? m[1].toUpperCase() : "";
+}
+
+export type FileTone = "error" | "info" | "success" | "ember" | "warning" | "muted";
+
+/**
+ * What kind of file this is, for its badge: a short label and a tone, so a
+ * PDF, a spreadsheet and an archive are told apart at a glance by colour as
+ * well as by name.
+ */
+export function fileKind(name: string, mime = ""): { label: string; tone: FileTone } {
+  const ext = extOf(name);
+  const m = mime.toLowerCase();
+  if (ext === "PDF" || m === "application/pdf") return { label: "PDF", tone: "error" };
+  if (["DOC", "DOCX", "ODT", "RTF", "PAGES"].includes(ext) || m.includes("wordprocessingml") || m.includes("msword")) return { label: ext || "DOC", tone: "info" };
+  if (["XLS", "XLSX", "CSV", "TSV", "NUMBERS", "ODS"].includes(ext) || m.includes("spreadsheetml") || m === "text/csv") return { label: ext || "CSV", tone: "success" };
+  if (["PPT", "PPTX", "KEY", "ODP"].includes(ext) || m.includes("presentationml")) return { label: ext || "PPT", tone: "ember" };
+  if (["ZIP", "RAR", "7Z", "TAR", "GZ"].includes(ext) || m === "application/zip") return { label: ext || "ZIP", tone: "warning" };
+  if (["MP3", "M4A", "WAV", "AAC", "OGG", "FLAC"].includes(ext) || m.startsWith("audio/")) return { label: ext || "AUDIO", tone: "ember" };
+  if (["MP4", "MOV", "M4V", "WEBM"].includes(ext) || m.startsWith("video/")) return { label: ext || "VIDEO", tone: "info" };
+  return { label: ext || "FILE", tone: "muted" };
+}
+
+/** "3 attached · 4.2 MB", or "" for none. */
+export function attachmentSummary(list: { size: number }[]): string {
+  if (list.length === 0) return "";
+  const total = list.reduce((n, a) => n + a.size, 0);
+  return `${list.length} attached · ${fileSize(total)}`;
+}

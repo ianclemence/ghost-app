@@ -550,8 +550,11 @@ export function GhostToggle({
       onValueChange={onValueChange}
       disabled={disabled}
       accessibilityLabel={accessibilityLabel}
-      trackColor={{ false: Ghost.bg.sunken, true: Ghost.bg.sunken }}
-      thumbColor={value ? Ghost.text.primary : Ghost.text.tertiary}
+      // On reads as on at a glance: a green track, as in the console. Off is a
+      // quiet well. The thumb is white in both, so only the track changes.
+      trackColor={{ false: Ghost.border.strong, true: Ghost.status.success }}
+      ios_backgroundColor={Ghost.border.strong}
+      thumbColor="#FFFFFF"
       style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
     />
   );

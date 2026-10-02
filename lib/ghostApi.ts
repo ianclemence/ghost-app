@@ -17,8 +17,10 @@ export interface Message {
   kind?: MessageKind;
   media_type?: string;
   media_url?: string;
-  /** Files (not photos) sent with this message, shown as small chips. */
-  files?: { name: string; size: number }[];
+  /** Every photo sent with this message (media_url is the first, kept for older rows). */
+  media_urls?: string[];
+  /** Files (not photos) sent with this message, shown as cards. */
+  files?: { name: string; size: number; mime?: string }[];
 }
 
 export interface GhostConfig {

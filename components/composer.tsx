@@ -30,6 +30,7 @@ import {
 } from "react-native";
 
 import { Ghost, Radius, shadowRGB, Space, Type } from "@/constants/theme";
+import { composerPlaceholder } from "@/lib/placeholder";
 
 const MAX_VOICE_MS = 120_000;
 const SPRING = { damping: 18, stiffness: 240, mass: 0.6 };
@@ -348,7 +349,7 @@ export function Composer({
             value={value}
             onChangeText={onChangeText}
             accessibilityLabel="Message Ghost"
-            placeholder={transcribing ? "Transcribing…" : (placeholder ?? (streaming ? "Add something…" : "What do you need?"))}
+            placeholder={transcribing ? "Transcribing…" : (placeholder ?? composerPlaceholder({ online: true, streaming, firstTime: false }))}
             placeholderTextColor={Ghost.text.tertiary}
             multiline
             maxLength={maxLength}
@@ -405,6 +406,8 @@ const styles = StyleSheet.create({
     paddingTop: 9,
     paddingBottom: 9,
     paddingHorizontal: 6,
+    // Android: no extra font padding, so the text centres on the same line as the buttons.
+    includeFontPadding: false,
   },
   inputLeading: { paddingLeft: 14 },
   round: {

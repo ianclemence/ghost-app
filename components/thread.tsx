@@ -91,17 +91,23 @@ export const UserMessage = memo(function UserMessage({
   showTime,
   groupStart,
   animate,
+  attachments,
 }: {
   message: ExtendedMessage;
   showTime: boolean;
   groupStart: boolean;
   animate: boolean;
+  /** Photos and files sent with this message, drawn at the bubble's edge. */
+  attachments?: React.ReactNode;
 }) {
   const reduce = useReducedMotion();
   const { copied, copy } = useCopy(message.content);
+  const hasText = message.content.trim().length > 0;
   return (
     <Animated.View entering={enter(reduce, animate)} style={[styles.userRow, groupStart && styles.groupGap]}>
       {showTime ? <Text style={[styles.meta, styles.metaRight]}>{clockTime(message.timestamp)}</Text> : null}
+      {attachments}
+      {hasText || !attachments ? (
       <Pressable
         onLongPress={copy}
         delayLongPress={350}
@@ -112,6 +118,7 @@ export const UserMessage = memo(function UserMessage({
       >
         <Text style={styles.userText} selectable={false}>{message.content}</Text>
       </Pressable>
+      ) : null}
       {message.status === "queued" ? (
         <Text style={[styles.meta, styles.metaRight]} accessibilityLiveRegion="polite">
           Waiting to send · goes out when you&apos;re back online

@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { Appearance } from 'react-native';
 import * as Updates from 'expo-updates';
 import { Ghost, scheme } from '../constants/theme';
@@ -20,6 +22,10 @@ import { useGhostStore } from '../lib/store';
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
+// Hold the splash until the display typeface is ready, so a title never shows
+// in one face and then jumps to another.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 // Stable dedup for runtime events already notified this session. The
 // conversation (reloaded from backend history) is the source of truth;
 // this set only suppresses repeat tray noise for the same canonical event.
@@ -27,6 +33,13 @@ const notifiedEventIds = new Set<string>();
 
 export default function RootLayout() {
   const router = useRouter();
+  const [fontsReady, fontError] = useFonts({
+    InstrumentSerif: require('../assets/fonts/InstrumentSerif-Regular.ttf'),
+    'InstrumentSerif-Italic': require('../assets/fonts/InstrumentSerif-Italic.ttf'),
+  });
+  useEffect(() => {
+    if (fontsReady || fontError) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsReady, fontError]);
 
   // The palette is chosen when the app starts. If the phone's light/dark
   // setting changes while the app is open, restart cleanly into the other one
@@ -171,6 +184,9 @@ export default function RootLayout() {
     })();
     return () => cleanup?.();
   }, [router]);
+
+  // A font that fails to load must not block the app: carry on with the system face.
+  if (!fontsReady && !fontError) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

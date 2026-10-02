@@ -1,14 +1,16 @@
 import { Appearance, Platform } from "react-native";
 
 /**
- * Ghost Design System: cool, quiet, confident.
+ * Ghost Design System: warm, quiet, alive.
  *
- * One palette in light and one in dark, chosen from the system setting when
- * the app starts (the root layout reloads the app if the setting changes, so
- * no screen is ever half one and half the other). Dark is true black. Nothing
- * here is borrowed from anyone else's palette: neutral greys with a cool cast,
- * one ink-blue accent, and amber as the single warm signal, used only when
- * Ghost is working or needs the owner. Monospace only for technical values.
+ * Warm paper by day and warm midnight by night, the same two worlds as the web
+ * console. One palette in light and one in dark, chosen from the system
+ * setting when the app starts (the root layout reloads the app if the setting
+ * changes, so no screen is ever half one and half the other). Deep indigo for
+ * structure and the primary action, ember (amber) as the single warm signal,
+ * used only when Ghost is working or needs the owner. Instrument Serif for the
+ * few moments that should read as written; the system face for everything you
+ * act on. Monospace only for technical values.
  */
 
 /** The scheme this run of the app uses. */
@@ -17,27 +19,27 @@ export const scheme: "light" | "dark" = Appearance.getColorScheme() === "dark" ?
 // ─── Palettes ──────────────────────────────────────────────────────────────
 
 const lightPalette = {
-  bg: { base: "#F6F7F9", raised: "#FFFFFF", sunken: "#ECEEF2" },
-  text: { primary: "#0B0D12", secondary: "#4B505C", tertiary: "#6A6F7B", inverse: "#FFFFFF" },
-  accent: { primary: "#2C3AA8", soft: "rgba(44,58,168,0.08)", medium: "rgba(44,58,168,0.16)" },
-  status: { success: "#1F7A4D", warning: "#8A5A00", error: "#C0392B", info: "#1F5F99" },
-  border: { subtle: "rgba(8,10,16,0.06)", default: "rgba(8,10,16,0.12)", strong: "rgba(8,10,16,0.20)" },
-  bubble: { user: "#E6E8EE" },
-  ember: "#F5B942",
-  emberBright: "#F8CF72",
-  emberDeep: "#B8710A",
+  bg: { base: "#F8F6F1", raised: "#FFFEFB", sunken: "#F0ECE3" },
+  text: { primary: "#1A1611", secondary: "#5B554C", tertiary: "#6F6A63", inverse: "#FFFFFF" },
+  accent: { primary: "#3D3B5C", soft: "rgba(61,59,92,0.09)", medium: "rgba(61,59,92,0.17)" },
+  status: { success: "#2D7A4A", warning: "#8A5A00", error: "#C24B3C", info: "#34688F" },
+  border: { subtle: "rgba(60,45,25,0.07)", default: "rgba(60,45,25,0.13)", strong: "rgba(60,45,25,0.22)" },
+  bubble: { user: "#EAE5DA" },
+  ember: "#FFB45C",
+  emberBright: "#FFCB8A",
+  emberDeep: "#A8620A",
 };
 
 const darkPalette = {
-  bg: { base: "#000000", raised: "#0C0D10", sunken: "#060608" },
-  text: { primary: "#EDEDF0", secondary: "#B1B4BD", tertiary: "#868A94", inverse: "#05070D" },
-  accent: { primary: "#9FB0FF", soft: "rgba(159,176,255,0.13)", medium: "rgba(159,176,255,0.24)" },
-  status: { success: "#58C58F", warning: "#F0C25A", error: "#FF7A6B", info: "#7AB8EE" },
-  border: { subtle: "rgba(255,255,255,0.07)", default: "rgba(255,255,255,0.13)", strong: "rgba(255,255,255,0.22)" },
-  bubble: { user: "#1C1D22" },
-  ember: "#F5B942",
-  emberBright: "#F8CF72",
-  emberDeep: "#F5B942",
+  bg: { base: "#14110D", raised: "#1C1813", sunken: "#0F0C09" },
+  text: { primary: "#F1E9DC", secondary: "#CDBFAC", tertiary: "#A3927F", inverse: "#14110D" },
+  accent: { primary: "#B9B6F2", soft: "rgba(185,182,242,0.13)", medium: "rgba(185,182,242,0.24)" },
+  status: { success: "#6FCB93", warning: "#F0C25A", error: "#FF8576", info: "#86B8E0" },
+  border: { subtle: "rgba(240,233,223,0.07)", default: "rgba(240,233,223,0.13)", strong: "rgba(240,233,223,0.22)" },
+  bubble: { user: "#26211A" },
+  ember: "#FFB45C",
+  emberBright: "#FFCB8A",
+  emberDeep: "#FFB45C",
 };
 
 type Palette = typeof lightPalette;
@@ -60,8 +62,8 @@ export function alpha(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
-/** The colour shadows are cast in: near-black ink in light, pure black in dark. */
-export const shadowRGB = scheme === "dark" ? "0, 0, 0" : "8, 10, 16";
+/** The colour shadows are cast in: warm brown-black in light, pure black in dark. */
+export const shadowRGB = scheme === "dark" ? "0, 0, 0" : "60, 45, 25";
 
 // ─── Ghost Tokens (canonical) ──────────────────────────────────────────────
 
@@ -100,23 +102,23 @@ export const Colors = {
 // ─── Camera overlay tokens (always dark: they sit over the live camera) ────
 
 export const Midnight = {
-  bg: "#000000",
-  bgSoft: "#08090B",
-  surface: "#0C0D10",
-  surface2: "#131418",
-  surface3: "#1B1C21",
+  bg: "#0F0C09",
+  bgSoft: "#14110D",
+  surface: "#1C1813",
+  surface2: "#26211A",
+  surface3: "#302A21",
 
-  ink: "#EDEDF0",
-  inkDim: "#B1B4BD",
-  muted: "#868A94",
-  faint: "#5C606A",
+  ink: "#F1E9DC",
+  inkDim: "#CDBFAC",
+  muted: "#A3927F",
+  faint: "#7A6D5E",
 
-  line: "rgba(255,255,255,0.07)",
-  lineStrong: "rgba(255,255,255,0.14)",
+  line: "rgba(240,233,223,0.08)",
+  lineStrong: "rgba(240,233,223,0.15)",
 
-  ok: "#58C58F",
-  clay: "#FF7A6B",
-  clayDeep: "#C0392B",
+  ok: "#6FCB93",
+  clay: "#FF8576",
+  clayDeep: "#C24B3C",
   warn: "#F0C25A",
 } as const;
 
@@ -127,6 +129,9 @@ export const Fonts = Platform.select({
     sans: "SF Pro Text",
     display: "SF Pro Display",
     serif: "Georgia",
+    /** The written voice: titles and empty states. Loaded at startup (see app/_layout). */
+    voice: "InstrumentSerif",
+    voiceItalic: "InstrumentSerif-Italic",
     rounded: "SF Pro Rounded",
     mono: "SF Mono",
   },
@@ -134,6 +139,8 @@ export const Fonts = Platform.select({
     sans: "sans-serif",
     display: "sans-serif-medium",
     serif: "serif",
+    voice: "InstrumentSerif",
+    voiceItalic: "InstrumentSerif-Italic",
     rounded: "sans-serif-medium",
     mono: "monospace",
   },
@@ -141,6 +148,8 @@ export const Fonts = Platform.select({
     sans: "system-ui",
     display: "system-ui",
     serif: "Georgia",
+    voice: "InstrumentSerif",
+    voiceItalic: "InstrumentSerif-Italic",
     rounded: "system-ui",
     mono: "monospace",
   },
@@ -252,7 +261,7 @@ export const UI = {
     top: 100,
     bottom: 80,
     side: Space.xl,
-    backdrop: scheme === "dark" ? "rgba(0,0,0,0.68)" : "rgba(6,8,14,0.46)",
+    backdrop: scheme === "dark" ? "rgba(8,6,4,0.72)" : "rgba(26,22,17,0.46)",
     headerPadding: Space.lg,
     bodyPadding: Space.lg,
     buttonY: Space.sm,

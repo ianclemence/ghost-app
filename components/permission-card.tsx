@@ -6,6 +6,7 @@ import { Ghost, Radius, shadowRGB, Space } from "@/constants/theme";
 import { GhostButton } from "@/components/ghost";
 import { isValidGrant, resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
 import { riskCaution, riskNote } from "@/lib/permission-risk";
+import { approvalVariant } from "@/lib/approval-variant";
 
 const CARD_ENTER = FadeInUp.duration(250).easing(Easing.bezier(0.23, 1, 0.32, 1));
 // Answering a card should feel like putting it away, not like it blinked out:
@@ -87,12 +88,11 @@ export function PermissionCard({
       ) : null}
       <View style={styles.row}>
         {actions.map((a) => {
-          const destructive = a.style === "danger" || /deny|reject/i.test(a.id);
           return (
             <GhostButton
               key={a.id}
               title={busy === a.id ? "One moment" : a.label}
-              variant={destructive ? "secondary" : "primary"}
+              variant={approvalVariant(a)}
               disabled={busy !== null}
               loading={busy === a.id}
               onPress={() => void act(a.id)}

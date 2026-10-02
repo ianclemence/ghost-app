@@ -1,78 +1,84 @@
 import React from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from "react-native-reanimated";
-import { FileText, X } from "lucide-react-native";
+import { X } from "lucide-react-native";
 import { Ghost, Radius } from "@/constants/theme";
-import { fileSize, type Attachment } from "@/lib/attachments";
+import { attachmentSummary, type Attachment } from "@/lib/attachments";
+import { FileCard } from "@/components/file-card";
 
-const TILE = 64;
-
-function extOf(name: string): string {
-  const m = /\.([A-Za-z0-9]{1,5})$/.exec(name);
-  return m ? m[1].toUpperCase() : "FILE";
-}
+const TILE = 68;
+const FILE_W = 176;
 
 /**
- * What is about to be sent: one row of small tiles, photos as themselves and
- * files as their type, each with a remove button. It scrolls sideways, so ten
- * files take the room of one.
+ * What is about to be sent: photos as themselves, files as cards that say what
+ * they are, each with a small remove button, and one quiet line saying how
+ * much is going. It scrolls sideways, so ten files take the room of one.
  */
 export function AttachmentStrip({ items, onRemove }: { items: Attachment[]; onRemove: (index: number) => void }) {
   const reduceMotion = useReducedMotion();
   if (items.length === 0) return null;
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      style={styles.scroll}
-      keyboardShouldPersistTaps="handled"
-    >
-      {items.map((a, i) => (
-        <Animated.View
-          key={`${a.uri}-${i}`}
-          entering={reduceMotion ? undefined : FadeIn.duration(140)}
-          exiting={reduceMotion ? undefined : FadeOut.duration(100)}
-          layout={reduceMotion ? undefined : LinearTransition.duration(160)}
-          style={styles.item}
-        >
-          {a.kind === "image" ? (
-            <Image source={{ uri: a.uri }} style={styles.tile} accessibilityLabel={`Photo ${a.name}`} />
-          ) : (
-            <View style={[styles.tile, styles.file]} accessibilityLabel={`${a.name}, ${fileSize(a.size)}`}>
-              <FileText size={20} color={Ghost.text.secondary} strokeWidth={1.6} />
-              <Text style={styles.ext} numberOfLines={1}>{extOf(a.name)}</Text>
-            </View>
-          )}
-          <Pressable
-            onPress={() => onRemove(i)}
-            hitSlop={8}
-            style={styles.x}
-            accessibilityRole="button"
-            accessibilityLabel={`Remove ${a.name}`}
+    <View style={styles.wrap}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+        style={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        {items.map((a, i) => (
+          <Animated.View
+            key={`${a.uri}-${i}`}
+            entering={reduceMotion ? undefined : FadeIn.duration(160)}
+            exiting={reduceMotion ? undefined : FadeOut.duration(110)}
+            layout={reduceMotion ? undefined : LinearTransition.duration(180)}
+            style={a.kind === "image" ? styles.photo : styles.file}
           >
-            <X size={11} color={Ghost.text.inverse} strokeWidth={3} />
-          </Pressable>
-        </Animated.View>
-      ))}
-    </ScrollView>
+            {a.kind === "image" ? (
+              <Image source={{ uri: a.uri }} style={styles.tile} accessibilityLabel={`Photo ${a.name}`} />
+            ) : (
+              <FileCard name={a.name} size={a.size} mime={a.mime} width={FILE_W} />
+            )}
+            <Pressable
+              onPress={() => onRemove(i)}
+              hitSlop={10}
+              style={styles.x}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${a.name}`}
+            >
+              <X size={11} color={Ghost.text.inverse} strokeWidth={3} />
+            </Pressable>
+          </Animated.View>
+        ))}
+      </ScrollView>
+      {items.length > 1 ? <Text style={styles.summary}>{attachmentSummary(items)}</Text> : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 0, marginBottom: 8 },
-  row: { gap: 8, paddingVertical: 6, paddingRight: 6 },
-  item: { width: TILE, height: TILE },
-  tile: { width: TILE, height: TILE, borderRadius: Radius.lg, borderCurve: "continuous", backgroundColor: Ghost.bg.sunken },
-  file: { alignItems: "center", justifyContent: "center", gap: 3, borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.border.default },
-  ext: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.4, color: Ghost.text.tertiary },
+  wrap: { marginBottom: 8 },
+  scroll: { flexGrow: 0 },
+  row: { gap: 10, paddingTop: 8, paddingBottom: 4, paddingRight: 8, paddingLeft: 2 },
+  photo: { width: TILE, height: TILE },
+  file: { width: FILE_W },
+  tile: {
+    width: TILE,
+    height: TILE,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    backgroundColor: Ghost.bg.sunken,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.border.default,
+  },
+  summary: { fontSize: 12, lineHeight: 16, color: Ghost.text.tertiary, marginTop: 4, marginLeft: 4 },
   x: {
     position: "absolute",
-    top: -5,
-    right: -5,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: Ghost.text.primary,
     alignItems: "center",
     justifyContent: "center",
