@@ -1,5 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ghost, Space } from "@/constants/theme";
 
@@ -17,6 +18,13 @@ export function Dock({ items, action }: { items: DockItem[]; action?: DockItem }
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.wrap, { paddingBottom: insets.bottom + Space.lg }]} pointerEvents="box-none">
+      {/* Content scrolling under the dock fades out instead of colliding with it. */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.85)", "#000"]}
+        locations={[0, 0.55, 1]}
+        style={[styles.scrim, { height: insets.bottom + 140 }]}
+      />
       <View style={styles.pill}>
         {items.map(({ label, icon: Icon, onPress }) => (
           <Pressable
@@ -46,6 +54,7 @@ export function Dock({ items, action }: { items: DockItem[]; action?: DockItem }
 }
 
 const styles = StyleSheet.create({
+  scrim: { position: "absolute", left: 0, right: 0, bottom: 0 },
   wrap: {
     position: "absolute",
     left: 0,

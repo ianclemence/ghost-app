@@ -18,7 +18,7 @@ import React from "react";
 import { View } from "react-native";
 import { Text } from "@/components/text";
 import { hasParents } from "react-native-markdown-display";
-import { Fonts, Ghost } from "@/constants/theme";
+import { Fonts, Ghost, Inter } from "@/constants/theme";
 import { CodeBlock } from "@/components/code-block";
 import { ChatImage } from "@/components/chat-image";
 import { MdCell, MdRow, MdTable } from "@/components/md-table";
@@ -69,6 +69,31 @@ function textRule(node: ASTNode, children: React.ReactNode[], parents: ASTNode[]
           </Text>
         </Text>
         {task.rest}
+      </Text>
+    );
+  }
+  // Text in a table cell is set at the cell's own size and weight. It used to
+  // inherit the reply's body size (18.5px, light), which made tables larger than
+  // designed and pushed words past their column.
+  const cell = parents.find((p) => p.type === "td" || p.type === "th");
+  if (cell) {
+    const header = cell.type === "th";
+    return (
+      <Text
+        key={node.key}
+        style={[
+          inherited,
+          styles.text,
+          {
+            fontFamily: header || cell.index === 0 ? Inter.semibold : Inter.regular,
+            fontSize: header ? 12.5 : 14.5,
+            lineHeight: header ? 17 : 20,
+            letterSpacing: 0,
+            color: header ? Ghost.text.secondary : Ghost.text.primary,
+          },
+        ]}
+      >
+        {node.content}
       </Text>
     );
   }
