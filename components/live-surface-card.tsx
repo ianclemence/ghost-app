@@ -301,8 +301,12 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
         {stepsView(steps.slice(-3))}
         {approval && surface.state === "waiting" ? (
           <View style={styles.actions}>
-            <GhostButton size="sm" variant="primary" title={answer === "allow_once" ? "One moment" : "Allow once"} onPress={() => void answerApproval("allow_once")} disabled={answer !== null} />
-            <GhostButton size="sm" variant="secondary" title={answer === "allow_task" ? "One moment" : "For this task"} onPress={() => void answerApproval("allow_task")} disabled={answer !== null} />
+            {/* A search or a booking is several steps (type, press, click):
+                "for this task" is the answer that finishes what was asked, as
+                in the terminal. "Once" covered one keystroke, and Ghost then
+                stopped at the next one. */}
+            <GhostButton size="sm" variant="primary" title={answer === "allow_task" ? "One moment" : "Allow for this task"} onPress={() => void answerApproval("allow_task")} disabled={answer !== null} />
+            <GhostButton size="sm" variant="secondary" title={answer === "allow_once" ? "One moment" : "Once"} onPress={() => void answerApproval("allow_once")} disabled={answer !== null} />
             <GhostButton size="sm" variant="ghost" title={answer === "deny" ? "One moment" : "Deny"} onPress={() => void answerApproval("deny")} disabled={answer !== null} />
           </View>
         ) : null}
