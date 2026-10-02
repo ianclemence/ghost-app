@@ -31,6 +31,7 @@ import {
 
 import { Ghost, Radius, shadowRGB, Space, Type } from "@/constants/theme";
 import { composerPlaceholder } from "@/lib/placeholder";
+import { showSuggestion } from "@/lib/suggestion";
 
 const MAX_VOICE_MS = 120_000;
 const SPRING = { damping: 18, stiffness: 240, mass: 0.6 };
@@ -55,6 +56,12 @@ interface ComposerProps {
   onVoiceError?: (message: string) => void;
   streaming?: boolean;
   onStop?: () => void;
+  /**
+   * What the owner is likely to say next. While the bar is empty it is shown
+   * as the placeholder, with a "Use" button that puts it in the bar to edit or
+   * send. Nothing is sent by using it.
+   */
+  suggestion?: string;
 }
 
 /** A round button that gives a little under the finger. */
@@ -136,6 +143,7 @@ export function Composer({
   onVoiceError,
   streaming = false,
   onStop,
+  suggestion,
 }: ComposerProps) {
   const reduceMotion = useReducedMotion();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -225,6 +233,12 @@ export function Composer({
 
   const voiceOccupied = recording || transcribing;
   const hasText = value.trim().length > 0;
+  const offered = showSuggestion({ suggestion: suggestion ?? "", draft: value, streaming, recording: voiceOccupied }) ? suggestion! : "";
+  const useSuggestion = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onChangeText(offered);
+    if (typeof inputRef === "object" && inputRef?.current) inputRef.current.focus();
+  };
   const canSend = hasText && !busy && !voiceOccupied && editable !== false;
 
   const submit = () => {
@@ -349,7 +363,7 @@ export function Composer({
             value={value}
             onChangeText={onChangeText}
             accessibilityLabel="Message Ghost"
-            placeholder={transcribing ? "Transcribing…" : (placeholder ?? composerPlaceholder({ online: true, streaming, firstTime: false }))}
+            placeholder={transcribing ? "Transcribing…" : (offered || placeholder || composerPlaceholder({ online: true, streaming, firstTime: false }))}
             placeholderTextColor={Ghost.text.tertiary}
             multiline
             maxLength={maxLength}
@@ -363,6 +377,18 @@ export function Composer({
             onFocus={() => setTray(false)}
           />
         )}
+
+        {offered ? (
+          <Pressable
+            onPress={useSuggestion}
+            hitSlop={8}
+            style={({ pressed }) => [styles.use, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Use suggestion: ${offered}`}
+          >
+            <Text style={styles.useText}>Use</Text>
+          </Pressable>
+        ) : null}
 
         {recording ? (
           <Round label="Discard recording" onPress={() => finishRecording(false)}>
@@ -419,6 +445,16 @@ const styles = StyleSheet.create({
   },
   solid: { backgroundColor: Ghost.text.primary },
   quiet: { backgroundColor: Ghost.bg.sunken },
+  use: {
+    alignSelf: "center",
+    height: 30,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    marginRight: 2,
+    justifyContent: "center",
+    backgroundColor: Ghost.accent.soft,
+  },
+  useText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.1, color: Ghost.accent.primary },
   ring: { borderWidth: 1.5, borderColor: Ghost.border.strong },
   pair: { flexDirection: "row", alignItems: "center", gap: 2 },
   tray: { flexDirection: "row", gap: Space.sm, paddingHorizontal: 6, paddingTop: 4, paddingBottom: 8 },

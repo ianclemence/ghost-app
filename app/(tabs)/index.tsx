@@ -19,6 +19,7 @@ import { Composer } from "@/components/composer";
 import { AttachmentStrip } from "@/components/attachment-strip";
 import { SentAttachments } from "@/components/sent-attachments";
 import { composerPlaceholder } from "@/lib/placeholder";
+import { shouldAskForSuggestion } from "@/lib/suggestion";
 import { EdgeTarget, TopEdge, useScrollEdge } from "@/components/scroll-edge";
 import { ScreenBackground } from "@/components/screen-glow";
 import { PresenceHeader } from "@/components/presence-header";
@@ -33,6 +34,7 @@ import {
   fetchIdentity,
   fetchLiveSurface,
   fetchPendingApprovals,
+  fetchSuggestion,
   fetchRoutines,
   onWSMessage,
   phaseLabel,
@@ -723,6 +725,21 @@ export default function ConversationScreen() {
   const ready = paired;
   const podOnline = paired && connectionState === "online";
 
+  // What the owner is likely to say next, predicted by the Pod from the
+  // conversation as it stands. Asked for when Ghost has just finished
+  // speaking; dropped as soon as the conversation moves on.
+  const [suggestion, setSuggestion] = useState("");
+  const lastMsg = messages[messages.length - 1];
+  const askKey = lastMsg ? `${lastMsg.id}:${lastMsg.role}:${lastMsg.status ?? ""}` : "";
+  useEffect(() => {
+    setSuggestion("");
+    if (!config || !shouldAskForSuggestion({ online: podOnline, streaming: isStreaming, lastRole: lastMsg?.role, lastStatus: lastMsg?.status })) return;
+    let current = true;
+    fetchSuggestion(config, MAIN_SESSION_ID).then((t) => { if (current) setSuggestion(t); });
+    return () => { current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askKey, isStreaming, podOnline]);
+
   const jumpToLatest = () => {
     nearBottom.current = true;
     setUnseen(0);
@@ -886,6 +903,7 @@ export default function ConversationScreen() {
           onChangeText={setDraft}
           onSubmit={send}
           placeholder={composerPlaceholder({ online: podOnline, streaming: isStreaming, firstTime: messages.length === 0 })}
+          suggestion={suggestion}
           // Photos and files go to the Pod, which identifies and reads them.
           onPhoto={podOnline ? () => void attachPhoto() : undefined}
           onFile={podOnline ? () => void attachFile() : undefined}

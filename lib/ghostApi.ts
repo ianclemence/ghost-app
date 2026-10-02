@@ -1,6 +1,7 @@
 import { sealedFetch } from "./sealedFetch";
 import { normalizeHistoryTimestamps } from "./reconcile";
 import { toMediaItems, type Attachment } from "./attachments";
+import { usableSuggestion } from "./suggestion";
 import { readBase64 } from "./localFiles";
 import { activityQuery } from "./activity";
 import { recordMilestone } from "./onboarding-metrics";
@@ -973,6 +974,22 @@ export interface PendingApproval {
   created_at: string;
   expires_at: string;
   card?: ApprovalCard;
+}
+
+/**
+ * What the owner is most likely to say next, as the Pod predicts it from the
+ * conversation. Any failure is simply "no suggestion": the bar keeps its line
+ * for the time of day.
+ */
+export async function fetchSuggestion(cfg: GhostConfig, session = "main"): Promise<string> {
+  try {
+    const res = await gfetch(cfg, `${baseURL(cfg)}/v1/suggest?session=${encodeURIComponent(session)}`, { headers: headers(cfg) });
+    if (!res.ok) return "";
+    const data = await res.json().catch(() => null);
+    return usableSuggestion(data?.suggestion);
+  } catch {
+    return "";
+  }
 }
 
 export async function fetchPendingApprovals(cfg: GhostConfig): Promise<PendingApproval[]> {
