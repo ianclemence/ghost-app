@@ -1,6 +1,7 @@
 import { writeCacheFile } from "@/lib/localFiles";
-import React, { useState } from "react";
-import { Image, Linking, StyleSheet, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Image, Linking, Pressable, StyleSheet, View } from "react-native";
+import { PhotoViewer } from "@/components/photo-viewer";
 import { Text } from "@/components/text";
 import { Fonts, Ghost, Space } from "@/constants/theme";
 import { GlassCard } from "@/components/glass";
@@ -27,6 +28,11 @@ export function ArtifactCard({ config, artifact }: Props) {
   const [sharing, setSharing] = useState<boolean | null>(null);
   const view = artifactViewOf(artifact);
   const actions = artifactActionsOf(artifact);
+  // A picture (a screenshot the owner asked for, an image Ghost made) is
+  // shown, not filed: the thing they asked to see, with a caption, full
+  // screen on a tap. It used to be a "File" card behind a Preview button.
+  const isPicture = artifact.kind === "file" && /\.(png|jpe?g|webp|gif)$/i.test(artifact.path ?? "") && artifact.state === "available";
+  const [viewer, setViewer] = useState<number | null>(null);
 
   const loadPreview = async () => {
     if (artifact.kind !== "file" || !artifact.path) return;
@@ -46,6 +52,11 @@ export function ArtifactCard({ config, artifact }: Props) {
       setPreviewImage(null);
     }
   };
+
+  useEffect(() => {
+    if (isPicture && previewImage === null && !previewBusy && !previewError) void loadPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPicture]);
 
   const checkSharing = async () => {
     if (sharing !== null) return sharing;
@@ -110,6 +121,37 @@ export function ArtifactCard({ config, artifact }: Props) {
     );
   }
 
+  if (isPicture) {
+    return (
+      <View style={styles.picture}>
+        <Pressable
+          onPress={() => previewImage && setViewer(0)}
+          accessibilityRole="imagebutton"
+          accessibilityLabel={`${artifact.title}. Tap to see it full screen`}
+          style={({ pressed }) => [pressed && { opacity: 0.85 }]}
+        >
+          {previewImage ? (
+            <Image source={{ uri: previewImage }} style={styles.pictureImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.pictureImage, styles.pictureEmpty]}>
+              <Text style={styles.status}>{previewError ?? "Getting the picture…"}</Text>
+            </View>
+          )}
+        </Pressable>
+        <View style={styles.captionRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.caption} numberOfLines={1}>{artifact.title}</Text>
+            {artifact.summary ? <Text style={styles.captionSub} numberOfLines={1}>{artifact.summary}</Text> : null}
+          </View>
+          {actions.some((a) => a.kind === "download") ? (
+            <GhostButton title="Save" variant="secondary" size="sm" onPress={() => void download()} />
+          ) : null}
+        </View>
+        {previewImage ? <PhotoViewer uris={[previewImage]} start={viewer} onClose={() => setViewer(null)} /> : null}
+      </View>
+    );
+  }
+
   return (
     <GlassCard style={styles.card} accessibilityLabel={`Result from Ghost: ${artifact.title}`}>
       <Text style={styles.kicker}>{artifact.kind === "file" ? "File" : artifact.kind === "link" ? "Link" : "Result"}</Text>
@@ -158,6 +200,39 @@ export function ArtifactCard({ config, artifact }: Props) {
 }
 
 const styles = StyleSheet.create({
+  picture: {
+    marginVertical: Space.xs,
+    gap: Space.sm,
+  },
+  pictureImage: {
+    width: "100%",
+    aspectRatio: 16 / 10,
+    borderRadius: 16,
+    borderCurve: "continuous",
+    backgroundColor: Ghost.bg.sunken,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.border.default,
+  },
+  pictureEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  captionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+  },
+  caption: {
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "500",
+    color: Ghost.text.primary,
+  },
+  captionSub: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: Ghost.text.tertiary,
+  },
   // Past files are part of the history, not the headline: a compact card, so a
   // screenshot from last week no longer takes a third of the screen.
   card: {

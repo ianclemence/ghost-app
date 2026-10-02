@@ -3,7 +3,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { Easing, FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
+import Animated, { Easing, FadeInDown, FadeOut, useReducedMotion, useSharedValue } from "react-native-reanimated";
+import { TopEdge } from "@/components/scroll-edge";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { ArrowDown, ArrowUpRight } from "lucide-react-native";
@@ -45,6 +46,7 @@ import {
   type Artifact,
   type ChatOutcome,
   type GhostConfig,
+  type LiveSurface,
   type PendingApproval,
   type ServedBy,
   type SurfaceKind,
@@ -54,6 +56,7 @@ import { dispatchMode } from "@/lib/dispatch";
 import { applyLiveEffect, applySay, liveEffect, sayEffect } from "@/lib/liveTurn";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
+import { acceptSurface, applySurfaceList, belongsTo, dropSurface, visibleSurfaces, type SurfaceMap } from "@/lib/turnSurfaces";
 import { normalizeCard, parseCardMessage, type RichCard } from "@/lib/cards";
 import { displayStatusForTool } from "@/lib/statusPhase";
 import { reconcileHistory } from "@/lib/reconcile";
@@ -85,35 +88,6 @@ function outcomeLine(outcome: ChatOutcome | null): string | null {
   }
 }
 
-// Live things that belong at the end of the conversation right now: shared
-// browser/computer surfaces. (Artifacts and cards are placed in the thread
-// where they were made.)
-function ThreadExtras({
-  config,
-  surfaces,
-  onSurfaceGone,
-}: {
-  config: GhostConfig | null;
-  surfaces: { id: string; kind: SurfaceKind }[];
-  onSurfaceGone: (id: string) => void;
-}) {
-  if (!config || surfaces.length === 0) return null;
-  return (
-    <View style={styles.extras}>
-      {surfaces.map((s) => (
-        <LiveSurfaceCard
-          key={s.id}
-          config={config}
-          kind={s.kind}
-          surfaceId={s.id}
-          ownDeviceId={config.deviceID}
-          onGone={onSurfaceGone}
-        />
-      ))}
-    </View>
-  );
-}
-
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -139,6 +113,10 @@ export default function ConversationScreen() {
   // Chrome that reacts to the thread: header hairline once scrolled, a
   // jump-to-latest pill (with a count of what arrived) when reading back.
   const [scrolled, setScrolled] = useState(false);
+  // Drives the soft shade under the header once messages scroll beneath it.
+  // Without it, text slid under the clock and Ghost's mark with nothing
+  // between them.
+  const edgeY = useSharedValue(0);
   const [awayFromLatest, setAwayFromLatest] = useState(false);
   const [unseen, setUnseen] = useState(0);
   // Photos and files ride along with the next message. The Pod detects each
@@ -147,7 +125,8 @@ export default function ConversationScreen() {
   // Messages present at first paint don't animate in; new ones do.
   const initialKeysRef = useRef<Set<string> | null>(null);
   const [cancelPhase, setCancelPhase] = useState<CancelPhase>("idle");
-  const [surfaces, setSurfaces] = useState<{ id: string; kind: SurfaceKind }[]>([]);
+  // Ghost's browser/computer, as the Pod reports them, keyed by id.
+  const [surfaceMap, setSurfaceMap] = useState<SurfaceMap>({});
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [cards, setCards] = useState<RichCard[]>([]);
   // Detached background tasks for this conversation: running rows tick in
@@ -163,9 +142,15 @@ export default function ConversationScreen() {
     const t = setInterval(() => setBgNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [bgRunning.length]);
-  const surfacesRef = useRef<{ id: string; kind: SurfaceKind }[]>([]);
-  surfacesRef.current = surfaces;
   const flushingRef = useRef(false);
+  const heldSaysRef = useRef<NonNullable<ReturnType<typeof sayEffect>>[]>([]);
+  useEffect(() => {
+    if (isStreaming || heldSaysRef.current.length === 0) return;
+    const held = heldSaysRef.current;
+    heldSaysRef.current = [];
+    const append = useGhostStore.getState().appendMessage;
+    held.forEach((e) => applySay(e, { appendMessage: append }));
+  }, [isStreaming]);
   const localAbort = useRef<AbortController | null>(null);
   // Where the in-flight turn ran, as the Pod's runtime states it (the
   // served_by frame), stamped onto the reply when it completes.
@@ -247,22 +232,30 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
   }, []);
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
-  // The browser/computer cards are announced over the live connection, so one
-  // that began while the app was away (or whose announcement was missed) was
-  // never added, and a card the app lost on coming back stayed lost. Ask the
-  // Pod what is running now, on opening, on returning to the conversation and on
-  // coming back to the app.
+  // The Pod is the authority on Ghost's browser. Its list is asked for on
+  // opening, on coming back to the conversation or the app, and when a turn
+  // ends, so a card that began while the app was away appears, and one whose
+  // work ended while the app was away settles.
   const refreshSurfaces = useCallback(() => {
     if (!config) return;
     fetchLiveSurfaces(config).then((list) => {
-      const running = list.filter((s) => s.state !== "completed" && s.state !== "expired" && s.state !== "failed");
-      setSurfaces((prev) => {
-        const known = new Set(prev.map((x) => x.id));
-        const add = running.filter((s) => !known.has(s.id)).map((s) => ({ id: s.id, kind: s.kind }));
-        return add.length ? [...prev, ...add] : prev;
-      });
+      setSurfaceMap((prev) => applySurfaceList(prev, list, MAIN_SESSION_ID));
     }).catch(() => {});
   }, [config]);
+  // One surface changed: ask for its state. Every announcement is followed,
+  // not just the first, or the card stays on whatever it saw first.
+  const pullSurface = useCallback((kind: SurfaceKind, id: string) => {
+    if (!config) return;
+    fetchLiveSurface(config, kind, id).then((s) => {
+      if (!s) {
+        setSurfaceMap((prev) => dropSurface(prev, id));
+        return;
+      }
+      setSurfaceMap((prev) => (prev[id] || belongsTo(s, MAIN_SESSION_ID) ? acceptSurface(prev, s) : prev));
+    }).catch(() => {});
+  }, [config]);
+  const onSurface = useCallback((s: LiveSurface) => setSurfaceMap((prev) => acceptSurface(prev, s)), []);
+  const onSurfaceGone = useCallback((id: string) => setSurfaceMap((prev) => dropSurface(prev, id)), []);
   useFocusEffect(useCallback(() => { settle(); refreshSurfaces(); }, [settle, refreshSurfaces]));
   useEffect(() => {
     const sub = AppState.addEventListener("change", (st) => { if (st === "active") refreshSurfaces(); });
@@ -301,7 +294,9 @@ export default function ConversationScreen() {
     if (messages.length === 0) return;
     const t = setTimeout(() => {
       void saveLocalThread(
-        messages.filter((m) => m.content && m.status !== "streaming").map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
+        // What was said, not what is waiting to be sent: queued and unsent
+        // bubbles saved here came back on the next launch as sent messages.
+        messages.filter((m) => m.content && m.status !== "streaming" && m.status !== "queued" && m.status !== "sending").map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
       ).catch(() => {});
     }, 500);
     return () => clearTimeout(t);
@@ -386,6 +381,13 @@ export default function ConversationScreen() {
       // joins the thread now, labelled, instead of waiting for a reload.
       const say = sayEffect(msg, { session: MAIN_SESSION_ID });
       if (say) {
+        // A reminder that comes due while Ghost is answering waits for the
+        // answer to finish. Dropped in the middle, it split the browser card
+        // from its answer and the answer kept growing above it.
+        if (useGhostStore.getState().isStreaming) {
+          heldSaysRef.current.push(say);
+          return;
+        }
         applySay(say, { appendMessage: useGhostStore.getState().appendMessage });
         fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
           .then(({ messages: h }) => {
@@ -441,15 +443,7 @@ export default function ConversationScreen() {
       // A surface announcement carries identity only; confirm it exists
       // before rendering so forged or stale ids never become UI.
       const announced = parseSurfaceAnnouncement(msg, MAIN_SESSION_ID);
-      if (announced) {
-        const { surfaceId, kind } = announced;
-        fetchLiveSurface(config, kind, surfaceId).then((s) => {
-          if (cancelled || !s) return;
-          setSurfaces((prev) =>
-            prev.some((x) => x.id === surfaceId) ? prev : [...prev, { id: surfaceId, kind }],
-          );
-        }).catch(() => {});
-      }
+      if (announced) pullSurface(announced.kind, announced.surfaceId);
       // A card frame carries the full payload; kind-gated by the parser.
       const card = parseCardMessage(msg, MAIN_SESSION_ID);
       if (card) {
@@ -465,7 +459,7 @@ export default function ConversationScreen() {
       clearInterval(t);
       off();
     };
-  }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox, appendMessage]);
+  }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox, appendMessage, pullSurface]);
 
   // A reply cut off mid-stream is finished by the Pod, which keeps writing it
   // after the connection drops. Ask for the full copy a few times, with room for
@@ -480,6 +474,20 @@ export default function ConversationScreen() {
       }, delay);
     });
   }, [setMessages]);
+
+  // Hold a message for when the Pod is back. The same words already waiting
+  // are the same request (a second tap while nothing seemed to happen): the
+  // outbox keeps one, and so must the thread, or four taps showed four
+  // identical "waiting" bubbles of which only one would ever go.
+  const queueOrMerge = useCallback((messageId: string, content: string) => {
+    const entry = { id: makeOutboxId(), messageId, content, sessionKey: MAIN_SESSION_ID, createdAt: Date.now(), attempts: 0 };
+    enqueueOutbox(entry)
+      .then((list) => {
+        if (list.some((e) => e.id === entry.id)) updateMessage(messageId, { status: "queued" });
+        else removeMessage(messageId);
+      })
+      .catch(() => updateMessage(messageId, { status: "queued" }));
+  }, [removeMessage, updateMessage]);
 
   const send = useCallback(async (text: string) => {
     // A paired Pod or an active local model — either makes Ghost reachable.
@@ -497,7 +505,10 @@ export default function ConversationScreen() {
     // hand it to the offline outbox (visible, ordered, delivered on turn end).
     if (isStreaming) {
       setDraft("");
-      appendMessage({ id: `temp-${Date.now()}`, role: "user", content: q, timestamp: Date.now(), status: "sending" });
+      // One id for the bubble and its outbox entry: with two, delivering the
+      // entry removed a bubble that did not exist and left this one behind.
+      const steerId = `temp-${Date.now()}`;
+      appendMessage({ id: steerId, role: "user", content: q, timestamp: Date.now(), status: "sending" });
       nearBottom.current = true;
       listRef.current?.scrollToEnd({ animated: true });
       const mode = dispatchMode(true, !!config);
@@ -509,14 +520,7 @@ export default function ConversationScreen() {
         }
       }
       // Steering failed or unavailable: queue it so it is delivered in order.
-      enqueueOutbox({
-        id: makeOutboxId(),
-        messageId: `temp-${Date.now()}`,
-        content: q,
-        sessionKey: MAIN_SESSION_ID,
-        createdAt: Date.now(),
-        attempts: 0,
-      }).catch(() => {});
+      queueOrMerge(steerId, q);
       setSendError(null);
       return;
     }
@@ -609,13 +613,8 @@ export default function ConversationScreen() {
           fetchArtifacts(config, MAIN_SESSION_ID)
             .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
             .catch(() => {});
-          // Reconcile tracked surfaces with runtime truth: refresh each,
-          // drop the ones the runtime no longer knows.
-          surfacesRef.current.forEach((s) => {
-            fetchLiveSurface(config, s.kind, s.id).then((live) => {
-              if (!live) setSurfaces((cur) => cur.filter((x) => x.id !== s.id));
-            }).catch(() => {});
-          });
+          // The turn is over: the Pod has settled its browser. Take its word.
+          refreshSurfaces();
         }
       },
       onError: (e) => {
@@ -658,15 +657,7 @@ export default function ConversationScreen() {
         if (config && isRetryableSendError(e.kind)) {
           // Offline, not failed: queue for FIFO delivery on reconnect.
           // The message stays visible, marked queued — never silently lost.
-          enqueueOutbox({
-            id: makeOutboxId(),
-            messageId: tempUserId,
-            content: q,
-            sessionKey: MAIN_SESSION_ID,
-            createdAt: Date.now(),
-            attempts: 0,
-          }).catch(() => {});
-          updateMessage(tempUserId, { status: "queued" });
+          queueOrMerge(tempUserId, q);
           setSendError(null);
           return;
         }
@@ -681,7 +672,7 @@ export default function ConversationScreen() {
       setToolActivity(null);
       setSendError(e instanceof Error ? e.message : String(e));
     });
-  }, [config, isStreaming, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox, settleIncomplete]);
+  }, [config, isStreaming, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox, settleIncomplete, refreshSurfaces, queueOrMerge]);
 
   const stopTurn = useCallback(async () => {
     if (!isStreaming) return;
@@ -772,7 +763,31 @@ export default function ConversationScreen() {
     setAttachments(next);
   }, [attachments]);
 
-  const thread = React.useMemo(() => buildThread(messages, artifacts, Date.now(), cards, hasMore), [messages, artifacts, cards, hasMore]);
+  const shownSurfaces = React.useMemo(() => visibleSurfaces(surfaceMap), [surfaceMap]);
+  const thread = React.useMemo(
+    () => buildThread(messages, artifacts, Date.now(), cards, hasMore, shownSurfaces),
+    [messages, artifacts, cards, hasMore, shownSurfaces],
+  );
+  // While Ghost works in its browser, the browser card is where that shows.
+  // An empty "Using the browser" line under it said the same thing twice.
+  const browsing = shownSurfaces.some((t) => t.surface.state === "active" || t.surface.state === "starting" || t.surface.state === "waiting");
+  // An approval a waiting browser card shows is answered there, on the card
+  // beside the page it is about; the dock does not ask the same thing twice.
+  const approvalFor = useCallback((s: LiveSurface): PendingApproval | null => {
+    if (s.state !== "waiting") return null;
+    return approvals.find((a) => a.continuation?.browser_session === s.id)
+      ?? (s.kind === "computer" ? approvals.find((a) => a.capability === "computer") ?? null : null);
+  }, [approvals]);
+  const onCard = new Set(shownSurfaces.map((t) => approvalFor(t.surface)?.id).filter(Boolean) as string[]);
+  const dockApprovals = approvals.filter((a) => !onCard.has(a.id));
+  const answering = isStreaming && !!messages[messages.length - 1]?.content.trim() && messages[messages.length - 1]?.role === "assistant";
+  const refreshAfterApproval = useCallback(() => {
+    if (!config) return;
+    fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+    fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+      .then(({ messages: h }) => setMessages(reconcileHistory(useGhostStore.getState().messages, h)))
+      .catch(() => {});
+  }, [config, setMessages]);
   const lastCount = useRef(0);
   useEffect(() => {
     // Count what arrives while the owner is reading back, for the pill.
@@ -788,6 +803,20 @@ export default function ConversationScreen() {
         <View style={styles.inlineCard}>
           <ArtifactCard config={config} artifact={item.artifact} />
         </View>
+      ) : null;
+    }
+    if (item.kind === "surface") {
+      return config ? (
+        <LiveSurfaceCard
+          config={config}
+          surface={item.tracked.surface}
+          ownDeviceId={config.deviceID}
+          approval={approvalFor(item.tracked.surface)}
+          answering={answering}
+          onApprovalResolved={refreshAfterApproval}
+          onSurface={onSurface}
+          onGone={onSurfaceGone}
+        />
       ) : null;
     }
     if (item.kind === "card") {
@@ -817,17 +846,19 @@ export default function ConversationScreen() {
         />
       );
     }
+    if (m.status === "streaming" && !m.content.trim() && browsing) return null;
     return (
       <GhostMessage
         message={m}
         outOfTurn={item.outOfTurn}
         showTime={item.showTime}
         groupStart={item.groupStart}
-        phase={m.status === "streaming" ? toolActivity : null}
+        // The browser card says what Ghost is doing in the browser.
+        phase={m.status === "streaming" && !browsing ? toolActivity : null}
         animate={animate}
       />
     );
-  }, [toolActivity, config, send]);
+  }, [toolActivity, config, send, browsing, onSurface, onSurfaceGone, approvalFor, answering, refreshAfterApproval]);
 
   const statusLine = outcomeLine(outcome);
   const cancelLine = cancelStatusLine(cancelPhase);
@@ -953,16 +984,10 @@ export default function ConversationScreen() {
               </View>
             ) : null
           }
-          ListFooterComponent={
-            <ThreadExtras
-              config={config}
-              surfaces={surfaces}
-              onSurfaceGone={(id) => setSurfaces((prev) => prev.filter((x) => x.id !== id))}
-            />
-          }
           scrollEventThrottle={32}
           onScroll={(e) => {
             const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+            edgeY.set(contentOffset.y);
             const atBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
             if (dragging.current) nearBottom.current = atBottom;
             if (atBottom && unseen > 0) setUnseen(0);
@@ -989,6 +1014,9 @@ export default function ConversationScreen() {
             if (nearBottom.current) listRef.current?.scrollToEnd({ animated: !isStreaming });
           }}
         />
+        <View pointerEvents="none" style={[styles.edge, { top: insets.top + 60 }]}>
+          <TopEdge y={edgeY} />
+        </View>
         </View>
       )}
       <Animated.View style={[styles.dock, dockPad]}>
@@ -1013,13 +1041,13 @@ export default function ConversationScreen() {
             </Text>
           </View>
         ))}
-        {config && approvals.length > 0 ? (
+        {config && dockApprovals.length > 0 ? (
           <View style={styles.approvalWrap}>
             <PermissionCard
-              key={approvals[0].id}
-              item={approvals[0]}
+              key={dockApprovals[0].id}
+              item={dockApprovals[0]}
               config={config}
-              position={{ index: 0, total: approvals.length }}
+              position={{ index: 0, total: dockApprovals.length }}
               onResolved={() => {
                 if (!config) return;
                 // The approval now runs as a turn, so the card clearing is not
@@ -1074,6 +1102,13 @@ const styles = StyleSheet.create({
   },
   listWrap: {
     flex: 1,
+  },
+  edge: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 0,
+    zIndex: 1,
   },
   list: {
     flex: 1,
@@ -1168,10 +1203,6 @@ const styles = StyleSheet.create({
     color: Ghost.text.primary,
   },
   approvalWrap: {},
-  extras: {
-    paddingTop: Space.md,
-    gap: Space.sm,
-  },
   status: {
     textAlign: "center",
     fontSize: 13,

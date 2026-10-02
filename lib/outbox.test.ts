@@ -102,3 +102,18 @@ describe("retryable errors", () => {
     }
   });
 });
+
+describe("commitStream and the outbox", () => {
+  test("a message still waiting to send keeps its id and label when a turn commits", async () => {
+    const { useGhostStore } = await import("./store");
+    useGhostStore.getState().setMessages([
+      { id: "temp-q", role: "user", content: "later", timestamp: 1, status: "queued" },
+      { id: "temp-u", role: "user", content: "now", timestamp: 2, status: "sending" },
+      { id: "temp-a", role: "assistant", content: "hi", timestamp: 3, status: "streaming" },
+    ]);
+    useGhostStore.getState().commitStream();
+    const after = useGhostStore.getState().messages;
+    expect(after.find((m) => m.content === "later")).toMatchObject({ id: "temp-q", status: "queued" });
+    expect(after.find((m) => m.content === "now")?.status).toBe("completed");
+  });
+});

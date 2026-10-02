@@ -12,6 +12,7 @@
 import type { Artifact } from "./ghostApi";
 import type { RichCard } from "./cards";
 import type { ExtendedMessage } from "./store";
+import type { TrackedSurface } from "./turnSurfaces";
 
 export type ThreadItem =
   | { kind: "day"; key: string; label: string }
@@ -27,7 +28,8 @@ export type ThreadItem =
       groupStart: boolean;
     }
   | { kind: "artifact"; key: string; artifact: Artifact; at: number }
-  | { kind: "card"; key: string; card: RichCard; at: number };
+  | { kind: "card"; key: string; card: RichCard; at: number }
+  | { kind: "surface"; key: string; tracked: TrackedSurface; at: number };
 
 const OUT_OF_TURN_GAP_MS = 2 * 60_000;
 const RESUME_GAP_MS = 15 * 60_000;
@@ -77,8 +79,10 @@ export function buildThread(
   cards: RichCard[] = [],
   /** More history exists above what is loaded. */
   hasMore = false,
+  /** Ghost's browser/computer, placed at the request that opened each. */
+  surfaces: TrackedSurface[] = [],
 ): ThreadItem[] {
-  type Entry = { at: number; order: number; msg?: ExtendedMessage; art?: Artifact; card?: RichCard };
+  type Entry = { at: number; order: number; msg?: ExtendedMessage; art?: Artifact; card?: RichCard; surface?: TrackedSurface };
   const entries: Entry[] = messages.map((m, i) => ({ at: m.timestamp || now, order: i, msg: m }));
   const lastAt = entries.length ? entries[entries.length - 1].at : now;
   artifacts.forEach((a, i) => {
@@ -87,6 +91,35 @@ export function buildThread(
   });
   cards.forEach((c, i) => {
     entries.push({ at: c.created_at ?? lastAt + 1, order: messages.length + artifacts.length + i, card: c });
+  });
+  // A browser card belongs right under the message that asked for the work,
+  // before Ghost's answer: the answer is what the browsing produced. Placed by
+  // time alone it landed after the reply (the reply row exists from the moment
+  // the message is sent), or under every later message when it was a footer.
+  const base = messages.length + artifacts.length + cards.length;
+  surfaces.forEach((t, i) => {
+    let anchor = -1;
+    for (let j = 0; j < messages.length; j++) {
+      const m = messages[j];
+      if (m.role === "user" && (m.timestamp || now) <= t.at) anchor = j;
+    }
+    // Work Ghost started on its own (a routine, a proactive check) began after
+    // that request was already answered: it belongs at its own time, not
+    // under a message from hours ago.
+    if (anchor >= 0) {
+      const from = messages[anchor].timestamp || now;
+      const answeredBefore = messages.some((m) =>
+        m.role === "assistant" && m.status !== "streaming" && m.content.trim() !== "" &&
+        (m.timestamp || now) > from && (m.timestamp || now) < t.at);
+      if (answeredBefore) anchor = -1;
+    }
+    if (anchor >= 0) {
+      const m = messages[anchor];
+      // Sorts after its request and before anything else at that moment.
+      entries.push({ at: m.timestamp || now, order: anchor + 0.5 + i / (surfaces.length + 1) / 2, surface: t });
+    } else {
+      entries.push({ at: t.at, order: base + i, surface: t });
+    }
   });
   entries.sort((a, b) => (a.at - b.at) || (a.order - b.order));
   // Only part of the conversation is loaded. A file or card from further back
@@ -113,6 +146,10 @@ export function buildThread(
     }
     if (e.art) {
       out.push({ kind: "artifact", key: `art-${e.art.id}`, artifact: e.art, at: e.at });
+      continue;
+    }
+    if (e.surface) {
+      out.push({ kind: "surface", key: `surface-${e.surface.surface.id}`, tracked: e.surface, at: e.at });
       continue;
     }
     if (e.card) {

@@ -982,6 +982,8 @@ export interface PendingApproval {
   created_at: string;
   expires_at: string;
   card?: ApprovalCard;
+  /** What the paused call will resume with; browser_session names its surface. */
+  continuation?: Record<string, unknown>;
 }
 
 /**
@@ -1753,6 +1755,8 @@ export interface SurfaceObservation {
   text?: string;
   control?: SurfaceControl;
   state?: SurfaceState;
+  /** A picture of the page can be fetched from the observation endpoint. */
+  picture?: boolean;
 }
 
 export interface LiveSurface {
@@ -1764,6 +1768,14 @@ export interface LiveSurface {
   observation?: SurfaceObservation;
   updated?: string;
   sequence?: number;
+  /** When the surface was first opened (RFC 3339). */
+  started?: string;
+  /** The conversation whose turn is using it. */
+  session?: string;
+  /** What Ghost is doing on it right now, in plain words. */
+  activity?: string;
+  /** What Ghost has done on it so far, oldest first, one plain line each. */
+  steps?: string[];
 }
 
 export interface SurfaceObservationResult {

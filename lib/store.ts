@@ -172,7 +172,11 @@ export const useGhostStore = create<GhostStore>((set) => ({
     set((s) => {
       const msgs = s.messages
         .map((m) =>
-          isTempId(m.id)
+          // A message still waiting in the outbox is not part of this turn: it
+          // keeps its id (the outbox removes it by that id once delivered) and
+          // its "waiting" label. Committing it orphaned the bubble, and the
+          // delivered copy then appeared beside it.
+          isTempId(m.id) && m.status !== "queued"
             ? {
                 ...m,
                 id: makeMessageId(),

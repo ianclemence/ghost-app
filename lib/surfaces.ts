@@ -29,95 +29,101 @@ export function parseSurfaceAnnouncement(msg: WSMessage, sessionKey: string): Su
 export type SurfaceActionId = "watch" | "takeover" | "giveback" | "resume";
 
 export interface SurfacePresentation {
+  /** The status line: what is happening, in a few words. */
   headline: string;
   detail: string | null;
   actions: SurfaceActionId[];
   live: boolean;
+  /** Ghost is actively doing something (the light breathes). */
+  working: boolean;
+  /** The owner is needed. */
+  attention: boolean;
 }
 
 /**
  * Maps authoritative surface state to human copy and valid actions.
  * The client never invents transitions: every action shown is a backend
  * operation valid from the reported state.
+ *
+ * "waiting" is only ever set while an approval for the next step pends. It
+ * used to read "Take over to continue" and "Ghost needs you to sign in",
+ * which sent the owner to the wrong place every time.
  */
-export function presentSurface(s: LiveSurface, ownDeviceId?: string): SurfacePresentation {
+export function presentSurface(
+  s: LiveSurface,
+  ownDeviceId?: string,
+  ctx: { approvalWaiting?: boolean; answering?: boolean } = {},
+): SurfacePresentation {
   const isMine = !!ownDeviceId && !!s.lease && s.lease.device_id === ownDeviceId;
   const otherHolder = s.control === "user" && !isMine;
+  const base = { live: true, working: false, attention: false };
   switch (s.state) {
     case "user_control":
       if (isMine) {
-        return {
-          headline: "You're in control.",
-          detail: "Ghost is paused while you hold this surface.",
-          actions: ["watch", "giveback"],
-          live: true,
-        };
+        return { ...base, headline: "You're steering. Ghost is paused.", detail: null, actions: ["watch", "giveback"] };
       }
       return {
-        headline: otherHolder ? "Another device is controlling this." : "Ghost is paused.",
-        detail: "Watching is read-only.",
-        actions: ["watch"],
-        live: true,
-      };
-    case "waiting":
-      return {
-        headline: "Ghost is waiting for you.",
-        detail: "Take over to continue where Ghost stopped.",
-        actions: ["watch", "takeover"],
-        live: true,
-      };
-    case "paused":
-      return {
-        headline: "Ghost is paused.",
-        detail: "Give control back and Ghost will continue.",
-        actions: ["watch", "resume"],
-        live: false,
-      };
-    case "failed":
-      return {
-        headline: "Ghost couldn't finish that.",
-        detail: "The last observation below is what Ghost last saw.",
-        actions: ["watch"],
-        live: false,
-      };
-    case "completed":
-      return {
-        headline: "Done.",
+        ...base,
+        headline: otherHolder ? "Another device is steering." : "Ghost is paused.",
         detail: null,
         actions: ["watch"],
-        live: false,
       };
+    case "waiting":
+      if (ctx.approvalWaiting) {
+        return { ...base, headline: s.activity?.trim() || "Waiting for your OK", detail: null, actions: ["watch"], attention: true };
+      }
+      return { ...base, headline: "Stopped here", detail: "Ask Ghost to carry on when you're ready.", actions: ["watch"] };
+    case "paused":
+      return { ...base, live: false, headline: "Paused", detail: "Give control back and Ghost carries on.", actions: ["watch", "resume"] };
+    case "failed":
+      return { ...base, live: false, headline: "Didn't finish", detail: null, actions: ["watch"] };
+    case "completed":
+      return { ...base, live: false, headline: "Done", detail: null, actions: ["watch"] };
     case "starting":
     case "created":
       return {
-        headline: s.kind === "browser" ? "Ghost is opening the browser…" : "Ghost is opening the computer…",
+        ...base,
+        working: true,
+        headline: s.kind === "browser" ? "Opening the browser" : "Opening the computer",
         detail: null,
         actions: [],
-        live: true,
       };
     case "disconnected":
-      return {
-        headline: "Reconnecting…",
-        detail: "Ghost lost this surface and is trying to get it back.",
-        actions: [],
-        live: true,
-      };
+      return { ...base, working: true, headline: "Reconnecting", detail: null, actions: [] };
     case "expired":
-      return {
-        headline: "This session ended.",
-        detail: null,
-        actions: [],
-        live: false,
-      };
+      return { ...base, live: false, headline: "Ended", detail: null, actions: [] };
     case "active":
     default:
+      // The browsing is over and the answer is being written: say that, not
+      // "working", while the words appear below.
+      if (ctx.answering && !s.activity?.trim()) {
+        return { ...base, headline: "Writing up what it found", detail: null, actions: ["watch"] };
+      }
       return {
-        headline: "Ghost is working…",
+        ...base,
+        working: true,
+        headline: s.activity?.trim() || "Working on it",
         detail: null,
         actions: ["watch", "takeover"],
-        live: true,
       };
   }
+}
+
+/** The one-line record a settled surface leaves in the conversation. */
+export function surfaceRecord(s: LiveSurface): string {
+  const what = s.kind === "browser" ? "browser" : "computer";
+  const place = surfacePlace(s);
+  if (s.state === "failed") return place ? `The ${what} stopped on ${place}` : `The ${what} stopped before finishing`;
+  if (s.kind !== "browser") return "Used the computer";
+  return place ? `Browsed ${place}` : "Used the browser";
+}
+
+/** "news.ycombinator.com", or null when no page has loaded yet. */
+export function surfacePlace(s: LiveSurface): string | null {
+  const d = s.observation?.domain?.trim();
+  if (d) return d.replace(/^www\./, "");
+  const m = /^[a-z]+:\/\/([^/?#]+)/i.exec(s.observation?.url?.trim() ?? "");
+  return m ? m[1].replace(/^www\./, "") : null;
 }
 
 export function surfaceTitle(s: LiveSurface): string {
