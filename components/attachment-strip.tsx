@@ -3,7 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from "react-native-reanimated";
 import { X } from "lucide-react-native";
-import { Ghost, Radius } from "@/constants/theme";
+import { Ghost } from "@/constants/theme";
 import { attachmentSummary, type Attachment } from "@/lib/attachments";
 import { FileCard } from "@/components/file-card";
 
@@ -47,7 +47,7 @@ export function AttachmentStrip({ items, onRemove }: { items: Attachment[]; onRe
               accessibilityRole="button"
               accessibilityLabel={`Remove ${a.name}`}
             >
-              <X size={11} color={Ghost.text.inverse} strokeWidth={3} />
+              <X size={11} color={Ghost.text.primary} strokeWidth={2.4} />
             </Pressable>
           </Animated.View>
         ))}
@@ -66,11 +66,11 @@ const styles = StyleSheet.create({
   tile: {
     width: TILE,
     height: TILE,
-    borderRadius: Radius.xl,
+    borderRadius: 22,
     borderCurve: "continuous",
     backgroundColor: Ghost.bg.sunken,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.default,
+    borderColor: Ghost.glass.border,
   },
   summary: { fontSize: 12, lineHeight: 16, color: Ghost.text.tertiary, marginTop: 4, marginLeft: 4 },
   x: {
@@ -80,10 +80,10 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: Ghost.text.primary,
+    backgroundColor: "rgba(20,20,26,0.92)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: Ghost.bg.base,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.border.strong,
   },
 });

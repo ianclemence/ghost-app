@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import Animated, { Easing, FadeInUp, FadeOut, LinearTransition, useReducedMotion } from "react-native-reanimated";
-import { Ghost, Radius, shadowRGB, Space } from "@/constants/theme";
+import { Fonts, Ghost, Space } from "@/constants/theme";
+import { GlassCard } from "@/components/glass";
 import { GhostButton } from "@/components/ghost";
 import { isValidGrant, resolveApproval, type GhostConfig, type PendingApproval } from "@/lib/ghostApi";
 import { riskCaution, riskNote } from "@/lib/permission-risk";
@@ -64,7 +65,9 @@ export function PermissionCard({
       entering={reduceMotion ? undefined : CARD_ENTER}
       exiting={reduceMotion ? undefined : CARD_EXIT}
       layout={reduceMotion ? undefined : CARD_LAYOUT}
-      style={[styles.card, caution ? styles.cardCaution : null]}
+    >
+    <GlassCard
+      tone="attention"
       accessibilityLabel={`Ghost is asking: ${title}`}
       accessibilityLiveRegion="polite"
     >
@@ -102,63 +105,52 @@ export function PermissionCard({
         })}
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
+    </GlassCard>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.strong,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    backgroundColor: Ghost.bg.raised,
-    paddingHorizontal: Space.lg,
-    paddingVertical: Space.md + 2,
-    gap: 4,
-    boxShadow: `0 6px 20px rgba(${shadowRGB}, 0.10)`,
-  },
-  cardCaution: {
-    borderColor: Ghost.status.warning,
-    borderWidth: 1,
-  },
   kickerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
+    marginBottom: 4,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Ghost.emberDeep,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: Ghost.ember,
+    boxShadow: "0 0 10px rgba(255,169,40,0.8)",
   },
   dotCaution: {
     backgroundColor: Ghost.status.warning,
   },
   kicker: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.2,
+    fontSize: 13,
+    fontWeight: "500",
     color: Ghost.text.secondary,
   },
   count: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: Ghost.text.tertiary,
     fontVariant: ["tabular-nums"],
   },
   title: {
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: "600",
+    fontFamily: Fonts.voice,
+    fontSize: 27,
+    lineHeight: 30,
+    letterSpacing: -0.5,
     color: Ghost.text.primary,
-    marginTop: 2,
   },
   desc: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: Ghost.text.secondary,
+    fontSize: 15.5,
+    lineHeight: 23,
+    fontWeight: "300",
+    color: "rgba(255,255,255,0.78)",
+    marginTop: 2,
   },
   note: {
     fontSize: 13,
@@ -168,14 +160,14 @@ const styles = StyleSheet.create({
   caution: {
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: "600",
+    fontWeight: "500",
     color: Ghost.status.warning,
   },
   row: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Space.sm,
-    marginTop: Space.sm,
+    marginTop: Space.md,
   },
   error: {
     fontSize: 13,

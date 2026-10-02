@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
-import { alpha, Ghost, Radius } from "@/constants/theme";
+import { alpha, Ghost } from "@/constants/theme";
 import { fileKind, fileSize, type FileTone } from "@/lib/attachments";
 
 const TONE: Record<FileTone, string> = {
@@ -36,7 +36,7 @@ export function FileCard({
   const color = TONE[kind.tone];
   const body = (
     <View style={[styles.card, width ? { width } : null]} accessibilityLabel={`${name}, ${fileSize(size)}`}>
-      <View style={[styles.badge, { backgroundColor: alpha(color, 0.13) }]}>
+      <View style={[styles.badge, { backgroundColor: alpha(color, 0.14), borderColor: alpha(color, 0.3) }]}>
         <Text style={[styles.badgeText, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
           {kind.label.slice(0, 4)}
         </Text>
@@ -53,7 +53,7 @@ export function FileCard({
   );
   if (!onPress) return body;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => (pressed ? { opacity: 0.8 } : null)}>
+    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => (pressed ? { opacity: 0.7 } : null)}>
       {body}
     </Pressable>
   );
@@ -63,26 +63,27 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     padding: 8,
-    paddingRight: 14,
-    borderRadius: Radius.xl,
+    paddingRight: 18,
+    borderRadius: 26,
     borderCurve: "continuous",
-    backgroundColor: Ghost.bg.raised,
+    backgroundColor: "rgba(0,0,0,0.42)",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.border.default,
+    borderColor: Ghost.glass.border,
   },
   badge: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 46,
+    height: 46,
+    borderRadius: 18,
     borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 3,
   },
-  badgeText: { fontSize: 11.5, fontWeight: "800", letterSpacing: 0.3 },
+  badgeText: { fontSize: 11.5, fontWeight: "600", letterSpacing: 0.4 },
   text: { flexShrink: 1, minWidth: 0 },
-  name: { fontSize: 14, lineHeight: 19, fontWeight: "600", color: Ghost.text.primary },
-  meta: { fontSize: 12, lineHeight: 16, color: Ghost.text.tertiary, marginTop: 1 },
+  name: { fontSize: 14.5, lineHeight: 19, fontWeight: "500", color: Ghost.text.primary },
+  meta: { fontSize: 12.5, lineHeight: 16, color: Ghost.text.tertiary, marginTop: 1 },
 });

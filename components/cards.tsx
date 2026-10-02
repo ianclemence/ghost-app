@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { Ghost, Space, Type } from "@/constants/theme";
+import { Fonts, Ghost, Space } from "@/constants/theme";
+import { GlassCard } from "@/components/glass";
 import { GhostButton } from "@/components/ghost";
 import { GhostText } from "@/components/themed-text";
 import type { RichCard } from "@/lib/cards";
@@ -9,11 +10,11 @@ import { decideIdea, resolveApproval } from "@/lib/ghostApi";
 
 function CardShell({ title, body, children }: { title: string; body?: string; children?: React.ReactNode }) {
   return (
-    <View style={styles.card} accessibilityRole="summary">
+    <GlassCard style={styles.card} accessibilityRole="summary">
       <GhostText type="headline" style={styles.title}>{title}</GhostText>
       {body ? <GhostText type="body" style={styles.body}>{body}</GhostText> : null}
       {children}
-    </View>
+    </GlassCard>
   );
 }
 
@@ -149,18 +150,21 @@ export function RichCardView({ card, config, onDone }: { card: RichCard; config:
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Ghost.bg.raised,
-    borderRadius: 14,
-    padding: Space.lg,
-    gap: 6,
     marginVertical: Space.sm,
   },
   title: {
-    ...Type.headline,
+    fontFamily: Fonts.voice,
+    fontSize: 25,
+    lineHeight: 28,
+    fontWeight: "400",
+    letterSpacing: -0.5,
     color: Ghost.text.primary,
   },
   body: {
-    color: Ghost.text.secondary,
+    fontSize: 15.5,
+    lineHeight: 23,
+    fontWeight: "300",
+    color: "rgba(255,255,255,0.78)",
   },
   meta: {
     color: Ghost.text.tertiary,
@@ -171,19 +175,21 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     gap: 8,
-    marginTop: 6,
+    marginTop: Space.sm,
     flexWrap: "wrap",
   },
   quoteBox: {
-    backgroundColor: Ghost.bg.sunken,
-    borderRadius: 10,
-    borderLeftWidth: 2,
-    borderLeftColor: Ghost.border.subtle,
-    paddingVertical: Space.sm,
-    paddingHorizontal: Space.md,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 18,
+    borderCurve: "continuous",
+    paddingVertical: Space.md,
+    paddingHorizontal: Space.lg,
     marginTop: 2,
   },
   quote: {
+    fontSize: 15.5,
+    lineHeight: 23,
+    fontWeight: "300",
     color: Ghost.text.primary,
     fontStyle: "italic",
   },

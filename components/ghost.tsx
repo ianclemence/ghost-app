@@ -106,27 +106,13 @@ export function GhostButton({
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  // One hierarchy everywhere: the action glows, the alternative is dark
+  // glass, the quiet one is only text, and danger stays soft until pressed.
   const palette = {
-    primary: {
-      bg: Ghost.glass.fillStrong,
-      fg: Ghost.text.primary,
-      border: Ghost.glass.border,
-    },
-    secondary: {
-      bg: Ghost.glass.fill,
-      fg: Ghost.text.primary,
-      border: Ghost.border.default,
-    },
-    ghost: {
-      bg: "transparent",
-      fg: Ghost.text.secondary,
-      border: "transparent",
-    },
-    danger: {
-      bg: alpha(Ghost.status.error, 0.12),
-      fg: Ghost.status.error,
-      border: "transparent",
-    },
+    primary: { bg: "rgba(58,46,240,0.40)", fg: Ghost.text.primary, border: "rgba(140,128,255,0.50)", glow: true },
+    secondary: { bg: "rgba(0,0,0,0.38)", fg: Ghost.text.primary, border: Ghost.glass.border, glow: false },
+    ghost: { bg: "transparent", fg: Ghost.text.secondary, border: "transparent", glow: false },
+    danger: { bg: alpha(Ghost.status.error, 0.12), fg: Ghost.status.error, border: alpha(Ghost.status.error, 0.34), glow: false },
   }[variant];
   const [pressed, setPressed] = useState(false);
   const reduceMotion = useReducedMotion();
@@ -150,15 +136,16 @@ export function GhostButton({
           alignItems: "center",
           justifyContent: "center",
           gap: Space.sm,
-          paddingVertical: Space.md - 1,
-          paddingHorizontal: Space.xl,
+          paddingVertical: Space.sm,
+          paddingHorizontal: 22,
           borderRadius: Radius.full,
-          backgroundColor: disabled ? Ghost.bg.sunken : palette.bg,
-          borderWidth: variant === "ghost" ? 0 : 1,
+          backgroundColor: disabled ? Ghost.glass.fill : palette.bg,
+          borderWidth: variant === "ghost" ? 0 : StyleSheet.hairlineWidth,
           borderColor: disabled ? Ghost.border.subtle : palette.border,
-          opacity: disabled ? 0.5 : 1,
+          opacity: disabled ? 0.45 : 1,
           alignSelf: fullWidth ? "stretch" : "flex-start",
-          minHeight: 46,
+          minHeight: 44,
+          boxShadow: palette.glow && interactive ? "0 0 20px rgba(58,46,240,0.5)" : undefined,
         },
         style,
       ]}
@@ -175,7 +162,9 @@ export function GhostButton({
             type="headline"
             style={{
               color: disabled ? Ghost.text.tertiary : palette.fg,
-              fontSize: 15,
+              fontSize: 14.5,
+              fontWeight: "500",
+              letterSpacing: -0.1,
             }}
           >
             {title}

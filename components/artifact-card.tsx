@@ -2,7 +2,8 @@ import { writeCacheFile } from "@/lib/localFiles";
 import React, { useState } from "react";
 import { Image, Linking, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
-import { Ghost, Space } from "@/constants/theme";
+import { Fonts, Ghost, Space } from "@/constants/theme";
+import { GlassCard } from "@/components/glass";
 import { GhostButton } from "@/components/ghost";
 import { MarkdownBubble } from "@/components/markdown-bubble";
 import {
@@ -93,24 +94,24 @@ export function ArtifactCard({ config, artifact }: Props) {
 
   if (view === "unknown") {
     return (
-      <View style={styles.card} accessibilityLabel={`${artifact.title}. Details unavailable.`}>
+      <GlassCard style={styles.card} accessibilityLabel={`${artifact.title}. Details unavailable.`}>
         <Text style={styles.title} numberOfLines={2}>{artifact.title}</Text>
         {artifact.summary ? <Text style={styles.summary} numberOfLines={3}>{artifact.summary}</Text> : null}
-      </View>
+      </GlassCard>
     );
   }
 
   if (artifact.state !== "available") {
     return (
-      <View style={styles.card} accessibilityLabel={`${artifact.title}. ${unavailableReasonOf(artifact)}`}>
+      <GlassCard style={styles.card} accessibilityLabel={`${artifact.title}. ${unavailableReasonOf(artifact)}`}>
         <Text style={styles.title} numberOfLines={2}>{artifact.title}</Text>
         <Text style={styles.unavailable}>{unavailableReasonOf(artifact)}</Text>
-      </View>
+      </GlassCard>
     );
   }
 
   return (
-    <View style={styles.card} accessibilityLabel={`Result from Ghost: ${artifact.title}`}>
+    <GlassCard style={styles.card} accessibilityLabel={`Result from Ghost: ${artifact.title}`}>
       <Text style={styles.kicker}>{artifact.kind === "file" ? "File" : artifact.kind === "link" ? "Link" : "Result"}</Text>
       <Text style={styles.title} numberOfLines={2}>{artifact.title}</Text>
       {artifact.summary ? <Text style={styles.summary} numberOfLines={expanded ? undefined : 3}>{artifact.summary}</Text> : null}
@@ -151,44 +152,48 @@ export function ArtifactCard({ config, artifact }: Props) {
       {expanded && preview ? (
         <MarkdownBubble content={preview} streaming={false} />
       ) : null}
-    </View>
+    </GlassCard>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderWidth: 1,
-    borderColor: Ghost.border.default,
-    borderRadius: 14,
-    borderCurve: "continuous",
-    backgroundColor: Ghost.bg.raised,
-    padding: Space.md,
-    gap: Space.xs,
-    marginVertical: Space.xs,
+    marginVertical: Space.sm,
   },
   kicker: {
-    fontSize: 12,
+    fontSize: 12.5,
+    fontWeight: "500",
     color: Ghost.text.tertiary,
   },
   title: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.voice,
+    fontSize: 26,
+    lineHeight: 29,
+    letterSpacing: -0.5,
     color: Ghost.text.primary,
   },
   summary: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: Ghost.text.secondary,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: "300",
+    color: "rgba(255,255,255,0.78)",
   },
   body: {
     fontSize: 15,
     lineHeight: 22,
-    color: Ghost.text.primary,
+    fontWeight: "300",
+    color: "rgba(255,255,255,0.86)",
   },
   url: {
-    fontSize: 14,
-    color: Ghost.text.secondary,
-    textDecorationLine: "underline",
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    fontSize: 13.5,
+    color: Ghost.accent.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: Ghost.accent.soft,
   },
   unavailable: {
     fontSize: 14,
@@ -198,7 +203,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Space.sm,
-    marginTop: Space.xs,
+    marginTop: Space.sm,
   },
   status: {
     fontSize: 13,
@@ -211,8 +216,8 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: 240,
-    borderRadius: 10,
+    borderRadius: 20,
     backgroundColor: Ghost.bg.sunken,
-    marginTop: Space.xs,
+    marginTop: Space.sm,
   },
 });
