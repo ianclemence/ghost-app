@@ -69,7 +69,11 @@ function parseActions(raw: unknown, present: boolean): CardAction[] {
 }
 
 /** Seconds from the Pod or milliseconds from a phone: always milliseconds out. */
+// A live frame carries Unix seconds; the fetched history (GET /v1/cards) carries
+// the Pod's RFC 3339 time. Reading only numbers left every fetched card timeless,
+// so it sat under the newest message and a stale "browser got stuck" never cleared.
 function toMs(v: unknown): number | undefined {
+  if (typeof v === "string") v = Date.parse(v);
   if (typeof v !== "number" || !isFinite(v) || v <= 0) return undefined;
   return v < 1e12 ? v * 1000 : v;
 }

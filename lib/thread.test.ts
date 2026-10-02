@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildThread, dayLabel } from "./thread";
+import { normalizeCard } from "./cards";
 import type { ExtendedMessage } from "./store";
 
 const NOW = new Date(2026, 8, 29, 15, 0).getTime();
@@ -98,6 +99,16 @@ describe("browser recovery cards", () => {
   test("a recovery card disappears once Ghost has answered after it", () => {
     const answer = { id: "m", role: "assistant", content: "Here are the prices", timestamp: 5000 } as never;
     const items = buildThread([answer], [], 9000, [card("a", 1000)]);
+    expect(items.filter((i) => i.kind === "card").length).toBe(0);
+  });
+  test("a card fetched from history (RFC 3339 time) clears once Ghost has answered", () => {
+    const fetched = normalizeCard({
+      id: "card_x", kind: "browser_recovery", title: "My browser got stuck", body: "Reset.",
+      created_at: "2026-10-03T01:32:38.380195064+07:00",
+    });
+    expect(fetched?.created_at).toBe(Date.parse("2026-10-03T01:32:38.380+07:00"));
+    const answer = { id: "m", role: "assistant", content: "Fair enough.", timestamp: Date.parse("2026-10-03T06:41:58+07:00") } as never;
+    const items = buildThread([answer], [], Date.parse("2026-10-03T06:43:00+07:00"), [fetched!]);
     expect(items.filter((i) => i.kind === "card").length).toBe(0);
   });
 });
