@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Image, PixelRatio, StyleSheet, View } from "react-native";
+import React, { useEffect, useMemo } from "react";
+import { Image, PixelRatio, StyleSheet, useWindowDimensions, View } from "react-native";
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from "react-native-svg";
 import Animated, {
   Easing,
@@ -67,12 +67,33 @@ function Layer({ spots, dx, dy, seconds }: { spots: Spot[]; dx: number; dy: numb
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const GRAIN_ASSET = Image.resolveAssetSource(require("../assets/grain.png"));
-// One grain pixel per screen pixel. A tiled image is drawn at its size in
-// density-independent points, so on a phone at 2.6x or 3x each speck came out
-// two or three pixels wide and the film turned into soft blotches. Telling the
-// image its scale keeps the speck as fine as it is in the console.
-const GRAIN = { uri: GRAIN_ASSET.uri, width: GRAIN_ASSET.width, height: GRAIN_ASSET.height, scale: PixelRatio.get() };
+const GRAIN = require("../assets/grain.png");
+const GRAIN_PX = 512;
+
+/**
+ * Film grain, tiled by hand. `resizeMode="repeat"` did not tile on Android
+ * (the speckle showed once, in the top-left corner), so the tile is laid out
+ * as a grid of plain images. Each tile is sized so one speck is one screen
+ * pixel; at that size a phone needs only a handful.
+ */
+function Grain() {
+  const { width, height } = useWindowDimensions();
+  const tile = GRAIN_PX / PixelRatio.get();
+  const cells = useMemo(() => {
+    const out: { key: string; left: number; top: number }[] = [];
+    const cols = Math.ceil(width / tile);
+    const rows = Math.ceil(height / tile);
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) out.push({ key: `${r}-${c}`, left: c * tile, top: r * tile });
+    return out;
+  }, [width, height, tile]);
+  return (
+    <View style={[StyleSheet.absoluteFill, { overflow: "hidden", opacity: 0.55 }]} pointerEvents="none">
+      {cells.map((c) => (
+        <Image key={c.key} source={GRAIN} style={{ position: "absolute", left: c.left, top: c.top, width: tile, height: tile }} fadeDuration={0} />
+      ))}
+    </View>
+  );
+}
 
 /** How far the light swells when Ghost is working. Small: a breath, not a flash. */
 const SWELL = 0.14;
@@ -112,7 +133,7 @@ export function ScreenBackground({ variant = "hero", alive = false }: { variant?
       </Svg>
       {/* Fine grain over the whole screen: it keeps the black from banding and
           gives the aurora some texture. Tiled, so it costs one small image. */}
-      <Image source={GRAIN} resizeMode="repeat" style={[StyleSheet.absoluteFill, { opacity: 0.55 }]} />
+      <Grain />
     </View>
   );
 }
