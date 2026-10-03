@@ -31,4 +31,23 @@ describe("classifyError", () => {
     expect(classifyError(429, "").retryable).toBe(true);
     expect(classifyError(503, "").retryable).toBe(true);
   });
+
+  // The Pod died mid-turn. Repeating the request id can never run — a turn
+  // executes exactly once — so telling the owner "server error" and offering
+  // a retry would send them in a circle. The reply is in the transcript.
+  test("a turn the Pod was killed in mid-reply is explained, never retried", () => {
+    const body = JSON.stringify({
+      error: { kind: "turn_interrupted", message: "Ghost restarted while answering that." },
+    });
+    const e = classifyError(409, body);
+    expect(e.retryable).toBe(false);
+    expect(e.message).toContain("restart");
+    expect(e.message).toContain("conversation");
+    expect(e.message).not.toMatch(/server error/i);
+  });
+
+  test("an ordinary conflict still reads as a conflict", () => {
+    const e = classifyError(409, JSON.stringify({ error: { kind: "turn_in_progress" } }));
+    expect(e.message).toMatch(/409/);
+  });
 });

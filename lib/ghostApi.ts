@@ -18,6 +18,13 @@ export interface Message {
   timestamp: number;
   /** Present when Ghost spoke first: a reminder, a notice, an alert or a routine. */
   kind?: MessageKind;
+  /**
+   * This reply stops mid-sentence: the Pod restarted while Ghost was writing
+   * it and the words reached the transcript unfinished. The Pod finishes the
+   * turn when it can, and writes the half out when it cannot — either way the
+   * text is real, it just never ended.
+   */
+  interrupted?: boolean;
   media_type?: string;
   media_url?: string;
   /** Every photo sent with this message (media_url is the first, kept for older rows). */
@@ -88,6 +95,19 @@ export interface GhostError {
 }
 
 export function classifyError(status: number, body: string): GhostError {
+  // A turn the Pod was killed in the middle of. The reply is already back
+  // in the transcript — recovery writes the half out, and finishes the turn
+  // when it is still worth finishing — so this is not a failure to report
+  // and never a request to repeat: the same request id can only ever run
+  // once, and the answer is where the owner can already see it.
+  if (status === 409 && body.includes("turn_interrupted")) {
+    return {
+      kind: "provider",
+      message: "Ghost restarted while answering. The reply is in the conversation.",
+      statusCode: status,
+      retryable: false,
+    };
+  }
   if (status === 401 || status === 403) {
     noteAuthFailure(status, body);
     return {

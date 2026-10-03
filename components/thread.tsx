@@ -196,6 +196,13 @@ export const GhostMessage = memo(function GhostMessage({
         </Pressable>
       )}
       {streaming && !empty && phase ? <Thinking phase={phase} compact /> : null}
+      {message.interrupted && !empty ? (
+        // A reply that stops mid-sentence with nothing said about it reads
+        // as Ghost trailing off. Say why, once, in the owner's words.
+        <Text style={styles.meta} accessibilityLiveRegion="polite">
+          Stopped when your Pod restarted
+        </Text>
+      ) : null}
       {exact && !streaming ? <Text style={styles.meta}>{clockTime(message.timestamp)}</Text> : null}
       {copied ? <Copied align="left" /> : null}
     </Animated.View>
