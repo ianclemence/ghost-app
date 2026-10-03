@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, RefreshControl, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { Ghost, Space, Type } from "@/constants/theme";
@@ -140,11 +140,13 @@ export default function ConnectionsScreen() {
       ) : error && items.length === 0 ? (
         <View style={styles.center}><EmptyState title="Couldn't load apps." subtitle={error} action={<GhostButton title="Retry" onPress={() => void load()} />} /></View>
       ) : (
-        <EdgeScrollView
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.secondary} />}
-        >
+        <KeyboardAvoidingView style={styles.fill} behavior={process.env.EXPO_OS === "ios" ? "padding" : "height"}>
+          <EdgeScrollView
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.secondary} />}
+          >
           <SectionHeader title="Apps" style={styles.firstSection} />
           <GhostList>
             {items.map((c) => {
@@ -171,7 +173,8 @@ export default function ConnectionsScreen() {
           </GhostList>
           <SectionHeader title="Website logins" />
           <WebsiteLogins config={config} />
-        </EdgeScrollView>
+          </EdgeScrollView>
+        </KeyboardAvoidingView>
       )}
 
       {/* A key, or an address and a token. */}
@@ -223,6 +226,7 @@ export default function ConnectionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
+  fill: { flex: 1 },
   offlineWrap: { alignItems: "center" },
   center: { flex: 1, justifyContent: "center" },
   list: { paddingBottom: 96 },

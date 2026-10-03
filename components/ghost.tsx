@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import Reanimated, {
-  useAnimatedKeyboard,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -11,7 +10,10 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 import { ChevronRight, X } from "lucide-react-native";
 import {
   ActivityIndicator,
+  Dimensions,
+  Keyboard,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -244,7 +246,27 @@ export function GhostSheet({
   const progress = useSharedValue(0); // 0 away, 1 shown
   const drag = useSharedValue(0); // how far it has been pulled down
   const height = useSharedValue(0);
-  const keyboard = useAnimatedKeyboard();
+  // Keyboard height, tracked from real Keyboard events rather than
+  // useAnimatedKeyboard. Inside a Modal on Android the keyboard overlays the
+  // dialog window without resizing it, and the animated value came back zero,
+  // so the sheet never lifted and the field sat behind the keyboard. The
+  // listener always reports the true height, on every platform. baseWindow is
+  // the full window height measured while the keyboard was away, so the cap
+  // above the keyboard is right whether or not the window also resized.
+  const [kbHeight, setKbHeight] = useState(0);
+  const baseWindow = useRef(Dimensions.get("window").height);
+  useEffect(() => {
+    const showName = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const showSub = Keyboard.addListener(showName, (e) => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setKbHeight(0);
+      baseWindow.current = Dimensions.get("window").height;
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -279,8 +301,13 @@ export function GhostSheet({
   });
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: (1 - progress.get()) * (height.get() || 500) + drag.get() }],
-    paddingBottom: Math.max(insets.bottom, keyboard.height.get()) + Space.lg,
   }));
+
+  // Floor the sheet at the keyboard and cap it so its top stays on screen:
+  // without the cap, a tall form lifted by the keyboard would run off the top.
+  const lifted = kbHeight > 0;
+  const sheetMaxHeight = lifted ? Math.max(220, baseWindow.current - kbHeight - insets.top - 24) : undefined;
+  const sheetPad = { paddingBottom: Math.max(insets.bottom, kbHeight) + Space.lg };
 
   if (!mounted) return null;
 
@@ -294,7 +321,7 @@ export function GhostSheet({
           <Reanimated.View
             accessibilityViewIsModal
             onLayout={(e) => height.set(e.nativeEvent.layout.height)}
-            style={[sheetStyles.sheet, sheetStyle]}
+            style={[sheetStyles.sheet, sheetMaxHeight ? { maxHeight: sheetMaxHeight } : null, sheetPad, sheetStyle]}
           >
             <GestureDetector gesture={pan}>
               <View collapsable={false}>
@@ -347,6 +374,7 @@ export function GhostSheet({
                 contentContainerStyle={{ gap: Space.md, paddingTop: Space.md, paddingBottom: Space.sm }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="interactive"
+                automaticallyAdjustKeyboardInsets
                 showsVerticalScrollIndicator={false}
               >
                 <InSheet.Provider value>{children}</InSheet.Provider>
