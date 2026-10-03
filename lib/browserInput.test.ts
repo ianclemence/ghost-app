@@ -6,6 +6,7 @@ import {
   scrollMessage,
   screencastSocketURL,
   tapToPage,
+  tapToPageContained,
   typeMessages,
 } from "./browserInput";
 
@@ -20,6 +21,21 @@ describe("steering the browser from the phone", () => {
     expect(tapToPage({ x: 999, y: 999 }, { width: 390, height: 219 }, { width: 1280, height: 720 })).toEqual({ x: 1279, y: 719 });
     expect(tapToPage({ x: -5, y: -5 }, { width: 390, height: 219 }, { width: 1280, height: 720 })).toEqual({ x: 0, y: 0 });
     expect(tapToPage({ x: 10, y: 10 }, { width: 0, height: 0 }, { width: 1280, height: 720 })).toEqual({ x: 0, y: 0 });
+  });
+
+  test("a letterboxed tap maps through the drawn image rect, not the frame", () => {
+    // The page is 1280x720, letterboxed into a tall 390x600 frame: it is drawn
+    // 390x219 with blank bars above and below.
+    const shown = { width: 390, height: 600 };
+    const device = { width: 1280, height: 720 };
+    // The center of the frame is the center of the drawn image.
+    expect(tapToPageContained({ x: 195, y: 300 }, shown, device)).toEqual({ x: 640, y: 360 });
+    // A tap in the top bar clamps to the top of the page.
+    expect(tapToPageContained({ x: 195, y: 0 }, shown, device)).toEqual({ x: 640, y: 0 });
+    // A tap in the bottom bar clamps to the bottom of the page.
+    expect(tapToPageContained({ x: 195, y: 599 }, shown, device)).toEqual({ x: 640, y: 719 });
+    // A bad size is safe.
+    expect(tapToPageContained({ x: 10, y: 10 }, { width: 0, height: 0 }, device)).toEqual({ x: 0, y: 0 });
   });
 
   test("a click is move, press, release at the same point", () => {

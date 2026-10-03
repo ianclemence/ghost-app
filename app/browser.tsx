@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, AppState, Image, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, AppState, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { ArrowRight, ChevronDown, ChevronUp, CornerDownLeft, Delete, Keyboard } from "lucide-react-native";
 import { Ghost, Inter, Radius, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
@@ -20,14 +21,13 @@ import {
   parseFrame,
   screencastSocketURL,
   scrollMessage,
-  tapToPage,
+  tapToPageContained,
   typeMessages,
   type Frame,
   type Size,
   type StreamInput,
 } from "@/lib/browserInput";
 import { MAIN_SESSION_ID, useGhostStore } from "@/lib/store";
-import { EdgeScrollView } from "@/components/scroll-edge";
 
 /**
  * Steer Ghost's browser. For the steps only a person can do: a "Verify you are
@@ -148,7 +148,7 @@ export default function BrowserScreen() {
 
   const onTap = (x: number, y: number) => {
     if (!frame) return;
-    const p = tapToPage({ x, y }, shown, frame.device);
+    const p = tapToPageContained({ x, y }, shown, frame.device);
     Haptics.selectionAsync().catch(() => {});
     send(clickMessages(p.x, p.y));
   };
@@ -188,74 +188,90 @@ export default function BrowserScreen() {
     else router.replace("/");
   };
 
-  const ratio = frame ? frame.device.width / frame.device.height : 16 / 9;
-
   return (
     <View style={styles.root}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader
-        title="Ghost's browser"
-        subtitle={state === "live" ? "You have control. Ghost is paused." : undefined}
-        variant="close"
-      />
-      <EdgeScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        {state === "starting" ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={Ghost.text.tertiary} />
-            <Text style={styles.hint}>Taking over…</Text>
-          </View>
-        ) : state === "error" ? (
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={8}
+      >
+        <ScreenHeader
+          title="Ghost's browser"
+          subtitle={state === "live" ? "You have control. Ghost is paused." : undefined}
+          variant="close"
+        />
+        {state === "error" ? (
           <View style={styles.center}>
             <Text style={styles.error}>{error}</Text>
+            <Pressable style={styles.retry} onPress={() => void connect()} accessibilityRole="button" accessibilityLabel="Try the live view again">
+              <Text style={styles.retryText}>Try again</Text>
+            </Pressable>
           </View>
         ) : (
           <>
-            <Text style={styles.hint}>
-              Do the step yourself: tap the page to click, type below, then tap Done. Ghost carries on from where you leave it.
-            </Text>
-            <Pressable
-              style={[styles.view, { aspectRatio: ratio }]}
-              onLayout={(e) => setShown({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
-              onPress={(e) => onTap(e.nativeEvent.locationX, e.nativeEvent.locationY)}
-              accessibilityRole="image"
-              accessibilityLabel="Ghost's browser. Tap to click."
-            >
-              {frame ? (
-                <Image source={{ uri: `data:image/jpeg;base64,${frame.data}` }} style={StyleSheet.absoluteFill} resizeMode="stretch" />
-              ) : (
-                <ActivityIndicator color={Ghost.text.tertiary} />
-              )}
-            </Pressable>
-
-            <View style={styles.row}>
-              <TextInput
-                style={styles.input}
-                value={draft}
-                onChangeText={setDraft}
-                placeholder="Type into the page"
-                placeholderTextColor={Ghost.text.tertiary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                onSubmitEditing={typeIt}
-                returnKeyType="send"
-                accessibilityLabel="Text to type into the page"
-              />
-              <Pressable style={styles.chip} onPress={typeIt} accessibilityRole="button" accessibilityLabel="Type it">
-                <Text style={styles.chipText}>Type</Text>
+            <View style={styles.stage}>
+              <Pressable
+                style={styles.view}
+                onLayout={(e) => setShown({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+                onPress={(e) => onTap(e.nativeEvent.locationX, e.nativeEvent.locationY)}
+                accessibilityRole="image"
+                accessibilityLabel="Ghost's browser, live. Tap to click where you tap."
+              >
+                {frame ? (
+                  <Image
+                    source={{ uri: `data:image/jpeg;base64,${frame.data}` }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <ActivityIndicator color={Ghost.text.tertiary} />
+                )}
+                {state === "starting" ? (
+                  <View style={styles.reconnect} pointerEvents="none">
+                    <ActivityIndicator color={Ghost.text.primary} />
+                  </View>
+                ) : null}
               </Pressable>
+              <Text style={styles.hint}>
+                Tap the page to click. Type below to fill the field you tapped; the keys act on it. Done returns control to Ghost.
+              </Text>
             </View>
-            <View style={styles.row}>
-              {(["Enter", "Tab", "Backspace"] as const).map((k) => (
-                <Pressable key={k} style={styles.chip} onPress={() => send(namedKeyMessages(k))} accessibilityRole="button">
-                  <Text style={styles.chipText}>{k}</Text>
+
+            <View style={styles.panel}>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.input}
+                  value={draft}
+                  onChangeText={setDraft}
+                  placeholder="Text to type into the page"
+                  placeholderTextColor={Ghost.text.tertiary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onSubmitEditing={typeIt}
+                  returnKeyType="send"
+                  accessibilityLabel="Text to type into the page"
+                />
+                <Pressable
+                  style={[styles.typeBtn, !draft && styles.typeBtnIdle]}
+                  onPress={typeIt}
+                  disabled={!draft}
+                  accessibilityRole="button"
+                  accessibilityLabel="Type this text into the page"
+                >
+                  <Keyboard size={16} color={draft ? Ghost.text.primary : Ghost.text.tertiary} strokeWidth={1.8} />
+                  <Text style={[styles.typeText, !draft && styles.typeTextIdle]}>Type</Text>
                 </Pressable>
-              ))}
-              <Pressable style={styles.chip} onPress={() => scroll(-320)} accessibilityRole="button" accessibilityLabel="Scroll up">
-                <Text style={styles.chipText}>Up</Text>
-              </Pressable>
-              <Pressable style={styles.chip} onPress={() => scroll(320)} accessibilityRole="button" accessibilityLabel="Scroll down">
-                <Text style={styles.chipText}>Down</Text>
-              </Pressable>
+              </View>
+              <View style={styles.keys}>
+                <KeyButton icon={CornerDownLeft} label="Enter" onPress={() => send(namedKeyMessages("Enter"))} />
+                <KeyButton icon={ArrowRight} label="Tab" onPress={() => send(namedKeyMessages("Tab"))} />
+                <KeyButton icon={Delete} label="Delete" onPress={() => send(namedKeyMessages("Backspace"))} />
+              </View>
+              <View style={styles.keys}>
+                <KeyButton icon={ChevronUp} label="Scroll up" grow onPress={() => scroll(-320)} />
+                <KeyButton icon={ChevronDown} label="Scroll down" grow onPress={() => scroll(320)} />
+              </View>
             </View>
 
             <Pressable
@@ -269,21 +285,61 @@ export default function BrowserScreen() {
             </Pressable>
           </>
         )}
-      </EdgeScrollView>
+      </KeyboardAvoidingView>
     </View>
+  );
+}
+
+/** One labelled key in the control panel: an icon and the key's name. */
+function KeyButton({
+  icon: Icon,
+  label,
+  onPress,
+  grow,
+}: {
+  icon: typeof CornerDownLeft;
+  label: string;
+  onPress: () => void;
+  grow?: boolean;
+}) {
+  return (
+    <Pressable
+      style={[styles.key, grow && styles.grow]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Icon size={17} color={Ghost.text.primary} strokeWidth={1.8} />
+      <Text style={styles.keyText}>{label}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Ghost.bg.base },
-  body: { paddingHorizontal: Space.lg, paddingBottom: Space.huge, gap: Space.md },
-  center: { alignItems: "center", gap: Space.md, marginTop: Space.xxxl },
-  hint: { color: Ghost.text.secondary, fontSize: 14, lineHeight: 20 },
+  flex: { flex: 1 },
+  // The stage is all the space above the controls, so the page is as large as
+  // the phone allows; the image letterboxes inside it (contain).
+  stage: { flex: 1, paddingHorizontal: Space.lg, paddingTop: Space.sm, gap: Space.sm },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: Space.lg, paddingHorizontal: Space.xl },
+  hint: { color: Ghost.text.tertiary, fontSize: 12.5, lineHeight: 17, paddingHorizontal: 2 },
   error: { color: Ghost.status.error, fontSize: 15, lineHeight: 21, textAlign: "center" },
+  retry: {
+    minHeight: 44,
+    paddingHorizontal: Space.xl,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Ghost.glass.fillStrong,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
+  retryText: { color: Ghost.text.primary, fontSize: 15, fontWeight: "600" },
   view: {
+    flex: 1,
     width: "100%",
     backgroundColor: Ghost.bg.sunken,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     borderCurve: "continuous",
     overflow: "hidden",
     alignItems: "center",
@@ -291,34 +347,78 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.border.default,
   },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: Space.sm, alignItems: "center" },
-  input: {
-    flex: 1,
-    minHeight: 44,
-    paddingHorizontal: Space.md,
-    borderRadius: Radius.xxl,
+  reconnect: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  // Controls sit in one glass panel under the stage: type, the keys, scroll.
+  panel: {
+    marginTop: Space.md,
+    marginHorizontal: Space.lg,
+    padding: Space.md,
+    gap: Space.sm,
+    borderRadius: Radius.lg,
     borderCurve: "continuous",
     backgroundColor: Ghost.glass.fill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
+  inputRow: { flexDirection: "row", gap: Space.sm, alignItems: "center" },
+  input: {
+    flex: 1,
+    minHeight: 46,
+    paddingHorizontal: Space.md,
+    borderRadius: Radius.full,
+    borderCurve: "continuous",
+    backgroundColor: Ghost.bg.raised,
     color: Ghost.text.primary,
     fontFamily: Inter.regular,
     fontSize: 16,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.border.default,
   },
-  chip: {
-    minHeight: 44,
+  typeBtn: {
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 46,
     paddingHorizontal: Space.lg,
     borderRadius: Radius.full,
-    backgroundColor: Ghost.bg.raised,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: Ghost.glass.fillStrong,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
+  typeBtnIdle: { opacity: 0.5 },
+  typeText: { color: Ghost.text.primary, fontSize: 14, fontWeight: "600" },
+  typeTextIdle: { color: Ghost.text.tertiary },
+  keys: { flexDirection: "row", gap: Space.sm },
+  key: {
+    flexDirection: "row",
+    gap: 7,
+    minHeight: 46,
+    paddingHorizontal: Space.lg,
+    borderRadius: Radius.md,
+    borderCurve: "continuous",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Ghost.bg.raised,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.border.default,
   },
-  chipText: { color: Ghost.text.primary, fontSize: 14, fontWeight: "600" },
+  grow: { flex: 1 },
+  keyText: { color: Ghost.text.primary, fontSize: 14.5, fontWeight: "600" },
   done: {
     marginTop: Space.md,
-    minHeight: 50,
+    marginHorizontal: Space.lg,
+    marginBottom: Space.lg,
+    minHeight: 52,
     borderRadius: Radius.full,
     backgroundColor: Ghost.text.primary,
     alignItems: "center",

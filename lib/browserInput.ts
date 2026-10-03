@@ -43,6 +43,28 @@ export function parseFrame(raw: string): Frame | null {
 
 /**
  * A tap at (x, y) on the picture as shown, to the matching point on the page.
+ * The live view letterboxes the page inside its frame (the page keeps its own
+ * aspect ratio), so the tap is first un-letterboxed against the drawn image
+ * rect, then clamped to the page: a finger on the edge is still on the page.
+ */
+export function tapToPageContained(tap: { x: number; y: number }, shown: Size, device: Size): { x: number; y: number } {
+  if (!(shown.width > 0) || !(shown.height > 0) || !(device.width > 0) || !(device.height > 0)) {
+    return { x: 0, y: 0 };
+  }
+  const scale = Math.min(shown.width / device.width, shown.height / device.height);
+  const drawnW = device.width * scale;
+  const drawnH = device.height * scale;
+  const offX = (shown.width - drawnW) / 2;
+  const offY = (shown.height - drawnH) / 2;
+  const clamp = (v: number, max: number) => Math.max(0, Math.min(max - 1, v));
+  return {
+    x: Math.round(clamp((tap.x - offX) / scale, device.width)),
+    y: Math.round(clamp((tap.y - offY) / scale, device.height)),
+  };
+}
+
+/**
+ * A tap at (x, y) on the picture as shown, to the matching point on the page.
  * The picture is drawn to fit, so the position scales by the ratio of the page
  * to the picture. A tap is clamped to the page: a finger on the edge is still
  * on the page.
