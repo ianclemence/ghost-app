@@ -141,15 +141,15 @@ export default function PanelScreen() {
             {/* Live counts, each one a door to its screen. */}
             <Text style={styles.eyebrow}>At a glance</Text>
             <View style={styles.tiles}>
-              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${reminderCount} reminders.`}>
+              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${reminderCount} ${reminderCount === 1 ? "reminder" : "reminders"}.`}>
                 <Bell size={18} color={Ghost.text.primary} strokeWidth={1.5} />
                 <Text style={styles.tileNumber}>{reminderCount}</Text>
-                <Text style={styles.tileLabel}>Reminders</Text>
+                <Text style={styles.tileLabel}>{reminderCount === 1 ? "Reminder" : "Reminders"}</Text>
               </Pressable>
-              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${routineCount} active routines.`}>
+              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${routineCount} ${routineCount === 1 ? "active routine" : "active routines"}.`}>
                 <Calendar size={18} color={Ghost.text.primary} strokeWidth={1.5} />
                 <Text style={styles.tileNumber}>{routineCount}</Text>
-                <Text style={styles.tileLabel}>Routines</Text>
+                <Text style={styles.tileLabel}>{routineCount === 1 ? "Routine" : "Routines"}</Text>
               </Pressable>
               {/* Needs-you only exists when something actually needs you. */}
               {approvals > 0 ? (
