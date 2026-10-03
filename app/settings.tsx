@@ -47,7 +47,7 @@ export default function SettingsScreen() {
       <ScreenHeader title="Settings" subtitle="Set up once, then leave alone" />
       <View style={styles.list}>
         <GhostList>
-          {ROWS.map((r) => (
+          {ROWS.filter((r) => r.path !== "/about").map((r) => (
             <GhostRow key={r.path} title={r.title} subtitle={r.detail} chevron onPress={() => router.push(r.path as never)} />
           ))}
           <GhostRow
@@ -56,6 +56,9 @@ export default function SettingsScreen() {
             chevron={push === "denied"}
             onPress={push === "denied" ? fixPush : undefined}
           />
+          {ROWS.filter((r) => r.path === "/about").map((r) => (
+            <GhostRow key={r.path} title={r.title} subtitle={r.detail} chevron onPress={() => router.push(r.path as never)} />
+          ))}
         </GhostList>
       </View>
     </View>

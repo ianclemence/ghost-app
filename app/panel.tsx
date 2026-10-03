@@ -13,6 +13,7 @@ import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import {
   fetchActivity,
+  fetchIdentity,
   fetchMemorySelf,
   fetchPendingApprovals,
   fetchProactiveStatus,
@@ -30,13 +31,17 @@ import { nextLine } from "@/lib/when";
  * what it remembers), with the rest one tap away in the dock. Nothing here is
  * summarized by a model.
  */
-function greeting(now = new Date()): string {
+/** "Good morning, Ian." — the owner's name when the Pod knows it, as the console greets them. */
+function greeting(now = new Date(), name = ""): string {
   const h = now.getHours();
-  if (h < 5) return "Still up?";
-  if (h < 12) return "Good morning.";
-  if (h < 18) return "Good afternoon.";
-  return "Good evening.";
+  const n = name.trim();
+  if (h < 5) return n ? `Still up, ${n}?` : "Still up?";
+  const part = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return n ? `${part}, ${n}.` : `${part}.`;
 }
+
+// Kept across visits so the name does not appear a beat after the greeting.
+let knownOwner = "";
 
 /** The Ghost mark, drawn like an icon so the dock can take it. */
 function MarkIcon({ size, color }: { size?: number; color?: string }) {
@@ -56,6 +61,7 @@ export default function PanelScreen() {
   const [next, setNext] = useState<RoutineItem | null>(null);
   const [memoryCount, setMemoryCount] = useState<number | null>(null);
   const [quietLine, setQuietLine] = useState<string | null>(null);
+  const [owner, setOwner] = useState(knownOwner);
   const [activity, setActivity] = useState<ActivityChip[]>([]);
 
   const load = useCallback(async () => {
@@ -71,6 +77,12 @@ export default function PanelScreen() {
       fetchActivity(config, { limit: 12 }).then(setActivity).catch(() => {}),
       fetchMemorySelf(config).then((m) => setMemoryCount(m.entries.length + m.notes.length)).catch(() => {}),
       fetchProactiveStatus(config).then((p) => setQuietLine(proactiveLine(p).text)).catch(() => {}),
+      fetchIdentity(config).then((id) => {
+        if (id?.owner) {
+          knownOwner = id.owner;
+          setOwner(id.owner);
+        }
+      }).catch(() => {}),
     ]);
   }, [config]);
 
@@ -92,7 +104,7 @@ export default function PanelScreen() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title} accessibilityRole="header">{config ? greeting() : "Hello."}</Text>
+        <Text style={styles.title} accessibilityRole="header">{config ? greeting(new Date(), owner) : "Hello."}</Text>
 
         {config ? (
           <>
