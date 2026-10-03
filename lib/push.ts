@@ -50,3 +50,17 @@ export async function stopPush(cfg: GhostConfig): Promise<void> {
     // Offline: the Pod prunes a token the push service reports as dead.
   }
 }
+
+/** What the owner reads about push on this phone. */
+export function pushLine(state: PushState | null): string {
+  switch (state) {
+    case null:
+      return "Checking…";
+    case "registered":
+      return "On. Reminders reach you when Ghost is closed";
+    case "denied":
+      return "Off on this phone. Tap to turn on";
+    default:
+      return "Not working yet. Reminders only arrive while Ghost is open";
+  }
+}

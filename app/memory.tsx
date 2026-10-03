@@ -69,7 +69,10 @@ export default function MemoryScreen() {
     ]);
   };
 
-  const total = (mem?.entries.length ?? 0) + (mem?.notes.length ?? 0) + (mem?.you.length ?? 0);
+  // "you" is Ghost's own one-line copy of the entries below (rebuilt from them
+  // on the Pod), so it is neither shown nor counted: it made 12 memories read
+  // as 18, and forgetting a copy did nothing because it was rebuilt.
+  const total = (mem?.entries.length ?? 0) + (mem?.notes.length ?? 0);
 
   return (
     <View style={styles.container}>
@@ -90,20 +93,13 @@ export default function MemoryScreen() {
               Ghost hasn&apos;t kept anything yet. Tell it something worth remembering (“I&apos;m vegetarian”, “Sam is my sister”) and it appears here.
             </Text>
           ) : null}
-          {(mem?.you.length ?? 0) > 0 ? (
-            <Group title="About you">
-              {mem!.you.map((y) => (
-                <Item key={`you-${y}`} title={y} busy={busy === `you-${y}`} onForget={() => confirmForget(y, () => forgetMemoryNote(config!, "user", y), `you-${y}`)} />
-              ))}
-            </Group>
-          ) : null}
           {groups.map(([label, facts]) => (
             <Group key={label} title={label}>
               {facts.map((f) => (
                 <Item
                   key={f.id}
                   title={f.title || f.label}
-                  value={f.value && f.value !== f.title ? f.value : f.summary}
+                  value={secondLine(f)}
                   meta={memoryMeta(f)}
                   busy={busy === f.id}
                   onForget={() => confirmForget(f.title || f.label, () => forgetMemoryFact(config!, f.id), f.id)}
@@ -122,6 +118,16 @@ export default function MemoryScreen() {
       )}
     </View>
   );
+}
+
+// The line under a memory's title, only when it adds something. The title is
+// usually the whole sentence now, and repeating it ("Takes vitamins every
+// weekday" twice) read as a glitch.
+function secondLine(f: MemoryFact): string | undefined {
+  const same = (a?: string) => (a ?? "").trim().replace(/[.!]+$/, "").toLowerCase() === (f.title ?? "").trim().replace(/[.!]+$/, "").toLowerCase();
+  if (f.value && !same(f.value)) return f.value;
+  if (f.summary && !same(f.summary)) return f.summary;
+  return undefined;
 }
 
 // When and how firmly Ghost knows this: "Learned Sep 9", or
