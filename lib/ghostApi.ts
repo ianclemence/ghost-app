@@ -816,6 +816,12 @@ export interface MemoryFact {
   created_at?: string;
   reinforce_count?: number;
   reinforced_at?: string | null;
+  /** "you" when the owner said it, "ghost" when Ghost worked it out. */
+  said_by?: "you" | "ghost";
+  /** When Ghost first heard it (not when the record was last written). */
+  learned_at?: string;
+  /** A labelled value ("Name" → "Ian"), shown as a field, not a sentence. */
+  field?: boolean;
 }
 
 export interface MemorySelf {
@@ -844,6 +850,16 @@ export async function forgetMemoryFact(cfg: GhostConfig, id: string): Promise<vo
     body: JSON.stringify({ id }),
   });
   if (!res.ok) throw new Error(`Failed to forget (HTTP ${res.status})`);
+}
+
+/** Replace what Ghost believes with what the owner typed; the old value stays in history. */
+export async function correctMemoryFact(cfg: GhostConfig, id: string, value: string): Promise<void> {
+  const res = await gfetch(cfg, `${baseURL(cfg)}/v1/memory/self/correct`, {
+    method: "POST",
+    headers: headers(cfg),
+    body: JSON.stringify({ id, value }),
+  });
+  if (!res.ok) throw new Error(`Failed to correct (HTTP ${res.status})`);
 }
 
 export async function forgetMemoryNote(

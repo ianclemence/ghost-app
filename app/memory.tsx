@@ -5,10 +5,10 @@ import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeOut, LinearTransition } from "react-native-reanimated";
 import { Ghost, Space } from "@/constants/theme";
-import { GhostButton } from "@/components/ghost";
+import { GhostButton, GhostInput, GhostSheet } from "@/components/ghost";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
-import { fetchMemorySelf, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
+import { correctMemoryFact, fetchMemorySelf, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo } from "@/lib/when";
 import { EdgeScrollView } from "@/components/scroll-edge";
@@ -23,6 +23,30 @@ export default function MemoryScreen() {
   const [mem, setMem] = useState<MemorySelf | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The memory being corrected, and the words typed so far.
+  const [editing, setEditing] = useState<MemoryFact | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const saveEdit = async () => {
+    if (!config || !editing) return;
+    const v = draft.trim();
+    if (!v || v === editing.value.trim()) {
+      setEditing(null);
+      return;
+    }
+    setSaving(true);
+    try {
+      await correctMemoryFact(config, editing.id, v);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setEditing(null);
+      await load();
+    } catch {
+      setError("Couldn't save that. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!config) return;
@@ -44,7 +68,8 @@ export default function MemoryScreen() {
       const k = f.domain_label || "Other";
       by.set(k, [...(by.get(k) ?? []), f]);
     }
-    return [...by.entries()].sort(([a], [b]) => a.localeCompare(b));
+    // Who you are comes first; the rest by name.
+    return [...by.entries()].sort(([a], [b]) => (a === "Identity" ? -1 : b === "Identity" ? 1 : a.localeCompare(b)));
   }, [mem]);
 
   const confirmForget = (label: string, run: () => Promise<void>, key: string) => {
@@ -98,11 +123,16 @@ export default function MemoryScreen() {
               {facts.map((f) => (
                 <Item
                   key={f.id}
-                  title={f.title || f.label}
-                  value={secondLine(f)}
+                  label={f.field ? f.label : undefined}
+                  title={f.field ? f.value : f.title || f.label}
+                  value={f.field ? undefined : secondLine(f)}
                   meta={memoryMeta(f)}
                   busy={busy === f.id}
-                  onForget={() => confirmForget(f.title || f.label, () => forgetMemoryFact(config!, f.id), f.id)}
+                  onEdit={() => {
+                    setDraft(f.value);
+                    setEditing(f);
+                  }}
+                  onForget={() => confirmForget(f.field ? `${f.label}: ${f.value}` : f.title || f.label, () => forgetMemoryFact(config!, f.id), f.id)}
                 />
               ))}
             </Group>
@@ -116,21 +146,53 @@ export default function MemoryScreen() {
           ) : null}
         </EdgeScrollView>
       )}
+      <GhostSheet
+        visible={editing !== null}
+        onClose={() => { if (!saving) setEditing(null); }}
+        title={editing?.field ? `Change your ${editing.label.toLowerCase()}` : "Correct this memory"}
+        message="Ghost keeps the old version in its history and uses yours from now on."
+      >
+        <GhostInput value={draft} onChangeText={setDraft} accessibilityLabel="New value" autoCapitalize="sentences" />
+        <GhostButton title={saving ? "Saving…" : "Save"} fullWidth onPress={saveEdit} disabled={saving || !draft.trim()} />
+      </GhostSheet>
     </View>
   );
 }
 
 // The line under a memory's title, only when it adds something. The title is
 // usually the whole sentence now, and repeating it ("Takes vitamins every
-// weekday" twice) read as a glitch.
+// weekday" twice) read as a glitch. The same goes for a bare value the title
+// already contains ("Name: Ian" over "Ian"), and for a summary that merely
+// restates the title ("Your name is Ian."): a second line that adds nothing
+// is not shown.
+const SECOND_LINE_STOP = new Set(["a", "an", "the", "is", "are", "was", "were", "your", "you", "my", "me", "in", "on", "at", "to", "of", "and", "or", "for", "it", "its", "this", "that"]);
+
 function secondLine(f: MemoryFact): string | undefined {
-  const same = (a?: string) => (a ?? "").trim().replace(/[.!]+$/, "").toLowerCase() === (f.title ?? "").trim().replace(/[.!]+$/, "").toLowerCase();
-  if (f.value && !same(f.value)) return f.value;
-  if (f.summary && !same(f.summary)) return f.summary;
+  const norm = (a?: string) => (a ?? "").trim().replace(/[.!]+$/, "").toLowerCase();
+  const title = norm(f.title);
+  const contained = (a?: string) => {
+    const t = norm(a);
+    return t !== "" && (title.includes(t) || t.includes(title));
+  };
+  if (f.value && !contained(f.value)) return f.value;
+  if (f.summary && !contained(f.summary)) {
+    // A summary that only restates the title in sentence form ("Your name is
+    // Ian." under "Name: Ian") carries no new words: show it only when it
+    // says something the title doesn't. Words compare stemmed so "live" and
+    // "lives" count as the same word.
+    const stem = (w: string) => (w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w);
+    const known = new Set<string>();
+    for (const w of [...title.split(/[^a-z0-9]+/), ...norm(f.value).split(/[^a-z0-9]+/)]) {
+      if (w && !SECOND_LINE_STOP.has(w)) known.add(stem(w));
+    }
+    if (norm(f.summary).split(/[^a-z0-9]+/).some((w) => w && !SECOND_LINE_STOP.has(w) && !known.has(stem(w)))) {
+      return f.summary;
+    }
+  }
   return undefined;
 }
 
-// When and how firmly Ghost knows this: "Learned Sep 9", or
+// When and how firmly Ghost knows this: "You told Ghost · 20 Sep", or
 // "Confirmed 4 times · last Jul 31" once the owner has repeated it.
 function memoryMeta(f: MemoryFact): string | undefined {
   const parts: string[] = [];
@@ -140,8 +202,14 @@ function memoryMeta(f: MemoryFact): string | undefined {
     const last = whenAgo(f.reinforced_at ?? f.created_at ?? null);
     parts.push(last ? `Confirmed ${n} times · last ${last}` : `Confirmed ${n} times`);
   } else {
-    const learned = whenAgo(f.created_at ?? null);
-    if (learned) parts.push(`Learned ${learned}`);
+    // When it was first heard, and from whom: "You told Ghost" is a fact you
+    // gave; "Ghost noticed" is something it worked out. The date is when it
+    // was said, not when the record was last written.
+    const iso = f.learned_at ?? f.created_at ?? null;
+    const t = iso ? Date.parse(iso) : NaN;
+    const when = Number.isFinite(t) ? new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : null;
+    const who = f.said_by === "you" ? "You told Ghost" : "Ghost noticed";
+    parts.push(when ? `${who} · ${when}` : who);
   }
   if (f.valid_until) {
     const t = Date.parse(f.valid_until);
@@ -161,29 +229,38 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function Item({
+  label,
   title,
   value,
   meta,
   busy,
+  onEdit,
   onForget,
 }: {
+  /** A field's name ("Name"), shown small above its value. */
+  label?: string;
   title: string;
   value?: string;
   meta?: string;
   busy: boolean;
+  onEdit?: () => void;
   onForget: () => void;
 }) {
   return (
     <Animated.View exiting={FadeOut.duration(180)} layout={LinearTransition.duration(200)} style={styles.item}>
       <View style={styles.itemText}>
-        <Text style={styles.itemTitle}>{title}</Text>
+        {label ? <Text style={styles.itemLabel}>{label}</Text> : null}
+        <Text style={label ? styles.itemField : styles.itemTitle}>{title}</Text>
         {value ? <Text style={styles.itemValue}>{value}</Text> : null}
         {meta ? <Text style={styles.itemMeta}>{meta}</Text> : null}
       </View>
       {busy ? (
         <ActivityIndicator size="small" color={Ghost.text.tertiary} />
       ) : (
-        <GhostButton title="Forget" variant="ghost" size="sm" onPress={onForget} />
+        <View style={styles.itemActions}>
+          {onEdit ? <GhostButton title="Edit" variant="secondary" size="sm" onPress={onEdit} /> : null}
+          <GhostButton title="Forget" variant="ghost" size="sm" onPress={onForget} />
+        </View>
       )}
     </Animated.View>
   );
@@ -222,6 +299,9 @@ const styles = StyleSheet.create({
   },
   itemText: { flex: 1, gap: 2 },
   itemTitle: { fontSize: 16, lineHeight: 21, fontWeight: "500", letterSpacing: -0.15, color: Ghost.text.primary },
+  itemLabel: { fontSize: 12, lineHeight: 16, fontWeight: "500", letterSpacing: 0.4, textTransform: "uppercase", color: Ghost.text.tertiary },
+  itemField: { fontSize: 19, lineHeight: 25, fontWeight: "500", letterSpacing: -0.2, color: Ghost.text.primary },
+  itemActions: { gap: Space.xs, alignItems: "stretch" },
   itemValue: { fontSize: 14.5, lineHeight: 20, fontWeight: "300", color: Ghost.text.secondary },
   itemMeta: { fontSize: 12.5, lineHeight: 17, color: Ghost.text.tertiary },
   empty: {
