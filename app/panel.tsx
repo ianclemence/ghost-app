@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, Calendar, ChevronRight, Folder, MessageCircle, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
+import { Bell, Calendar, ChevronRight, Folder, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
 import { Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { Dock } from "@/components/dock";
@@ -151,13 +151,14 @@ export default function PanelScreen() {
                 <Text style={styles.tileNumber}>{routineCount}</Text>
                 <Text style={styles.tileLabel}>Routines</Text>
               </Pressable>
-              <Pressable style={styles.tile} onPress={() => router.push("/(tabs)" as never)} accessibilityRole="button" accessibilityLabel={approvals > 0 ? `${approvals} need your OK.` : "Nothing needs you."}>
-                {approvals > 0
-                  ? <ShieldCheck size={18} color={Ghost.text.primary} strokeWidth={1.5} />
-                  : <MessageCircle size={18} color={Ghost.text.primary} strokeWidth={1.5} />}
-                <Text style={styles.tileNumber}>{approvals > 0 ? approvals : "✓"}</Text>
-                <Text style={styles.tileLabel}>{approvals > 0 ? "Needs You" : "All Clear"}</Text>
+              {/* Needs-you only exists when something actually needs you. */}
+              {approvals > 0 ? (
+              <Pressable style={styles.tile} onPress={() => router.push("/(tabs)" as never)} accessibilityRole="button" accessibilityLabel={`${approvals} need your OK.`}>
+                <ShieldCheck size={18} color={Ghost.text.primary} strokeWidth={1.5} />
+                <Text style={styles.tileNumber}>{approvals}</Text>
+                <Text style={styles.tileLabel}>Needs You</Text>
               </Pressable>
+              ) : null}
               <Pressable style={styles.tile} onPress={go("/memory")} accessibilityRole="button" accessibilityLabel={memoryCount !== null ? `Ghost remembers ${memoryCount} things.` : "What Ghost remembers."}>
                 <Sparkles size={18} color={Ghost.text.primary} strokeWidth={1.5} />
                 <Text style={styles.tileNumber}>{memoryCount ?? "–"}</Text>
