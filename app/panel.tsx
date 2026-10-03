@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Calendar, Folder, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
+import { Bell, Calendar, ChevronRight, Folder, MessageCircle, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
 import { Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { Dock } from "@/components/dock";
@@ -16,12 +16,10 @@ import {
   fetchIdentity,
   fetchMemorySelf,
   fetchPendingApprovals,
-  fetchProactiveStatus,
   fetchRoutines,
   type ActivityChip,
   type RoutineItem,
 } from "@/lib/ghostApi";
-import { proactiveLine } from "@/lib/proactive";
 import { useGhostStore } from "@/lib/store";
 import { nextLine } from "@/lib/when";
 
@@ -48,19 +46,13 @@ function MarkIcon({ size, color }: { size?: number; color?: string }) {
   return <GhostMark size={(size ?? 22) + 2} color={color} />;
 }
 
-/** A small glass circle that sits inside a sentence. */
-function Chip({ children }: { children: React.ReactNode }) {
-  return <View style={styles.chip}>{children}</View>;
-}
-
 export default function PanelScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { config, connectionState } = useGhostStore();
   const [approvals, setApprovals] = useState(0);
-  const [next, setNext] = useState<RoutineItem | null>(null);
+  const [routines, setRoutines] = useState<RoutineItem[]>([]);
   const [memoryCount, setMemoryCount] = useState<number | null>(null);
-  const [quietLine, setQuietLine] = useState<string | null>(null);
   const [owner, setOwner] = useState(knownOwner);
   const [activity, setActivity] = useState<ActivityChip[]>([]);
 
@@ -68,15 +60,9 @@ export default function PanelScreen() {
     if (!config) return;
     await Promise.all([
       fetchPendingApprovals(config).then((r) => setApprovals(r.length)).catch(() => {}),
-      fetchRoutines(config).then((r) => {
-        const active = r
-          .filter((x) => x.state === "active" || x.state === "waiting")
-          .sort((a, b) => Date.parse(a.next_run_at ?? "9999") - Date.parse(b.next_run_at ?? "9999"));
-        setNext(active[0] ?? null);
-      }).catch(() => {}),
+      fetchRoutines(config).then(setRoutines).catch(() => {}),
       fetchActivity(config, { limit: 12 }).then(setActivity).catch(() => {}),
       fetchMemorySelf(config).then((m) => setMemoryCount(m.entries.length + m.notes.length)).catch(() => {}),
-      fetchProactiveStatus(config).then((p) => setQuietLine(proactiveLine(p).text)).catch(() => {}),
       fetchIdentity(config).then((id) => {
         if (id?.owner) {
           knownOwner = id.owner;
@@ -91,11 +77,23 @@ export default function PanelScreen() {
   }, [load]);
 
   const go = (path: string) => () => router.push(path as never);
+  const online = connectionState === "online";
+  const syncing = connectionState === "syncing";
   const where = !config
     ? null
-    : connectionState === "online" ? "Ghost is on your Pod, online."
-      : connectionState === "syncing" ? "Ghost is on your Pod, reconnecting."
+    : online ? "Ghost is on your Pod, online."
+      : syncing ? "Ghost is on your Pod, reconnecting."
       : "Your Pod is offline. Messages will wait.";
+
+  const live = routines.filter((x) => x.state === "active" || x.state === "waiting");
+  const next = [...live].sort((a, b) => Date.parse(a.next_run_at ?? "9999") - Date.parse(b.next_run_at ?? "9999"))[0] ?? null;
+  const reminderCount = live.filter((x) => x.kind === "reminder").length;
+  const routineCount = live.filter((x) => x.kind !== "reminder").length;
+  const todayKey = new Date().toDateString();
+  const todayItems = activity.filter((a) => {
+    const t = Date.parse(a.timestamp);
+    return Number.isFinite(t) && new Date(t).toDateString() === todayKey;
+  });
 
   return (
     <View style={styles.container}>
@@ -109,39 +107,78 @@ export default function PanelScreen() {
         {config ? (
           <>
             <Text style={styles.prose}>{where}</Text>
-            <Text style={styles.prose}>
-              {approvals > 0
-                ? `${approvals === 1 ? "One thing needs" : `${approvals} things need`} your OK `
-                : (quietLine ?? "Nothing needs you right now.")}
-              {approvals > 0 ? (
-                <Chip>
-                  <ShieldCheck size={14} color={Ghost.text.primary} strokeWidth={1.5} />
-                </Chip>
-              ) : null}
-            </Text>
-            {next ? (
-              <Text style={styles.prose}>
-                {nextLine(next)}{" "}
-                <Chip>
-                  <Calendar size={14} color={Ghost.text.primary} strokeWidth={1.5} />
-                </Chip>
-              </Text>
-            ) : null}
-            {memoryCount !== null ? (
-              <Text style={styles.prose}>
-                Ghost remembers {memoryCount === 1 ? "1 thing" : `${memoryCount} things`}{" "}
-                <Chip>
-                  <Sparkles size={14} color={Ghost.text.primary} strokeWidth={1.5} />
-                </Chip>
-              </Text>
-            ) : null}
-            {activity.length > 0 ? (
-              <View style={styles.latest}>
-                <Text style={styles.latestLabel}>Latest</Text>
-                {/* Dark glass, so the tree reads even where the aurora is brightest behind it. */}
-                <View style={styles.treeCard}>
-                  <ActivityTree items={activity} limit={8} />
+            {/* Pod state and what's next: the two things worth a glance. */}
+            <View style={styles.statusRow}>
+              <Pressable
+                style={styles.statusCard}
+                onPress={go("/device")}
+                accessibilityRole="button"
+                accessibilityLabel={online ? "Pod online. All systems good." : "Pod status."}
+              >
+                <View style={[styles.dot, { backgroundColor: online ? Ghost.status.success : syncing ? Ghost.status.warning : Ghost.status.error }]} />
+                <View style={styles.statusText}>
+                  <Text style={styles.statusTitle}>{online ? "Pod Online" : syncing ? "Reconnecting" : "Pod Offline"}</Text>
+                  <Text style={styles.statusSub} numberOfLines={1}>{online ? "All systems good" : syncing ? "Holding your messages" : "Messages will wait"}</Text>
                 </View>
+                <ChevronRight size={16} color={Ghost.text.tertiary} strokeWidth={1.8} />
+              </Pressable>
+              <Pressable
+                style={styles.statusCard}
+                onPress={go("/routines")}
+                accessibilityRole="button"
+                accessibilityLabel={next ? `Next: ${next.title}` : "Nothing scheduled."}
+              >
+                {next?.kind === "reminder"
+                  ? <Bell size={18} color={Ghost.text.primary} strokeWidth={1.5} />
+                  : <Calendar size={18} color={Ghost.text.primary} strokeWidth={1.5} />}
+                <View style={styles.statusText}>
+                  <Text style={styles.statusTitle}>{next ? (next.kind === "reminder" ? "Next Reminder" : "Next Up") : "Nothing Scheduled"}</Text>
+                  <Text style={styles.statusSub} numberOfLines={2}>{next ? nextLine(next) : "Ask Ghost to remind you"}</Text>
+                </View>
+                <ChevronRight size={16} color={Ghost.text.tertiary} strokeWidth={1.8} />
+              </Pressable>
+            </View>
+            {/* Live counts, each one a door to its screen. */}
+            <Text style={styles.eyebrow}>At a glance</Text>
+            <View style={styles.tiles}>
+              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${reminderCount} reminders.`}>
+                <Bell size={18} color={Ghost.text.primary} strokeWidth={1.5} />
+                <Text style={styles.tileNumber}>{reminderCount}</Text>
+                <Text style={styles.tileLabel}>Reminders</Text>
+              </Pressable>
+              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${routineCount} active routines.`}>
+                <Calendar size={18} color={Ghost.text.primary} strokeWidth={1.5} />
+                <Text style={styles.tileNumber}>{routineCount}</Text>
+                <Text style={styles.tileLabel}>Routines</Text>
+              </Pressable>
+              <Pressable style={styles.tile} onPress={() => router.push("/(tabs)" as never)} accessibilityRole="button" accessibilityLabel={approvals > 0 ? `${approvals} need your OK.` : "Nothing needs you."}>
+                {approvals > 0
+                  ? <ShieldCheck size={18} color={Ghost.text.primary} strokeWidth={1.5} />
+                  : <MessageCircle size={18} color={Ghost.text.primary} strokeWidth={1.5} />}
+                <Text style={styles.tileNumber}>{approvals > 0 ? approvals : "✓"}</Text>
+                <Text style={styles.tileLabel}>{approvals > 0 ? "Needs You" : "All Clear"}</Text>
+              </Pressable>
+              <Pressable style={styles.tile} onPress={go("/memory")} accessibilityRole="button" accessibilityLabel={memoryCount !== null ? `Ghost remembers ${memoryCount} things.` : "What Ghost remembers."}>
+                <Sparkles size={18} color={Ghost.text.primary} strokeWidth={1.5} />
+                <Text style={styles.tileNumber}>{memoryCount ?? "–"}</Text>
+                <Text style={styles.tileLabel}>Remembered</Text>
+              </Pressable>
+            </View>
+            {/* Today: what Ghost did, newest first, in its own words. */}
+            {todayItems.length > 0 ? (
+              <View style={styles.todayCard}>
+                <View style={styles.todayHead}>
+                  <Text style={styles.todayTitle}>Today</Text>
+                  <View style={styles.todayCount}>
+                    <Text style={styles.todayCountText}>{todayItems.length}</Text>
+                  </View>
+                  <View style={{ flex: 1 }} />
+                  <Pressable onPress={go("/activity")} hitSlop={8} accessibilityRole="button" accessibilityLabel="See all activity.">
+                    <Text style={styles.todayAll}>See all</Text>
+                  </Pressable>
+                </View>
+                {/* Dark glass, so the tree reads even where the aurora is brightest behind it. */}
+                <ActivityTree items={todayItems} limit={6} bare />
               </View>
             ) : null}
           </>
@@ -183,19 +220,71 @@ const styles = StyleSheet.create({
     marginBottom: Space.xs,
   },
   prose: { ...Type.prose, fontSize: 22, lineHeight: 31, letterSpacing: -0.45, color: "rgba(255,255,255,0.8)" },
-  chip: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  // Two status cards: Pod state and what's next. One row, equal halves.
+  statusRow: { flexDirection: "row", gap: Space.sm, marginTop: Space.lg },
+  statusCard: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 4,
-    backgroundColor: Ghost.glass.fillStrong,
+    gap: Space.sm,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.md,
+    borderRadius: 22,
+    borderCurve: "continuous",
+    backgroundColor: Ghost.glass.fill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.glass.border,
   },
-  latest: { marginTop: Space.xl },
-  treeCard: { borderRadius: 26, borderCurve: "continuous", padding: Space.lg, backgroundColor: "rgba(0,0,0,0.52)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
-  latestLabel: { fontSize: 11.5, fontWeight: "500", letterSpacing: 1.1, textTransform: "uppercase", color: Ghost.text.tertiary, marginBottom: Space.sm },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  statusText: { flex: 1, gap: 1 },
+  statusTitle: { fontSize: 15, lineHeight: 20, fontWeight: "500", letterSpacing: -0.2, color: Ghost.text.primary },
+  statusSub: { fontSize: 12.5, lineHeight: 17, color: Ghost.text.secondary },
+  eyebrow: {
+    fontSize: 11.5,
+    fontWeight: "500",
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+    color: Ghost.text.tertiary,
+    marginTop: Space.xl,
+    marginBottom: Space.sm,
+  },
+  // Four glance tiles: one row, equal quarters, serif numerals.
+  tiles: { flexDirection: "row", gap: Space.sm },
+  tile: {
+    flex: 1,
+    gap: 2,
+    paddingHorizontal: Space.sm,
+    paddingVertical: Space.md,
+    borderRadius: 20,
+    borderCurve: "continuous",
+    backgroundColor: Ghost.glass.fill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
+  tileNumber: { fontFamily: Fonts.voice, fontSize: 27, lineHeight: 32, color: Ghost.text.primary, marginTop: Space.xs },
+  tileLabel: { fontSize: 11.5, lineHeight: 15, color: Ghost.text.secondary },
+  // Today: one dark card, serif title with its count, then the tree bare.
+  todayCard: {
+    marginTop: Space.xl,
+    borderRadius: 26,
+    borderCurve: "continuous",
+    padding: Space.lg,
+    backgroundColor: "rgba(0,0,0,0.52)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
+  todayHead: { flexDirection: "row", alignItems: "center", gap: Space.sm, marginBottom: Space.sm },
+  todayTitle: { fontFamily: Fonts.voice, fontSize: 34, lineHeight: 40, letterSpacing: -0.5, color: Ghost.text.primary },
+  todayCount: {
+    minWidth: 24,
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Ghost.glass.fillStrong,
+  },
+  todayCountText: { fontSize: 12, fontWeight: "500", color: Ghost.text.secondary, fontVariant: ["tabular-nums"] },
+  todayAll: { fontSize: 13, fontWeight: "500", color: Ghost.text.tertiary },
   buttons: { marginTop: Space.lg, gap: Space.sm, alignItems: "flex-start" },
 });

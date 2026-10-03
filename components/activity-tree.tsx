@@ -40,12 +40,15 @@ export function ActivityTree({
   items,
   foldable = false,
   limit,
+  bare = false,
 }: {
   items: ActivityChip[];
   /** Days fold with their caret (the Activity screen). Off where the tree is a glance. */
   foldable?: boolean;
   /** Show only the newest this many, however many days that spans. */
   limit?: number;
+  /** Skip the day header: the surrounding card already names the day (the panel's Today card). */
+  bare?: boolean;
 }) {
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const shown = limit ? [...items].sort((a, b) => (Date.parse(b.timestamp) || 0) - (Date.parse(a.timestamp) || 0)).slice(0, limit) : items;
@@ -64,6 +67,7 @@ export function ActivityTree({
         const closed = foldable && folded.has(d.label);
         return (
           <View key={d.label} style={styles.branch}>
+            {bare ? null : (
             <Pressable
               onPress={foldable ? () => toggle(d.label) : undefined}
               disabled={!foldable}
@@ -82,6 +86,7 @@ export function ActivityTree({
                 <Text style={styles.countText}>{d.items.length}</Text>
               </View>
             </Pressable>
+            )}
             {closed ? null : collapseRepeats(d.items).map((e, i, all) => <Leaf key={e.item.id} entry={e} last={i === all.length - 1} />)}
           </View>
         );
