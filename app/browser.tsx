@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, AppState, Image, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -47,6 +47,12 @@ export default function BrowserScreen() {
   const [finishing, setFinishing] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const heldRef = useRef(false);
+  // aliveRef: the screen is mounted and we still want the live view.
+  // finishingRef: the owner pressed Done; do not reconnect.
+  const aliveRef = useRef(true);
+  const finishingRef = useRef(false);
+  const retryRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const send = useCallback((msgs: StreamInput[]) => {
     const ws = socketRef.current;
@@ -54,43 +60,82 @@ export default function BrowserScreen() {
     for (const m of msgs) ws.send(JSON.stringify(m));
   }, []);
 
-  // Take control (Ghost pauses), then open the live view.
-  useEffect(() => {
+  // Take control (Ghost pauses), mint a fresh single-use ticket, and open the
+  // live view. Called on mount, whenever the phone returns to the foreground
+  // (the OS closes the socket while the app is away), and after a drop, so the
+  // view reattaches instead of sitting disconnected on the last frame.
+  const connect = useCallback(async () => {
     if (!config || !id) return;
-    let cancelled = false;
-    (async () => {
-      const taken = await requestSurfaceTakeover(config, "browser", id);
-      if (cancelled) return;
-      if (!taken.ok) {
-        setError(taken.error ?? "You can't take over this browser right now.");
-        setState("error");
-        return;
-      }
-      heldRef.current = true;
-      const ticket = await mintBrowserScreencast(config, id);
-      if (cancelled) return;
-      if (!ticket.ok) {
+    // Keep the last frame on screen while re-attaching; only the very first
+    // attempt shows the spinner.
+    setState((s) => (s === "live" ? s : "starting"));
+    setError(null);
+    const taken = await requestSurfaceTakeover(config, "browser", id);
+    if (!aliveRef.current || finishingRef.current) return;
+    if (!taken.ok) {
+      setError(taken.error ?? "You can't take over this browser right now.");
+      setState("error");
+      return;
+    }
+    heldRef.current = true;
+    const ticket = await mintBrowserScreencast(config, id);
+    if (!aliveRef.current || finishingRef.current) return;
+    if (!ticket.ok) {
+      retryRef.current += 1;
+      if (retryRef.current >= 3) {
         setError(ticket.error);
         setState("error");
-        return;
+      } else {
+        retryTimerRef.current = setTimeout(() => void connect(), 800);
       }
-      const ws = new WebSocket(screencastSocketURL(wsURL(config), ticket.wsPath));
-      socketRef.current = ws;
-      ws.onopen = () => setState("live");
-      ws.onmessage = (e) => {
-        const f = typeof e.data === "string" ? parseFrame(e.data) : null;
-        if (!f) return;
-        setFrame(f);
-        // One frame at a time: say this one is drawn.
-        ws.send(JSON.stringify({ type: "ack", seq: f.seq }));
-      };
-      ws.onerror = () => {
-        setError("The live view dropped. Go back and try again.");
-        setState("error");
-      };
-    })();
+      return;
+    }
+    const ws = new WebSocket(screencastSocketURL(wsURL(config), ticket.wsPath));
+    socketRef.current?.close();
+    socketRef.current = ws;
+    ws.onopen = () => {
+      if (!aliveRef.current) return;
+      retryRef.current = 0;
+      setState("live");
+    };
+    ws.onmessage = (e) => {
+      const f = typeof e.data === "string" ? parseFrame(e.data) : null;
+      if (!f) return;
+      setFrame(f);
+      // One frame at a time: say this one is drawn.
+      ws.send(JSON.stringify({ type: "ack", seq: f.seq }));
+    };
+    ws.onerror = () => {
+      // A close follows; onclose decides whether to reattach.
+    };
+    ws.onclose = () => {
+      if (socketRef.current !== ws) return;
+      socketRef.current = null;
+      if (!aliveRef.current || finishingRef.current) return;
+      retryTimerRef.current = setTimeout(() => void connect(), 600);
+    };
+  }, [config, id]);
+
+  // Reattach when the app comes back, and drop the socket when it leaves so we
+  // never act on a half-dead one.
+  useEffect(() => {
+    aliveRef.current = true;
+    void connect();
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") {
+        const ws = socketRef.current;
+        if (aliveRef.current && !finishingRef.current && (!ws || ws.readyState !== WebSocket.OPEN)) {
+          void connect();
+        }
+      } else {
+        socketRef.current?.close();
+        socketRef.current = null;
+      }
+    });
     return () => {
-      cancelled = true;
+      aliveRef.current = false;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      sub.remove();
       socketRef.current?.close();
       socketRef.current = null;
       // Leaving without pressing Done still gives the browser back.
@@ -99,7 +144,7 @@ export default function BrowserScreen() {
         void releaseSurfaceControl(config, "browser", id).then(() => resumeSurfaceGhost(config, "browser", id));
       }
     };
-  }, [config, id]);
+  }, [config, id, connect]);
 
   const onTap = (x: number, y: number) => {
     if (!frame) return;
@@ -122,8 +167,11 @@ export default function BrowserScreen() {
   const done = async () => {
     if (!config || !id) return;
     setFinishing(true);
+    finishingRef.current = true;
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     heldRef.current = false;
     socketRef.current?.close();
+    socketRef.current = null;
     await releaseSurfaceControl(config, "browser", id);
     await resumeSurfaceGhost(config, "browser", id);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
