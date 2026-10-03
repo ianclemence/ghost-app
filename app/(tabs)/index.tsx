@@ -261,6 +261,17 @@ export default function ConversationScreen() {
     const sub = AppState.addEventListener("change", (st) => { if (st === "active") refreshSurfaces(); });
     return () => sub.remove();
   }, [refreshSurfaces]);
+  // Follow the stream: while the owner is at the bottom, every chunk of a
+  // reply keeps its newest line in view. The snap is unanimated so a fast
+  // stream never outruns it, and it stops only when the owner's own finger
+  // leaves the bottom (nearBottom), never because a row grew.
+  const streamingTail = messages.length > 0 ? messages[messages.length - 1].content : "";
+  useEffect(() => {
+    if (!isStreaming || !nearBottom.current) return;
+    const id = requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+    return () => cancelAnimationFrame(id);
+  }, [isStreaming, streamingTail]);
+
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
 
   // First paint from the on-device copy of the thread, so the conversation
@@ -969,9 +980,10 @@ export default function ConversationScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           // Keeps your place when earlier messages are added above. It is off
-          // while the list opens: it anchors to the first visible row, which
-          // is exactly what fights a jump to the newest one.
-          maintainVisibleContentPosition={settling ? undefined : { minIndexForVisible: 0 }}
+          // while the list opens and while a reply streams: the anchor pins to
+          // the first visible row, which is exactly what fights following the
+          // newest line of a growing reply.
+          maintainVisibleContentPosition={settling || isStreaming ? undefined : { minIndexForVisible: 0 }}
           // Render the whole opening page at once. With the default of ten,
           // only the oldest rows exist when we jump to "the end", the end is
           // a guess, and the list lands in the middle of the thread.
@@ -1008,10 +1020,11 @@ export default function ConversationScreen() {
             nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
           }}
           onContentSizeChange={() => {
-            // While a reply streams in, stay on its newest line without an
-            // animation fighting every chunk; otherwise glide.
+            // While a reply streams in, stay on its newest line. The snap is
+            // unanimated so it can never lag a fast stream; an animated glide
+            // is for the moments that are not a live reply.
             if (Date.now() < settleUntil.current) { listRef.current?.scrollToEnd({ animated: false }); return; }
-            if (nearBottom.current) listRef.current?.scrollToEnd({ animated: !isStreaming });
+            if (nearBottom.current) listRef.current?.scrollToEnd({ animated: false });
           }}
         />
         <View pointerEvents="none" style={[styles.edge, { top: insets.top + 60 }]}>
