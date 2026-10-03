@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
+import { showDialog } from "@/lib/dialog";
 import { Text } from "@/components/text";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -60,7 +61,7 @@ export default function FileScreen() {
 
   const remove = () => {
     if (!config || !id) return;
-    Alert.alert(`Delete “${p?.name ?? name ?? "this file"}”?`, "It is removed from your Pod. This can't be undone.", [
+    showDialog(`Delete “${p?.name ?? name ?? "this file"}”?`, "It is removed from your Pod. This can't be undone.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",

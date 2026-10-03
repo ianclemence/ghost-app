@@ -218,6 +218,7 @@ export function GhostSheet({
   message,
   confirmTitle,
   onConfirm,
+  cancelTitle,
   variant = "default",
   children,
 }: {
@@ -227,13 +228,16 @@ export function GhostSheet({
   message?: string;
   confirmTitle?: string;
   onConfirm?: () => void;
+  /** The way out ("Cancel", "Not now"); alone, it is the one button ("OK"). */
+  cancelTitle?: string;
   variant?: "default" | "destructive";
   children?: React.ReactNode;
 }) {
-  // Alert mode is confirm/cancel only. When children are provided the sheet
-  // is a form: an optional message renders as a description and the children
-  // (inputs, buttons) always stay visible above the keyboard.
-  const isAlert = !children && (!!message || !!confirmTitle);
+  // Without children the sheet is a dialog: the action, then the way out, as
+  // the console's modal is on a phone (main action on top, where a thumb
+  // reaches). With children it is a form: an optional message renders as a
+  // description and the children always stay visible above the keyboard.
+  const isAlert = !children;
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   const [mounted, setMounted] = useState(visible);
@@ -297,7 +301,7 @@ export function GhostSheet({
                 <View style={sheetStyles.grabber} />
                 {title ? (
                   <View style={sheetStyles.head}>
-                    <GhostText type="title" accessibilityRole="header" style={[sheetStyles.title, variant === "destructive" && { color: Ghost.status.error }]}>
+                    <GhostText type="title" accessibilityRole="header" style={sheetStyles.title}>
                       {title}
                     </GhostText>
                     {!isAlert ? (
@@ -329,7 +333,12 @@ export function GhostSheet({
                     }}
                   />
                 ) : null}
-                <GhostButton title="Cancel" variant="ghost" fullWidth onPress={onClose} />
+                <GhostButton
+                  title={cancelTitle ?? (confirmTitle && onConfirm ? "Cancel" : "OK")}
+                  variant={confirmTitle && onConfirm ? "ghost" : "secondary"}
+                  fullWidth
+                  onPress={onClose}
+                />
               </View>
               </InSheet.Provider>
             ) : (

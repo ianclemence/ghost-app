@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from "react-native";
+import { showDialog } from "@/lib/dialog";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
@@ -111,12 +112,12 @@ export default function RoutinesScreen() {
           await controlRoutineItem(config, t, op);
           await load(true);
         } catch (e) {
-          Alert.alert("Couldn't do that", e instanceof Error ? e.message : "Unknown error");
+          showDialog("Couldn't do that", e instanceof Error ? e.message : "Unknown error");
         }
         setBusyId(null);
       };
       if (op === "cancel") {
-        Alert.alert("Stop this?", `Ghost will stop "${t.title}".`, [
+        showDialog("Stop this?", `Ghost will stop "${t.title}".`, [
           { text: "Keep it", style: "cancel" },
           { text: "Stop", style: "destructive", onPress: run },
         ]);
@@ -131,7 +132,7 @@ export default function RoutinesScreen() {
     if (!config || goalBusy) return;
     const t = goalText.trim();
     if (!t) {
-      Alert.alert("Missing goal", "Describe what Ghost should keep doing for you.");
+      showDialog("Missing goal", "Describe what Ghost should keep doing for you.");
       return;
     }
     setGoalBusy("new");
@@ -141,7 +142,7 @@ export default function RoutinesScreen() {
       setGoalScope("");
       await load(true);
     } catch (e) {
-      Alert.alert("Couldn't create goal", e instanceof Error ? e.message : "Unknown error");
+      showDialog("Couldn't create goal", e instanceof Error ? e.message : "Unknown error");
     }
     setGoalBusy(null);
   }, [config, goalBusy, goalText, goalScope, load]);
@@ -150,7 +151,7 @@ export default function RoutinesScreen() {
     async (g: GoalItem, op: "pause" | "resume" | "complete") => {
       if (!config || goalBusy) return;
       if (op === "complete") {
-        Alert.alert("Mark done?", `"${g.text}" will stop being evaluated.`, [
+        showDialog("Mark done?", `"${g.text}" will stop being evaluated.`, [
           { text: "Cancel", style: "cancel" },
           {
             text: "Done", onPress: async () => {
@@ -159,7 +160,7 @@ export default function RoutinesScreen() {
                 await goalAction(config, g.id, op);
                 await load(true);
               } catch (e) {
-                Alert.alert("Failed", e instanceof Error ? e.message : "Unknown error");
+                showDialog("Failed", e instanceof Error ? e.message : "Unknown error");
               }
               setGoalBusy(null);
             },
@@ -172,7 +173,7 @@ export default function RoutinesScreen() {
         await goalAction(config, g.id, op);
         await load(true);
       } catch (e) {
-        Alert.alert("Failed", e instanceof Error ? e.message : "Unknown error");
+        showDialog("Failed", e instanceof Error ? e.message : "Unknown error");
       }
       setGoalBusy(null);
     },

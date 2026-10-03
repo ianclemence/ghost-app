@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { showDialog } from "@/lib/dialog";
 import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeOut, LinearTransition } from "react-native-reanimated";
@@ -47,7 +48,7 @@ export default function MemoryScreen() {
   }, [mem]);
 
   const confirmForget = (label: string, run: () => Promise<void>, key: string) => {
-    Alert.alert(`Forget “${label}”?`, "Ghost won't use this again. This can't be undone.", [
+    showDialog(`Forget “${label}”?`, "Ghost won't use this again. This can't be undone.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Forget",

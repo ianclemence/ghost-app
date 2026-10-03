@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { showDialog } from "@/lib/dialog";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { GhostButton, GhostInput, Panel } from "@/components/ghost";
@@ -40,7 +41,7 @@ export function WebsiteLogins({ config }: { config: GhostConfig }) {
   const add = useCallback(async () => {
     const problem = validateWebsiteLogin(url, username, password);
     if (problem) {
-      Alert.alert("Couldn't save", problem);
+      showDialog("Couldn't save", problem);
       return;
     }
     setBusy(true);
@@ -51,14 +52,14 @@ export function WebsiteLogins({ config }: { config: GhostConfig }) {
       setPassword("");
       await load();
     } catch (e) {
-      Alert.alert("Couldn't save", String((e as Error)?.message ?? e));
+      showDialog("Couldn't save", String((e as Error)?.message ?? e));
     }
     setBusy(false);
   }, [config, url, username, password, load]);
 
   const remove = useCallback(
     (host: string) => {
-      Alert.alert("Remove this login?", host, [
+      showDialog("Remove this login?", host, [
         { text: "Cancel", style: "cancel" },
         {
           text: "Remove",
@@ -68,7 +69,7 @@ export function WebsiteLogins({ config }: { config: GhostConfig }) {
               await deleteWebsiteLogin(config, host);
               await load();
             } catch {
-              Alert.alert("Couldn't remove that login.");
+              showDialog("Couldn't remove that login.");
             }
           },
         },
@@ -78,7 +79,7 @@ export function WebsiteLogins({ config }: { config: GhostConfig }) {
   );
 
   const signOut = useCallback(() => {
-    Alert.alert("Sign out of all sites?", "Ghost forgets every browser session and cookie. You'll need to sign in again.", [
+    showDialog("Sign out of all sites?", "Ghost forgets every browser session and cookie. You'll need to sign in again.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Sign out",
@@ -86,9 +87,9 @@ export function WebsiteLogins({ config }: { config: GhostConfig }) {
         onPress: async () => {
           try {
             await signOutBrowser(config);
-            Alert.alert("Signed out of all sites");
+            showDialog("Signed out of all sites");
           } catch {
-            Alert.alert("Couldn't sign out.");
+            showDialog("Couldn't sign out.");
           }
         },
       },

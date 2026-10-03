@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Text } from "@/components/text";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
@@ -49,9 +49,13 @@ export default function FilesScreen() {
     }
   }, [config]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // On every return, not just the first visit: a file deleted from its own
+  // screen stayed in this list after Back until the screen was reopened.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const shown = useMemo(
     () => (files ?? []).filter((f) => (filter === "all" ? true : filter === "photos" ? isPhoto(f) : !isPhoto(f))),

@@ -2,7 +2,8 @@
 // and the AI models installed on it. The Pod is Ghost's local brain; the
 // phone is a window into it, so there is no second, weaker Ghost here.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from "react-native";
+import { showDialog } from "@/lib/dialog";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { Fonts, Ghost, Space } from "@/constants/theme";
@@ -109,7 +110,7 @@ export default function PodScreen() {
 
   const confirmUpdate = () => {
     if (!config || !update?.available) return;
-    Alert.alert(
+    showDialog(
       `Update to ${update.available}?`,
       "Ghost restarts while it updates and is unavailable for a few minutes. Your memory and settings are kept.",
       [
