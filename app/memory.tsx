@@ -258,8 +258,8 @@ function Item({
         <ActivityIndicator size="small" color={Ghost.text.tertiary} />
       ) : (
         <View style={styles.itemActions}>
-          {onEdit ? <GhostButton title="Edit" variant="secondary" size="sm" onPress={onEdit} /> : null}
-          <GhostButton title="Forget" variant="ghost" size="sm" onPress={onForget} />
+          {onEdit ? <GhostButton title="Edit" variant="secondary" size="sm" style={styles.itemAction} onPress={onEdit} /> : null}
+          <GhostButton title="Forget" variant="ghost" size="sm" style={styles.itemAction} onPress={onForget} />
         </View>
       )}
     </Animated.View>
@@ -302,6 +302,10 @@ const styles = StyleSheet.create({
   itemLabel: { fontSize: 12, lineHeight: 16, fontWeight: "500", letterSpacing: 0.4, textTransform: "uppercase", color: Ghost.text.tertiary },
   itemField: { fontSize: 19, lineHeight: 25, fontWeight: "500", letterSpacing: -0.2, color: Ghost.text.primary },
   itemActions: { gap: Space.xs, alignItems: "stretch" },
+  // Both pills fill the action column so Edit and Forget are always the same
+  // width with clean left and right edges (GhostButton defaults to
+  // content-width, which came out ragged).
+  itemAction: { alignSelf: "stretch" },
   itemValue: { fontSize: 14.5, lineHeight: 20, fontWeight: "300", color: Ghost.text.secondary },
   itemMeta: { fontSize: 12.5, lineHeight: 17, color: Ghost.text.tertiary },
   empty: {
