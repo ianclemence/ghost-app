@@ -170,9 +170,6 @@ export default function PanelScreen() {
               <View style={styles.todayCard}>
                 <View style={styles.todayHead}>
                   <Text style={styles.todayTitle}>Today</Text>
-                  <View style={styles.todayCount}>
-                    <Text style={styles.todayCountText}>{todayItems.length}</Text>
-                  </View>
                   <View style={{ flex: 1 }} />
                   <Pressable onPress={go("/activity")} hitSlop={8} accessibilityRole="button" accessibilityLabel="See all activity.">
                     <Text style={styles.todayAll}>See all</Text>
@@ -276,16 +273,6 @@ const styles = StyleSheet.create({
   },
   todayHead: { flexDirection: "row", alignItems: "center", gap: Space.sm, marginBottom: Space.sm },
   todayTitle: { fontFamily: Fonts.voice, fontSize: 34, lineHeight: 40, letterSpacing: -0.5, color: Ghost.text.primary },
-  todayCount: {
-    minWidth: 24,
-    height: 22,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Ghost.glass.fillStrong,
-  },
-  todayCountText: { fontSize: 12, fontWeight: "500", color: Ghost.text.secondary, fontVariant: ["tabular-nums"] },
   todayAll: { fontSize: 13, fontWeight: "500", color: Ghost.text.tertiary },
   buttons: { marginTop: Space.lg, gap: Space.sm, alignItems: "flex-start" },
 });
