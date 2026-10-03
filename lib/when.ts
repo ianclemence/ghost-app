@@ -45,3 +45,26 @@ export function whenAgo(iso: string | null | undefined, now = Date.now()): strin
   if (days < 7) return new Date(t).toLocaleDateString([], { weekday: "long" });
   return new Date(t).toLocaleDateString([], { day: "numeric", month: "short" });
 }
+
+/**
+ * The Panel's "Next" sentence: when first, then what, in the item's own words.
+ * A reminder's title is the message Ghost will send when it fires ("Chelsea vs
+ * Bournemouth is tomorrow"), so it is named as a reminder: worded as an event,
+ * "is tomorrow, Friday 21:00" read as a wrong date. The title is never
+ * lowercased (that made "chelsea"), and a title cut short on the Pod keeps only
+ * its first clause rather than ending in "Ban…".
+ */
+export function nextLine(
+  item: { title: string; kind?: string; schedule?: string; next_run_at?: string | null },
+  now = Date.now(),
+): string {
+  let what = item.title.trim();
+  const dash = what.search(/\s[\u2014\u2013-]\s/);
+  if (dash > 0) what = what.slice(0, dash);
+  else if (what.endsWith("\u2026")) what = what.slice(0, -1).replace(/\s+\S*$/, "");
+  what = what.replace(/[\s,;:.]+$/, "");
+  const sched = (item.schedule ?? "").trim();
+  const when = whenAhead(item.next_run_at, now) ?? (sched ? sched.charAt(0).toLowerCase() + sched.slice(1) : "");
+  if (!when) return item.kind === "reminder" ? `Next, a reminder: ${what}` : `Next: ${what}`;
+  return item.kind === "reminder" ? `Next, ${when}, a reminder: ${what}` : `Next, ${when}: ${what}`;
+}

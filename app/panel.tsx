@@ -22,7 +22,7 @@ import {
 } from "@/lib/ghostApi";
 import { proactiveLine } from "@/lib/proactive";
 import { useGhostStore } from "@/lib/store";
-import { whenAhead } from "@/lib/when";
+import { nextLine } from "@/lib/when";
 
 /**
  * Ghost, opened up: the front page. One serif greeting and a few light
@@ -109,7 +109,7 @@ export default function PanelScreen() {
             </Text>
             {next ? (
               <Text style={styles.prose}>
-                Next, {next.title.charAt(0).toLowerCase() + next.title.slice(1)}, {whenAhead(next.next_run_at) ?? next.schedule}{" "}
+                {nextLine(next)}{" "}
                 <Chip>
                   <Calendar size={14} color={Ghost.text.primary} strokeWidth={1.5} />
                 </Chip>

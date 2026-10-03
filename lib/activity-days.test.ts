@@ -56,6 +56,21 @@ describe("collapseRepeats", () => {
     expect(collapseRepeats([a, b, c]).map((e) => e.count)).toEqual([1, 1, 1]);
   });
 
+  test("one title, different steps: each step keeps its own line", () => {
+    const step = (id: string, at: string, summary?: string) => ({ ...chip(id, at, "success"), title: "Used the browser", summary });
+    const out = collapseRepeats([
+      step("1", "2026-10-02T21:47:01Z", "Opened timeanddate.com"),
+      step("2", "2026-10-02T21:39:54Z", "Clicked on the page"),
+      step("3", "2026-10-02T21:39:51Z"),
+      step("4", "2026-10-02T21:39:51Z", "Typed into the page"),
+    ]);
+    expect(out.map((e) => [e.item.summary, e.count])).toEqual([
+      ["Opened timeanddate.com", 1],
+      ["Clicked on the page", 1],
+      ["Typed into the page", 1],
+    ]);
+  });
+
   test("nothing in, nothing out", () => {
     expect(collapseRepeats([])).toEqual([]);
   });

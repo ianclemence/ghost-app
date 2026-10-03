@@ -95,17 +95,27 @@ export interface ActivityEntry {
 }
 
 /**
- * Folds consecutive items with the same title and outcome into one entry, so a
- * failure that happened six times in a minute is one line saying so, not six.
- * Order is kept; only neighbours merge.
+ * Folds consecutive items with the same title, outcome and summary into one
+ * entry, so a failure that happened six times in a minute is one line saying
+ * so, not six. Order is kept; only neighbours merge.
+ *
+ * The summary is part of the match: "Used the browser" covers opening a page,
+ * typing and clicking, and merging on title alone showed Wikipedia typing
+ * under "Opened timeanddate.com ×4". A row with no summary next to one that
+ * has one says nothing new, so it joins it without adding to the count.
  */
 export function collapseRepeats(items: ActivityChip[]): ActivityEntry[] {
   const out: ActivityEntry[] = [];
   for (const it of items) {
     const last = out[out.length - 1];
-    if (last && last.item.title === it.title && (last.item.state ?? "") === (it.state ?? "")) {
-      last.items.push(it);
-      last.count += 1;
+    const same = !!last && last.item.title === it.title && (last.item.state ?? "") === (it.state ?? "");
+    const said = (it.summary ?? "").trim();
+    const lastSaid = same ? (last!.item.summary ?? "").trim() : "";
+    if (same && !said && lastSaid) {
+      last!.items.push(it);
+    } else if (same && said === lastSaid) {
+      last!.items.push(it);
+      last!.count += 1;
     } else {
       out.push({ item: it, count: 1, items: [it] });
     }
