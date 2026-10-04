@@ -486,6 +486,41 @@ export default function ConversationScreen() {
     });
   }, [setMessages]);
 
+  // The Pod is the authority on the conversation, not this screen's memory of
+  // it. Re-read it when the owner returns to the screen or the app: a turn
+  // that ended while the app was away (or a Pod restart mid-reply) must
+  // appear, and a stream that died with the process must not leave the
+  // conversation frozen on the last thing it saw.
+  const syncHistory = useCallback((releaseStuckStream: boolean) => {
+    if (!config) return;
+    fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+      .then(({ messages: h }) => {
+        setMessages(reconcileHistory(useGhostStore.getState().messages, h));
+        if (!releaseStuckStream) return;
+        const store = useGhostStore.getState();
+        if (!store.isStreaming) return;
+        // Returning from the background means the OS suspended the stream, so
+        // a still-"streaming" bubble is stale. Mark it incomplete, commit it,
+        // and let settleIncomplete replace it with the Pod's full copy (never
+        // show a truncated reply as if it were whole).
+        const lastAsst = [...store.messages].reverse().find((m) => m.role === "assistant");
+        if (lastAsst) updateMessage(lastAsst.id, { incomplete: true });
+        store.commitStream();
+        settleIncomplete(config);
+      })
+      .catch(() => {});
+  }, [config, setMessages, updateMessage, settleIncomplete]);
+
+  // Re-read the conversation whenever the owner returns to it, so a turn that
+  // ended while the app was away appears and a dead stream never freezes the
+  // screen. On returning from the background the stream is definitely stale,
+  // so it is released too.
+  useFocusEffect(useCallback(() => { settle(); refreshSurfaces(); syncHistory(false); }, [settle, refreshSurfaces, syncHistory]));
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (st) => { if (st === "active") { refreshSurfaces(); syncHistory(true); } });
+    return () => sub.remove();
+  }, [refreshSurfaces, syncHistory]);
+
   // Hold a message for when the Pod is back. The same words already waiting
   // are the same request (a second tap while nothing seemed to happen): the
   // outbox keeps one, and so must the thread, or four taps showed four
