@@ -156,3 +156,46 @@ describe("a reply cut off mid-stream", () => {
     expect(out[0].content).toBe("Hello");
   });
 });
+
+describe("a user row whose local copy drifted", () => {
+  // The Pod stores a sent message verbatim and the phone never streams into
+  // one, so the only way the two can differ is local drift — an invisible
+  // tail that parses into empty lines and stretches the bubble far past its
+  // text. The Pod's copy is the true one and must replace it.
+  test("takes the Pod's verbatim copy, invisible tail dropped", () => {
+    const pod = "Here is the response:\n\nThe digest line carries the date.";
+    const local = [msg({ id: "temp-u", role: "user", content: pod + "\n\u200b\n\u200b\n\u200b" })];
+    const server = [srv({ id: "srv-u", role: "user", content: pod })];
+    const out = reconcileHistory(local, server);
+    expect(out).toHaveLength(1);
+    expect(out[0].content).toBe(pod);
+    expect(out[0].id).toBe("temp-u");
+  });
+
+  test("same-id drift heals too", () => {
+    const local = [msg({ id: "abc", role: "user", content: "ok\u2028\u2028" })];
+    const server = [srv({ id: "abc", role: "user", content: "ok" })];
+    const out = reconcileHistory(local, server);
+    expect(out).toHaveLength(1);
+    expect(out[0].content).toBe("ok");
+  });
+
+  test("an identical copy is left alone — id and status untouched", () => {
+    const local = [
+      msg({ id: "temp-u2", role: "user", content: "hi", status: "completed" }),
+    ];
+    const server = [srv({ id: "srv-u2", role: "user", content: "hi" })];
+    const out = reconcileHistory(local, server);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("temp-u2");
+    expect(out[0].status).toBe("completed");
+    expect(out[0].content).toBe("hi");
+  });
+
+  test("a user row with no Pod match keeps its local content (queued)", () => {
+    const local = [msg({ id: "q-7", role: "user", content: "unsent draft" })];
+    const out = reconcileHistory(local, []);
+    expect(out).toHaveLength(1);
+    expect(out[0].content).toBe("unsent draft");
+  });
+});

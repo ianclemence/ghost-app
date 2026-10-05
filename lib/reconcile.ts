@@ -8,6 +8,10 @@
  * The new flow keeps what was streamed and reconciles against the server:
  * - Rows with matching ids are the same row: keep the local copy (it
  *   carries UI status; content is identical).
+ * - Exception — user rows: nothing on the phone streams into a message
+ *   you sent, so a local copy that differs from the Pod's has drifted
+ *   out of band (an invisible tail appends and the bubble inflates far
+ *   past its text). The Pod stores the sent text verbatim; its copy wins.
  * - Client-id rows (temp-/msg-) match a server row by role + timestamp
  *   proximity + content relation (equal, or one contains the other —
  *   the quarantine filter legitimately hides some streamed content from
@@ -76,11 +80,18 @@ export function reconcileHistory(
   }
 
   // A reply that was cut off mid-stream is the one case where the Pod's copy
-  // wins: what was watched is only the start of it. Everything else keeps the
-  // local copy so a message you just watched never rewrites itself.
+  // wins: what was watched is only the start of it. A user row that matches
+  // a Pod row is the other: the Pod stores the sent text verbatim and the
+  // phone never streams into one, so if the two differ the local copy has
+  // drifted out of band and the Pod's copy is the true one. Everything else
+  // keeps the local copy so a message you just watched never rewrites itself.
   const out: ExtendedMessage[] = local.map((m) => {
+    const matches = pairs.get(m.id);
+    if (m.role === "user" && matches && matches.length > 0 && m.content !== matches[0].content) {
+      return { ...m, content: matches[0].content };
+    }
     if (!m.incomplete) return m;
-    const full = (pairs.get(m.id) ?? []).reduce((best, s) => (s.content.length > best.length ? s.content : best), "");
+    const full = (matches ?? []).reduce((best, s) => (s.content.length > best.length ? s.content : best), "");
     if (full.length > m.content.length) return { ...m, content: full, incomplete: false };
     return m;
   });
