@@ -22,10 +22,10 @@ import { LinearGradient } from "expo-linear-gradient";
  * aurora's darkness before it reaches the edge instead of being sliced. At rest
  * it is not there at all, and the header (above it) never dims.
  */
-const FADE_RAMP = 76;   // px below the edge it takes to clear
+const FADE_RAMP = 120;  // px below the edge it takes to clear
 const FADE_ABOVE = 520; // covers the header and status bar above the edge
-const SHADE_EDGE = 0.8; // strength at the cut, where it matters
-const SHADE_TOP = 0.32; // strength at the top of the screen, so the aurora still shows there
+const SHADE_EDGE = 0.55; // strength at the cut, where it matters
+const SHADE_TOP = 0.14; // strength at the top of the screen, so the aurora still shows there
 
 /**
  * Eased stops, so there is no visible start or end to either slope: it deepens
@@ -52,7 +52,7 @@ const STOPS = (() => {
 
 export function TopEdge({ y }: { y: SharedValue<number>; blurTarget?: React.RefObject<View | null> }) {
   const style = useAnimatedStyle(() => ({
-    opacity: interpolate(y.get(), [0, 32], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(y.get(), [0, 64], [0, 1], Extrapolation.CLAMP),
   }));
   return (
     <Animated.View pointerEvents="none" style={[styles.shade, style]}>
@@ -95,7 +95,7 @@ const BOTTOM_STOPS = (() => {
 
 export function BottomEdge({ remaining }: { remaining: SharedValue<number> }) {
   const style = useAnimatedStyle(() => ({
-    opacity: interpolate(remaining.get(), [0, 120], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(remaining.get(), [0, 160], [0, 1], Extrapolation.CLAMP),
   }));
   return (
     <Animated.View pointerEvents="none" style={[styles.shadeBottom, style]}>
