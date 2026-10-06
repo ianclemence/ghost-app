@@ -47,6 +47,8 @@ export function buildMermaidHtml(source: string): string {
     `themeVariables:{fontFamily:'system-ui,-apple-system,sans-serif',fontSize:'14px'}});` +
     `mermaid.render('g',\`${safe}\`).then(function(r){` +
     `document.getElementById('d').innerHTML=r.svg;` +
+    `window.__ghostSvg=r.svg;` +
+    `window.postDiagramSvg=function(){window.ReactNativeWebView.postMessage(JSON.stringify({type:'svg',svg:window.__ghostSvg||''}));};` +
     `var h=document.getElementById('d').scrollHeight;` +
     `window.ReactNativeWebView.postMessage(JSON.stringify({type:'height',height:h}));` +
     `}).catch(function(e){` +
