@@ -9,6 +9,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 
 /**
  * The edge of a scrolling screen, under its header.
@@ -56,6 +57,10 @@ export function TopEdge({ y }: { y: SharedValue<number>; blurTarget?: React.RefO
   }));
   return (
     <Animated.View pointerEvents="none" style={[styles.shade, style]}>
+      {/* Frost dissolves the crossing edge while keeping the light; the
+          black gradient below melts over the frost's own lower edge so no
+          second line ever appears. */}
+      <BlurView intensity={35} tint="dark" style={styles.frostTop} />
       <LinearGradient
         colors={STOPS.map((s) => `rgba(0,0,0,${s.a.toFixed(3)})`) as [string, string, ...string[]]}
         locations={STOPS.map((s) => s.at) as [number, number, ...number[]]}
@@ -99,6 +104,7 @@ export function BottomEdge({ remaining }: { remaining: SharedValue<number> }) {
   }));
   return (
     <Animated.View pointerEvents="none" style={[styles.shadeBottom, style]}>
+      <BlurView intensity={35} tint="dark" style={styles.frostBottom} />
       <LinearGradient
         colors={BOTTOM_STOPS.map((s) => `rgba(0,0,0,${s.a.toFixed(3)})`) as [string, string, ...string[]]}
         locations={BOTTOM_STOPS.map((s) => s.at) as [number, number, ...number[]]}
@@ -121,16 +127,23 @@ export function useScrollEdge() {
 }
 
 /**
- * A ScrollView with the top edge built in. A drop-in: same props, same ref.
- * Put it directly under a screen header.
+ * A ScrollView with both edges built in. A drop-in: same props, same ref.
+ * Put it directly under a screen header. The bottom shade mirrors the top,
+ * so content melts into the darkness at either end instead of slicing.
  */
 export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewProps, "onScroll">>(function EdgeScrollView(
-  { children, style, ...rest },
+  { children, style, onContentSizeChange, ...rest },
   ref,
 ) {
   const { y, target } = useScrollEdge();
+  const remaining = useSharedValue(1e9);
+  const vh = useSharedValue(0);
+  const oy = useSharedValue(0);
   const handler = useAnimatedScrollHandler((e) => {
     y.set(e.contentOffset.y);
+    vh.set(e.layoutMeasurement.height);
+    oy.set(e.contentOffset.y);
+    remaining.set(Math.max(0, e.contentSize.height - (e.layoutMeasurement.height + e.contentOffset.y)));
   });
   const scroller = (
     <Animated.ScrollView
@@ -139,6 +152,12 @@ export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewPro
       showsVerticalScrollIndicator={false}
       {...rest}
       onScroll={handler}
+      onContentSizeChange={(w, h) => {
+        // Growth without a scroll event (mount, rotation, new rows) still
+        // resolves the bottom shade from the last viewport metrics.
+        remaining.set(Math.max(0, h - (vh.get() + oy.get())));
+        onContentSizeChange?.(w, h);
+      }}
       style={[{ flex: 1 }, style]}
     >
       {children}
@@ -148,6 +167,7 @@ export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewPro
     <View style={styles.fill}>
       <EdgeTarget targetRef={target}>{scroller}</EdgeTarget>
       <TopEdge y={y} />
+      <BottomEdge remaining={remaining} />
     </View>
   );
 });
@@ -156,6 +176,11 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   // Reaches up over the header, which paints above it (see ScreenHeader's zIndex).
   shade: { position: "absolute", left: 0, right: 0, top: -FADE_ABOVE, height: FADE_ABOVE + FADE_RAMP, zIndex: 1 },
+  // Frost sits only over the ramp below the cut; the black gradient melts
+  // over its lower edge. Above the cut nothing is visible (clipped), so the
+  // frost's own top edge never shows as a line.
+  frostTop: { position: "absolute", left: 0, right: 0, top: FADE_ABOVE, height: FADE_RAMP },
   // Reaches down behind the floating dock, which paints above it (see dock's zIndex).
   shadeBottom: { position: "absolute", left: 0, right: 0, bottom: -FADE_ABOVE, height: FADE_ABOVE + FADE_RAMP, zIndex: 1 },
+  frostBottom: { position: "absolute", left: 0, right: 0, top: 0, height: FADE_RAMP },
 });
