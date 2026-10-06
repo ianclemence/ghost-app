@@ -4,7 +4,7 @@ import { ActivityIndicator, AppState, FlatList, Keyboard, Pressable, StyleSheet,
 import { Text } from "@/components/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { Easing, FadeInDown, FadeOut, useReducedMotion, useSharedValue } from "react-native-reanimated";
-import { TopEdge } from "@/components/scroll-edge";
+import { TopEdge, BottomEdge } from "@/components/scroll-edge";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { ArrowDown, ArrowUpRight } from "lucide-react-native";
@@ -117,6 +117,11 @@ export default function ConversationScreen() {
   // Without it, text slid under the clock and Ghost's mark with nothing
   // between them.
   const edgeY = useSharedValue(0);
+  // Drives the conversation-only shade above the floating dock while content
+  // extends below the viewport. Last viewport metrics, so growth without a
+  // scroll event (new rows, rotation) still resolves it correctly.
+  const edgeRemaining = useSharedValue(0);
+  const scrollMetrics = useRef({ h: 0, y: 0 });
   const [awayFromLatest, setAwayFromLatest] = useState(false);
   const [unseen, setUnseen] = useState(0);
   // Photos and files ride along with the next message. The Pod detects each
@@ -1085,6 +1090,8 @@ export default function ConversationScreen() {
           onScroll={(e) => {
             const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
             edgeY.set(contentOffset.y);
+            scrollMetrics.current = { h: layoutMeasurement.height, y: contentOffset.y };
+            edgeRemaining.set(Math.max(0, contentSize.height - (layoutMeasurement.height + contentOffset.y)));
             const atBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
             if (dragging.current) nearBottom.current = atBottom;
             if (atBottom && unseen > 0) setUnseen(0);
@@ -1104,7 +1111,9 @@ export default function ConversationScreen() {
             const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
             nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
           }}
-          onContentSizeChange={() => {
+          onContentSizeChange={(w, h) => {
+            const m = scrollMetrics.current;
+            edgeRemaining.set(Math.max(0, h - (m.h + m.y)));
             // While a reply streams in, stay on its newest line. The snap is
             // unanimated so it can never lag a fast stream; an animated glide
             // is for the moments that are not a live reply.
@@ -1115,6 +1124,7 @@ export default function ConversationScreen() {
         <View pointerEvents="none" style={[styles.edge, { top: insets.top + 60 }]}>
           <TopEdge y={edgeY} />
         </View>
+        <BottomEdge remaining={edgeRemaining} />
         </View>
       )}
       <Animated.View onLayout={(e) => setDockH(e.nativeEvent.layout.height)} style={[styles.dock, dockPad]}>
