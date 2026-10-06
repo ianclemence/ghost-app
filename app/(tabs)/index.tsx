@@ -223,6 +223,11 @@ export default function ConversationScreen() {
   const settleUntil = useRef(0);
   const [settling, setSettling] = useState(true);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Post-turn landing: after a reply completes, history is reconciled
+  // underneath (ids swap, rows re-sort). The position-maintainer stays off
+  // until that pass has landed at the bottom, or it pins the mid-thread
+  // viewport the stream never left and the reply appears to push you up.
+  const [landing, setLanding] = useState(false);
   const settle = useCallback(() => {
     settleUntil.current = Date.now() + 1800;
     nearBottom.current = true;
@@ -555,8 +560,15 @@ export default function ConversationScreen() {
       // entry removed a bubble that did not exist and left this one behind.
       const steerId = `temp-${Date.now()}`;
       appendMessage({ id: steerId, role: "user", content: q, timestamp: Date.now(), status: "sending" });
-      nearBottom.current = true;
-      listRef.current?.scrollToEnd({ animated: true });
+      // Settle across append and layout: unanimated snaps to the post-layout
+      // end. A glide targets the pre-layout end and can park mid-thread.
+      settle();
+      dragging.current = false;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (nearBottom.current) listRef.current?.scrollToEnd({ animated: false });
+        });
+      });
       const mode = dispatchMode(true, !!config);
       if (mode === "steer") {
         const ok = await sendSteering(config!, { sessionKey: MAIN_SESSION_ID, content: q, action: "redirect" });
@@ -589,10 +601,18 @@ export default function ConversationScreen() {
     const asstId = `temp-a-${Date.now()}`;
     appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
     // Sending always returns the eye to the bottom, even from mid-thread.
-    nearBottom.current = true;
+    // Settle across append, layout, and any keyboard movement: the
+    // position-maintainer stays off and every size change snaps to the end,
+    // so the new rows win over the old viewport. Unanimated: a glide targets
+    // the pre-layout end and can park mid-thread.
+    settle();
     dragging.current = false;
-    // The new rows are not laid out yet; scroll again once they are.
-    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    // The new rows are not laid out yet; snap again once they have mounted.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (nearBottom.current) listRef.current?.scrollToEnd({ animated: false });
+      });
+    });
     setStreaming(true);
     setToolActivity(null);
     servedRef.current = null;
@@ -637,14 +657,27 @@ export default function ConversationScreen() {
         // be only the start of the reply. Keep it, mark it, and fetch the rest.
         const cutOff = info?.complete === false && full.trim() !== "";
         if (cutOff) updateMessage(asstId, { incomplete: true });
+        // Hold the landing: ids swap and rows re-sort below, so keep the
+        // position-maintainer off until the reconcile pass has snapped to
+        // the bottom. Otherwise it pins the mid-thread viewport and the
+        // finished reply appears to push you back up.
+        setLanding(true);
+        // Safety: never trap the list without its anchor if history fails.
+        setTimeout(() => setLanding(false), 8000);
         commitStream();
         if (cutOff && config) settleIncomplete(config);
         if (config) {
           fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
-            .then(({ messages: h }) =>
-              setMessages(reconcileHistory(useGhostStore.getState().messages, h)),
-            )
-            .catch(() => {});
+            .then(({ messages: h }) => {
+              setMessages(reconcileHistory(useGhostStore.getState().messages, h));
+              requestAnimationFrame(() => {
+                if (nearBottom.current) listRef.current?.scrollToEnd({ animated: false });
+                setLanding(false);
+              });
+            })
+            .catch(() => setLanding(false));
+        } else {
+          setLanding(false);
         }
         if (!full.trim() && !clarify) {
           removeMessage(asstId);
@@ -718,7 +751,7 @@ export default function ConversationScreen() {
       setToolActivity(null);
       setSendError(e instanceof Error ? e.message : String(e));
     });
-  }, [config, isStreaming, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox, settleIncomplete, refreshSurfaces, queueOrMerge]);
+  }, [config, isStreaming, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox, settleIncomplete, refreshSurfaces, queueOrMerge, settle]);
 
   const stopTurn = useCallback(async () => {
     if (!isStreaming) return;
@@ -1018,7 +1051,7 @@ export default function ConversationScreen() {
           // while the list opens and while a reply streams: the anchor pins to
           // the first visible row, which is exactly what fights following the
           // newest line of a growing reply.
-          maintainVisibleContentPosition={settling || isStreaming ? undefined : { minIndexForVisible: 0 }}
+          maintainVisibleContentPosition={settling || isStreaming || landing ? undefined : { minIndexForVisible: 0 }}
           // Render the whole opening page at once. With the default of ten,
           // only the oldest rows exist when we jump to "the end", the end is
           // a guess, and the list lands in the middle of the thread.
