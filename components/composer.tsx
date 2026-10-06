@@ -405,14 +405,12 @@ const BTN = 40;
 
 const styles = StyleSheet.create({
   pill: {
-    backgroundColor: Ghost.glass.fill,
-    borderRadius: 32,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.glass.border,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderColor: "transparent",
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: 0,
     maxHeight: 260,
   },
   line: {
