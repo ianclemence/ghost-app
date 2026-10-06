@@ -9,7 +9,6 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 
 /**
  * The edge of a scrolling screen, under its header.
@@ -57,10 +56,6 @@ export function TopEdge({ y }: { y: SharedValue<number>; blurTarget?: React.RefO
   }));
   return (
     <Animated.View pointerEvents="none" style={[styles.shade, style]}>
-      {/* Frost dissolves the crossing edge while keeping the light; the
-          black gradient below melts over the frost's own lower edge so no
-          second line ever appears. */}
-      <BlurView intensity={35} tint="dark" style={styles.frostTop} />
       <LinearGradient
         colors={STOPS.map((s) => `rgba(0,0,0,${s.a.toFixed(3)})`) as [string, string, ...string[]]}
         locations={STOPS.map((s) => s.at) as [number, number, ...number[]]}
@@ -119,8 +114,4 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   // Reaches up over the header, which paints above it (see ScreenHeader's zIndex).
   shade: { position: "absolute", left: 0, right: 0, top: -FADE_ABOVE, height: FADE_ABOVE + FADE_RAMP, zIndex: 1 },
-  // Frost sits only over the ramp below the cut; the black gradient melts
-  // over its lower edge. Above the cut nothing is visible (clipped), so the
-  // frost's own top edge never shows as a line.
-  frostTop: { position: "absolute", left: 0, right: 0, top: FADE_ABOVE, height: FADE_RAMP },
 });
