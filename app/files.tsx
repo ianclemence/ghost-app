@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Text } from "@/components/text";
+import { Download } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { TONE } from "@/components/file-card";
-import { fetchFiles, fetchFileThumb, type StoredFile } from "@/lib/ghostApi";
+import { fetchFileContent, fetchFiles, fetchFileThumb, type StoredFile } from "@/lib/ghostApi";
+import { writeCacheFile } from "@/lib/localFiles";
 import { fileKind, fileSize } from "@/lib/attachments";
 import { alpha } from "@/constants/theme";
 import { useGhostStore } from "@/lib/store";
@@ -127,6 +129,7 @@ export default function FilesScreen() {
 function Tile({ file, width, onPress }: { file: StoredFile; width: number; onPress: () => void }) {
   const config = useGhostStore((s) => s.config);
   const [thumb, setThumb] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const kind = fileKind(file.name, file.mime);
   const color = TONE[kind.tone];
   useEffect(() => {
@@ -137,6 +140,26 @@ function Tile({ file, width, onPress }: { file: StoredFile; width: number; onPre
       live = false;
     };
   }, [config, file]);
+  // Download without opening: full file to the share sheet. Falls back to
+  // the file screen (which shows the error with retry) when it fails.
+  const save = async () => {
+    if (!config || saving) return;
+    setSaving(true);
+    try {
+      const f = await fetchFileContent(config, file.id);
+      const Sharing = await import("expo-sharing");
+      if (!(await Sharing.isAvailableAsync())) {
+        onPress();
+        return;
+      }
+      const uri = await writeCacheFile(f.name, f.base64, "base64");
+      await Sharing.shareAsync(uri, f.mime ? { mimeType: f.mime } : undefined);
+    } catch {
+      onPress();
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <Pressable
       onPress={onPress}
@@ -152,6 +175,20 @@ function Tile({ file, width, onPress }: { file: StoredFile; width: number; onPre
             <Text style={[styles.badgeText, { color }]} numberOfLines={1}>{kind.label.slice(0, 4)}</Text>
           </View>
         )}
+        <Pressable
+          onPress={save}
+          hitSlop={10}
+          disabled={saving}
+          style={styles.dl}
+          accessibilityRole="button"
+          accessibilityLabel={`Download ${file.name}`}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color={Ghost.text.secondary} />
+          ) : (
+            <Download size={14} color={Ghost.text.secondary} strokeWidth={1.8} />
+          )}
+        </Pressable>
       </View>
       <View style={styles.meta}>
         <Text style={styles.name} numberOfLines={1} ellipsizeMode="middle">{file.name}</Text>
@@ -191,6 +228,19 @@ const styles = StyleSheet.create({
     borderColor: Ghost.glass.border,
   },
   thumb: { aspectRatio: 4 / 3, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  dl: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
   badge: {
     minWidth: 56,
     height: 56,

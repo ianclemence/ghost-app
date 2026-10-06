@@ -6,7 +6,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Fonts, Ghost, Space } from "@/constants/theme";
 import { GhostButton } from "@/components/ghost";
-import { GlassCard } from "@/components/glass";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { deleteFile, fetchFileContent, fetchFilePreview, type FilePreview } from "@/lib/ghostApi";
@@ -87,7 +86,7 @@ export default function FileScreen() {
       <ScreenBackground variant="calm" />
       <ScreenHeader title={title} subtitle={p ? `${fileSize(p.size)}${p.extracted ? " · text Ghost reads from it" : ""}` : undefined} />
       <View style={styles.actions}>
-        <GhostButton title={busy === "open" ? "Opening…" : "Open"} variant="secondary" onPress={open} disabled={!!busy} />
+        <GhostButton title={busy === "open" ? "Opening…" : p ? `Open · ${fileSize(p.size)}` : "Open"} variant="secondary" onPress={open} disabled={!!busy} />
         <GhostButton title={busy === "delete" ? "Deleting…" : "Delete"} variant="secondary" onPress={remove} disabled={!!busy} />
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -96,20 +95,18 @@ export default function FileScreen() {
       ) : p ? (
         <EdgeScrollView contentContainerStyle={styles.content}>
           {p.previewable && p.image_base64 ? (
-            <View style={styles.frame}>
-              <Image
-                source={{ uri: `data:${p.mime};base64,${p.image_base64}` }}
-                style={styles.image}
-                resizeMode="contain"
-                accessibilityLabel={`Preview of ${p.name}`}
-              />
-            </View>
+            <Image
+              source={{ uri: `data:${p.mime};base64,${p.image_base64}` }}
+              style={styles.image}
+              resizeMode="contain"
+              accessibilityLabel={`Preview of ${p.name}`}
+            />
           ) : null}
           {p.previewable && p.content !== undefined ? (
-            <GlassCard>
+            <>
               <Text style={styles.text} selectable>{p.content}</Text>
               {p.truncated ? <Text style={styles.note}>Showing the first part. Open the file to see all of it.</Text> : null}
-            </GlassCard>
+            </>
           ) : null}
           {!p.previewable ? <Text style={[styles.note, { textAlign: "center" }]}>{p.reason ?? "There is no preview for this file. Open it instead."}</Text> : null}
         </EdgeScrollView>
@@ -122,14 +119,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
   content: { padding: Space.lg, paddingBottom: 96, gap: Space.md },
   actions: { flexDirection: "row", gap: Space.sm, justifyContent: "center", paddingHorizontal: Space.xl, paddingBottom: Space.md },
-  frame: {
-    borderRadius: 26,
-    borderCurve: "continuous",
-    overflow: "hidden",
-    backgroundColor: "rgba(0,0,0,0.42)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Ghost.glass.border,
-  },
   image: { width: "100%", height: 420 },
   text: { fontSize: 13.5, lineHeight: 20, color: Ghost.text.primary, fontFamily: Fonts.mono },
   note: { fontSize: 14, lineHeight: 20, fontWeight: "300", color: Ghost.text.secondary },
