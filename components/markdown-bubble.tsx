@@ -157,15 +157,18 @@ const markdownStyle = {
 /**
  * What the owner writes is rendered with only the syntaxes that are chosen on
  * purpose: code spans, fenced code and links, with line breaks kept. Emphasis,
- * lists, headings and quotes stay literal, so a stray "*" or "1." in an
- * ordinary sentence never changes how your own words look.
+ * lists, headings, quotes and indented code stay literal, so a stray "*" or
+ * "1." in an ordinary sentence never changes how your own words look — and
+ * pasted text with leading spaces (e.g. a forwarded report) never becomes a
+ * nested CodeBlock with its own horizontal scroll inside the 84% bubble,
+ * which Android mis-measures thousands of pixels tall and pushes every
+ * following message out of reach.
  */
 const userMarkdownIt = MarkdownIt("zero", { breaks: true, linkify: true, html: false }).enable([
   "paragraph",
   "newline",
   "text",
   "fence",
-  "code",
   "backticks",
   "escape",
   "entity",
