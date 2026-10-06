@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   // taking up layout space: opening it never moves the input.
   wrap: { position: "relative" },
   pill: {
-    backgroundColor: Ghost.glass.fill,
+    backgroundColor: Ghost.bg.raised,
     borderRadius: 32,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
