@@ -394,7 +394,9 @@ export default function ConversationScreen() {
         const parsed: RichCard[] = [];
         for (const c of fresh) {
           const card = normalizeCard(c);
-          if (card) parsed.push(card);
+          // A card the owner put away stays put away: only present cards
+          // render a resolved receipt, the rest never come back.
+          if (card && (card.kind === "present" || !card.resolved)) parsed.push(card);
         }
         if (parsed.length > 0) {
           setCards((prev) => {
@@ -480,7 +482,7 @@ export default function ConversationScreen() {
       if (announced) pullSurface(announced.kind, announced.surfaceId);
       // A card frame carries the full payload; kind-gated by the parser.
       const card = parseCardMessage(msg, MAIN_SESSION_ID);
-      if (card) {
+      if (card && (card.kind === "present" || !card.resolved)) {
         setCards((prev) =>
           prev.some((x) => x.id === card.id) ? prev : [...prev, card].slice(-60),
         );
@@ -917,6 +919,8 @@ export default function ConversationScreen() {
       ) : null;
     }
     if (item.kind === "card") {
+      // Belt over the merge-point filters: a put-away card never renders.
+      if (item.card.kind !== "present" && item.card.resolved) return null;
       return config ? (
         <View style={styles.inlineCard}>
           <RichCardView
