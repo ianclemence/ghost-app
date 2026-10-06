@@ -5,7 +5,6 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
-  LinearTransition,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -30,6 +29,9 @@ import { showSuggestion } from "@/lib/suggestion";
 const MAX_VOICE_MS = 120_000;
 // Strong ease-out: the element is already moving on the first frame.
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+// Ease-in: starts slow, accelerates into place. Used for the tray buttons
+// appearing when "+" is tapped.
+const EASE_IN = Easing.bezier(0.55, 0.06, 0.68, 0.19);
 
 interface ComposerProps {
   value: string;
@@ -252,7 +254,13 @@ export function Composer({
   const clock = `${Math.floor(recordElapsed / 60000)}:${String(Math.floor((recordElapsed % 60000) / 1000)).padStart(2, "0")}`;
   const micReady = showMic && !!onTranscribeAudio;
   const fade = reduceMotion ? undefined : FadeIn.duration(140);
-  const fadeOut = reduceMotion ? undefined : FadeOut.duration(100);
+  // Tray choreography: buttons ease in when "+" opens the tray, and ease out
+  // when "x" closes it.
+  const trayIn = (i: number) =>
+    reduceMotion
+      ? undefined
+      : FadeInDown.duration(200).delay(60 + i * 55).easing(EASE_IN).withInitialValues({ opacity: 0, transform: [{ translateY: -10 }, { scale: 0.92 }] });
+  const trayOut = reduceMotion ? undefined : FadeOut.duration(140).easing(EASE_OUT);
 
   // What the button on the right is, right now.
   let action: React.ReactNode = null;
@@ -272,7 +280,7 @@ export function Composer({
     action = (
       <View style={styles.pair}>
         {canSend ? (
-          <Animated.View entering={fade} exiting={fadeOut}>
+          <Animated.View entering={fade} exiting={trayOut}>
             <Round label="Send. Joins what Ghost is doing" style={styles.glow} onPress={submit}>
               <ArrowUp size={20} color={Ghost.text.primary} strokeWidth={2} />
             </Round>
@@ -314,14 +322,14 @@ export function Composer({
   ].filter(<T,>(c: T | null): c is T => c !== null);
 
   return (
-    <Animated.View layout={reduceMotion ? undefined : LinearTransition.duration(180).easing(EASE_OUT)}>
+    <View style={styles.wrap}>
       {tray && canAttach ? (
-        <View style={styles.tray}>
+        <Animated.View exiting={trayOut} style={styles.tray}>
           {chips.map(({ key, label, hint, Icon, fn }, i) => (
             <Animated.View
               key={key}
-              entering={reduceMotion ? undefined : FadeInDown.duration(180).delay(i * 30).easing(EASE_OUT).withInitialValues({ opacity: 0, transform: [{ translateY: 8 }, { scale: 0.95 }] })}
-              exiting={fadeOut}
+              entering={trayIn(i)}
+              exiting={trayOut}
             >
               <Pressable style={styles.chip} onPress={pick(fn)} accessibilityRole="button" accessibilityLabel={hint}>
                 <Icon size={16} color={Ghost.text.primary} />
@@ -329,10 +337,9 @@ export function Composer({
               </Pressable>
             </Animated.View>
           ))}
-        </View>
+        </Animated.View>
       ) : null}
-      <Animated.View layout={reduceMotion ? undefined : LinearTransition.duration(160)} style={styles.pill}>
-
+      <View style={styles.pill}>
       {recording ? (
         <View style={styles.rec} accessible accessibilityLiveRegion="polite" accessibilityLabel={`Recording, ${clock}`}>
           <RecDot />
@@ -396,14 +403,17 @@ export function Composer({
         ) : null}
         {action}
       </View>
-    </Animated.View>
-    </Animated.View>
+      </View>
+    </View>
   );
 }
 
 const BTN = 40;
 
 const styles = StyleSheet.create({
+  // Relative anchor so the attachment tray can float above the pill without
+  // taking up layout space: opening it never moves the input.
+  wrap: { position: "relative" },
   pill: {
     backgroundColor: Ghost.glass.fill,
     borderRadius: 32,
@@ -464,7 +474,16 @@ const styles = StyleSheet.create({
   useText: { fontSize: 13, fontWeight: "500", color: Ghost.text.primary },
   ring: { width: 56, height: 36, borderRadius: 18, borderWidth: 1, borderColor: Ghost.border.strong },
   pair: { flexDirection: "row", alignItems: "center", gap: 2 },
-  tray: { flexDirection: "row", gap: Space.sm, paddingLeft: 6, marginBottom: Space.sm },
+  tray: {
+    position: "absolute",
+    bottom: "100%",
+    left: 0,
+    marginBottom: Space.sm,
+    flexDirection: "row",
+    gap: Space.sm,
+    paddingLeft: 6,
+    zIndex: 10,
+  },
   chip: {
     flexDirection: "row",
     alignItems: "center",
