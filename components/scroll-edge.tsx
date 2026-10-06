@@ -136,6 +136,7 @@ export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewPro
     <Animated.ScrollView
       ref={ref}
       scrollEventThrottle={16}
+      showsVerticalScrollIndicator={false}
       {...rest}
       onScroll={handler}
       style={[{ flex: 1 }, style]}

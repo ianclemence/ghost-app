@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
 import { showDialog } from "@/lib/dialog";
 import { Text } from "@/components/text";
+import { Download, Trash2 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Fonts, Ghost, Space } from "@/constants/theme";
@@ -25,7 +26,7 @@ export default function FileScreen() {
   const { id, name } = useLocalSearchParams<{ id?: string; name?: string }>();
   const [p, setP] = useState<FilePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"open" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"download" | "delete" | null>(null);
 
   useEffect(() => {
     if (!config || !id) return;
@@ -38,9 +39,9 @@ export default function FileScreen() {
     };
   }, [config, id]);
 
-  const open = useCallback(async () => {
+  const download = useCallback(async () => {
     if (!config || !id || busy) return;
-    setBusy("open");
+    setBusy("download");
     setError(null);
     try {
       const f = await fetchFileContent(config, id);
@@ -52,7 +53,7 @@ export default function FileScreen() {
       const uri = await writeCacheFile(f.name, f.base64, "base64");
       await Sharing.shareAsync(uri, f.mime ? { mimeType: f.mime } : undefined);
     } catch {
-      setError("Couldn't open that file.");
+      setError("Couldn't download that file.");
     } finally {
       setBusy(null);
     }
@@ -85,40 +86,54 @@ export default function FileScreen() {
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
       <ScreenHeader title={title} subtitle={p ? `${fileSize(p.size)}${p.extracted ? " · text Ghost reads from it" : ""}` : undefined} />
-      <View style={styles.actions}>
-        <GhostButton title={busy === "open" ? "Opening…" : p ? `Open · ${fileSize(p.size)}` : "Open"} variant="secondary" onPress={open} disabled={!!busy} />
-        <GhostButton title={busy === "delete" ? "Deleting…" : "Delete"} variant="secondary" onPress={remove} disabled={!!busy} />
-      </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
       {!p && !error ? (
         <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} />
       ) : p ? (
-        <EdgeScrollView contentContainerStyle={styles.content}>
-          {p.previewable && p.image_base64 ? (
-            <Image
-              source={{ uri: `data:${p.mime};base64,${p.image_base64}` }}
-              style={styles.image}
-              resizeMode="contain"
-              accessibilityLabel={`Preview of ${p.name}`}
+        <>
+          <EdgeScrollView contentContainerStyle={styles.content}>
+            {p.previewable && p.image_base64 ? (
+              <Image
+                source={{ uri: `data:${p.mime};base64,${p.image_base64}` }}
+                style={styles.image}
+                resizeMode="contain"
+                accessibilityLabel={`Preview of ${p.name}`}
+              />
+            ) : null}
+            {p.previewable && p.content !== undefined ? (
+              <>
+                <Text style={styles.text} selectable>{p.content}</Text>
+                {p.truncated ? <Text style={styles.note}>Showing the first part. Download the file to see all of it.</Text> : null}
+              </>
+            ) : null}
+            {!p.previewable ? <Text style={[styles.note, { textAlign: "center" }]}>{p.reason ?? "There is no preview for this file. Download it instead."}</Text> : null}
+          </EdgeScrollView>
+          <View style={styles.actions}>
+            <GhostButton
+              title={busy === "download" ? "Downloading…" : p ? `Download · ${fileSize(p.size)}` : "Download"}
+              variant="secondary"
+              onPress={download}
+              disabled={!!busy}
+              leftIcon={<Download size={16} color={Ghost.text.primary} strokeWidth={2} />}
             />
-          ) : null}
-          {p.previewable && p.content !== undefined ? (
-            <>
-              <Text style={styles.text} selectable>{p.content}</Text>
-              {p.truncated ? <Text style={styles.note}>Showing the first part. Open the file to see all of it.</Text> : null}
-            </>
-          ) : null}
-          {!p.previewable ? <Text style={[styles.note, { textAlign: "center" }]}>{p.reason ?? "There is no preview for this file. Open it instead."}</Text> : null}
-        </EdgeScrollView>
+            <GhostButton
+              title={busy === "delete" ? "Deleting…" : "Delete"}
+              variant="danger"
+              onPress={remove}
+              disabled={!!busy}
+              leftIcon={<Trash2 size={16} color={Ghost.status.error} strokeWidth={2} />}
+            />
+          </View>
+        </>
       ) : null}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
-  content: { padding: Space.lg, paddingBottom: 96, gap: Space.md },
-  actions: { flexDirection: "row", gap: Space.sm, justifyContent: "center", paddingHorizontal: Space.xl, paddingBottom: Space.md },
+  content: { padding: Space.lg, gap: Space.md },
+  actions: { flexDirection: "row", gap: Space.sm, justifyContent: "center", paddingHorizontal: Space.xl, paddingTop: Space.md, paddingBottom: Space.xl },
   image: { width: "100%", height: 420 },
   text: { fontSize: 13.5, lineHeight: 20, color: Ghost.text.primary, fontFamily: Fonts.mono },
   note: { fontSize: 14, lineHeight: 20, fontWeight: "300", color: Ghost.text.secondary },
