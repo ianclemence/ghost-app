@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, AppState, FlatList, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, AppState, FlatList, Keyboard, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { Easing, FadeInDown, FadeOut, useReducedMotion, useSharedValue } from "react-native-reanimated";
@@ -228,6 +228,9 @@ export default function ConversationScreen() {
   // until that pass has landed at the bottom, or it pins the mid-thread
   // viewport the stream never left and the reply appears to push you up.
   const [landing, setLanding] = useState(false);
+  // The dock floats over the thread (like ChatGPT's bar) instead of sitting
+  // below it in flow. Measured so scrolled content always clears it.
+  const [dockH, setDockH] = useState(180);
   const settle = useCallback(() => {
     settleUntil.current = Date.now() + 1800;
     nearBottom.current = true;
@@ -237,6 +240,16 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
   }, []);
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
+  // The keyboard pushes the floating dock up; keep the eye on the latest
+  // message instead of leaving it behind the raised dock.
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => {
+      if (nearBottom.current) {
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+      }
+    });
+    return () => show.remove();
+  }, []);
   // The Pod is the authority on Ghost's browser. Its list is asked for on
   // opening, on coming back to the conversation or the app, and when a turn
   // ends, so a card that began while the app was away appears, and one whose
@@ -993,7 +1006,7 @@ export default function ConversationScreen() {
         // an empty-conversation greeting that is about to be replaced.
         <View style={styles.empty} />
       ) : messages.length === 0 ? (
-        <View style={styles.empty}>
+        <View style={[styles.empty, { paddingBottom: dockH + Space.huge }]}>
           {ready ? (
             <>
               <Text style={styles.emptyTitle}>{greeting()}</Text>
@@ -1043,7 +1056,7 @@ export default function ConversationScreen() {
           keyExtractor={(it) => it.key}
           renderItem={renderItem}
           style={styles.list}
-          contentContainerStyle={[styles.listContent, { paddingTop: insets.top + 72, paddingBottom: Space.lg }]}
+          contentContainerStyle={[styles.listContent, { paddingTop: insets.top + 72, paddingBottom: dockH + Space.lg }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
@@ -1100,7 +1113,7 @@ export default function ConversationScreen() {
         </View>
         </View>
       )}
-      <Animated.View style={[styles.dock, dockPad]}>
+      <Animated.View onLayout={(e) => setDockH(e.nativeEvent.layout.height)} style={[styles.dock, dockPad]}>
         {awayFromLatest || unseen > 0 ? (
           <Animated.View entering={reduceMotion ? undefined : FadeInDown.duration(200).springify().damping(18)} exiting={reduceMotion ? undefined : FadeOut.duration(140)} style={styles.jumpWrap} pointerEvents="box-none">
             <Pressable
@@ -1251,6 +1264,11 @@ const styles = StyleSheet.create({
     color: Ghost.text.primary,
   },
   dock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
     paddingHorizontal: Space.lg,
     paddingTop: Space.xs,
     gap: Space.sm,
