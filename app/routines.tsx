@@ -188,8 +188,8 @@ export default function RoutinesScreen() {
       <ScreenHeader
         title="Routines"
         subtitle={active > 0
-          ? `${active} ${active === 1 ? "thing" : "things"} Ghost keeps doing for you`
-          : "Tell Ghost: \u201cevery Monday at 9, prepare my brief\u201d"}
+          ? `${active} ${active === 1 ? "routine" : "routines"}`
+          : "No routines yet"}
       />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>

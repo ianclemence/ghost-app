@@ -104,7 +104,7 @@ export default function MemoryScreen() {
       <ScreenBackground variant="calm" />
       <ScreenHeader
         title="Memory"
-        subtitle={mem ? (total === 0 ? "Nothing yet" : `${total} ${total === 1 ? "thing" : "things"}, kept on your Pod`) : undefined}
+        subtitle={mem ? (total === 0 ? "No memories yet" : `${total} ${total === 1 ? "memory" : "memories"}`) : undefined}
       />
       {!config ? (
         <Text style={styles.empty}>Memory lives on your Ghost Pod. Connect one to see and manage it.</Text>

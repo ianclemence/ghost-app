@@ -71,7 +71,7 @@ export default function FilesScreen() {
       <ScreenBackground variant="calm" />
       <ScreenHeader
         title="Files"
-        subtitle={files ? (files.length === 0 ? "Nothing yet" : `${files.length} on your Pod, kept ${days} days`) : undefined}
+        subtitle={files ? (files.length === 0 ? "No files yet" : "Files on your Pod") : undefined}
       />
       {!config ? (
         <Text style={styles.empty}>Files live on your Ghost Pod. Connect one to see them.</Text>
@@ -115,7 +115,7 @@ export default function FilesScreen() {
                   />
                 ))}
               </View>
-              {shown.length === 0 ? <Text style={styles.empty}>Nothing in this view.</Text> : null}
+              {shown.length === 0 ? <Text style={styles.empty}>No files match this view.</Text> : null}
             </>
           ) : null}
         </EdgeScrollView>
