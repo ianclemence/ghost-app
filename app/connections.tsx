@@ -123,7 +123,7 @@ export default function ConnectionsScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Connected apps" subtitle="Email, calendar, and logins Ghost can use" />
+      <ScreenHeader title="Connected apps" subtitle="What Ghost is plugged into" />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>
           <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />

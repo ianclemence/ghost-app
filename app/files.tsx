@@ -71,7 +71,7 @@ export default function FilesScreen() {
       <ScreenBackground variant="calm" />
       <ScreenHeader
         title="Files"
-        subtitle={files ? (files.length === 0 ? "No files yet" : "Files on your Pod") : undefined}
+        subtitle={files ? (files.length === 0 ? "No files yet" : "Your files, on your Pod") : undefined}
       />
       {!config ? (
         <Text style={styles.empty}>Files live on your Ghost Pod. Connect one to see them.</Text>

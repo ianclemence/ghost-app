@@ -8,6 +8,7 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
+  LinearTransition,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -106,9 +107,15 @@ export const UserMessage = memo(function UserMessage({
   const { copied, copy } = useCopy(message.content);
   const hasText = message.content.trim().length > 0;
   // Tapping a message shows when it was sent, for the one you are wondering about.
+  // The time fades in and out in place: it mounts and unmounts below the
+  // bubble, and an instant mount used to snap the whole list. The row
+  // eases its height instead, so the message never jumps.
   const [exact, setExact] = useState(false);
+  const reflow = reduce ? undefined : LinearTransition.duration(220).easing(EASE);
+  const fadeIn = reduce ? undefined : FadeIn.duration(200).easing(EASE);
+  const fadeOut = reduce ? undefined : FadeOut.duration(160).easing(EASE);
   return (
-    <Animated.View entering={enter(reduce, animate)} style={[styles.userRow, groupStart && styles.groupGap]}>
+    <Animated.View entering={enter(reduce, animate)} layout={reflow} style={[styles.userRow, groupStart && styles.groupGap]}>
       {showTime ? <Text style={styles.timeCaption} accessibilityLabel={`Sent ${clockTime(message.timestamp)}`}>{clockTime(message.timestamp)}</Text> : null}
       {attachments}
       {hasText || !attachments ? (
@@ -124,7 +131,7 @@ export const UserMessage = memo(function UserMessage({
         <UserMarkdown content={message.content} />
       </Pressable>
       ) : null}
-      {exact ? <Text style={[styles.meta, styles.metaRight]}>{clockTime(message.timestamp)}</Text> : null}
+      {exact ? <Animated.Text entering={fadeIn} exiting={fadeOut} style={[styles.meta, styles.metaRight]}>{clockTime(message.timestamp)}</Animated.Text> : null}
       {message.status === "queued" ? (
         <Text style={[styles.meta, styles.metaRight]} accessibilityLiveRegion="polite">
           Waiting to send · goes out when you&apos;re back online
@@ -158,10 +165,15 @@ export const GhostMessage = memo(function GhostMessage({
   const streaming = message.status === "streaming";
   const empty = !message.content.trim();
   const [exact, setExact] = useState(false);
+  // Same fade in place as user messages: the time eases open below the
+  // bubble instead of snapping the list.
+  const reflow = reduce ? undefined : LinearTransition.duration(220).easing(EASE);
+  const fadeIn = reduce ? undefined : FadeIn.duration(200).easing(EASE);
+  const fadeOut = reduce ? undefined : FadeOut.duration(160).easing(EASE);
   // What Ghost started by itself is a card, not a paragraph with a label.
   if (message.kind && !empty) {
     return (
-      <Animated.View entering={enter(reduce, animate)} style={[styles.ghostRow, groupStart && styles.groupGap]}>
+      <Animated.View entering={enter(reduce, animate)} layout={reflow} style={[styles.ghostRow, groupStart && styles.groupGap]}>
         <Pressable onLongPress={copy} delayLongPress={350} accessibilityHint="Long press to copy">
           <NoticeCard kind={message.kind} time={clockTime(message.timestamp)} content={message.content} />
         </Pressable>
@@ -170,7 +182,7 @@ export const GhostMessage = memo(function GhostMessage({
     );
   }
   return (
-    <Animated.View entering={enter(reduce, animate)} style={[styles.ghostRow, groupStart && styles.groupGap]}>
+    <Animated.View entering={enter(reduce, animate)} layout={reflow} style={[styles.ghostRow, groupStart && styles.groupGap]}>
       {message.kind ? (
         <KindLabel kind={message.kind} time={showTime || message.kind !== undefined ? clockTime(message.timestamp) : null} />
       ) : outOfTurn ? (
@@ -203,7 +215,7 @@ export const GhostMessage = memo(function GhostMessage({
           Stopped when your Pod restarted
         </Text>
       ) : null}
-      {exact && !streaming ? <Text style={styles.meta}>{clockTime(message.timestamp)}</Text> : null}
+      {exact && !streaming ? <Animated.Text entering={fadeIn} exiting={fadeOut} style={styles.meta}>{clockTime(message.timestamp)}</Animated.Text> : null}
       {copied ? <Copied align="left" /> : null}
     </Animated.View>
   );

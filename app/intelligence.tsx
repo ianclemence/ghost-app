@@ -293,7 +293,7 @@ export default function IntelligenceScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Intelligence" subtitle="The model Ghost thinks with" />
+      <ScreenHeader title="Intelligence" subtitle="Choose how Ghost thinks" />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>
           <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
