@@ -111,6 +111,10 @@ describe("internal models and check names", () => {
     expect(isChatModel("nomic-embed-text:latest")).toBe(false);
     expect(isChatModel("qwen3:8b")).toBe(true);
   });
+  test("an ollama internal layer tag is not a chat model", () => {
+    expect(isChatModel("llamacpp:82f094e4c0e19bc4208c692996d4f1ecf14e82a8dee579ee1d2ca1175260058e")).toBe(false);
+    expect(isChatModel("qwen3:0.6b")).toBe(true);
+  });
   test("a check is titled in words, preferring the Pod's own label", () => {
     expect(checkTitle({ name: "disk_pressure" })).toBe("Disk pressure");
     expect(checkTitle({ name: "skill_dependencies", label: "Skills" })).toBe("Skills");

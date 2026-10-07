@@ -182,10 +182,13 @@ export function sourceNote(provider: string, source: string | undefined, error: 
 /**
  * Embedding models (nomic-embed-text and the like) are Ghost's own internal
  * tools for memory search. They cannot chat, so they are never offered as
- * something to use.
+ * something to use. Ollama's internal `llamacpp:` layer tags are also
+ * excluded: they are runner bookkeeping, not models an owner can choose.
  */
 export function isChatModel(name: string): boolean {
-  return !/embed/i.test(name);
+  const n = String(name || "");
+  if (/^llamacpp:/i.test(n)) return false;
+  return !/embed/i.test(n);
 }
 
 /** A health check's name, the way a person would say it ("disk_pressure" -> "Disk pressure"). */
