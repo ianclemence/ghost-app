@@ -347,7 +347,7 @@ function Info({ label, value, dot, last }: { label: string; value: string | null
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Ghost.bg.base },
-  body: { paddingHorizontal: Space.lg, gap: Space.md, paddingBottom: 96 },
+  body: { gap: Space.md, paddingBottom: 96 },
   lead: { fontSize: 17, lineHeight: 25, fontWeight: "300", color: "rgba(255,255,255,0.78)", textAlign: "center", marginBottom: Space.sm, paddingHorizontal: Space.md },
   group: {
     fontSize: 11.5,
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: Ghost.text.tertiary,
     marginTop: Space.lg,
-    paddingHorizontal: 6,
+    paddingHorizontal: Space.xl + 6,
   },
   card: {
     backgroundColor: "rgba(0,0,0,0.42)",
@@ -365,6 +365,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.glass.border,
     padding: Space.xl,
+    marginHorizontal: Space.lg,
     gap: Space.sm,
   },
   cardTitle: { color: Ghost.text.primary, fontSize: 16.5, fontWeight: "500", letterSpacing: -0.2 },
