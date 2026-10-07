@@ -117,6 +117,9 @@ export function groupChoices(options: ModelOption[], active: string, providers: 
   const ordered = [...options].sort((a, b) => Number(b.kind === "preset") - Number(a.kind === "preset"));
   for (const o of ordered) {
     if (!o.available || !o.provider || !o.model) continue;
+    // Embedding models and runner internals are Ghost's own tools, never
+    // something to switch to — same rule as the Pod's model list.
+    if (!isChatModel(o.model)) continue;
     const key = `${o.provider}\u0000${o.model}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -148,6 +151,7 @@ export function pickerChoices(provider: string, models: string[], active: string
   const out: ModelChoice[] = [];
   for (const m of models) {
     if (!m || seen.has(m)) continue;
+    if (!isChatModel(m)) continue;
     seen.add(m);
     const o = byModel.get(m);
     out.push({

@@ -60,6 +60,17 @@ describe("what can be chosen", () => {
   test("no usable model gives no group, not an empty one", () => {
     expect(groupChoices([opt({ provider: "openai", model: "gpt-4o", available: false })], "", {})).toEqual([]);
   });
+
+  test("embedding models and runner internals are never switchable", () => {
+    const opts = [
+      opt({ provider: "ollama", model: "qwen3:0.6b" }),
+      opt({ provider: "ollama", model: "embeddinggemma" }),
+      opt({ provider: "ollama", model: "llamacpp:82f094" }),
+    ];
+    const g = groupChoices(opts, "", {});
+    expect(g).toHaveLength(1);
+    expect(g[0].models.map((m) => m.model)).toEqual(["qwen3:0.6b"]);
+  });
 });
 
 describe("the picker for one provider", () => {
@@ -76,6 +87,11 @@ describe("the picker for one provider", () => {
     expect(filterChoices(list, "MINI").map((c) => c.model)).toEqual(["gpt-4o-mini"]);
     expect(filterChoices(list, "  ")).toHaveLength(3);
     expect(filterChoices(list, "zzz")).toEqual([]);
+  });
+
+  test("embedding models never reach the picker", () => {
+    const list = pickerChoices("ollama", ["qwen3:0.6b", "embeddinggemma", "qwen3:0.6b"], "", []);
+    expect(list.map((c) => c.model)).toEqual(["qwen3:0.6b"]);
   });
 });
 
