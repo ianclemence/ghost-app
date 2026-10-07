@@ -9,7 +9,7 @@ import { useRouter } from "expo-router";
 import { Fonts, Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
-import { GhostButton, GhostInput, StatusDot } from "@/components/ghost";
+import { GhostButton, GhostInput, SectionHeader, StatusDot } from "@/components/ghost";
 import { formatUptime } from "@/lib/format";
 import { checkTitle } from "@/lib/models";
 import {
@@ -22,7 +22,6 @@ import {
   type PodUpdate,
   fetchStats,
   pullOllamaModel,
-  switchModel,
   type DoctorStatus,
   type PiStats,
 } from "@/lib/ghostApi";
@@ -53,7 +52,6 @@ export default function PodScreen() {
   const [installName, setInstallName] = useState("");
   const [installing, setInstalling] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [busyModel, setBusyModel] = useState<string | null>(null);
   const [update, setUpdate] = useState<PodUpdate | null>(null);
   const [resetCode, setResetCode] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
@@ -152,18 +150,6 @@ export default function PodScreen() {
       setNote("Couldn't start that download. Check the model name.");
     }
     setInstalling(false);
-  };
-
-  const use = async (name: string) => {
-    if (!config || busyModel) return;
-    setBusyModel(name);
-    try {
-      await switchModel(config, `ollama:${name}`);
-      setNote(`Ghost now thinks with ${name}, on your Pod.`);
-    } catch {
-      setNote("Couldn't switch. Ghost is still on its current model.");
-    }
-    setBusyModel(null);
   };
 
   const attention = (doctor?.checks ?? []).filter((c) => c.status !== "ok");
@@ -320,10 +306,10 @@ export default function PodScreen() {
           </>
         )}
 
-        <Text style={styles.group}>Models on your Pod</Text>
-        <Text style={styles.meta}>
-          Models installed here answer without anything leaving your Pod. Cloud models are set in Intelligence.
-        </Text>
+        <SectionHeader
+          title="Models on your Pod"
+          subtitle="What is installed here. Choose what Ghost thinks with in Intelligence."
+        />
         <View style={styles.card}>
           {models.length === 0 ? (
             <Text style={styles.meta}>None installed yet.</Text>
@@ -331,7 +317,6 @@ export default function PodScreen() {
             models.map((m) => (
               <View key={m} style={styles.modelRow}>
                 <Text style={[styles.cardTitle, { flex: 1 }]} numberOfLines={1}>{m}</Text>
-                <GhostButton title="Use" variant="secondary" size="sm" onPress={() => void use(m)} disabled={busyModel !== null} loading={busyModel === m} />
               </View>
             ))
           )}
