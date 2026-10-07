@@ -347,7 +347,7 @@ function Info({ label, value, dot, last }: { label: string; value: string | null
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Ghost.bg.base },
-  body: { gap: Space.md, paddingBottom: 96 },
+  body: { paddingBottom: 96 },
   lead: { fontSize: 17, lineHeight: 25, fontWeight: "300", color: "rgba(255,255,255,0.78)", textAlign: "center", marginBottom: Space.sm, paddingHorizontal: Space.md },
   group: {
     fontSize: 11.5,
@@ -357,6 +357,7 @@ const styles = StyleSheet.create({
     color: Ghost.text.tertiary,
     marginTop: Space.lg,
     paddingHorizontal: Space.xl + 6,
+    paddingBottom: Space.sm,
   },
   card: {
     backgroundColor: "rgba(0,0,0,0.42)",
