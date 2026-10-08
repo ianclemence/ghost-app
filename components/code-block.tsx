@@ -1,20 +1,23 @@
 /**
  * Code fence block: language label, copy button, syntax colours, line
- * numbers on longer blocks, horizontal scroll.
+ * numbers on longer blocks.
  *
- * Long lines scroll sideways instead of pushing the chat layout wider; the
- * copy control is labelled for screen readers. Colours come from
+ * Long lines wrap inside the block, so a command or an error message is always
+ * readable in full without hunting for a sideways scroll that nothing hints at
+ * (they used to look cut off at the edge). Each line is its own row, so its
+ * number stays beside its first line however many rows it wraps to. The copy
+ * control is labelled for screen readers. Colours come from
  * lib/highlight.ts (highlight.js, only the common languages) and an editor-style
  * theme in the app's palette (lib/syntax-theme.ts). Highlighting only ever
  * colours the code: what you copy is exactly what Ghost wrote.
  */
 import React, { memo, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import * as Clipboard from "expo-clipboard";
 import { Check, Copy } from "lucide-react-native";
 import { Fonts, Ghost } from "@/constants/theme";
-import { highlightTokens } from "@/lib/highlight";
+import { highlightTokens, splitTokenLines } from "@/lib/highlight";
 import { syntaxStyle } from "@/lib/syntax-theme";
 
 interface Props {
@@ -33,7 +36,10 @@ export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
   const tokens = useMemo(() => highlightTokens(code, language), [code, language]);
   const lines = code.split("\n").length;
   const numbered = lines >= NUMBERED_FROM;
-  const numbers = useMemo(() => (numbered ? Array.from({ length: lines }, (_, i) => String(i + 1)).join("\n") : ""), [numbered, lines]);
+  const rows = useMemo(() => splitTokenLines(tokens), [tokens]);
+  // One width for every number in the block, so the code starts at the same
+  // place on every row (10 is wider than 9).
+  const gutterWidth = String(lines).length * 8.5;
 
   async function onCopy() {
     try {
@@ -64,34 +70,38 @@ export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
           )}
         </Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.row}>
-          {numbered ? (
-            <Text style={[styles.code, styles.gutter]} selectable={false} accessibilityElementsHidden importantForAccessibility="no">
-              {numbers}
+      <View accessibilityLabel={code}>
+        {rows.map((row, r) => (
+          <View key={r} style={styles.row}>
+            {numbered ? (
+              <Text style={[styles.code, styles.gutter, { width: gutterWidth }]} selectable={false} accessibilityElementsHidden importantForAccessibility="no">
+                {r + 1}
+              </Text>
+            ) : null}
+            <Text selectable style={[styles.code, styles.text]}>
+              {row.length === 0
+                ? " "
+                : row.map((t, i) => {
+                    const s = syntaxStyle(t.kind);
+                    if (!s) return t.text;
+                    return (
+                      <Text
+                        key={i}
+                        style={{
+                          color: s.color,
+                          fontStyle: s.italic ? "italic" : undefined,
+                          // Bold names the mono face too: a weight alone would swap it for the interface font.
+                          ...(s.bold ? { fontWeight: "700" as const, fontFamily: Fonts?.mono ?? "monospace" } : null),
+                        }}
+                      >
+                        {t.text}
+                      </Text>
+                    );
+                  })}
             </Text>
-          ) : null}
-          <Text selectable style={styles.code}>
-            {tokens.map((t, i) => {
-              const s = syntaxStyle(t.kind);
-              if (!s) return t.text;
-              return (
-                <Text
-                  key={i}
-                  style={{
-                    color: s.color,
-                    fontStyle: s.italic ? "italic" : undefined,
-                    // Bold names the mono face too: a weight alone would swap it for the interface font.
-                    ...(s.bold ? { fontWeight: "700" as const, fontFamily: Fonts?.mono ?? "monospace" } : null),
-                  }}
-                >
-                  {t.text}
-                </Text>
-              );
-            })}
-          </Text>
-        </View>
-      </ScrollView>
+          </View>
+        ))}
+      </View>
     </View>
   );
 });
@@ -129,7 +139,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: Ghost.glass.fill,
   },
-  row: { flexDirection: "row" },
+  row: { flexDirection: "row", alignItems: "flex-start" },
+  // The text takes the rest of the row and wraps inside it.
+  text: { flex: 1, flexShrink: 1 },
   code: {
     color: Ghost.text.primary,
     fontSize: 13.5,
@@ -140,6 +152,6 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.28)",
     textAlign: "right",
     marginRight: 14,
-    minWidth: 18,
+    flexShrink: 0,
   },
 });

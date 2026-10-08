@@ -15,7 +15,7 @@
  *   states; anything else degrades to its alt text.
  */
 import React from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { hasParents } from "react-native-markdown-display";
 import { Fonts, Ghost, Inter } from "@/constants/theme";
@@ -27,6 +27,7 @@ import { MermaidDiagram } from "@/components/mermaid-diagram";
 import { isMermaidLanguage } from "@/lib/mermaid";
 import { isSafeImageUrl } from "@/lib/link-policy";
 import { codeLabel, parseTaskMarker } from "@/lib/markdown";
+import { INLINE_CODE, canPillInlineCode, inlinePillWidth } from "@/lib/inlineCode";
 import type { ASTNode } from "react-native-markdown-display";
 
 /**
@@ -168,29 +169,77 @@ function imageRule(node: ASTNode) {
 }
 
 /**
- * Inline code is a tinted run of text, padded with non-breaking spaces.
- * It used to be a rounded pill drawn as a View inside the line, but Android
- * measures an inline View before the monospace font is applied, so the pill
- * came out narrower than its text and the words after it were laid over the
- * code. A run of text is measured with its own font, so it can never overlap,
- * and it wraps like any other word. The cost is square corners: React Native
- * cannot round the background of text.
+ * Inline code.
+ *
+ * Short snippets are a rounded pill: a View inside the line, with a bluish ink
+ * and a hairline edge. An inline View was once dropped here because Android
+ * measures it before the monospace font is applied, so the pill came out
+ * narrower than its text and the words after it were laid over the code. The
+ * pill therefore never asks to be measured: its width is set from the number
+ * of characters, which is exact for a monospace face, and anything the
+ * calculation could get wrong falls back to a run of text.
+ *
+ * That fallback is a tinted run of text padded with non-breaking spaces. It is
+ * measured with its own font so it can never overlap, and it wraps like any
+ * other word, which a long path or error message needs. React Native cannot
+ * round the background of text, so it keeps square corners.
  */
 function codeInlineRule(node: ASTNode, _children: React.ReactNode[], _parents: ASTNode[], _styles: Record<string, object>) {
   const code: string = node.content ?? "";
+  if (!canPillInlineCode(code)) {
+    return (
+      <Text key={node.key} style={inlineCodeStyle}>
+        {"\u00a0" + code + "\u00a0"}
+      </Text>
+    );
+  }
   return (
-    <Text key={node.key} style={inlineCodeStyle}>
-      {"\u00a0" + code + "\u00a0"}
-    </Text>
+    <View
+      key={node.key}
+      style={[styles.pill, { width: inlinePillWidth(code) }]}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={code}
+    >
+      <Text style={styles.pillText} numberOfLines={1} ellipsizeMode="clip">
+        {code}
+      </Text>
+    </View>
   );
 }
 
+/** What the pill and the fallback both say it is: code, in a cool ink. */
+export const inlineCodeInk = Ghost.status.info;
+
 const inlineCodeStyle = {
   fontFamily: Fonts?.mono ?? "monospace",
-  fontSize: 13.5,
-  color: Ghost.text.primary,
-  backgroundColor: "rgba(255,255,255,0.10)",
+  fontSize: INLINE_CODE.fontSize,
+  color: inlineCodeInk,
+  backgroundColor: "rgba(255,255,255,0.08)",
 };
+
+const styles = StyleSheet.create({
+  pill: {
+    height: INLINE_CODE.height,
+    borderRadius: INLINE_CODE.radius,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: INLINE_CODE.padX,
+    justifyContent: "center",
+    overflow: "hidden",
+    top: INLINE_CODE.drop,
+  },
+  pillText: {
+    fontFamily: Fonts?.mono ?? "monospace",
+    fontSize: INLINE_CODE.fontSize,
+    lineHeight: 18,
+    color: inlineCodeInk,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+  },
+});
 
 export const markdownRules = {
   code_inline: codeInlineRule,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { highlightTokens, resolveLanguage } from "./highlight";
+import { highlightTokens, resolveLanguage, splitTokenLines } from "./highlight";
 import { syntaxStyle } from "./syntax-theme";
 
 const join = (t: { text: string }[]) => t.map((x) => x.text).join("");
@@ -107,5 +107,33 @@ describe("the theme", () => {
     expect(syntaxStyle("keyword")).not.toBeNull();
     expect(syntaxStyle("nonsense")).toBeNull();
     expect(syntaxStyle(null)).toBeNull();
+  });
+});
+
+describe("splitTokenLines", () => {
+  const rejoin = (lines: { text: string }[][]) => lines.map((l) => l.map((t) => t.text).join("")).join("\n");
+
+  test("every block divides into lines and joins back to exactly the code", () => {
+    for (const [lang, code] of Object.entries(SAMPLES)) {
+      expect(rejoin(splitTokenLines(highlightTokens(code, lang)))).toBe(code);
+    }
+  });
+
+  test("one line per line of code, blank lines included", () => {
+    const code = "a\n\nb\n";
+    expect(splitTokenLines(highlightTokens(code, "")).length).toBe(4);
+  });
+
+  test("a token that spans lines keeps its kind on each piece", () => {
+    const lines = splitTokenLines([{ text: "x ", kind: null }, { text: "/* one\ntwo */", kind: "comment" }]);
+    expect(lines).toEqual([
+      [{ text: "x ", kind: null }, { text: "/* one", kind: "comment" }],
+      [{ text: "two */", kind: "comment" }],
+    ]);
+  });
+
+  test("a long command stays one row to wrap in, not split", () => {
+    const cmd = "ls: cannot access '/nonexistent-dir': No such file or directory";
+    expect(splitTokenLines(highlightTokens(cmd, "")).length).toBe(1);
   });
 });

@@ -151,3 +151,22 @@ export function highlightTokens(code: string, language?: string | null): Token[]
   cache.set(key, tokens);
   return tokens;
 }
+
+/**
+ * The tokens of a block divided into its lines, so each line can be its own row
+ * (a long one wraps inside its row and its number stays beside its first line).
+ * A token that spans lines (a comment, a template string) is cut at each line
+ * break and keeps its kind on every piece. Joining the lines with "\n" gives
+ * back the code exactly.
+ */
+export function splitTokenLines(tokens: Token[]): Token[][] {
+  const lines: Token[][] = [[]];
+  for (const t of tokens) {
+    const parts = t.text.split("\n");
+    parts.forEach((part, i) => {
+      if (i > 0) lines.push([]);
+      if (part !== "") lines[lines.length - 1].push({ text: part, kind: t.kind });
+    });
+  }
+  return lines;
+}

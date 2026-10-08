@@ -93,13 +93,11 @@ const markdownStyle = {
     fontFamily: Inter.medium,
     textDecorationLine: "none" as const,
   },
+  // Drawn by the code_inline rule (a pill, or a tinted run of text for long
+  // snippets); this is only the base the rule starts from.
   code_inline: {
-    color: Ghost.text.primary,
-    backgroundColor: Ghost.bg.sunken,
+    color: Ghost.status.info,
     fontSize: 13.5,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 6,
     fontFamily: Fonts?.mono ?? "monospace",
   },
   fence: {
