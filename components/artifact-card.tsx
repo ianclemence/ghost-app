@@ -7,6 +7,8 @@ import { Fonts, Ghost, Space } from "@/constants/theme";
 import { GlassCard } from "@/components/glass";
 import { GhostButton } from "@/components/ghost";
 import { MarkdownBubble } from "@/components/markdown-bubble";
+import { CodeBlock } from "@/components/code-block";
+import { previewRender } from "@/lib/fileKinds";
 import {
   fetchWorkspacePreview,
   type Artifact,
@@ -193,7 +195,13 @@ export function ArtifactCard({ config, artifact }: Props) {
         <Image source={{ uri: previewImage }} style={styles.image} accessibilityLabel={`Preview of ${artifact.title}`} />
       ) : null}
       {expanded && preview ? (
-        <MarkdownBubble content={preview} streaming={false} />
+        // A file is shown as itself: Markdown only for Markdown, everything
+        // else as code (HTML source as HTML, a script as a script).
+        previewRender(artifact.path).kind === "markdown" ? (
+          <MarkdownBubble content={preview} streaming={false} />
+        ) : (
+          <CodeBlock language={(previewRender(artifact.path) as { language: string }).language} code={preview.replace(/\n$/, "")} />
+        )
       ) : null}
     </GlassCard>
   );

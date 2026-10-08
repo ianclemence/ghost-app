@@ -93,11 +93,54 @@ describe("limits, and no guessing", () => {
     expect(toks).toEqual([{ text: big, kind: null }]);
   });
 
-  test("a block with no label is never guessed at, so plain output is never painted like code", () => {
-    const log = "Everything is fine.\nThe disk is at 79 percent and the swap is untouched.";
-    expect(highlightTokens(log, "")).toEqual([{ text: log, kind: null }]);
+  test("a block with no label is never read as code, so plain output is never painted like code", () => {
     const sql = "SELECT id FROM users WHERE age >= 18;";
-    expect(highlightTokens(sql, "")).toEqual([{ text: sql, kind: null }]);
+    const toks = highlightTokens(sql, "");
+    expect(toks.some((t) => t.kind === "keyword")).toBe(false);
+    expect(toks.map((t) => t.text).join("")).toBe(sql);
+    const prose = "Everything is fine and nothing was changed.";
+    expect(highlightTokens(prose, "")).toEqual([{ text: prose, kind: null }]);
+  });
+});
+
+describe("plain output", () => {
+  const out = (code: string) => highlightTokens(code, "").filter((t) => t.kind).map((t) => `${t.kind}:${t.text}`);
+
+  test("an error line colours what went wrong and what was quoted", () => {
+    const k = out("ls: cannot access '/nonexistent-dir': No such file or directory");
+    expect(k).toContain("error:cannot");
+    expect(k).toContain("string:'/nonexistent-dir'");
+    expect(k).toContain("error:No such file or directory");
+  });
+
+  test("paths, links, numbers and success are told apart", () => {
+    const k = out("see https://example.com/a?b=1 and /var/lib/ghost, exit 2, ok");
+    expect(k).toContain("url:https://example.com/a?b=1");
+    expect(k).toContain("path:/var/lib/ghost");
+    expect(k).toContain("number:2");
+    expect(k).toContain("success:ok");
+  });
+
+  test("a version string is one number, not three", () => {
+    expect(out("Linux 6.18.50")).toContain("number:6.18.50");
+  });
+
+  test("labels that mean output get the same treatment; code labels do not", () => {
+    for (const l of ["text", "txt", "log", "output", "stdout", "plaintext"]) {
+      expect(highlightTokens("failed with exit 2", l).some((t) => t.kind === "error")).toBe(true);
+    }
+    expect(highlightTokens("const failed = 2", "js").some((t) => t.kind === "keyword")).toBe(true);
+  });
+
+  test("it never changes the text", () => {
+    for (const code of ["", "  \n", "a'b", 'it\'s "x" 0x1F /a//b ~/c ./d', "é 日本 12px 3.5%", "error: 'unterminated", "a".repeat(5000)]) {
+      expect(join(highlightTokens(code, ""))).toBe(code);
+    }
+  });
+
+  test("a block over the limits stays plain", () => {
+    const big = "error 1\n".repeat(3000);
+    expect(highlightTokens(big, "")).toEqual([{ text: big, kind: null }]);
   });
 });
 

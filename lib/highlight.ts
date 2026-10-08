@@ -76,6 +76,48 @@ export interface Token {
 /** Past this, highlighting costs more than it gives on a phone. */
 const MAX_CHARS = 12_000;
 const MAX_LINES = 400;
+/**
+ * Plain output: what a command printed, a log, a table. It is not code, so it
+ * is never read as code (a guess would paint prose like a program). It is only
+ * given the colours a terminal or a CI log gives: what was quoted, where
+ * things are (paths, links), whether it went wrong or right, and the numbers.
+ * Anything it does not recognise stays plain.
+ */
+const OUTPUT_RULES: { kind: string; re: string }[] = [
+  { kind: "url", re: "https?:\\/\\/[^\\s)\\]>\"']+" },
+  { kind: "string", re: "\"[^\"\\n]{0,200}\"|'[^'\\n]{0,200}'|`[^`\\n]{0,200}`" },
+  { kind: "path", re: "(?:~|\\.{1,2})?\\/[\\w.@+-]+(?:\\/[\\w.@+-]+)*\\/?" },
+  { kind: "error", re: "\\b(?:error|errors|failed|failure|fatal|denied|cannot|can't|unable|exception|traceback|panic|refused|timed out|not found|no such file or directory|no such file|invalid|segfault|killed)\\b" },
+  { kind: "success", re: "\\b(?:ok|success|successful|succeeded|passed|pass|done|complete|completed|ready|active|running)\\b" },
+  { kind: "number", re: "\\b\\d+(?:[.:]\\d+)*[a-zA-Z%]{0,3}\\b|\\b0x[0-9a-fA-F]+\\b" },
+];
+const OUTPUT_RE = new RegExp(OUTPUT_RULES.map((r) => `(${r.re})`).join("|"), "gi");
+
+/** Labels that mean "this is output, not code". */
+const OUTPUT_LABELS = new Set(["", "text", "txt", "output", "log", "logs", "plain", "plaintext", "stdout", "stderr", "terminal-output"]);
+
+export function outputTokens(code: string): Token[] {
+  const out: Token[] = [];
+  let at = 0;
+  const push = (text: string, kind: string | null) => {
+    if (!text) return;
+    const last = out[out.length - 1];
+    if (last && last.kind === kind) last.text += text;
+    else out.push({ text, kind });
+  };
+  OUTPUT_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = OUTPUT_RE.exec(code))) {
+    if (m[0].length === 0) { OUTPUT_RE.lastIndex++; continue; }
+    push(code.slice(at, m.index), null);
+    const group = m.findIndex((g, i) => i > 0 && g !== undefined) - 1;
+    push(m[0], OUTPUT_RULES[group]?.kind ?? null);
+    at = m.index + m[0].length;
+  }
+  push(code.slice(at), null);
+  return out.length ? out : [{ text: code, kind: null }];
+}
+
 /** The registered language a fence label means, or null if none. */
 export function resolveLanguage(label: string | null | undefined): string | null {
   const l = (label ?? "").trim().toLowerCase();
@@ -130,6 +172,11 @@ export function highlightTokens(code: string, language?: string | null): Token[]
   if (!code.trim()) return plain;
   if (code.length > MAX_CHARS || code.split("\n").length > MAX_LINES) return plain;
   const lang = resolveLanguage(language);
+  if (!lang && OUTPUT_LABELS.has((language ?? "").trim().toLowerCase())) {
+    const toks = outputTokens(code);
+    // The same safety rule as code: colour only, never content.
+    return toks.map((t) => t.text).join("") === code ? toks : plain;
+  }
   const key = `${lang ?? "?"}\u0000${code}`;
   const hit = cache.get(key);
   if (hit) return hit;

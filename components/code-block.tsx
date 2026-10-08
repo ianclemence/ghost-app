@@ -19,7 +19,7 @@ import { Check, Copy, Play } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { Fonts, Ghost } from "@/constants/theme";
 import { highlightTokens, splitTokenLines } from "@/lib/highlight";
-import { syntaxStyle } from "@/lib/syntax-theme";
+import { CODE_INK, diffRowTint, syntaxStyle } from "@/lib/syntax-theme";
 import { documentFromFence, isRunnableFence } from "@/lib/canvas";
 import { setCanvasDraft } from "@/lib/canvasDraft";
 
@@ -28,6 +28,12 @@ interface Props {
   language: string;
   /** Raw block content (trailing newline trimmed by the caller). */
   code: string;
+}
+
+/** A diff line that was added or removed, so the whole line can carry the tint. */
+function diffKind(row: { kind: string | null }[]): "addition" | "deletion" | null {
+  const k = row.find((t) => t.kind === "addition" || t.kind === "deletion")?.kind;
+  return k === "addition" || k === "deletion" ? k : null;
 }
 
 /** Numbers appear once a block is long enough to refer to a line. */
@@ -96,7 +102,7 @@ export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
       </View>
       <View accessibilityLabel={code}>
         {rows.map((row, r) => (
-          <View key={r} style={styles.row}>
+          <View key={r} style={[styles.row, diffKind(row) && { backgroundColor: diffRowTint(diffKind(row)!), marginHorizontal: -16, paddingHorizontal: 16 }]}>
             {numbered ? (
               <Text style={[styles.code, styles.gutter, { width: gutterWidth }]} selectable={false} accessibilityElementsHidden importantForAccessibility="no">
                 {r + 1}
@@ -180,7 +186,7 @@ const styles = StyleSheet.create({
   // The text takes the rest of the row and wraps inside it.
   text: { flex: 1, flexShrink: 1 },
   code: {
-    color: Ghost.text.primary,
+    color: CODE_INK,
     fontSize: 13.5,
     lineHeight: 20,
     fontFamily: Fonts?.mono ?? "monospace",
