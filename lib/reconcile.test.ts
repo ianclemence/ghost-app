@@ -199,3 +199,29 @@ describe("a user row whose local copy drifted", () => {
     expect(out[0].content).toBe("unsent draft");
   });
 });
+
+describe("an alert the Pod has settled", () => {
+  test("the local copy becomes resolved, whatever its id", () => {
+    const local = [msg({ id: "say-1-40", role: "assistant", content: "I'm almost out of storage: 1 GB left.", kind: "alert", timestamp: 1000 })];
+    const server = [srv({ id: "pod-9", role: "assistant", content: "I'm almost out of storage: 1 GB left.", kind: "alert", timestamp: 1000, notice_key: "storage-critical", resolved: true })];
+    const out = reconcileHistory(local, server);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ id: "say-1-40", resolved: true, notice_key: "storage-critical" });
+  });
+
+  test("an open alert stays open", () => {
+    const local = [msg({ id: "pod-9", role: "assistant", content: "hot", kind: "alert", timestamp: 1000 })];
+    const server = [srv({ id: "pod-9", role: "assistant", content: "hot", kind: "alert", timestamp: 1000, notice_key: "pod-hot" })];
+    expect(reconcileHistory(local, server)[0].resolved).toBeUndefined();
+  });
+});
+
+describe("what the phone showed live is the same row as the Pod's saved copy", () => {
+  for (const prefix of ["say-", "live-a-", "bg-"]) {
+    test(`${prefix}… is matched, not shown twice`, () => {
+      const local = [msg({ id: `${prefix}123`, role: "assistant", content: "Done with the report.", timestamp: 5000 })];
+      const server = [srv({ id: "pod-1", role: "assistant", content: "Done with the report.", timestamp: 5000 })];
+      expect(reconcileHistory(local, server)).toHaveLength(1);
+    });
+  }
+});

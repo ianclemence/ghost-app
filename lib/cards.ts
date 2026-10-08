@@ -8,15 +8,21 @@ export type CardKind =
   | "browser_view"
   | "memory_receipt"
   | "browser_recovery"
-  | "present";
+  | "present"
+  | "reminder"
+  | "digest";
 
 export interface CardAction {
   id: string;
   label: string;
   style?: string;
   request_id?: string;
-  /** "reply" sends `text` to Ghost as if typed; "dismiss" puts the card away. Absent: the older broker-bound action. */
-  kind?: "reply" | "dismiss";
+  /**
+   * "reply" sends `text` to Ghost as if typed; "dismiss" puts the card away;
+   * "act" asks the Pod to carry out the choice named by `id` (a reminder's Done
+   * or Snooze). Absent: the older broker-bound action.
+   */
+  kind?: "reply" | "dismiss" | "act";
   text?: string;
 }
 
@@ -42,25 +48,41 @@ export interface RichCard {
   created_at?: number;
 }
 
-const KNOWN_KINDS: CardKind[] = ["suggestion", "goal_update", "cart", "browser_view", "memory_receipt", "browser_recovery", "present"];
+const KNOWN_KINDS: CardKind[] = ["suggestion", "goal_update", "cart", "browser_view", "memory_receipt", "browser_recovery", "present", "reminder", "digest"];
+
+/**
+ * Cards whose buttons are only ever a reply, a dismissal or (for the Pod's own
+ * kinds) an act: they carry no authority, so the phone may draw and send them
+ * without a broker request behind them.
+ */
+const CHOICE_KINDS: CardKind[] = ["present", "reminder", "digest"];
+
+/** Cards that keep a one-line receipt once the owner has answered them. */
+export function keepsReceipt(card: Pick<RichCard, "kind">): boolean {
+  return CHOICE_KINDS.includes(card.kind);
+}
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-function parseActions(raw: unknown, present: boolean): CardAction[] {
+function parseActions(raw: unknown, cardKind: CardKind): CardAction[] {
   const out: CardAction[] = [];
+  const present = cardKind === "present";
+  // Reminders and the morning digest are the Pod's own cards: they may also
+  // carry "act" (Done, Snooze), which the Pod carries out.
+  const choices = CHOICE_KINDS.includes(cardKind);
   const max = present ? 3 : 4;
   for (const a of (Array.isArray(raw) ? raw : []).slice(0, max)) {
     if (!isObj(a) || typeof a.id !== "string" || typeof a.label !== "string") continue;
-    const kind = a.kind === "reply" || a.kind === "dismiss" ? a.kind : undefined;
+    const kind = a.kind === "reply" || a.kind === "dismiss" || (a.kind === "act" && choices && !present) ? a.kind : undefined;
     const text = typeof a.text === "string" ? Array.from(a.text.trim()).slice(0, LIMITS.actionText).join("") : undefined;
-    // A presented card's choices are only ever a reply or a dismissal.
-    if (present && !kind) continue;
+    // A choice card's buttons are only ever a reply, a dismissal or an act.
+    if (choices && !kind) continue;
     if (kind === "reply" && !text) continue;
     out.push({
       id: a.id,
       label: a.label,
       style: typeof a.style === "string" ? a.style : undefined,
-      request_id: !present && typeof a.request_id === "string" ? a.request_id : undefined,
+      request_id: !choices && typeof a.request_id === "string" ? a.request_id : undefined,
       kind,
       text: kind === "reply" ? text : undefined,
     });
@@ -92,7 +114,9 @@ export function normalizeCard(raw: unknown): RichCard | null {
   const title = typeof raw.title === "string" ? raw.title.trim() : "";
   if (!id || !title) return null;
   const present = kind === "present";
-  const blocks = present ? parseBlocks(raw.blocks) : undefined;
+  // A presented card is its blocks. The morning digest may carry some too (its
+  // list); a reminder has none.
+  const blocks = present || kind === "digest" ? parseBlocks(raw.blocks) : undefined;
   if (present && (!blocks || blocks.length === 0)) return null;
   const res = isObj(raw.resolved) && typeof raw.resolved.action_id === "string"
     ? { action_id: raw.resolved.action_id, label: typeof raw.resolved.label === "string" ? raw.resolved.label : "Done" }
@@ -105,7 +129,7 @@ export function normalizeCard(raw: unknown): RichCard | null {
     topic: typeof raw.topic === "string" ? raw.topic : undefined,
     request_id: typeof raw.request_id === "string" ? raw.request_id : undefined,
     data: isObj(raw.data) ? raw.data : undefined,
-    actions: parseActions(raw.actions, present),
+    actions: parseActions(raw.actions, kind as CardKind),
     blocks,
     resolved: res,
     created_at: toMs(raw.created_at),

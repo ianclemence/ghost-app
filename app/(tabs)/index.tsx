@@ -54,7 +54,7 @@ import {
   type SurfaceKind,
 } from "@/lib/ghostApi";
 import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
-import { applyLiveEffect, applySay, liveEffect, sayEffect } from "@/lib/liveTurn";
+import { applyLiveEffect, applyResolve, applySay, liveEffect, resolveEffect, sayEffect } from "@/lib/liveTurn";
 import { mergeArtifacts } from "@/lib/artifacts";
 import { FollowController } from "@/lib/follow";
 import { createChunkBatcher } from "@/lib/chunkBatch";
@@ -62,7 +62,7 @@ import { cancel as cancelQueued, endTurn, enqueue as enqueueQueued, hold as hold
 import { endStep, legacyStep, settleSteps, startStep, type RunStep } from "@/lib/runSteps";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
 import { acceptSurface, applySurfaceList, belongsTo, dropSurface, visibleSurfaces, type SurfaceMap } from "@/lib/turnSurfaces";
-import { normalizeCard, parseCardMessage, type RichCard } from "@/lib/cards";
+import { keepsReceipt, normalizeCard, parseCardMessage, type RichCard } from "@/lib/cards";
 import { displayStatusForTool } from "@/lib/statusPhase";
 import { reconcileHistory } from "@/lib/reconcile";
 import { applyBackgroundEvent, formatBackgroundElapsed, type BackgroundRunningTask } from "@/lib/background";
@@ -366,9 +366,9 @@ export default function ConversationScreen() {
         const parsed: RichCard[] = [];
         for (const c of fresh) {
           const card = normalizeCard(c);
-          // A card the owner put away stays put away: only present cards
+          // A card the owner put away stays put away: only cards that keep a receipt
           // render a resolved receipt, the rest never come back.
-          if (card && (card.kind === "present" || !card.resolved)) parsed.push(card);
+          if (card && (keepsReceipt(card) || !card.resolved)) parsed.push(card);
         }
         if (parsed.length > 0) {
           setCards((prev) => {
@@ -385,6 +385,17 @@ export default function ConversationScreen() {
     loadArtifacts();
     loadCards();
     const off = onWSMessage((msg) => {
+      // An alert whose condition has cleared (storage freed, the Pod cooled
+      // down) settles into a record instead of staying "Needs you".
+      const cleared = resolveEffect(msg, { session: MAIN_SESSION_ID });
+      if (cleared) {
+        const st = useGhostStore.getState();
+        applyResolve(cleared, { messages: () => st.messages, updateMessage: st.updateMessage });
+        // One held back while Ghost was answering was never shown: it is moot.
+        // The saved copy arrives with the next history sync, already settled.
+        heldSaysRef.current = heldSaysRef.current.filter((h) => h.key !== cleared.key);
+        return;
+      }
       // Ghost speaking first (a reminder, an alert, a routine's result): it
       // joins the thread now, labelled, instead of waiting for a reload.
       const say = sayEffect(msg, { session: MAIN_SESSION_ID });
@@ -454,7 +465,7 @@ export default function ConversationScreen() {
       if (announced) pullSurface(announced.kind, announced.surfaceId);
       // A card frame carries the full payload; kind-gated by the parser.
       const card = parseCardMessage(msg, MAIN_SESSION_ID);
-      if (card && (card.kind === "present" || !card.resolved)) {
+      if (card && (keepsReceipt(card) || !card.resolved)) {
         setCards((prev) =>
           prev.some((x) => x.id === card.id) ? prev : [...prev, card].slice(-60),
         );
@@ -989,7 +1000,7 @@ export default function ConversationScreen() {
     }
     if (item.kind === "card") {
       // Belt over the merge-point filters: a put-away card never renders.
-      if (item.card.kind !== "present" && item.card.resolved) return null;
+      if (!keepsReceipt(item.card) && item.card.resolved) return null;
       return config ? (
         <View style={styles.inlineCard}>
           <RichCardView

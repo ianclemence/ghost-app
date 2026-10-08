@@ -64,6 +64,9 @@ export default function BrowserScreen() {
   // live view. Called on mount, whenever the phone returns to the foreground
   // (the OS closes the socket while the app is away), and after a drop, so the
   // view reattaches instead of sitting disconnected on the last frame.
+  // The connect function retries itself; it reaches itself through a ref so it
+  // is never read before it is declared.
+  const connectRef = useRef<() => Promise<void>>(async () => {});
   const connect = useCallback(async () => {
     if (!config || !id) return;
     // Keep the last frame on screen while re-attaching; only the very first
@@ -86,7 +89,7 @@ export default function BrowserScreen() {
         setError(ticket.error);
         setState("error");
       } else {
-        retryTimerRef.current = setTimeout(() => void connect(), 800);
+        retryTimerRef.current = setTimeout(() => void connectRef.current(), 800);
       }
       return;
     }
@@ -112,9 +115,13 @@ export default function BrowserScreen() {
       if (socketRef.current !== ws) return;
       socketRef.current = null;
       if (!aliveRef.current || finishingRef.current) return;
-      retryTimerRef.current = setTimeout(() => void connect(), 600);
+      retryTimerRef.current = setTimeout(() => void connectRef.current(), 600);
     };
   }, [config, id]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   // Reattach when the app comes back, and drop the socket when it leaves so we
   // never act on a half-dead one.

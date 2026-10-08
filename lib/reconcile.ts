@@ -17,6 +17,7 @@
  *   the quarantine filter legitimately hides some streamed content from
  *   display while the server stores the full text). Keep the local copy:
  *   what the user watched stays put.
+ * - A server row that says an alert is resolved marks the local copy resolved.
  * - Server rows with no local correspondent (other devices, scheduler
  *   turns, anything missed) are appended by timestamp.
  * - Local rows with no server correspondent (queued, just-sent) are kept.
@@ -27,7 +28,11 @@
 import type { Message } from "./ghostApi";
 import type { ExtendedMessage } from "./store";
 
-const CLIENT_ID_PREFIXES = ["temp-", "msg-", "q-"];
+// Ids the phone makes itself: its own sends, and what it shows live before the
+// Pod's saved copy arrives (a message Ghost started, a reply another surface
+// began, a finished background task). Without these the live row and the saved
+// row were two rows: every alert and reminder showed twice after a sync.
+const CLIENT_ID_PREFIXES = ["temp-", "msg-", "q-", "say-", "live-", "bg-"];
 const MATCH_WINDOW_MS = 120_000;
 
 function isClientId(id: string): boolean {
@@ -87,6 +92,11 @@ export function reconcileHistory(
   // keeps the local copy so a message you just watched never rewrites itself.
   const out: ExtendedMessage[] = local.map((m) => {
     const matches = pairs.get(m.id);
+    // An alert the Pod has since settled: the Pod's word wins, so a card the
+    // phone drew while the condition was live does not stay "Needs you".
+    if (matches?.some((s) => s.resolved) && !m.resolved) {
+      return { ...m, resolved: true, notice_key: m.notice_key ?? matches.find((s) => s.notice_key)?.notice_key };
+    }
     if (m.role === "user" && matches && matches.length > 0 && m.content !== matches[0].content) {
       return { ...m, content: matches[0].content };
     }

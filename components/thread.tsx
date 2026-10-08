@@ -146,7 +146,7 @@ export const GhostMessage = memo(function GhostMessage({
     return (
       <Animated.View entering={enter(reduce, animate)} style={styles.ghostRow}>
         <Pressable onLongPress={copy} delayLongPress={350} accessibilityHint="Long press to copy">
-          <NoticeCard kind={message.kind} time={clockTime(message.timestamp)} content={message.content} />
+          <NoticeCard kind={message.kind} time={clockTime(message.timestamp)} content={message.content} resolved={message.resolved === true} />
         </Pressable>
         {footer}
       </Animated.View>

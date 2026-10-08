@@ -23,10 +23,13 @@ const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 export function PresentCard({
   card,
   busy,
+  error,
   onAction,
 }: {
   card: RichCard;
   busy?: boolean;
+  /** Why the last choice did not go through; the buttons are back. */
+  error?: string | null;
   onAction: (a: CardAction) => void;
 }) {
   const reduce = useReducedMotion();
@@ -87,6 +90,7 @@ export function PresentCard({
             ))}
           </View>
         ) : null}
+        {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
       </GlassCard>
     </Animated.View>
   );
@@ -100,6 +104,7 @@ const styles = StyleSheet.create({
   body: { fontSize: 15.5, lineHeight: 23, fontWeight: "300", color: "rgba(255,255,255,0.78)", marginTop: -Space.xs },
   blocks: { gap: Space.md },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: Space.sm, marginTop: Space.xs },
+  error: { fontSize: 13, color: Ghost.status.error },
   collapsed: {
     flexDirection: "row",
     alignItems: "center",

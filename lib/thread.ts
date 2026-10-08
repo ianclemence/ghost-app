@@ -90,7 +90,11 @@ export function buildThread(
     entries.push({ at: t ?? lastAt + 1, order: messages.length + i, art: a });
   });
   cards.forEach((c, i) => {
-    entries.push({ at: c.created_at ?? lastAt + 1, order: messages.length + artifacts.length + i, card: c });
+    // A reminder's buttons belong right under the reminder they answer. The Pod
+    // stamps the card in whole seconds, which can land it just before the
+    // message that was delivered a moment earlier in the same second.
+    const at = (c.created_at ?? lastAt) + (c.kind === "reminder" ? 1500 : c.created_at === undefined ? 1 : 0);
+    entries.push({ at, order: messages.length + artifacts.length + i, card: c });
   });
   // A browser card belongs right under the message that asked for the work,
   // before Ghost's answer: the answer is what the browsing produced. Placed by

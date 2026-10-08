@@ -121,3 +121,16 @@ describe("a partly loaded conversation", () => {
     expect(buildThread([msg], [art], 9000, [], false).some((i) => i.kind === "artifact")).toBe(true);
   });
 });
+
+describe("a reminder's buttons sit under the reminder", () => {
+  test("even when the Pod's whole-second stamp falls just before the message", () => {
+    // The reminder message arrived at 10:04:00.800; its card is stamped 10:04:00.
+    const at = new Date(2026, 8, 29, 10, 4, 0, 800).getTime();
+    const cardAt = new Date(2026, 8, 29, 10, 4, 0).getTime();
+    const reminder: ExtendedMessage = { id: "r", role: "assistant", content: "Reminder: water", timestamp: at, kind: "reminder" };
+    const card = { id: "card_r", kind: "reminder" as const, title: "Drink water", created_at: cardAt };
+    const items = buildThread([m("u", "user", at - 5 * H), reminder], [], NOW, [card]);
+    const order = items.filter((i) => i.kind !== "day").map((i) => (i.kind === "card" ? "card" : i.kind === "message" ? i.message.id : i.kind));
+    expect(order).toEqual(["u", "r", "card"]);
+  });
+});

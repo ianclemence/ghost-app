@@ -119,6 +119,8 @@ export interface SayEffect {
   id: string;
   text: string;
   kind: (typeof MESSAGE_KINDS)[number] | null;
+  /** The condition this alert or notice reports, so it can be settled later. */
+  key: string | null;
 }
 
 /** Reads a frame for a message Ghost sent unprompted. Null for anything else. */
@@ -136,7 +138,8 @@ export function sayEffect(frame: unknown, ctx: { session: string }, now: number 
   // Only what Ghost started: a reply to this device's own turn arrives on that turn's stream.
   if (!kind && str(meta.origin) !== "ghost") return null;
   const id = str(f.id) || `say-${now}-${text.length}`;
-  return { id, text, kind };
+  const key = str(f.announce) || str(meta.announce);
+  return { id, text, kind, key: key || null };
 }
 
 /** Adds the message to the thread. Returns true so the caller can reconcile with history. */
@@ -148,6 +151,40 @@ export function applySay(e: SayEffect, store: Pick<LiveStore, "appendMessage">, 
     timestamp: now,
     status: "completed",
     ...(e.kind ? { kind: e.kind } : {}),
+    ...(e.key ? { notice_key: e.key } : {}),
   });
   return true;
+}
+
+// ─── An alert whose condition has cleared ──────────────────────────────────
+//
+// "I'm almost out of storage" is a message in the conversation, so it would
+// stay looking like something that needs the owner long after the storage was
+// freed. The Pod says when the condition clears, by its key; every alert that
+// reports it becomes a settled record.
+
+/** Reads a frame saying an alert's condition has cleared. Null for anything else. */
+export function resolveEffect(frame: unknown, ctx: { session: string }): { key: string } | null {
+  if (!frame || typeof frame !== "object") return null;
+  const f = frame as Record<string, unknown>;
+  const meta = (f.metadata && typeof f.metadata === "object" ? f.metadata : {}) as Record<string, unknown>;
+  if ((str(f.type) || str(meta.type)) !== "notice_resolved") return null;
+  if ((str(f.session_id) || str(meta.session_id)) !== ctx.session) return null;
+  const key = str(f.key) || str(meta.key);
+  return key ? { key } : null;
+}
+
+/** Marks every open alert for the condition as resolved. Returns how many changed. */
+export function applyResolve(
+  e: { key: string },
+  store: Pick<LiveStore, "messages" | "updateMessage">,
+): number {
+  let n = 0;
+  for (const m of store.messages()) {
+    if (m.notice_key === e.key && !m.resolved) {
+      store.updateMessage(m.id, { resolved: true });
+      n++;
+    }
+  }
+  return n;
 }

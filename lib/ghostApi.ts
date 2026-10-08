@@ -25,6 +25,10 @@ export interface Message {
    * text is real, it just never ended.
    */
   interrupted?: boolean;
+  /** The condition an alert reports ("storage-critical"), so it can be settled when it clears. */
+  notice_key?: string;
+  /** The condition has cleared: the alert is a record now, not something that needs you. */
+  resolved?: boolean;
   media_type?: string;
   media_url?: string;
   /** Every photo sent with this message (media_url is the first, kept for older rows). */
@@ -1195,7 +1199,7 @@ export async function decideIdea(
   cfg: GhostConfig,
   ideaId: string,
   decision: IdeaDecision,
-): Promise<{ ok: boolean; result?: string; error?: string }> {
+): Promise<{ ok: boolean; result?: string; error?: string; gone?: boolean }> {
   if (!ideaId || !decision) {
     return { ok: false, error: "Unknown suggestion. Nothing was sent." };
   }
@@ -1207,7 +1211,9 @@ export async function decideIdea(
     );
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      return { ok: false, error: data?.error?.message ?? "That suggestion is no longer answerable." };
+      // The Pod answered and it is not answerable (decided elsewhere, expired):
+      // the card has nothing left to offer, so it goes.
+      return { ok: false, gone: true, error: data?.error?.message ?? "That suggestion is no longer answerable." };
     }
     if (data && data.ok === false) {
       return { ok: false, error: data?.error ?? "That suggestion could not be applied.", result: data?.result };
@@ -1284,12 +1290,21 @@ export async function fetchCards(cfg: GhostConfig, channel = "mobile"): Promise<
   return Array.isArray(data?.cards) ? data.cards : [];
 }
 
+export interface CardResolveResult {
+  /** The Pod took the answer. */
+  ok: boolean;
+  /** The Pod's copy of the card: resolved on success, as it really stands otherwise. */
+  card: RichCard | null;
+  /** Why it did not work, in words for the owner. Absent on success. */
+  error?: string;
+}
+
 /**
  * Tell the Pod what the owner chose on a card (an offered reply, or dismiss), so
  * it stays put away on every device. Returns the Pod's copy of the card, which
- * wins over the phone's guess; null if the request did not get through.
+ * wins over the phone's guess; and why when the Pod did not take the answer.
  */
-export async function resolveCard(cfg: GhostConfig, id: string, actionId: string, channel = "mobile"): Promise<RichCard | null> {
+export async function resolveCard(cfg: GhostConfig, id: string, actionId: string, channel = "mobile"): Promise<CardResolveResult> {
   try {
     const res = await fetchWithTimeout(
       `${baseURL(cfg)}/v1/cards/resolve`,
@@ -1297,9 +1312,14 @@ export async function resolveCard(cfg: GhostConfig, id: string, actionId: string
       10000,
     );
     const data = await res.json().catch(() => null);
-    return normalizeCard(data?.card);
+    const card = normalizeCard(data?.card);
+    if (res.ok && data?.ok !== false) return { ok: true, card };
+    const raw = typeof data?.error === "string" ? data.error : typeof data?.error?.message === "string" ? data.error.message : "";
+    // A card answered on another device comes back resolved: nothing to say.
+    if (card?.resolved) return { ok: false, card };
+    return { ok: false, card, error: raw || "That didn't go through. Try again." };
   } catch {
-    return null;
+    return { ok: false, card: null, error: "Couldn't reach Ghost. Try again." };
   }
 }
 

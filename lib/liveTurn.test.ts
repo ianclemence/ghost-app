@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applySay, applyLiveEffect, liveEffect, sayEffect, liveReplyId, liveUserId, type LiveStore } from "./liveTurn";
+import { applyLiveEffect, applyResolve, applySay, liveEffect, liveReplyId, liveUserId, resolveEffect, sayEffect, type LiveStore } from "./liveTurn";
 import type { ExtendedMessage } from "./store";
 
 const ctx = { session: "main", ownRequestId: "m-own" };
@@ -85,7 +85,7 @@ describe("following a reply another surface started", () => {
 describe("Ghost speaking first", () => {
   test("a reminder joins the thread, labelled", () => {
     const e = sayEffect({ type: "assistant_message", session_id: "main", content: "Reminder: stretch.", kind: "reminder", metadata: { origin: "ghost", reminder: true } }, { session: "main" }, 5);
-    expect(e).toEqual({ id: "say-5-18", text: "Reminder: stretch.", kind: "reminder" });
+    expect(e).toEqual({ id: "say-5-18", text: "Reminder: stretch.", kind: "reminder", key: null });
     const { store, msgs } = fakeStore();
     expect(applySay(e!, store, 100)).toBe(true);
     expect(msgs[0]).toMatchObject({ role: "assistant", content: "Reminder: stretch.", kind: "reminder", status: "completed" });
@@ -111,5 +111,44 @@ describe("Ghost speaking first", () => {
     expect(sayEffect({ type: "assistant_message", session_id: "side", content: "x", kind: "notice" }, { session: "main" })).toBeNull();
     expect(sayEffect({ type: "assistant_message", session_id: "main", content: "  ", kind: "notice" }, { session: "main" })).toBeNull();
     expect(sayEffect({ type: "stream_delta", session_id: "main", content: "x", kind: "notice" }, { session: "main" })).toBeNull();
+  });
+});
+
+
+describe("an alert whose condition has cleared", () => {
+  test("the frame is read only for this conversation and only with a key", () => {
+    const frame = { type: "notice_resolved", session_id: "main", metadata: { key: "storage-critical" } };
+    expect(resolveEffect(frame, { session: "main" })).toEqual({ key: "storage-critical" });
+    expect(resolveEffect({ ...frame, session_id: "other" }, { session: "main" })).toBeNull();
+    expect(resolveEffect({ type: "notice_resolved", session_id: "main" }, { session: "main" })).toBeNull();
+    expect(resolveEffect({ type: "assistant_message", session_id: "main", metadata: { key: "x" } }, { session: "main" })).toBeNull();
+    expect(resolveEffect(null, { session: "main" })).toBeNull();
+  });
+
+  test("it settles every open alert for the condition, and nothing else", () => {
+    const msgs: ExtendedMessage[] = [
+      { id: "a", role: "assistant", content: "storage", timestamp: 1, kind: "alert", notice_key: "storage-critical" },
+      { id: "b", role: "assistant", content: "storage again", timestamp: 2, kind: "alert", notice_key: "storage-critical", resolved: true },
+      { id: "c", role: "assistant", content: "hot", timestamp: 3, kind: "alert", notice_key: "pod-hot" },
+      { id: "d", role: "assistant", content: "hi", timestamp: 4 },
+    ];
+    const updated: string[] = [];
+    const n = applyResolve({ key: "storage-critical" }, {
+      messages: () => msgs,
+      updateMessage: (id) => { updated.push(id); },
+    });
+    expect(n).toBe(1);
+    expect(updated).toEqual(["a"]);
+  });
+
+  test("an alert announced live carries its key, so it can be settled without a reload", () => {
+    const say = sayEffect(
+      { type: "assistant_message", session_id: "main", content: "almost out", metadata: { announce: "storage-critical", urgent: true, kind: "alert" } },
+      { session: "main" },
+    );
+    expect(say?.key).toBe("storage-critical");
+    const added: ExtendedMessage[] = [];
+    applySay(say!, { appendMessage: (m) => added.push(m) });
+    expect(added[0].notice_key).toBe("storage-critical");
   });
 });
