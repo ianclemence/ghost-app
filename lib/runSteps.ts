@@ -71,6 +71,7 @@ const PAST: Record<string, string> = {
   email_search: "Looked through your email",
   vision: "Looked at an image",
   image_generate: "Made an image",
+  canvas: "Built a page",
 };
 
 const PRESENT: Record<string, string> = {
@@ -100,6 +101,7 @@ const PRESENT: Record<string, string> = {
   email_search: "Looking through your email",
   vision: "Looking at an image",
   image_generate: "Making an image",
+  canvas: "Building a page",
 };
 
 const KIND_PAST: Record<StepKind, string> = {

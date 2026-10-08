@@ -212,6 +212,11 @@ export default function RootLayout() {
           name="panel"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        {/* A canvas Ghost built, full screen: swipe down to return */}
+        <Stack.Screen
+          name="canvas"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
         <Stack.Screen
           name="memory"
           options={{ presentation: 'card', animation: 'slide_from_right' }}

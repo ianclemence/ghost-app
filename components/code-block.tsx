@@ -15,10 +15,13 @@ import React, { memo, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import * as Clipboard from "expo-clipboard";
-import { Check, Copy } from "lucide-react-native";
+import { Check, Copy, Play } from "lucide-react-native";
+import { useRouter } from "expo-router";
 import { Fonts, Ghost } from "@/constants/theme";
 import { highlightTokens, splitTokenLines } from "@/lib/highlight";
 import { syntaxStyle } from "@/lib/syntax-theme";
+import { documentFromFence, isRunnableFence } from "@/lib/canvas";
+import { setCanvasDraft } from "@/lib/canvasDraft";
 
 interface Props {
   /** Fence info string, e.g. "go". Empty when the model gave none. */
@@ -31,7 +34,14 @@ interface Props {
 const NUMBERED_FROM = 5;
 
 export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
+  // HTML and SVG can be run as they stand: shown, not just read.
+  const runnable = isRunnableFence(language) && code.trim().length > 0;
+  const run = () => {
+    setCanvasDraft({ title: language.trim().toLowerCase() === "svg" ? "SVG" : "HTML page", html: documentFromFence(code, language) });
+    router.push("/canvas" as never);
+  };
   const label = language.trim().toLowerCase() || "code";
   const tokens = useMemo(() => highlightTokens(code, language), [code, language]);
   const lines = code.split("\n").length;
@@ -55,6 +65,19 @@ export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
     <View style={styles.wrap} accessibilityLabel={`${label} code block`}>
       <View style={styles.header}>
         <Text style={styles.lang}>{label}</Text>
+        <View style={styles.tools}>
+        {runnable ? (
+          <Pressable
+            onPress={run}
+            hitSlop={10}
+            style={styles.runBtn}
+            accessibilityRole="button"
+            accessibilityLabel={`Run this ${label} and see it`}
+          >
+            <Play size={11} color={Ghost.text.primary} fill={Ghost.text.primary} />
+            <Text style={styles.runText}>Run</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={onCopy}
           hitSlop={10}
@@ -69,6 +92,7 @@ export const CodeBlock = memo(function CodeBlock({ language, code }: Props) {
             <Copy size={14} color={Ghost.text.secondary} strokeWidth={1.8} />
           )}
         </Pressable>
+        </View>
       </View>
       <View accessibilityLabel={code}>
         {rows.map((row, r) => (
@@ -131,6 +155,19 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: "uppercase",
   },
+  tools: { flexDirection: "row", alignItems: "center", gap: 8 },
+  runBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 28,
+    paddingHorizontal: 11,
+    borderRadius: 14,
+    backgroundColor: "rgba(58,46,240,0.34)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(140,128,255,0.45)",
+  },
+  runText: { fontSize: 12.5, fontWeight: "600", color: Ghost.text.primary },
   copy: {
     width: 28,
     height: 28,

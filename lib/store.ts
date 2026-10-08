@@ -66,6 +66,12 @@ interface GhostStore {
   queued: QueuedMessage[];
   setQueued: (next: QueuedMessage[] | ((prev: QueuedMessage[]) => QueuedMessage[])) => void;
 
+  // Something another screen wants said in the conversation: a canvas's "Fix
+  // it" sends, "Change it" only starts the owner's sentence. The conversation
+  // picks it up and clears it.
+  intent: { text: string; send: boolean } | null;
+  setIntent: (i: { text: string; send: boolean } | null) => void;
+
   // Live status line ("Thinking", "Searching the web" from tool_status events)
   toolActivity: string | null;
   setToolActivity: (label: string | null) => void;
@@ -178,6 +184,8 @@ export const useGhostStore = create<GhostStore>((set) => ({
       msgs[idx] = { ...msgs[idx], content: newBuffer, status: "streaming" };
       return { streamBuffer: newBuffer, messages: msgs };
     }),
+  intent: null,
+  setIntent: (i) => set({ intent: i }),
   queued: [],
   setQueued: (next) => set((s) => ({ queued: typeof next === "function" ? next(s.queued) : next })),
   toolActivity: null,

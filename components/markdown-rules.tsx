@@ -171,25 +171,25 @@ function imageRule(node: ASTNode) {
 /**
  * Inline code.
  *
- * Short snippets are a rounded pill: a View inside the line, with a bluish ink
- * and a hairline edge. An inline View was once dropped here because Android
+ * Short snippets are a rounded pill: a View inside the line, in gold, with a
+ * hairline edge. An inline View was once dropped here because Android
  * measures it before the monospace font is applied, so the pill came out
  * narrower than its text and the words after it were laid over the code. The
  * pill therefore never asks to be measured: its width is set from the number
  * of characters, which is exact for a monospace face, and anything the
  * calculation could get wrong falls back to a run of text.
  *
- * That fallback is a tinted run of text padded with non-breaking spaces. It is
- * measured with its own font so it can never overlap, and it wraps like any
- * other word, which a long path or error message needs. React Native cannot
- * round the background of text, so it keeps square corners.
+ * That fallback is plain gold mono text. It is measured with its own font so
+ * it can never overlap, and it wraps like any other word, which a long path or
+ * error message needs. It has no box: React Native cannot round the background
+ * of text, and a square tint read as a stray rectangle.
  */
 function codeInlineRule(node: ASTNode, _children: React.ReactNode[], _parents: ASTNode[], _styles: Record<string, object>) {
   const code: string = node.content ?? "";
   if (!canPillInlineCode(code)) {
     return (
       <Text key={node.key} style={inlineCodeStyle}>
-        {"\u00a0" + code + "\u00a0"}
+        {code}
       </Text>
     );
   }
@@ -208,14 +208,16 @@ function codeInlineRule(node: ASTNode, _children: React.ReactNode[], _parents: A
   );
 }
 
-/** What the pill and the fallback both say it is: code, in a cool ink. */
-export const inlineCodeInk = Ghost.status.info;
+/** Code is gold: the one warm ink in a reply, so it reads as "this is literal". */
+export const inlineCodeInk = Ghost.emberBright;
 
+// A long snippet wraps like any words, so it has no box (text cannot be given
+// rounded corners, and a square tint looked like a stray rectangle). Short
+// ones are pills; long ones are the same gold, in the same face.
 const inlineCodeStyle = {
   fontFamily: Fonts?.mono ?? "monospace",
   fontSize: INLINE_CODE.fontSize,
   color: inlineCodeInk,
-  backgroundColor: "rgba(255,255,255,0.08)",
 };
 
 const styles = StyleSheet.create({
@@ -224,8 +226,8 @@ const styles = StyleSheet.create({
     borderRadius: INLINE_CODE.radius,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,194,102,0.22)",
+    backgroundColor: "rgba(255,194,102,0.08)",
     paddingHorizontal: INLINE_CODE.padX,
     justifyContent: "center",
     overflow: "hidden",

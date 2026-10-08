@@ -66,10 +66,12 @@ export const UserMessage = memo(function UserMessage({
   const reduce = useReducedMotion();
   const { copied, copy } = useCopy(message.content);
   const hasText = message.content.trim().length > 0;
-  // Tapping a message shows when it was sent. The time is drawn beside the
-  // bubble, out of the layout: showing or hiding it changes no height, so the
-  // list never has a row grow under the finger that tapped it (which is what
-  // made every tap shove the thread). Same for "Copied".
+  // Tapping a message shows when it was sent, under the bubble at its right
+  // edge, the way Ghost's replies show theirs. It is drawn in the gap the thread
+  // already keeps below a message (see userRow), out of the layout: showing or
+  // hiding it changes no height, so the list never has a row grow under the
+  // finger that tapped it (which is what made every tap shove the thread).
+  // Same for "Copied".
   const [exact, setExact] = useState(false);
   const foot = copied ? "Copied" : exact ? clockTime(message.timestamp) : null;
   const fadeIn = reduce ? undefined : FadeIn.duration(160).easing(EASE);
@@ -92,7 +94,7 @@ export const UserMessage = memo(function UserMessage({
           <UserMarkdown content={message.content} />
         </Pressable>
         {foot ? (
-          <Animated.Text key={foot} entering={fadeIn} exiting={fadeOut} style={styles.sideFoot} pointerEvents="none" accessibilityLiveRegion="polite">
+          <Animated.Text key={foot} entering={fadeIn} exiting={fadeOut} style={styles.userFoot} pointerEvents="none" accessibilityLiveRegion="polite">
             {foot}
           </Animated.Text>
         ) : null}
@@ -260,9 +262,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.3,
   },
+  // The time lives in the gap above the next row, so that gap is always at
+  // least a line tall: the one after a user message is Ghost's row (marginTop
+  // lg), and one after another user message (a queued message) gets the same.
   userRow: {
     alignItems: "flex-end",
-    marginTop: Space.xs,
+    marginTop: Space.lg,
   },
   bubble: {
     backgroundColor: Ghost.bubble.user,
@@ -287,13 +292,11 @@ const styles = StyleSheet.create({
     maxWidth: "84%",
     alignSelf: "flex-end",
   },
-  sideFoot: {
+  userFoot: {
     position: "absolute",
-    right: "100%",
-    bottom: 8,
-    marginRight: 8,
-    width: 64,
-    textAlign: "right",
+    top: "100%",
+    right: 6,
+    marginTop: 1,
     fontFamily: Inter.regular,
     fontSize: 12,
     lineHeight: 16,

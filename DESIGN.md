@@ -36,6 +36,7 @@ Pure black with one aurora of light. No light theme. All colour comes from the a
 - Typing while Ghost works queues (`components/queue-tray.tsx`, `lib/queue.ts`): the bar says "Queue a message…", and each message is a line above it that says what became of it: Queued, Picked up, or Up next. Only a message nothing has seen yet can be taken back
 - Ghost's browser stays: finished work keeps its card with the last picture and how long it took, and folds into one line only when it is no longer the latest work (after a few seconds) or when you fold it; your choice always wins
 - The thread follows the end by one rule (`lib/follow.ts`): only your finger leaving the end stops it, growth never does, and growth is answered with one snap per frame. A time or "Copied" is drawn outside the row's layout, so tapping a message never moves the thread
+- Things Ghost builds run in the conversation (`components/canvas-card.tsx`, `app/canvas.tsx`, `lib/canvas.ts`): the newest canvas is a page in a rounded frame under your request and above Ghost's few words about it; earlier ones fold to one line that runs again on a tap. Full screen has Change it, Copy code, Share and a version list. Pages are sandboxed (no network, no storage, no navigation, CDN scripts from a short list) and start from Ghost's dark base and named colours. An error the page throws is offered back to Ghost as "Fix it". An html or svg code block in a reply has a Run button
 - Scrolled content dims into the header (`TopEdge`) instead of being cut off
 - No light theme, no header bars, no blur strips
 

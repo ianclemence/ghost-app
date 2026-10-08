@@ -10,6 +10,7 @@
  * never guessed from wording.
  */
 import type { Artifact } from "./ghostApi";
+import { isCanvasArtifact } from "./canvas";
 import type { RichCard } from "./cards";
 import type { ExtendedMessage } from "./store";
 import type { TrackedSurface } from "./turnSurfaces";
@@ -85,8 +86,37 @@ export function buildThread(
   type Entry = { at: number; order: number; msg?: ExtendedMessage; art?: Artifact; card?: RichCard; surface?: TrackedSurface };
   const entries: Entry[] = messages.map((m, i) => ({ at: m.timestamp || now, order: i, msg: m }));
   const lastAt = entries.length ? entries[entries.length - 1].at : now;
+  // The user message a piece of work answers: the latest one sent before the
+  // work happened, unless Ghost had already answered it (then the work was
+  // Ghost's own, and belongs at its own time).
+  const anchorFor = (at: number): number => {
+    let anchor = -1;
+    for (let j = 0; j < messages.length; j++) {
+      const m = messages[j];
+      if (m.role === "user" && (m.timestamp || now) <= at) anchor = j;
+    }
+    if (anchor >= 0) {
+      const from = messages[anchor].timestamp || now;
+      const answeredBefore = messages.some((m) =>
+        m.role === "assistant" && m.status !== "streaming" && m.content.trim() !== "" &&
+        (m.timestamp || now) > from && (m.timestamp || now) < at);
+      if (answeredBefore) anchor = -1;
+    }
+    return anchor;
+  };
   artifacts.forEach((a, i) => {
     const t = artifactTime(a);
+    // Something Ghost built to be run sits right under the request, above the
+    // few words that explain it: the page is the answer, the words are the
+    // note beside it. Placed by time it landed below the reply (the reply row
+    // exists from the moment the message is sent).
+    if (t !== null && isCanvasArtifact(a)) {
+      const anchor = anchorFor(t);
+      if (anchor >= 0) {
+        entries.push({ at: messages[anchor].timestamp || now, order: anchor + 0.6 + i / (artifacts.length + 1) / 20, art: a });
+        return;
+      }
+    }
     entries.push({ at: t ?? lastAt + 1, order: messages.length + i, art: a });
   });
   cards.forEach((c, i) => {

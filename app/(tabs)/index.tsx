@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, AppState, FlatList, Keyboard, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, AppState, FlatList, Keyboard, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { Text } from "@/components/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { Easing, FadeInDown, FadeOut, useReducedMotion, useSharedValue } from "react-native-reanimated";
@@ -28,6 +28,8 @@ import { PresenceHeader } from "@/components/presence-header";
 import { DaySeparator, GhostMessage, UserMessage } from "@/components/thread";
 import { PermissionCard } from "@/components/permission-card";
 import { ArtifactCard } from "@/components/artifact-card";
+import { CanvasCard } from "@/components/canvas-card";
+import { canvasInfos, isCanvasArtifact } from "@/lib/canvas";
 import { LiveSurfaceCard } from "@/components/live-surface-card";
 import {
   fetchArtifacts,
@@ -206,6 +208,7 @@ export default function ConversationScreen() {
     }
   }, [config]);
   const listRef = useRef<FlatList>(null);
+  const composerRef = useRef<TextInput>(null);
   // Following the end of the conversation is one decision, made in one place
   // (lib/follow.ts): the owner's finger leaves the end, or comes back to it.
   // Growth (a reply, a tool step, a card, the keyboard) never changes it, and
@@ -701,6 +704,12 @@ export default function ConversationScreen() {
         onToolResult: (id, ok, ms, note) => {
           steps = endStep(steps, { id, ok, ms: ms ?? undefined, note, now: Date.now() });
           writeSteps();
+          // A canvas appears as soon as Ghost makes it, not when the reply ends.
+          if (ok && steps.find((x) => x.id === id)?.tool === "canvas") {
+            fetchArtifacts(config, MAIN_SESSION_ID)
+              .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
+              .catch(() => {});
+          }
         },
         onSteerPicked: (contents) => {
           podReportsPickup.current = true;
@@ -847,6 +856,20 @@ export default function ConversationScreen() {
   }, [config, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, settleIncomplete, refreshSurfaces, queueOrMerge, queueWhileBusy, endOfTurn, settle]);
   sendRef.current = send;
 
+  // Another screen wants something said (a canvas's "Fix it" sends; "Change it"
+  // starts the owner's own sentence). It is taken once, here.
+  const intent = useGhostStore((st) => st.intent);
+  useEffect(() => {
+    if (!intent) return;
+    useGhostStore.getState().setIntent(null);
+    if (intent.send) void sendRef.current(intent.text);
+    else {
+      setDraft(intent.text);
+      // Ready to finish the sentence: the keyboard is up once the screen is back.
+      setTimeout(() => composerRef.current?.focus(), 350);
+    }
+  }, [intent]);
+
   const stopTurn = useCallback(async () => {
     if (!isStreaming) return;
     setCancelPhase((p) => nextCancelState(p, "request"));
@@ -974,14 +997,21 @@ export default function ConversationScreen() {
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "user") return messages[i].timestamp;
     return 0;
   }, [messages]);
+  // Which canvas is the live one, and which version each is.
+  const canvasInfoById = React.useMemo(() => canvasInfos(artifacts), [artifacts]);
   const renderItem = useCallback(({ item }: { item: ThreadItem }) => {
     if (item.kind === "day") return <DaySeparator label={item.label} />;
     if (item.kind === "artifact") {
-      return config ? (
+      if (!config) return null;
+      // Something Ghost built to be run is shown running, not filed.
+      if (isCanvasArtifact(item.artifact)) {
+        return <CanvasCard config={config} artifact={item.artifact} info={canvasInfoById[item.artifact.id]} />;
+      }
+      return (
         <View style={styles.inlineCard}>
           <ArtifactCard config={config} artifact={item.artifact} />
         </View>
-      ) : null;
+      );
     }
     if (item.kind === "surface") {
       return config ? (
@@ -1039,7 +1069,7 @@ export default function ConversationScreen() {
         animate={animate}
       />
     );
-  }, [toolActivity, config, send, browsing, onSurface, onSurfaceGone, approvalFor, answering, refreshAfterApproval, lastUserAt]);
+  }, [toolActivity, config, send, browsing, onSurface, onSurfaceGone, approvalFor, answering, refreshAfterApproval, lastUserAt, canvasInfoById]);
 
   const statusLine = outcomeLine(outcome);
   const cancelLine = cancelStatusLine(cancelPhase);
@@ -1257,6 +1287,7 @@ export default function ConversationScreen() {
         <QueueTray items={queued} onCancel={takeBack} />
         <AttachmentStrip items={attachments} onRemove={(i) => setAttachments((l) => l.filter((_, j) => j !== i))} />
         <Composer
+          inputRef={composerRef}
           value={draft}
           onChangeText={setDraft}
           onSubmit={send}

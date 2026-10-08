@@ -96,7 +96,7 @@ const markdownStyle = {
   // Drawn by the code_inline rule (a pill, or a tinted run of text for long
   // snippets); this is only the base the rule starts from.
   code_inline: {
-    color: Ghost.status.info,
+    color: Ghost.emberBright,
     fontSize: 13.5,
     fontFamily: Fonts?.mono ?? "monospace",
   },

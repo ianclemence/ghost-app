@@ -134,3 +134,27 @@ describe("a reminder's buttons sit under the reminder", () => {
     expect(order).toEqual(["u", "r", "card"]);
   });
 });
+
+describe("a canvas sits under its request and above Ghost's words", () => {
+  const canvas = (id: string, at: number) =>
+    ({ id, kind: "file", title: "Pong", path: "canvas/pong-v1.html", state: "available", actions: [], created_at: new Date(at).toISOString() }) as import("./ghostApi").Artifact;
+  const order = (items: ReturnType<typeof buildThread>) =>
+    items.filter((i) => i.kind !== "day").map((i) => (i.kind === "artifact" ? `art:${i.artifact.id}` : i.kind === "message" ? i.message.id : i.kind));
+
+  test("published while the reply is still being written", () => {
+    const u = m("u", "user", NOW - 3 * H);
+    const reply: ExtendedMessage = { ...m("a", "assistant", NOW - 3 * H + 100, "I made a Pong game."), status: "streaming" };
+    expect(order(buildThread([u, reply], [canvas("c1", NOW - 3 * H + 5000)], NOW))).toEqual(["u", "art:c1", "a"]);
+  });
+
+  test("a document file is still placed by time", () => {
+    const pdf = { ...canvas("doc", NOW - 3 * H + 5000), path: "report.pdf" };
+    const items = buildThread([m("u", "user", NOW - 3 * H), m("a", "assistant", NOW - 3 * H + 100)], [pdf], NOW);
+    expect(order(items)).toEqual(["u", "a", "art:doc"]);
+  });
+
+  test("a canvas Ghost made long after it answered stays at its own time", () => {
+    const items = buildThread([m("u", "user", NOW - 5 * H), m("a", "assistant", NOW - 5 * H + 3000), m("later", "user", NOW - H)], [canvas("c1", NOW - 4 * H)], NOW);
+    expect(order(items)).toEqual(["u", "a", "art:c1", "later"]);
+  });
+});

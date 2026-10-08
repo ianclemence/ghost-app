@@ -8,13 +8,17 @@ export const INLINE_CODE = {
   fontSize: 13.5,
   /** Advance of one character, as a share of the font size (monospace). */
   advance: 0.6,
-  /** A little slack so a slightly wider system face is never clipped. */
-  slack: 1.04,
-  padX: 8,
+  /** A hair of slack so a slightly wider system face is never clipped. */
+  slack: 1.015,
+  padX: 7,
   height: 22,
   radius: 8,
-  /** The pill is lowered so the code's baseline meets the words' baseline. */
-  drop: 4,
+  /**
+   * An inline view sits with its bottom on the line's baseline, so the code
+   * inside it (centred in the pill) rides about 8px above the words around it.
+   * The pill is lowered by that much so both share one baseline.
+   */
+  drop: 8,
   /** Longer than this wraps like text instead. */
   maxChars: 36,
 };
