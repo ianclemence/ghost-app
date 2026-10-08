@@ -7,7 +7,7 @@ const base = { online: true, streaming: false, firstTime: false };
 describe("composerPlaceholder", () => {
   test("is honest when the Pod is away or Ghost is busy", () => {
     expect(composerPlaceholder({ ...base, online: false })).toBe("Sends when your Pod is back");
-    expect(composerPlaceholder({ ...base, streaming: true })).toBe("Add to what I'm doing");
+    expect(composerPlaceholder({ ...base, streaming: true })).toBe("Queue a message…");
   });
 
   test("welcomes an empty conversation without a generic prompt", () => {

@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
 import { useRouter } from "expo-router";
-import { ChevronDown, ChevronUp, Globe, Monitor } from "lucide-react-native";
+import { Check, ChevronDown, ChevronUp, Globe, Monitor, TriangleAlert } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { GlassCard } from "@/components/glass";
 import { GhostButton } from "@/components/ghost";
-import { EmberDot } from "@/components/thread";
+import { EmberDot } from "@/components/ember-dot";
 import { Ghost, Space } from "@/constants/theme";
 import {
   fetchSurfaceObservation,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/ghostApi";
 import { presentSurface, surfacePlace, surfaceRecord, type SurfaceActionId } from "@/lib/surfaces";
 import { surfacePhase } from "@/lib/turnSurfaces";
+import { formatDuration } from "@/lib/runSteps";
 import { parseFrame, screencastSocketURL } from "@/lib/browserInput";
 
 const EASE = Easing.bezier(0.23, 1, 0.32, 1);
@@ -36,6 +37,8 @@ interface Props {
   approval: PendingApproval | null;
   /** Ghost has finished browsing and is writing the answer below. */
   answering?: boolean;
+  /** This is the newest work in the conversation: nothing has been asked since. */
+  latest?: boolean;
   /** An approval was answered here: refresh approvals and the thread. */
   onApprovalResolved?: () => void;
   /** A newer state from the Pod (watch stream or an action's answer). */
@@ -47,11 +50,16 @@ interface Props {
  * Ghost's browser, in the conversation, under the request that opened it.
  *
  * While the work runs it is a card that says where Ghost is and what it is
- * doing, with Watch and Take over. When the work is over it settles into one
- * quiet line, a record of what was done, with the last picture behind it.
+ * doing, with Watch and Take over. When the work is over the SAME card stays:
+ * the last picture of the page, what was done, how long it took. Finished work
+ * is evidence of what Ghost just did, so it is not put away the moment it ends
+ * (a quick task used to be gone before it could be seen). It folds into one
+ * quiet line only when it is no longer the latest work in the conversation (and
+ * a few seconds have passed), or when the owner folds it; the owner's choice
+ * always wins over the automatic one, in both directions.
  * Everything shown is the Pod's state; nothing is inferred here.
  */
-export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answering, onApprovalResolved, onSurface, onGone }: Props) {
+export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answering, latest = true, onApprovalResolved, onSurface, onGone }: Props) {
   const router = useRouter();
   const reduce = useReducedMotion();
   const kind = surface.kind;
@@ -87,17 +95,39 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
   useEffect(() => closeStreams, [closeStreams]);
 
   // The live picture and state stream only make sense while work runs. When
-  // the work settles, close them and keep the last picture.
+  // the work settles, close them; the last picture stays.
   useEffect(() => {
     if (phase !== "live") closeStreams();
   }, [phase, closeStreams]);
 
-  // The page, as a picture, whenever the Pod has a new one. While Ghost works
-  // this is the card's preview; the live view replaces it on Watch.
+  // Finished work stays in view while it is the latest, and for a few seconds
+  // after it stops being the latest, so a task that ends as the owner sends
+  // the next message is not snatched away mid-glance. After that it folds,
+  // unless the owner has chosen either way.
+  const [owner, setOwner] = useState<boolean | null>(null);
+  const [grace, setGrace] = useState(true);
+  const settled = phase !== "live";
+  useEffect(() => {
+    if (!settled || latest) {
+      setGrace(true);
+      return;
+    }
+    const t = setTimeout(() => setGrace(false), 6000);
+    return () => clearTimeout(t);
+  }, [settled, latest]);
+  const expanded = owner ?? (!settled || latest || grace);
+  // Folded away, nothing should keep streaming into it.
+  useEffect(() => {
+    if (!expanded) stopWatch();
+  }, [expanded, stopWatch]);
+
+  // The page, as a picture, whenever the Pod has a new one while the card is
+  // open: the card's preview while Ghost works, the last state once it is done.
+  // The live view replaces it on Watch.
   const obsStamp = surface.observation?.timestamp ?? "";
   const hasPicture = !!surface.observation?.picture;
   useEffect(() => {
-    if (!hasPicture || phase !== "live" || liveRef.current) return;
+    if (!expanded || !hasPicture || liveRef.current) return;
     let current = true;
     fetchSurfaceObservation(config, kind, surfaceId)
       .then((obs) => {
@@ -105,7 +135,7 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
       })
       .catch(() => {});
     return () => { current = false; };
-  }, [config, kind, surfaceId, obsStamp, hasPicture, phase]);
+  }, [config, kind, surfaceId, obsStamp, hasPicture, expanded]);
 
   const answerApproval = useCallback(async (grant: ApprovalGrant) => {
     if (!approval || answer) return;
@@ -200,18 +230,21 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
 
   const Icon = kind === "browser" ? Globe : Monitor;
   const steps = surface.steps ?? [];
-  const stepsView = (list: string[]) => list.length ? (
+  const stepsView = (list: string[], hiddenCount = 0) => list.length ? (
     <View style={styles.steps} accessibilityLabel={`Done so far: ${list.join(", ")}`}>
+      {hiddenCount > 0 ? <Text style={styles.note}>{hiddenCount} earlier</Text> : null}
       {list.map((st, i) => (
-        <View key={`${i}-${st}`} style={styles.stepRow}>
-          <View style={[styles.stepDot, i === list.length - 1 && styles.stepDotLast]} />
+        <View key={`${hiddenCount + i}-${st}`} style={styles.stepRow}>
+          <View style={[styles.stepDot, phase === "live" && i === list.length - 1 && styles.stepDotLast]} />
           <Text style={styles.stepText} numberOfLines={1}>{st}</Text>
         </View>
       ))}
     </View>
   ) : null;
-  const showPicture = watching || (phase === "live" && !!picture);
+  const showPicture = expanded && (watching || !!picture || (hasPicture && phase !== "live"));
   const pictureView = showPicture ? (
+    // A fixed box: the picture arriving, or being replaced by a newer one,
+    // never changes the card's height.
     <Animated.View entering={reduce ? undefined : FadeIn.duration(180).easing(EASE)} style={styles.pictureWrap}>
       {picture ? (
         <Image
@@ -235,32 +268,36 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
     </Animated.View>
   ) : null;
 
-  // ── Settled: one line, a record of what was done ────────────────────────
-  if (phase === "done" || phase === "stopped") {
+  const place = surfacePlace(surface);
+  const title = surface.observation?.title?.trim() || null;
+  const started = Date.parse(surface.started ?? "");
+  const ended = Date.parse(surface.updated ?? "");
+  const took = settled && Number.isFinite(started) && Number.isFinite(ended) && ended > started ? formatDuration(ended - started) : "";
+
+  // ── Folded: one line, a record of what was done ─────────────────────────
+  if (!expanded) {
     const line = surfaceRecord(surface);
     return (
-      <Animated.View entering={reduce ? undefined : FadeIn.duration(220).easing(EASE)} style={styles.record}>
+      <View style={styles.record}>
         <Pressable
-          onPress={() => void runAction("watch")}
+          onPress={() => setOwner(true)}
           style={({ pressed }) => [styles.recordRow, pressed && styles.pressed]}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={`${line}. ${watching ? "Hide the picture" : "See the last picture"}`}
+          accessibilityLabel={`${line}. See the last picture`}
         >
           <Icon size={14} color={phase === "stopped" ? Ghost.status.warning : Ghost.text.tertiary} strokeWidth={2} />
           <Text style={styles.recordText} numberOfLines={1}>{line}</Text>
-          {watching ? <ChevronUp size={15} color={Ghost.text.tertiary} /> : <ChevronDown size={15} color={Ghost.text.tertiary} />}
+          <ChevronDown size={15} color={Ghost.text.tertiary} />
         </Pressable>
-        {watching ? stepsView(steps) : null}
-        {pictureView}
-      </Animated.View>
+      </View>
     );
   }
 
-  // ── Live: where Ghost is and what it is doing ───────────────────────────
+  // ── Open: where Ghost is (or was) and what it is (or was) doing ─────────
   const view = presentSurface(surface, ownDeviceId, { approvalWaiting: !!approval, answering });
-  const place = surfacePlace(surface);
-  const title = surface.observation?.title?.trim() || null;
+  const headline = phase === "done" ? `Done${took ? ` · ${took}` : ""}` : phase === "stopped" ? "Didn't finish" : view.headline;
+  const detail = phase === "stopped" ? surfaceRecord(surface) : phase === "done" ? null : view.detail;
   const actionLabels: Record<SurfaceActionId, string> = {
     watch: watching ? (live ? "Stop live view" : "Hide") : picture ? "Watch live" : "Watch",
     // The words Ghost uses when it asks ("tap Take over and steer").
@@ -268,12 +305,13 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
     giveback: "Give control back",
     resume: "Give control back",
   };
+  const actions = phase === "live" ? view.actions : [];
   return (
     <Animated.View entering={reduce ? undefined : FadeIn.duration(220).easing(EASE)}>
       <GlassCard
-        tone={view.attention ? "attention" : "default"}
+        tone={view.attention && phase === "live" ? "attention" : "default"}
         style={styles.card}
-        accessibilityLabel={`${kind === "browser" ? "Ghost's browser" : "Ghost's computer"}${place ? ` on ${place}` : ""}. ${view.headline}`}
+        accessibilityLabel={`${kind === "browser" ? "Ghost's browser" : "Ghost's computer"}${place ? ` on ${place}` : ""}. ${headline}`}
       >
         <View style={styles.top}>
           <View style={styles.icon}>
@@ -285,21 +323,38 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
             </Text>
             {title ? <Text style={styles.title} numberOfLines={1}>{title}</Text> : null}
             <View style={styles.statusRow} accessibilityLiveRegion="polite">
-              <EmberDot size={6} active={view.working} />
+              {phase === "done" ? (
+                <Check size={13} color={Ghost.status.success} strokeWidth={2.4} />
+              ) : phase === "stopped" ? (
+                <TriangleAlert size={13} color={Ghost.status.warning} strokeWidth={2.2} />
+              ) : (
+                <EmberDot size={6} active={view.working} />
+              )}
               <Animated.Text
-                key={view.headline}
+                key={headline}
                 entering={reduce ? undefined : FadeIn.duration(160)}
-                style={[styles.status, view.attention && styles.statusAttention]}
+                style={[styles.status, view.attention && phase === "live" && styles.statusAttention, phase === "stopped" && { color: Ghost.status.warning }]}
                 numberOfLines={1}
               >
-                {view.headline}
+                {headline}
               </Animated.Text>
             </View>
-            {view.detail ? <Text style={styles.detail}>{view.detail}</Text> : null}
+            {detail ? <Text style={styles.detail}>{detail}</Text> : null}
           </View>
+          {settled ? (
+            <Pressable
+              onPress={() => setOwner(false)}
+              hitSlop={12}
+              style={({ pressed }) => [styles.fold, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Fold this away"
+            >
+              <ChevronUp size={17} color={Ghost.text.tertiary} />
+            </Pressable>
+          ) : null}
         </View>
         {pictureView}
-        {stepsView(steps.slice(-3))}
+        {phase === "live" ? stepsView(steps.slice(-3)) : stepsView(steps.slice(-6), Math.max(0, steps.length - 6))}
         {approval && surface.state === "waiting" ? (
           <View style={styles.actions}>
             {/* A search or a booking is several steps (type, press, click):
@@ -311,9 +366,9 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
             <GhostButton size="sm" variant="ghost" title={answer === "deny" ? "One moment" : "Deny"} onPress={() => void answerApproval("deny")} disabled={answer !== null} />
           </View>
         ) : null}
-        {view.actions.length > 0 && !(approval && surface.state === "waiting") ? (
+        {actions.length > 0 && !(approval && surface.state === "waiting") ? (
           <View style={styles.actions}>
-            {view.actions.map((a) => (
+            {actions.map((a) => (
               <GhostButton
                 key={a}
                 size="sm"
@@ -460,6 +515,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Ghost.text.primary,
   },
+  fold: { alignSelf: "flex-start", padding: 2 },
   record: {
     marginTop: Space.sm,
     gap: Space.sm,

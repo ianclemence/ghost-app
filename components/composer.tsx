@@ -281,7 +281,7 @@ export function Composer({
       <View style={styles.pair}>
         {canSend ? (
           <Animated.View entering={fade} exiting={trayOut}>
-            <Round label="Send. Joins what Ghost is doing" style={styles.glow} onPress={submit}>
+            <Round label="Queue message. Ghost reads it at its next step" style={styles.glow} onPress={submit}>
               <ArrowUp size={20} color={Ghost.text.primary} strokeWidth={2} />
             </Round>
           </Animated.View>

@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { GhostConfig, Message, type ServedBy } from "./ghostApi";
+import type { QueuedMessage } from "./queue";
+import type { RunStep } from "./runSteps";
 
 export type ConnectionState = "online" | "syncing" | "offline";
 export type MessageStatus =
@@ -19,6 +21,12 @@ export interface ExtendedMessage extends Message {
   // be only the start of what Ghost wrote. History reconciliation replaces it
   // with the Pod's full copy as soon as that is available.
   incomplete?: boolean;
+  // The row's identity in the list, fixed when it is created. Ids change when
+  // a reply is saved (a temp id becomes a real one); a key that changed with
+  // them would rebuild the row and replay its entrance as the reply finishes.
+  key?: string;
+  // What Ghost did while writing this reply: each tool call, in order.
+  steps?: RunStep[];
 }
 
 interface GhostStore {
@@ -53,6 +61,10 @@ interface GhostStore {
   clearStreamBuffer: () => void;
   appendStream: (chunk: string) => void;
   commitStream: () => void;
+
+  // Messages sent while Ghost works, until each is part of the conversation.
+  queued: QueuedMessage[];
+  setQueued: (next: QueuedMessage[] | ((prev: QueuedMessage[]) => QueuedMessage[])) => void;
 
   // Live status line ("Thinking", "Searching the web" from tool_status events)
   toolActivity: string | null;
@@ -151,21 +163,23 @@ export const useGhostStore = create<GhostStore>((set) => ({
   appendStream: (chunk) =>
     set((s) => {
       const newBuffer = s.streamBuffer + chunk;
-      const msgs = [...s.messages];
-      const lastIdx = msgs.length - 1;
-      if (
-        lastIdx >= 0 &&
-        msgs[lastIdx].role === "assistant" &&
-        isTempId(msgs[lastIdx].id)
-      ) {
-        msgs[lastIdx] = {
-          ...msgs[lastIdx],
-          content: newBuffer,
-          status: "streaming",
-        };
+      // The reply being written, wherever it is in the list: something sent
+      // while it streams must not take the words away from it.
+      let idx = -1;
+      for (let i = s.messages.length - 1; i >= 0; i--) {
+        const m = s.messages[i];
+        if (m.role === "assistant" && isTempId(m.id) && m.status === "streaming") {
+          idx = i;
+          break;
+        }
       }
+      if (idx < 0) return { streamBuffer: newBuffer };
+      const msgs = s.messages.slice();
+      msgs[idx] = { ...msgs[idx], content: newBuffer, status: "streaming" };
       return { streamBuffer: newBuffer, messages: msgs };
     }),
+  queued: [],
+  setQueued: (next) => set((s) => ({ queued: typeof next === "function" ? next(s.queued) : next })),
   toolActivity: null,
   setToolActivity: (label) => set({ toolActivity: label }),
   commitStream: () =>
@@ -179,12 +193,15 @@ export const useGhostStore = create<GhostStore>((set) => ({
           isTempId(m.id) && m.status !== "queued"
             ? {
                 ...m,
+                key: m.key ?? m.id,
                 id: makeMessageId(),
                 status: "completed" as MessageStatus,
               }
             : m,
         )
-        .filter((m) => !(m.role === "assistant" && m.content.trim() === ""));
+        // A reply with no words is dropped, unless Ghost did something on the
+        // way: the record of what it tried is worth keeping when it failed.
+        .filter((m) => !(m.role === "assistant" && m.content.trim() === "" && !(m.steps && m.steps.length > 0)));
       return {
         streamBuffer: "",
         isStreaming: false,

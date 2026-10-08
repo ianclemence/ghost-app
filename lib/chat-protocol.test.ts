@@ -91,3 +91,30 @@ describe("isQuarantinedChunk", () => {
     expect(isQuarantinedChunk("Details are [here](https://example.com/x) for you")).toBe(false);
   });
 });
+
+describe("run and queue frames", () => {
+  test("tool_start and tool_result carry what ran and how it ended", () => {
+    expect(parseStreamLine('data: {"type":"tool_start","id":"c1","tool":"web_search","detail":"nairobi"}')).toEqual({
+      kind: "tool_start", id: "c1", tool: "web_search", detail: "nairobi",
+    });
+    expect(parseStreamLine('data: {"type":"tool_result","id":"c1","tool":"exec","ok":false,"ms":420,"note":"exit 1"}')).toEqual({
+      kind: "tool_result", id: "c1", ok: false, ms: 420, note: "exit 1",
+    });
+  });
+
+  test("a frame without an id is not a step", () => {
+    expect(parseStreamLine('data: {"type":"tool_start","tool":"exec"}').kind).toBe("unknown");
+    expect(parseStreamLine('data: {"type":"tool_result","ok":true}').kind).toBe("unknown");
+  });
+
+  test("a result that does not say ok is not ok", () => {
+    const ev = parseStreamLine('data: {"type":"tool_result","id":"c1"}');
+    expect(ev).toMatchObject({ kind: "tool_result", ok: false, ms: null });
+  });
+
+  test("steer frames list the messages, strings only", () => {
+    expect(parseStreamLine('data: {"type":"steer_picked","contents":["a",3,"b"]}')).toEqual({ kind: "steer_picked", contents: ["a", "b"] });
+    expect(parseStreamLine('data: {"type":"steer_returned","contents":["x"]}')).toEqual({ kind: "steer_returned", contents: ["x"] });
+    expect(parseStreamLine('data: {"type":"steer_returned"}')).toEqual({ kind: "steer_returned", contents: [] });
+  });
+});

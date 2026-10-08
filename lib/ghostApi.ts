@@ -440,6 +440,13 @@ export interface SendOptions {
   onServedBy?: (served: ServedBy) => void;
   onSanitized?: (reason: string) => void;
   onToolStatus?: (tool: string, label: string) => void;
+  /** A tool call began (with what it was about) and, later, how it ended. */
+  onToolStart?: (id: string, tool: string, detail: string) => void;
+  onToolResult?: (id: string, ok: boolean, ms: number | null, note: string) => void;
+  /** Messages sent into this turn that the model has now read. */
+  onSteerPicked?: (contents: string[]) => void;
+  /** Messages sent into this turn that it finished without reading: send them as the next turn. */
+  onSteerReturned?: (contents: string[]) => void;
   onCancelled?: () => void;
   /**
    * The turn is over. `complete` is false when the connection ended without the
@@ -515,6 +522,10 @@ export type StreamEvent =
   | { kind: "raw"; text: string }
   | { kind: "lifecycle"; requestId: string; state: string; outcome: ChatOutcome | null }
   | { kind: "tool"; tool: string; label: string }
+  | { kind: "tool_start"; id: string; tool: string; detail: string }
+  | { kind: "tool_result"; id: string; ok: boolean; ms: number | null; note: string }
+  | { kind: "steer_picked"; contents: string[] }
+  | { kind: "steer_returned"; contents: string[] }
   | { kind: "clarify"; questionId: string; question: string; choices: string[]; requestId: string }
   | { kind: "phase"; phase: string; detail: string }
   | { kind: "served"; served: ServedBy }
@@ -564,6 +575,27 @@ export function parseStreamLine(line: string, fallbackRequestId?: string): Strea
   }
   if (type === "tool_status") {
     return { kind: "tool", tool: String(frame.tool ?? ""), label: String(frame.label ?? "") };
+  }
+  if (type === "tool_start") {
+    const id = String(frame.id ?? "");
+    const tool = String(frame.tool ?? "");
+    if (!id || !tool) return { kind: "unknown" };
+    return { kind: "tool_start", id, tool, detail: String(frame.detail ?? "") };
+  }
+  if (type === "tool_result") {
+    const id = String(frame.id ?? "");
+    if (!id) return { kind: "unknown" };
+    return {
+      kind: "tool_result",
+      id,
+      ok: frame.ok === true,
+      ms: typeof frame.ms === "number" ? frame.ms : null,
+      note: String(frame.note ?? ""),
+    };
+  }
+  if (type === "steer_picked" || type === "steer_returned") {
+    const contents = Array.isArray(frame.contents) ? (frame.contents as unknown[]).filter((c): c is string => typeof c === "string") : [];
+    return { kind: type, contents };
   }
   if (type === "phase") {
     const phase = String(frame.phase ?? "");
@@ -627,6 +659,19 @@ export function applyStreamEvent(
       session.needsBreak = true;
       opts.onToolStatus?.(ev.tool, ev.label);
       trace("stream_object", { type: "tool_status" });
+      return "continue";
+    case "tool_start":
+      session.needsBreak = true;
+      opts.onToolStart?.(ev.id, ev.tool, ev.detail);
+      return "continue";
+    case "tool_result":
+      opts.onToolResult?.(ev.id, ev.ok, ev.ms, ev.note);
+      return "continue";
+    case "steer_picked":
+      opts.onSteerPicked?.(ev.contents);
+      return "continue";
+    case "steer_returned":
+      opts.onSteerReturned?.(ev.contents);
       return "continue";
     case "text":
       emitText(ev.text);
@@ -911,6 +956,31 @@ export interface SteeringInput {
   sessionKey: string;
   content?: string;
   action: "redirect" | "interrupt" | "abort";
+}
+
+/**
+ * Sends a message into the running turn. "no_turn" means the Pod has nothing
+ * running to steer (the turn just ended): the message must go as a normal one.
+ */
+export async function steerTurn(
+  cfg: GhostConfig,
+  input: SteeringInput,
+): Promise<"sent" | "no_turn" | "failed"> {
+  try {
+    const res = await fetchWithTimeout(
+      `${baseURL(cfg)}/v1/steering`,
+      {
+        method: "POST",
+        headers: headers(cfg),
+        body: JSON.stringify({ session_key: input.sessionKey, content: input.content ?? "", action: input.action }),
+      },
+      8000,
+    );
+    if (res.ok) return "sent";
+    return res.status === 409 ? "no_turn" : "failed";
+  } catch {
+    return "failed";
+  }
 }
 
 export async function sendSteering(

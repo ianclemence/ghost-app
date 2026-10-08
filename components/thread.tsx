@@ -3,25 +3,17 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import Animated, {
-  Easing,
-  FadeIn,
-  FadeInDown,
-  FadeOut,
-  LinearTransition,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
 import { AlarmClock, Info, Repeat, TriangleAlert } from "lucide-react-native";
-import { Ghost, Inter, Radius, Space } from "@/constants/theme";
+import { Ghost, Inter, Space } from "@/constants/theme";
 import { MarkdownBubble, UserMarkdown } from "@/components/markdown-bubble";
 import { NoticeCard } from "@/components/notice-card";
+import { EmberDot } from "@/components/ember-dot";
+import { RunActivity } from "@/components/run-activity";
 import { clockTime } from "@/lib/thread";
 import type { ExtendedMessage } from "@/lib/store";
+
+export { EmberDot };
 
 const EASE = Easing.bezier(0.23, 1, 0.32, 1);
 
@@ -33,25 +25,6 @@ export const DaySeparator = memo(function DaySeparator({ label }: { label: strin
     </View>
   );
 });
-
-/** Ember breathing dot: Ghost's presence light. Static under reduced motion. */
-export function EmberDot({ size = 7, active = true }: { size?: number; active?: boolean }) {
-  const o = useSharedValue(1);
-  const reduce = useReducedMotion();
-  useEffect(() => {
-    if (!active || reduce) {
-      o.set(1);
-      return;
-    }
-    o.set(withRepeat(withSequence(withTiming(0.35, { duration: 700 }), withTiming(1, { duration: 700 })), -1, false));
-  }, [active, reduce, o]);
-  const style = useAnimatedStyle(() => ({ opacity: o.get() }));
-  return (
-    <Animated.View
-      style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: Ghost.emberDeep }, style]}
-    />
-  );
-}
 
 /** Copy-on-long-press with a tick of feedback. Returns handlers + state. */
 function useCopy(text: string) {
@@ -69,19 +42,6 @@ function useCopy(text: string) {
     t.current = setTimeout(() => setCopied(false), 1400);
   }, [text]);
   return { copied, copy };
-}
-
-function Copied({ align }: { align: "left" | "right" }) {
-  return (
-    <Animated.Text
-      entering={FadeIn.duration(120)}
-      exiting={FadeOut.duration(200)}
-      style={[styles.meta, { textAlign: align }]}
-      accessibilityLiveRegion="polite"
-    >
-      Copied
-    </Animated.Text>
-  );
 }
 
 function enter(reduce: boolean, animate: boolean) {
@@ -106,32 +66,38 @@ export const UserMessage = memo(function UserMessage({
   const reduce = useReducedMotion();
   const { copied, copy } = useCopy(message.content);
   const hasText = message.content.trim().length > 0;
-  // Tapping a message shows when it was sent, for the one you are wondering about.
-  // The time fades in and out in place: it mounts and unmounts below the
-  // bubble, and an instant mount used to snap the whole list. The row
-  // eases its height instead, so the message never jumps.
+  // Tapping a message shows when it was sent. The time is drawn beside the
+  // bubble, out of the layout: showing or hiding it changes no height, so the
+  // list never has a row grow under the finger that tapped it (which is what
+  // made every tap shove the thread). Same for "Copied".
   const [exact, setExact] = useState(false);
-  const reflow = reduce ? undefined : LinearTransition.duration(220).easing(EASE);
-  const fadeIn = reduce ? undefined : FadeIn.duration(200).easing(EASE);
+  const foot = copied ? "Copied" : exact ? clockTime(message.timestamp) : null;
+  const fadeIn = reduce ? undefined : FadeIn.duration(160).easing(EASE);
   const fadeOut = reduce ? undefined : FadeOut.duration(160).easing(EASE);
   return (
-    <Animated.View entering={enter(reduce, animate)} layout={reflow} style={[styles.userRow, groupStart && styles.groupGap]}>
+    <Animated.View entering={enter(reduce, animate)} style={[styles.userRow, groupStart && styles.groupGap]}>
       {showTime ? <Text style={styles.timeCaption} accessibilityLabel={`Sent ${clockTime(message.timestamp)}`}>{clockTime(message.timestamp)}</Text> : null}
       {attachments}
       {hasText || !attachments ? (
-      <Pressable
-        onPress={() => setExact((v) => !v)}
-        onLongPress={copy}
-        delayLongPress={350}
-        accessibilityRole="text"
-        accessibilityLabel={`You said: ${message.content}`}
-        accessibilityHint="Tap to see when you sent it. Long press to copy"
-        style={({ pressed }) => [styles.bubble, pressed && styles.bubblePressed]}
-      >
-        <UserMarkdown content={message.content} />
-      </Pressable>
+      <View style={styles.bubbleWrap}>
+        <Pressable
+          onPress={() => setExact((v) => !v)}
+          onLongPress={copy}
+          delayLongPress={350}
+          accessibilityRole="text"
+          accessibilityLabel={`You said: ${message.content}`}
+          accessibilityHint="Tap to see when you sent it. Long press to copy"
+          style={({ pressed }) => [styles.bubble, pressed && styles.bubblePressed]}
+        >
+          <UserMarkdown content={message.content} />
+        </Pressable>
+        {foot ? (
+          <Animated.Text key={foot} entering={fadeIn} exiting={fadeOut} style={styles.sideFoot} pointerEvents="none" accessibilityLiveRegion="polite">
+            {foot}
+          </Animated.Text>
+        ) : null}
+      </View>
       ) : null}
-      {exact ? <Animated.Text entering={fadeIn} exiting={fadeOut} style={[styles.meta, styles.metaRight]}>{clockTime(message.timestamp)}</Animated.Text> : null}
       {message.status === "queued" ? (
         <Text style={[styles.meta, styles.metaRight]} accessibilityLiveRegion="polite">
           Waiting to send · goes out when you&apos;re back online
@@ -139,7 +105,6 @@ export const UserMessage = memo(function UserMessage({
       ) : message.status === "failed" ? (
         <Text style={[styles.meta, styles.metaRight, styles.metaError]}>Not sent</Text>
       ) : null}
-      {copied ? <Copied align="right" /> : null}
     </Animated.View>
   );
 });
@@ -148,14 +113,14 @@ export const GhostMessage = memo(function GhostMessage({
   message,
   outOfTurn,
   showTime,
-  groupStart,
   phase,
   animate,
 }: {
   message: ExtendedMessage;
   outOfTurn: boolean;
   showTime: boolean;
-  groupStart: boolean;
+  /** Kept for callers; Ghost's rows always keep the same gap. */
+  groupStart?: boolean;
   /** Live phase text while this message is still being produced. */
   phase: string | null;
   animate: boolean;
@@ -165,24 +130,31 @@ export const GhostMessage = memo(function GhostMessage({
   const streaming = message.status === "streaming";
   const empty = !message.content.trim();
   const [exact, setExact] = useState(false);
-  // Same fade in place as user messages: the time eases open below the
-  // bubble instead of snapping the list.
-  const reflow = reduce ? undefined : LinearTransition.duration(220).easing(EASE);
-  const fadeIn = reduce ? undefined : FadeIn.duration(200).easing(EASE);
+  // The time and "Copied" are drawn under the message, in the space the row
+  // already keeps for them (see ghostRow): showing or hiding them changes no
+  // height, so tapping a reply never moves the thread.
+  const foot = copied ? "Copied" : exact && !streaming ? clockTime(message.timestamp) : null;
+  const fadeIn = reduce ? undefined : FadeIn.duration(160).easing(EASE);
   const fadeOut = reduce ? undefined : FadeOut.duration(160).easing(EASE);
+  const footer = foot ? (
+    <Animated.Text key={foot} entering={fadeIn} exiting={fadeOut} style={styles.underFoot} pointerEvents="none" accessibilityLiveRegion="polite">
+      {foot}
+    </Animated.Text>
+  ) : null;
   // What Ghost started by itself is a card, not a paragraph with a label.
   if (message.kind && !empty) {
     return (
-      <Animated.View entering={enter(reduce, animate)} layout={reflow} style={[styles.ghostRow, groupStart && styles.groupGap]}>
+      <Animated.View entering={enter(reduce, animate)} style={styles.ghostRow}>
         <Pressable onLongPress={copy} delayLongPress={350} accessibilityHint="Long press to copy">
           <NoticeCard kind={message.kind} time={clockTime(message.timestamp)} content={message.content} />
         </Pressable>
-        {copied ? <Copied align="left" /> : null}
+        {footer}
       </Animated.View>
     );
   }
+  const steps = message.steps ?? [];
   return (
-    <Animated.View entering={enter(reduce, animate)} layout={reflow} style={[styles.ghostRow, groupStart && styles.groupGap]}>
+    <Animated.View entering={enter(reduce, animate)} style={styles.ghostRow}>
       {message.kind ? (
         <KindLabel kind={message.kind} time={showTime || message.kind !== undefined ? clockTime(message.timestamp) : null} />
       ) : outOfTurn ? (
@@ -194,8 +166,9 @@ export const GhostMessage = memo(function GhostMessage({
       ) : showTime ? (
         <Text style={styles.timeCaption} accessibilityLabel={clockTime(message.timestamp)}>{clockTime(message.timestamp)}</Text>
       ) : null}
-      {empty && streaming ? (
-        <Thinking phase={phase} />
+      {steps.length > 0 ? <RunActivity steps={steps} live={streaming} startedAt={message.timestamp} /> : null}
+      {empty ? (
+        streaming && steps.length === 0 ? <Thinking phase={phase} /> : null
       ) : (
         <Pressable
           onPress={() => setExact((v) => !v)}
@@ -207,7 +180,7 @@ export const GhostMessage = memo(function GhostMessage({
           <MarkdownBubble content={message.content} streaming={streaming} />
         </Pressable>
       )}
-      {streaming && !empty && phase ? <Thinking phase={phase} compact /> : null}
+      {streaming && !empty && phase && steps.length === 0 ? <Thinking phase={phase} compact /> : null}
       {message.interrupted && !empty ? (
         // A reply that stops mid-sentence with nothing said about it reads
         // as Ghost trailing off. Say why, once, in the owner's words.
@@ -215,8 +188,7 @@ export const GhostMessage = memo(function GhostMessage({
           Stopped when your Pod restarted
         </Text>
       ) : null}
-      {exact && !streaming ? <Animated.Text entering={fadeIn} exiting={fadeOut} style={styles.meta}>{clockTime(message.timestamp)}</Animated.Text> : null}
-      {copied ? <Copied align="left" /> : null}
+      {footer}
     </Animated.View>
   );
 });
@@ -293,7 +265,6 @@ const styles = StyleSheet.create({
     marginTop: Space.xs,
   },
   bubble: {
-    maxWidth: "84%",
     backgroundColor: Ghost.bubble.user,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.glass.border,
@@ -305,9 +276,38 @@ const styles = StyleSheet.create({
   bubblePressed: {
     opacity: 0.85,
   },
+  // Ghost's rows always keep the same gap above them, and the time or
+  // "Copied" is drawn in the space under the row (underFoot), not added to it.
   ghostRow: {
     alignItems: "stretch",
-    marginTop: Space.xs,
+    marginTop: Space.lg,
+  },
+  // The bubble's own box: the time sits beside it, absolutely, in the margin.
+  bubbleWrap: {
+    maxWidth: "84%",
+    alignSelf: "flex-end",
+  },
+  sideFoot: {
+    position: "absolute",
+    right: "100%",
+    bottom: 8,
+    marginRight: 8,
+    width: 64,
+    textAlign: "right",
+    fontFamily: Inter.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: Ghost.text.tertiary,
+  },
+  underFoot: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    marginTop: 1,
+    fontFamily: Inter.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: Ghost.text.tertiary,
   },
   eyebrow: {
     flexDirection: "row",

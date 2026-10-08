@@ -174,7 +174,7 @@ export function buildThread(
     const resumed = prev !== null && gap > RESUME_GAP_MS;
     out.push({
       kind: "message",
-      key: m.id,
+      key: m.key ?? m.id,
       message: m,
       outOfTurn,
       showTime: outOfTurn || resumed,

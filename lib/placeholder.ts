@@ -24,7 +24,7 @@ export function composerPlaceholder(opts: {
   now?: Date;
 }): string {
   if (!opts.online) return "Sends when your Pod is back";
-  if (opts.streaming) return "Add to what I'm doing";
+  if (opts.streaming) return "Queue a message…";
   if (opts.firstTime) return "Tell me about your week";
   const now = opts.now ?? new Date();
   const h = now.getHours();

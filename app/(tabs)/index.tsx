@@ -18,6 +18,7 @@ import { readBase64 } from "@/lib/localFiles";
 import { useKeyboardPadding } from "@/hooks/use-keyboard-padding";
 import { Ghost, Radius, shadowRGB, Space, Fonts, Type } from "@/constants/theme";
 import { Composer } from "@/components/composer";
+import { QueueTray } from "@/components/queue-tray";
 import { AttachmentStrip } from "@/components/attachment-strip";
 import { SentAttachments } from "@/components/sent-attachments";
 import { composerPlaceholder } from "@/lib/placeholder";
@@ -42,6 +43,7 @@ import {
   phaseLabel,
   sendMessage,
   sendSteering,
+  steerTurn,
   voiceTranscribeUri,
   type Artifact,
   type ChatOutcome,
@@ -52,9 +54,12 @@ import {
   type SurfaceKind,
 } from "@/lib/ghostApi";
 import { cancelStatusLine, nextCancelState, type CancelPhase } from "@/lib/cancel";
-import { dispatchMode } from "@/lib/dispatch";
 import { applyLiveEffect, applySay, liveEffect, sayEffect } from "@/lib/liveTurn";
 import { mergeArtifacts } from "@/lib/artifacts";
+import { FollowController } from "@/lib/follow";
+import { createChunkBatcher } from "@/lib/chunkBatch";
+import { cancel as cancelQueued, endTurn, enqueue as enqueueQueued, hold as holdQueued, picked as pickedQueued, remove as removeQueued, returned as returnedQueued } from "@/lib/queue";
+import { endStep, legacyStep, settleSteps, startStep, type RunStep } from "@/lib/runSteps";
 import { parseSurfaceAnnouncement } from "@/lib/surfaces";
 import { acceptSurface, applySurfaceList, belongsTo, dropSurface, visibleSurfaces, type SurfaceMap } from "@/lib/turnSurfaces";
 import { normalizeCard, parseCardMessage, type RichCard } from "@/lib/cards";
@@ -70,10 +75,13 @@ import {
   loadOutbox,
   makeOutboxId,
   removeOutboxEntry,
+  type OutboxEntry,
 } from "@/lib/outbox";
 import { MAIN_SESSION_ID, useGhostStore } from "@/lib/store";
 import { loadLocalThread, saveLocalThread } from "@/lib/threadCache";
 import { conversationStarters } from "@/lib/starters";
+
+type SendResult = "sent" | "offline" | "failed" | "queued";
 
 function outcomeLine(outcome: ChatOutcome | null): string | null {
   switch (outcome) {
@@ -93,7 +101,7 @@ export default function ConversationScreen() {
   const router = useRouter();
   const ownRequestRef = useRef<string | null>(null);
   const reduceMotion = useReducedMotion();
-  const { config, messages, setMessages, appendMessage, removeMessage, updateMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
+  const { config, messages, queued, setMessages, appendMessage, removeMessage, updateMessage, isStreaming, setStreaming, appendStream, commitStream, clearStreamBuffer, toolActivity, setToolActivity, ghostName, setGhostName, connectionState } = useGhostStore();
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -122,6 +130,9 @@ export default function ConversationScreen() {
   // scroll event (new rows, rotation) still resolves it correctly.
   const edgeRemaining = useSharedValue(0);
   const scrollMetrics = useRef({ h: 0, y: 0 });
+  // From the follow controller: whether the thread is following the end, and
+  // whether the owner is far enough from it to need the way back.
+  const [following, setFollowing] = useState(true);
   const [awayFromLatest, setAwayFromLatest] = useState(false);
   const [unseen, setUnseen] = useState(0);
   // Photos and files ride along with the next message. The Pod detects each
@@ -148,6 +159,9 @@ export default function ConversationScreen() {
     return () => clearInterval(t);
   }, [bgRunning.length]);
   const flushingRef = useRef(false);
+  // Closes the tray when a turn ends; assigned where it is defined, read by
+  // code that runs before that point in the file.
+  const endOfTurnRef = useRef<(clean: boolean) => Promise<void>>(async () => {});
   const heldSaysRef = useRef<NonNullable<ReturnType<typeof sayEffect>>[]>([]);
   useEffect(() => {
     if (isStreaming || heldSaysRef.current.length === 0) return;
@@ -166,95 +180,64 @@ export default function ConversationScreen() {
   // failure drops the entry and surfaces the error like a normal send.
   // The runtime remains the authority on what was received — history is
   // refetched after every delivered turn.
+  // Deliver what is waiting, FIFO, one turn at a time, through the same path as
+  // any message (a live bubble, a streaming reply): it used to stream into
+  // nowhere and show up only when the whole turn was over. It sends only what
+  // is waiting for its turn: a message still being steered into the running
+  // turn is not sent twice.
+  const sendRef = useRef<(text: string, opts?: { entry?: OutboxEntry }) => Promise<SendResult>>(async () => "failed");
   const flushOutbox = useCallback(async () => {
     if (!config || flushingRef.current) return;
     flushingRef.current = true;
     try {
       for (;;) {
-        const pending = await loadOutbox().catch(() => []);
-        if (pending.length === 0) return;
-        const entry = pending[0];
-        setStreaming(true);
-        setToolActivity(null);
-        // Once the Pod has started answering it has the message. A stream that
-        // drops after that (a long browser task, the app in the background) is
-        // not a failed send: keeping the entry would leave "Waiting to send"
-        // on a message Ghost already acted on, and send it a second time.
-        let accepted = false;
-        const result = await new Promise<{ ok: boolean; auth: boolean }>((resolve) => {
-          void sendMessage(config, {
-            content: entry.content,
-            sessionKey: entry.sessionKey,
-            onChunk: (c) => { accepted = true; appendStream(c); },
-            onToolStatus: (t, label) => { accepted = true; setToolActivity(displayStatusForTool(t, label)); },
-            onDone: () => resolve({ ok: true, auth: false }),
-            onError: (e) => resolve({ ok: accepted && e.kind !== "auth", auth: e.kind === "auth" }),
-          });
+        if (useGhostStore.getState().isStreaming) return;
+        const tray = useGhostStore.getState().queued;
+        const pending = (await loadOutbox().catch(() => [] as OutboxEntry[])).filter((e) => {
+          const t = tray.find((q) => q.id === e.messageId);
+          return !t || t.state === "waiting";
         });
-        clearStreamBuffer();
-        if (!result.ok) {
-          if (result.auth) {
-            await removeOutboxEntry(entry.id).catch(() => {});
-            removeMessage(entry.messageId);
-            router.replace("/auth-failure" as never);
-          }
-          return;
-        }
-        await removeOutboxEntry(entry.id).catch(() => {});
-        removeMessage(entry.messageId);
-        await fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
-          .then(({ messages: h }) =>
-            setMessages(reconcileHistory(useGhostStore.getState().messages, h)),
-          )
-          .catch(() => {});
+        if (pending.length === 0) return;
+        const r = await sendRef.current(pending[0].content, { entry: pending[0] });
+        if (r !== "sent") return;
       }
     } finally {
-      setStreaming(false);
-      setToolActivity(null);
       flushingRef.current = false;
     }
-  }, [config, appendStream, clearStreamBuffer, removeMessage, setMessages, setStreaming, setToolActivity, router]);
+  }, [config]);
   const listRef = useRef<FlatList>(null);
-  // Whether the list should follow new content (a reply as it streams in).
-  // Only the owner's own finger changes it: a scroll event the list raises by
-  // growing is not the owner leaving the bottom.
-  const nearBottom = useRef(true);
-  const dragging = useRef(false);
+  // Following the end of the conversation is one decision, made in one place
+  // (lib/follow.ts): the owner's finger leaves the end, or comes back to it.
+  // Growth (a reply, a tool step, a card, the keyboard) never changes it, and
+  // while following, growth is answered with one snap per frame.
+  const followRef = useRef<FollowController | null>(null);
+  if (!followRef.current) {
+    followRef.current = new FollowController({
+      scrollToEnd: (animated) => listRef.current?.scrollToEnd({ animated }),
+      onChange: ({ following: f, away }) => {
+        setFollowing(f);
+        setAwayFromLatest(away);
+      },
+    });
+  }
+  const ctl = followRef.current;
+  useEffect(() => () => ctl.dispose(), [ctl]);
+  // Whether the owner's finger (or its momentum) is moving the thread.
+  const touch = useRef({ dragging: false, momentum: false });
   const openedRef = useRef(false);
-  // For a moment after the conversation opens (or comes back into view) rows
-  // are still measuring themselves, so each growth of the list would leave the
-  // newest message just off-screen. Until the owner touches the list, stay on
-  // the last message without animation, and don't treat the top as "load more".
-  const settleUntil = useRef(0);
-  const [settling, setSettling] = useState(true);
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Post-turn landing: after a reply completes, history is reconciled
-  // underneath (ids swap, rows re-sort). The position-maintainer stays off
-  // until that pass has landed at the bottom, or it pins the mid-thread
-  // viewport the stream never left and the reply appears to push you up.
-  const [landing, setLanding] = useState(false);
   // The dock floats over the thread (like ChatGPT's bar) instead of sitting
   // below it in flow. Measured so scrolled content always clears it.
   const [dockH, setDockH] = useState(180);
-  const settle = useCallback(() => {
-    settleUntil.current = Date.now() + 1800;
-    nearBottom.current = true;
-    setSettling(true);
-    if (settleTimer.current) clearTimeout(settleTimer.current);
-    settleTimer.current = setTimeout(() => setSettling(false), 1900);
-    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
-  }, []);
-  useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
-  // The keyboard pushes the floating dock up; keep the eye on the latest
-  // message instead of leaving it behind the raised dock.
+  // The owner wants the end (opening, sending, coming back to the screen).
+  const settle = useCallback(() => ctl.follow(), [ctl]);
+  // The keyboard moves the dock and resizes the list: stay on the end.
   useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", () => {
-      if (nearBottom.current) {
-        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
-      }
-    });
-    return () => show.remove();
-  }, []);
+    const subs = [
+      Keyboard.addListener("keyboardDidShow", () => ctl.onGrow()),
+      Keyboard.addListener("keyboardDidHide", () => ctl.onGrow()),
+    ];
+    return () => subs.forEach((x) => x.remove());
+  }, [ctl]);
   // The Pod is the authority on Ghost's browser. Its list is asked for on
   // opening, on coming back to the conversation or the app, and when a turn
   // ends, so a card that began while the app was away appears, and one whose
@@ -284,17 +267,6 @@ export default function ConversationScreen() {
     const sub = AppState.addEventListener("change", (st) => { if (st === "active") refreshSurfaces(); });
     return () => sub.remove();
   }, [refreshSurfaces]);
-  // Follow the stream: while the owner is at the bottom, every chunk of a
-  // reply keeps its newest line in view. The snap is unanimated so a fast
-  // stream never outruns it, and it stops only when the owner's own finger
-  // leaves the bottom (nearBottom), never because a row grew.
-  const streamingTail = messages.length > 0 ? messages[messages.length - 1].content : "";
-  useEffect(() => {
-    if (!isStreaming || !nearBottom.current) return;
-    const id = requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
-    return () => cancelAnimationFrame(id);
-  }, [isStreaming, streamingTail]);
-
   const dockPad = useKeyboardPadding(insets.bottom + Space.md);
 
   // First paint from the on-device copy of the thread, so the conversation
@@ -495,7 +467,7 @@ export default function ConversationScreen() {
       clearInterval(t);
       off();
     };
-  }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox, appendMessage, pullSurface]);
+  }, [config, setMessages, clearStreamBuffer, setGhostName, flushOutbox, appendMessage, pullSurface, settle]);
 
   // A reply cut off mid-stream is finished by the Pod, which keeps writing it
   // after the connection drops. Ask for the full copy a few times, with room for
@@ -531,6 +503,7 @@ export default function ConversationScreen() {
         const lastAsst = [...store.messages].reverse().find((m) => m.role === "assistant");
         if (lastAsst) updateMessage(lastAsst.id, { incomplete: true });
         store.commitStream();
+        void endOfTurnRef.current(false);
         settleIncomplete(config);
       })
       .catch(() => {});
@@ -560,218 +533,308 @@ export default function ConversationScreen() {
       .catch(() => updateMessage(messageId, { status: "queued" }));
   }, [removeMessage, updateMessage]);
 
-  const send = useCallback(async (text: string) => {
+  // Steering requests still on their way. A turn does not close its queue until
+  // each has been answered, or a message could be steered into the turn AND
+  // sent as the next one.
+  const steerInflight = useRef<Set<Promise<unknown>>>(new Set());
+  // Whether this Pod reports what it did (tool_start / steer_picked). One that
+  // does not cannot say a steered message was read, only accept it.
+  const podReportsPickup = useRef(false);
+
+  // The turn is over: what Ghost read joins the conversation, in order, and
+  // what it did not read goes out next. Exactly once each.
+  const endOfTurn = useCallback(async (clean: boolean) => {
+    await Promise.allSettled([...steerInflight.current]);
+    const st = useGhostStore.getState();
+    const end = endTurn(st.queued, { clean, podReportsPickup: podReportsPickup.current });
+    st.setQueued(end.tray);
+    const base = Date.now();
+    end.intoThread.forEach((q, i) => {
+      st.appendMessage({ id: `msg-${base + i}-${q.id.slice(-6)}`, key: q.id, role: "user", content: q.text, timestamp: base + i, status: "completed" });
+      if (q.outboxId) void removeOutboxEntry(q.outboxId).catch(() => {});
+    });
+    void flushOutbox().catch(() => {});
+  }, [flushOutbox]);
+  endOfTurnRef.current = endOfTurn;
+
+  // Typed while Ghost works: sent into the running turn so Ghost reads it at
+  // its next step, and kept in the tray (never lost, never ambiguous) until it
+  // is part of the conversation. If the turn cannot take it, it goes next.
+  const queueWhileBusy = useCallback(async (cfg: GhostConfig, q: string) => {
+    setDraft("");
+    setSendError(null);
+    const id = `q-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const entry: OutboxEntry = { id: makeOutboxId(), messageId: id, content: q, sessionKey: MAIN_SESSION_ID, createdAt: Date.now(), attempts: 0 };
+    let kept = true;
+    try {
+      kept = (await enqueueOutbox(entry)).some((e) => e.id === entry.id);
+    } catch {
+      // Not saved across a restart, but still queued for this run.
+    }
+    // The same words are already waiting: that is the same request.
+    if (!kept) return;
+    useGhostStore.getState().setQueued((l) => enqueueQueued(l, { id, text: q, now: entry.createdAt, outboxId: entry.id }));
+    const steer = steerTurn(cfg, { sessionKey: MAIN_SESSION_ID, content: q, action: "redirect" });
+    steerInflight.current.add(steer);
+    const r = await steer.finally(() => steerInflight.current.delete(steer));
+    if (r === "sent") return;
+    useGhostStore.getState().setQueued((l) => holdQueued(l, id));
+    // The turn ended while this was on its way: nothing will run it unless we do.
+    if (!useGhostStore.getState().isStreaming) void flushOutbox().catch(() => {});
+  }, [flushOutbox]);
+
+  const takeBack = useCallback((id: string) => {
+    const st = useGhostStore.getState();
+    const q = st.queued.find((x) => x.id === id);
+    if (!q) return;
+    st.setQueued((l) => cancelQueued(l, id));
+    if (q.outboxId) void removeOutboxEntry(q.outboxId).catch(() => {});
+    setDraft((d) => (d.trim() ? d : q.text));
+  }, []);
+
+  const send = useCallback(async (text: string, opts?: { entry?: OutboxEntry }): Promise<SendResult> => {
     // A paired Pod or an active local model — either makes Ghost reachable.
     if (!config) {
       // Honest limit with a path forward (the plus menu offers local setup and
       // Pod connection). Never silently drop the turn.
       setSendError("Connect your Ghost Pod first. Tap Ghost at the top.");
-      return;
+      return "failed";
     }
     const q = text.trim();
-    if (!q) return;
+    if (!q) return "failed";
+    const entry = opts?.entry;
 
-    // Send-while-working: never drop the owner's input. Steer it into the
-    // running turn so Ghost receives it now; if steering is unavailable,
-    // hand it to the offline outbox (visible, ordered, delivered on turn end).
-    if (isStreaming) {
-      setDraft("");
-      // One id for the bubble and its outbox entry: with two, delivering the
-      // entry removed a bubble that did not exist and left this one behind.
-      const steerId = `temp-${Date.now()}`;
-      appendMessage({ id: steerId, role: "user", content: q, timestamp: Date.now(), status: "sending" });
-      // Settle across append and layout: unanimated snaps to the post-layout
-      // end. A glide targets the pre-layout end and can park mid-thread.
-      settle();
-      dragging.current = false;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (nearBottom.current) listRef.current?.scrollToEnd({ animated: false });
-        });
-      });
-      const mode = dispatchMode(true, !!config);
-      if (mode === "steer") {
-        const ok = await sendSteering(config!, { sessionKey: MAIN_SESSION_ID, content: q, action: "redirect" });
-        if (ok) {
-          setSendError(null);
-          return;
-        }
-      }
-      // Steering failed or unavailable: queue it so it is delivered in order.
-      queueOrMerge(steerId, q);
-      setSendError(null);
-      return;
+    // Send-while-working: never drop the owner's input.
+    if (useGhostStore.getState().isStreaming && !entry) {
+      await queueWhileBusy(config, q);
+      return "queued";
     }
 
-    setDraft("");
-    setSendError(null);
+    if (!entry) {
+      setDraft("");
+      setSendError(null);
+    }
     setOutcome(null);
     setClarify(null);
     setCancelPhase((p) => nextCancelState(p, "settled"));
-    const tempUserId = `temp-${Date.now()}`;
-    const attached = config ? attachments : [];
-    setAttachments([]);
+    const store = useGhostStore.getState();
+    const attached = entry ? [] : attachments;
+    if (!entry) setAttachments([]);
     const photos = attached.filter((a) => a.kind === "image");
     const sentFiles = attached.filter((a) => a.kind === "file");
-    appendMessage({
-      id: tempUserId, role: "user", content: q, timestamp: Date.now(), status: "sending",
-      ...(photos.length ? { media_type: photos[0].mime, media_url: photos[0].uri, media_urls: photos.map((a) => a.uri) } : {}),
-      ...(sentFiles.length ? { files: sentFiles.map((a) => ({ name: a.name, size: a.size, mime: a.mime })) } : {}),
-    });
+    // A message that was waiting offline already has its bubble; one that was
+    // waiting in the tray becomes its bubble now.
+    const waiting = entry ? store.messages.find((m) => m.id === entry.messageId) : undefined;
+    const tempUserId = waiting ? waiting.id : `temp-${Date.now()}`;
+    if (waiting) {
+      updateMessage(waiting.id, { status: "sending" });
+    } else {
+      appendMessage({
+        id: tempUserId, role: "user", content: q, timestamp: Date.now(), status: "sending",
+        ...(photos.length ? { media_type: photos[0].mime, media_url: photos[0].uri, media_urls: photos.map((a) => a.uri) } : {}),
+        ...(sentFiles.length ? { files: sentFiles.map((a) => ({ name: a.name, size: a.size, mime: a.mime })) } : {}),
+      });
+    }
+    if (entry) store.setQueued((l) => removeQueued(l, entry.messageId));
     const asstId = `temp-a-${Date.now()}`;
     appendMessage({ id: asstId, role: "assistant", content: "", timestamp: Date.now(), status: "streaming" });
-    // Sending always returns the eye to the bottom, even from mid-thread.
-    // Settle across append, layout, and any keyboard movement: the
-    // position-maintainer stays off and every size change snaps to the end,
-    // so the new rows win over the old viewport. Unanimated: a glide targets
-    // the pre-layout end and can park mid-thread.
+    // Sending always returns the eye to the end, even from mid-thread.
     settle();
-    dragging.current = false;
-    // The new rows are not laid out yet; snap again once they have mounted.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (nearBottom.current) listRef.current?.scrollToEnd({ animated: false });
-      });
-    });
     setStreaming(true);
     setToolActivity(null);
     servedRef.current = null;
+    podReportsPickup.current = false;
     const requestId = `m-${Date.now()}`;
     ownRequestRef.current = requestId;
     const ctrl = new AbortController();
     localAbort.current = ctrl;
+    // What Ghost does on the way, in order; written onto the reply as it goes.
+    let steps: RunStep[] = [];
+    let stepEvents = false;
+    const writeSteps = () => updateMessage(asstId, { steps });
+    // Streamed text is handed over a few times a second, not per piece.
+    const batcher = createChunkBatcher((t) => appendStream(t));
     // Ghost has the message once it starts to answer, in words or in work (a
     // browser task shows status long before any text). A drop after that is
     // not an unsent message, and queueing it again ran the same request twice.
     let podHasIt = false;
-    await sendMessage(config, {
-      content: q,
-      ...(attached.length ? { attachments: attached } : {}),
-      requestId,
-      sessionKey: MAIN_SESSION_ID,
-      signal: ctrl.signal,
-      onChunk: (c) => { podHasIt = true; appendStream(c); },
-      onToolStatus: (t, label) => { podHasIt = true; setToolActivity(displayStatusForTool(t, label)); },
-      onPhase: (phase, detail) => {
-        podHasIt = true;
-        const label = phaseLabel(phase, detail);
-        if (label) setToolActivity(label);
-      },
-      onServedBy: (sb) => { servedRef.current = sb; },
-      onLifecycle: () => {},
-      onOutcome: (_rid, o) => setOutcome(o),
-      onClarify: (info) => setClarify({ questionId: info.questionId, question: info.question }),
-      onDone: (full, info) => {
-        // Commit-stream-first: the streamed text stays on screen. History
-        // is reconciled underneath (matched rows keep local content, new
-        // server rows append) instead of replacing the thread — so a just
-        // watched message never visibly rewrites itself.
-        // The runtime's terminal state still wins over any local
-        // assumption, including a pending cancellation request.
-        setCancelPhase((p) => nextCancelState(p, "settled"));
-        localAbort.current = null;
-        // Stamp where this ran before commit: the ids change underneath,
-        // but commitStream preserves the row fields.
-        if (servedRef.current) updateMessage(asstId, { servedBy: servedRef.current });
-        // The connection ended without the closing marker: what is on screen may
-        // be only the start of the reply. Keep it, mark it, and fetch the rest.
-        const cutOff = info?.complete === false && full.trim() !== "";
-        if (cutOff) updateMessage(asstId, { incomplete: true });
-        // Hold the landing: ids swap and rows re-sort below, so keep the
-        // position-maintainer off until the reconcile pass has snapped to
-        // the bottom. Otherwise it pins the mid-thread viewport and the
-        // finished reply appears to push you back up.
-        setLanding(true);
-        // Safety: never trap the list without its anchor if history fails.
-        setTimeout(() => setLanding(false), 8000);
-        commitStream();
-        if (cutOff && config) settleIncomplete(config);
-        if (config) {
-          fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
-            .then(({ messages: h }) => {
-              setMessages(reconcileHistory(useGhostStore.getState().messages, h));
-              requestAnimationFrame(() => {
-                if (nearBottom.current) listRef.current?.scrollToEnd({ animated: false });
-                setLanding(false);
-              });
-            })
-            .catch(() => setLanding(false));
-        } else {
-          setLanding(false);
-        }
-        if (!full.trim() && !clarify) {
-          removeMessage(asstId);
-          setSendError("Ghost didn't respond. Try rephrasing.");
-        }
-        setStreaming(false);
-        setToolActivity(null);
-        if (config) {
-          fetchPendingApprovals(config).then(setApprovals).catch(() => {});
-          // A successful send means connectivity is back: drain the outbox.
-          void flushOutbox().catch(() => {});
-          fetchArtifacts(config, MAIN_SESSION_ID)
-            .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
-            .catch(() => {});
-          // The turn is over: the Pod has settled its browser. Take its word.
-          refreshSurfaces();
-        }
-      },
-      onError: (e) => {
-        setCancelPhase((p) => nextCancelState(p, "settled"));
-        // If some of the reply had already arrived, Ghost did receive the
-        // message and was answering: keep what came, mark it incomplete, and
-        // fetch the rest. Deleting it, or sending the message again, would
-        // lose a reply or ask Ghost twice.
-        const partial = useGhostStore.getState().messages.find((m) => m.id === asstId)?.content ?? "";
-        if (e.kind !== "auth" && partial.trim() !== "") {
-          updateMessage(asstId, { incomplete: true });
+    const accept = () => {
+      if (podHasIt) return;
+      podHasIt = true;
+      if (entry) void removeOutboxEntry(entry.id).catch(() => {});
+    };
+    return await new Promise<SendResult>((resolve) => {
+      sendMessage(config, {
+        content: q,
+        ...(attached.length ? { attachments: attached } : {}),
+        requestId,
+        sessionKey: MAIN_SESSION_ID,
+        signal: ctrl.signal,
+        onChunk: (c) => { accept(); batcher.push(c); },
+        onToolStatus: (t, label) => {
+          accept();
+          setToolActivity(displayStatusForTool(t, label));
+          // An older Pod only says "a tool is running": still one step each.
+          if (!stepEvents) {
+            steps = legacyStep(steps, { tool: t, now: Date.now() });
+            writeSteps();
+          }
+        },
+        onToolStart: (id, tool, detail) => {
+          accept();
+          stepEvents = true;
+          podReportsPickup.current = true;
+          steps = startStep(steps, { id, tool, detail, now: Date.now() });
+          writeSteps();
+        },
+        onToolResult: (id, ok, ms, note) => {
+          steps = endStep(steps, { id, ok, ms: ms ?? undefined, note, now: Date.now() });
+          writeSteps();
+        },
+        onSteerPicked: (contents) => {
+          podReportsPickup.current = true;
+          const st = useGhostStore.getState();
+          st.setQueued((l) => pickedQueued(l, contents));
+          // Delivered: it must not be sent again if the app restarts.
+          for (const c of contents) {
+            const hit = st.queued.find((x) => x.state === "steering" && x.text.trim() === c.trim());
+            if (hit?.outboxId) void removeOutboxEntry(hit.outboxId).catch(() => {});
+          }
+        },
+        onSteerReturned: (contents) => {
+          podReportsPickup.current = true;
+          useGhostStore.getState().setQueued((l) => returnedQueued(l, contents));
+        },
+        onPhase: (phase, detail) => {
+          accept();
+          const label = phaseLabel(phase, detail);
+          if (label) setToolActivity(label);
+        },
+        onServedBy: (sb) => { servedRef.current = sb; },
+        onLifecycle: () => {},
+        onOutcome: (_rid, o) => setOutcome(o),
+        onClarify: (info) => setClarify({ questionId: info.questionId, question: info.question }),
+        onDone: (full, info) => {
+          batcher.flush();
+          // The runtime's terminal state still wins over any local
+          // assumption, including a pending cancellation request.
+          setCancelPhase((p) => nextCancelState(p, "settled"));
+          localAbort.current = null;
+          accept();
+          // Nothing is still "running" once the turn is over; the record stays.
+          steps = settleSteps(steps, Date.now());
+          if (steps.length > 0) writeSteps();
+          // Stamp where this ran before commit: the ids change underneath,
+          // but commitStream preserves the row fields.
+          if (servedRef.current) updateMessage(asstId, { servedBy: servedRef.current });
+          // The connection ended without the closing marker: what is on screen may
+          // be only the start of the reply. Keep it, mark it, and fetch the rest.
+          const cutOff = info?.complete === false && full.trim() !== "";
+          if (cutOff) updateMessage(asstId, { incomplete: true });
+          // Commit-stream-first: the streamed text stays on screen. History
+          // is reconciled underneath (matched rows keep local content, new
+          // server rows append) instead of replacing the thread — so a just
+          // watched message never visibly rewrites itself.
           commitStream();
+          if (cutOff && config) settleIncomplete(config);
+          if (config) {
+            fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
+              .then(({ messages: h }) => setMessages(reconcileHistory(useGhostStore.getState().messages, h)))
+              .catch(() => {});
+          }
+          if (!full.trim() && steps.length === 0 && !clarify) {
+            removeMessage(asstId);
+            setSendError("Ghost didn't respond. Try rephrasing.");
+          } else if (!full.trim() && steps.length > 0 && !clarify) {
+            setSendError("Ghost didn't finish. What it tried is above.");
+          }
           setStreaming(false);
           setToolActivity(null);
-          localAbort.current = null;
-          setSendError(null);
-          if (config) settleIncomplete(config);
-          return;
-        }
-        if (e.kind !== "auth" && podHasIt) {
-          // It was working on it when the connection dropped. Not unsent: show
-          // what is there once the Pod's record catches up.
+          if (config) {
+            fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+            fetchArtifacts(config, MAIN_SESSION_ID)
+              .then((fresh) => setArtifacts((prev) => mergeArtifacts(prev, fresh)))
+              .catch(() => {});
+            // The turn is over: the Pod has settled its browser. Take its word.
+            refreshSurfaces();
+          }
+          resolve("sent");
+          void endOfTurn(info?.complete !== false);
+        },
+        onError: (e) => {
+          batcher.flush();
+          setCancelPhase((p) => nextCancelState(p, "settled"));
+          steps = settleSteps(steps, Date.now());
+          if (steps.length > 0) writeSteps();
+          // If some of the reply had already arrived, Ghost did receive the
+          // message and was answering: keep what came, mark it incomplete, and
+          // fetch the rest. Deleting it, or sending the message again, would
+          // lose a reply or ask Ghost twice.
+          const partial = useGhostStore.getState().messages.find((m) => m.id === asstId)?.content ?? "";
+          const finish = (r: SendResult, clean = false) => {
+            setStreaming(false);
+            setToolActivity(null);
+            localAbort.current = null;
+            resolve(r);
+            void endOfTurn(clean);
+          };
+          if (e.kind !== "auth" && partial.trim() !== "") {
+            updateMessage(asstId, { incomplete: true });
+            commitStream();
+            setSendError(null);
+            if (config) settleIncomplete(config);
+            finish("sent");
+            return;
+          }
+          if (e.kind !== "auth" && podHasIt) {
+            // It was working on it when the connection dropped. Not unsent: show
+            // what is there once the Pod's record catches up.
+            if (steps.length > 0) commitStream();
+            else removeMessage(asstId);
+            setSendError(null);
+            updateMessage(tempUserId, { status: "completed" });
+            if (config) settleIncomplete(config);
+            finish("sent");
+            return;
+          }
           removeMessage(asstId);
-          setStreaming(false);
-          setToolActivity(null);
-          localAbort.current = null;
-          setSendError(null);
-          updateMessage(tempUserId, { status: "completed" });
-          if (config) settleIncomplete(config);
-          return;
-        }
+          if (e.kind === "auth") {
+            if (entry) {
+              void removeOutboxEntry(entry.id).catch(() => {});
+              removeMessage(tempUserId);
+            }
+            finish("failed");
+            router.replace("/auth-failure" as never);
+            return;
+          }
+          if (config && isRetryableSendError(e.kind)) {
+            // Offline, not failed: queue for FIFO delivery on reconnect.
+            // The message stays visible, marked queued — never silently lost.
+            if (entry) updateMessage(tempUserId, { status: "queued" });
+            else queueOrMerge(tempUserId, q);
+            setSendError(null);
+            finish("offline");
+            return;
+          }
+          if (entry) void removeOutboxEntry(entry.id).catch(() => {});
+          updateMessage(tempUserId, { status: "failed" });
+          setSendError(e.message);
+          finish("failed");
+        },
+      }).catch((e: unknown) => {
+        // The send itself threw before streaming began.
+        batcher.cancel();
+        localAbort.current = null;
+        setCancelPhase((p) => nextCancelState(p, "settled"));
         removeMessage(asstId);
         setStreaming(false);
         setToolActivity(null);
-        localAbort.current = null;
-        if (e.kind === "auth") {
-          router.replace("/auth-failure" as never);
-          return;
-        }
-        if (config && isRetryableSendError(e.kind)) {
-          // Offline, not failed: queue for FIFO delivery on reconnect.
-          // The message stays visible, marked queued — never silently lost.
-          queueOrMerge(tempUserId, q);
-          setSendError(null);
-          return;
-        }
-        setSendError(e.message);
-      },
-    }).catch((e: unknown) => {
-      // The send itself threw before streaming began.
-      localAbort.current = null;
-      setCancelPhase((p) => nextCancelState(p, "settled"));
-      removeMessage(asstId);
-      setStreaming(false);
-      setToolActivity(null);
-      setSendError(e instanceof Error ? e.message : String(e));
+        setSendError(e instanceof Error ? e.message : String(e));
+        resolve("failed");
+      });
     });
-  }, [config, isStreaming, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, flushOutbox, settleIncomplete, refreshSurfaces, queueOrMerge, settle]);
+  }, [config, attachments, appendMessage, removeMessage, updateMessage, setStreaming, setToolActivity, appendStream, commitStream, setMessages, clarify, router, settleIncomplete, refreshSurfaces, queueOrMerge, queueWhileBusy, endOfTurn, settle]);
+  sendRef.current = send;
 
   const stopTurn = useCallback(async () => {
     if (!isStreaming) return;
@@ -891,10 +954,15 @@ export default function ConversationScreen() {
   useEffect(() => {
     // Count what arrives while the owner is reading back, for the pill.
     const n = messages.length;
-    if (n > lastCount.current && !nearBottom.current) setUnseen((u) => u + (n - lastCount.current));
+    if (n > lastCount.current && !ctl.following) setUnseen((u) => u + (n - lastCount.current));
     lastCount.current = n;
-  }, [messages.length]);
+  }, [messages.length, ctl]);
 
+  // When the owner last spoke. A number, so rows are not redrawn per streamed word.
+  const lastUserAt = React.useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "user") return messages[i].timestamp;
+    return 0;
+  }, [messages]);
   const renderItem = useCallback(({ item }: { item: ThreadItem }) => {
     if (item.kind === "day") return <DaySeparator label={item.label} />;
     if (item.kind === "artifact") {
@@ -912,6 +980,7 @@ export default function ConversationScreen() {
           ownDeviceId={config.deviceID}
           approval={approvalFor(item.tracked.surface)}
           answering={answering}
+          latest={item.tracked.at >= lastUserAt}
           onApprovalResolved={refreshAfterApproval}
           onSurface={onSurface}
           onGone={onSurfaceGone}
@@ -947,7 +1016,7 @@ export default function ConversationScreen() {
         />
       );
     }
-    if (m.status === "streaming" && !m.content.trim() && browsing) return null;
+    if (m.status === "streaming" && !m.content.trim() && browsing && !m.steps?.length) return null;
     return (
       <GhostMessage
         message={m}
@@ -959,7 +1028,7 @@ export default function ConversationScreen() {
         animate={animate}
       />
     );
-  }, [toolActivity, config, send, browsing, onSurface, onSurfaceGone, approvalFor, answering, refreshAfterApproval]);
+  }, [toolActivity, config, send, browsing, onSurface, onSurfaceGone, approvalFor, answering, refreshAfterApproval, lastUserAt]);
 
   const statusLine = outcomeLine(outcome);
   const cancelLine = cancelStatusLine(cancelPhase);
@@ -994,10 +1063,8 @@ export default function ConversationScreen() {
   }, [askKey, isStreaming, podOnline]);
 
   const jumpToLatest = () => {
-    nearBottom.current = true;
     setUnseen(0);
-    setAwayFromLatest(false);
-    listRef.current?.scrollToEnd({ animated: true });
+    ctl.follow({ animated: true });
   };
 
   return (
@@ -1069,16 +1136,17 @@ export default function ConversationScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          // Keeps your place when earlier messages are added above. It is off
-          // while the list opens and while a reply streams: the anchor pins to
-          // the first visible row, which is exactly what fights following the
-          // newest line of a growing reply.
-          maintainVisibleContentPosition={settling || isStreaming || landing ? undefined : { minIndexForVisible: 0 }}
+          // Keeps your place when anything above it changes (earlier messages
+          // loading, a card folding) while you read back. Off while following
+          // the end: there the anchor is the end, and the follow controller
+          // owns it.
+          maintainVisibleContentPosition={following ? undefined : { minIndexForVisible: 0 }}
           // Render the whole opening page at once. With the default of ten,
           // only the oldest rows exist when we jump to "the end", the end is
           // a guess, and the list lands in the middle of the thread.
           initialNumToRender={60}
-          onLayout={() => { if (Date.now() < settleUntil.current) listRef.current?.scrollToEnd({ animated: false }); }}
+          // The list's own size changed (the keyboard, the dock): stay on the end.
+          onLayout={() => ctl.onGrow()}
           ListHeaderComponent={
             hasMore ? (
               <View style={styles.earlier}>
@@ -1092,33 +1160,32 @@ export default function ConversationScreen() {
             edgeY.set(contentOffset.y);
             scrollMetrics.current = { h: layoutMeasurement.height, y: contentOffset.y };
             edgeRemaining.set(Math.max(0, contentSize.height - (layoutMeasurement.height + contentOffset.y)));
-            const atBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
-            if (dragging.current) nearBottom.current = atBottom;
-            if (atBottom && unseen > 0) setUnseen(0);
-            const away = layoutMeasurement.height + contentOffset.y < contentSize.height - 600;
-            if (away !== awayFromLatest) setAwayFromLatest(away);
+            ctl.onScroll({
+              offset: contentOffset.y,
+              viewport: layoutMeasurement.height,
+              content: contentSize.height,
+              byHand: touch.current.dragging || touch.current.momentum,
+            });
+            if (ctl.following && unseen > 0) setUnseen(0);
             const sc = contentOffset.y > 4;
             if (sc !== scrolled) setScrolled(sc);
-            if (contentOffset.y < 160 && Date.now() > settleUntil.current) void loadEarlier();
+            // Earlier messages load when the owner has gone back to read them,
+            // not while the list is still settling at its top on opening.
+            if (contentOffset.y < 160 && !ctl.following) void loadEarlier();
           }}
-          onScrollBeginDrag={() => { dragging.current = true; settleUntil.current = 0; }}
+          onScrollBeginDrag={() => { touch.current.dragging = true; }}
           onScrollEndDrag={(e) => {
-            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-            nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
+            // A flick hands over to momentum; a still finger is the end of it.
+            if (Math.abs(e.nativeEvent.velocity?.y ?? 0) < 0.05) touch.current.dragging = false;
           }}
-          onMomentumScrollEnd={(e) => {
-            dragging.current = false;
-            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-            nearBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
-          }}
+          onMomentumScrollBegin={() => { touch.current.momentum = true; }}
+          onMomentumScrollEnd={() => { touch.current.dragging = false; touch.current.momentum = false; }}
           onContentSizeChange={(w, h) => {
             const m = scrollMetrics.current;
             edgeRemaining.set(Math.max(0, h - (m.h + m.y)));
-            // While a reply streams in, stay on its newest line. The snap is
-            // unanimated so it can never lag a fast stream; an animated glide
-            // is for the moments that are not a live reply.
-            if (Date.now() < settleUntil.current) { listRef.current?.scrollToEnd({ animated: false }); return; }
-            if (nearBottom.current) listRef.current?.scrollToEnd({ animated: false });
+            // Any growth (a streamed word, a tool step, a card opening) while
+            // following is one snap to the end, once per frame.
+            ctl.onGrow();
           }}
         />
         <View pointerEvents="none" style={[styles.edge, { top: insets.top + 60 }]}>
@@ -1127,8 +1194,8 @@ export default function ConversationScreen() {
         <BottomEdge remaining={edgeRemaining} />
         </View>
       )}
-      <Animated.View onLayout={(e) => setDockH(e.nativeEvent.layout.height)} style={[styles.dock, dockPad]}>
-        {awayFromLatest || unseen > 0 ? (
+      <Animated.View onLayout={(e) => { const h = e.nativeEvent.layout.height; setDockH((prev) => (Math.abs(prev - h) < 1 ? prev : h)); }} style={[styles.dock, dockPad]}>
+        {awayFromLatest || (unseen > 0 && !following) ? (
           <Animated.View entering={reduceMotion ? undefined : FadeInDown.duration(200).springify().damping(18)} exiting={reduceMotion ? undefined : FadeOut.duration(140)} style={styles.jumpWrap} pointerEvents="box-none">
             <Pressable
               onPress={jumpToLatest}
@@ -1137,7 +1204,7 @@ export default function ConversationScreen() {
               accessibilityLabel={unseen > 0 ? `${unseen} new. Jump to latest` : "Jump to latest"}
             >
               <ArrowDown size={14} color={Ghost.text.primary} />
-              {unseen > 0 ? <Text style={styles.jumpText}>{`${unseen} new`}</Text> : null}
+              {unseen > 0 ? <Text style={styles.jumpText}>{`${unseen} new`}</Text> : isStreaming ? <Text style={styles.jumpText}>Latest</Text> : null}
             </Pressable>
           </Animated.View>
         ) : null}
@@ -1176,6 +1243,7 @@ export default function ConversationScreen() {
         {cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{cancelLine}</Text> : null}
         {statusLine && !clarify && !cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{statusLine}</Text> : null}
         {sendError ? <Text style={styles.error} accessibilityLiveRegion="polite">{sendError}</Text> : null}
+        <QueueTray items={queued} onCancel={takeBack} />
         <AttachmentStrip items={attachments} onRemove={(i) => setAttachments((l) => l.filter((_, j) => j !== i))} />
         <Composer
           value={draft}
