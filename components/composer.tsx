@@ -22,7 +22,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View, type TextInput as RNTextInput } from "react-native";
 import { Text } from "@/components/text";
 
-import { Ghost, Radius, shadowRGB, Space, Type } from "@/constants/theme";
+import { Ghost, Radius, Space, Type } from "@/constants/theme";
 import { composerPlaceholder } from "@/lib/placeholder";
 import { showSuggestion } from "@/lib/suggestion";
 

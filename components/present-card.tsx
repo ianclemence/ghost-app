@@ -97,7 +97,7 @@ export function PresentCard({
 }
 
 const styles = StyleSheet.create({
-  card: { marginVertical: Space.sm, gap: Space.md },
+  card: { gap: Space.md },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 20 },
   resolvedTag: { fontSize: 12.5, color: Ghost.status.success, fontWeight: "500" },
   title: { fontFamily: Fonts.voice, fontSize: 30, lineHeight: 36, letterSpacing: -0.55, color: Ghost.text.primary, marginTop: -Space.xs },
@@ -110,7 +110,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     minHeight: 44,
-    marginVertical: Space.xs,
     paddingHorizontal: 16,
     borderRadius: 22,
     borderCurve: "continuous",

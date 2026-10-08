@@ -85,13 +85,12 @@ export function NoticeCard({
 }
 
 const styles = StyleSheet.create({
-  card: { marginVertical: Space.xs, gap: Space.sm },
+  card: { gap: Space.sm },
   settled: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     minHeight: 44,
-    marginVertical: Space.xs,
     paddingHorizontal: 16,
     borderRadius: 22,
     borderCurve: "continuous",

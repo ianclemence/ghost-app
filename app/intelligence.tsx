@@ -19,7 +19,6 @@ import {
   testProviderConnection,
   type DoctorCheck,
   type IntelligenceConfig,
-  type ModelPreset,
   type ModelState,
   type ProvidersState,
   type RoutingPrefs,

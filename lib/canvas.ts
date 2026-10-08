@@ -86,7 +86,7 @@ window.addEventListener("unhandledrejection",function(e){err((e.reason&&e.reason
 var ce=console.error;console.error=function(){try{err(Array.prototype.join.call(arguments," "))}catch(e){}return ce&&ce.apply(console,arguments)};
 function lum(c){var m=/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?\\)/.exec(c||"");if(!m)return null;if(m[4]!==undefined&&parseFloat(m[4])<0.05)return null;var v=[m[1],m[2],m[3]].map(function(x){x=x/255;return x<=0.03928?x/12.92:Math.pow((x+0.055)/1.055,2.4)});return 0.2126*v[0]+0.7152*v[1]+0.0722*v[2]}
 function surface(){if(!window.__GHOST_INLINE__)return;var d=document.documentElement,b=document.body;if(!b)return;var cb=getComputedStyle(b).backgroundColor,cd=getComputedStyle(d).backgroundColor;var l=lum(cb);var col=cb;if(l===null){l=lum(cd);col=cd}
-if(l===null||l<0.25){d.style.setProperty("background","transparent","important");b.style.setProperty("background","transparent","important");say({type:"surface",dark:true})}else{say({type:"surface",dark:false,color:col})}}
+if(l===null){say({type:"surface",dark:true})}else{say({type:"surface",dark:l<0.25,color:col})}}
 var last=0;
 function height(){var d=document.documentElement,b=document.body;var v=Math.ceil(Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0));if(Math.abs(v-last)>1){last=v;say({type:"height",value:v})}}
 function watch(){height();try{var r=new ResizeObserver(height);r.observe(document.documentElement);if(document.body)r.observe(document.body)}catch(e){}}
@@ -110,8 +110,8 @@ export function buildCanvasDocument(html: string, opts: { inline?: boolean } = {
   const source = html ?? "";
   if (source.length === 0 || source.length > CANVAS_MAX_CHARS) return null;
   const inject =
-    // In the chat the page sits on the conversation, not in a box of its own:
-    // when it is a dark page the bridge makes its ground transparent (see surface()).
+    // In the chat the page runs in a window whose frame takes the page's own
+    // ground colour (see surface()), so its edges and bar match what it drew.
     (opts.inline ? `<script>window.__GHOST_INLINE__=true</script>` : "") +
     `<meta http-equiv="Content-Security-Policy" content="${canvasCsp().replace(/"/g, "&quot;")}">` +
     (HAS_VIEWPORT.test(source) ? "" : `<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`) +
@@ -147,7 +147,8 @@ export function parseCanvasMessage(raw: unknown): CanvasMessage | null {
   if (o.type === "surface" && typeof o.dark === "boolean") {
     // The page's own ground colour, only ever a plain rgb()/rgba() value.
     const ok = typeof o.color === "string" && /^rgba?\(\d{1,3},\s*\d{1,3},\s*\d{1,3}(,\s*[\d.]+)?\)$/.test(o.color);
-    return o.dark ? { type: "surface", dark: true } : ok ? { type: "surface", dark: false, color: o.color as string } : { type: "surface", dark: true };
+    if (!ok) return { type: "surface", dark: true };
+    return { type: "surface", dark: o.dark, color: o.color as string };
   }
   if (o.type === "height" && typeof o.value === "number" && Number.isFinite(o.value) && o.value >= 0) {
     return { type: "height", value: Math.min(Math.round(o.value), CANVAS_MAX_REPORTED_HEIGHT) };
@@ -157,6 +158,20 @@ export function parseCanvasMessage(raw: unknown): CanvasMessage | null {
     return message ? { type: "error", message } : null;
   }
   return null;
+}
+
+/**
+ * A page's ground colour (an rgb()/rgba() value it reported, or a #hex) at
+ * another opacity, for the fade where a long page runs on below its window.
+ */
+export function withAlpha(color: string, a: number): string {
+  const rgb = /^rgba?\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})/.exec(color);
+  if (rgb) return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${a})`;
+  const h = color.replace("#", "");
+  const hex = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return `rgba(11, 11, 16, ${a})`;
+  const n = parseInt(hex, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
 /** The height the inline card gives the page: its own, within what a chat can hold. */

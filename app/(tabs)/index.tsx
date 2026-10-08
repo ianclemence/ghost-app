@@ -1340,8 +1340,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // Every card in the thread sits one message-gap below what came before it.
   inlineCard: {
-    marginTop: Space.md,
+    marginTop: Space.lg,
   },
   empty: {
     flex: 1,

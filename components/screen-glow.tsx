@@ -66,7 +66,6 @@ function Layer({ spots, dx, dy, seconds }: { spots: Spot[]; dx: number; dy: numb
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const GRAIN = require("../assets/grain.png");
 const GRAIN_PX = 512;
 

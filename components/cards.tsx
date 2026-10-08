@@ -32,6 +32,10 @@ function remember(config: GhostConfig, card: RichCard, actionId: string) {
   void resolveCard(config, card.id, actionId);
 }
 
+function isDestructive(a: CardAction): boolean {
+  return a.style === "destructive" || /deny|reject|dismiss|cancel/i.test(a.id) || /deny|reject|dismiss|cancel/i.test(a.label);
+}
+
 function ActionRow({ card, config, onDone }: { card: RichCard; config: GhostConfig; onDone: (id: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,13 +43,16 @@ function ActionRow({ card, config, onDone }: { card: RichCard; config: GhostConf
   return (
     <View style={styles.actionsWrap}>
       <View style={styles.actions}>
-        {card.actions.map((a) => {
-          const destructive = a.style === "destructive" || /deny|reject|dismiss|cancel/i.test(a.id) || /deny|reject|dismiss|cancel/i.test(a.label);
+        {card.actions.map((a, i, all) => {
+          const destructive = isDestructive(a);
+          // One action glows: the first one that goes ahead. The rest are glass.
+          const lead = !destructive && all.findIndex((x) => !isDestructive(x)) === i;
           return (
             <GhostButton
               key={a.id}
+              size="sm"
               title={busy ? "Working…" : a.label}
-              variant={destructive ? "danger" : "primary"}
+              variant={destructive ? "danger" : lead ? "primary" : "secondary"}
               disabled={busy}
               onPress={() => {
                 // A proposal is decided by identity: Ghost mints and records the
@@ -230,7 +237,7 @@ export function RichCardView({
         <CardShell title={card.title} body={card.body}>
           {verb ? <GhostText type="footnote" style={styles.meta}>Goal {verb}</GhostText> : null}
           <View style={styles.actions}>
-            <GhostButton title="Dismiss" variant="ghost" onPress={() => { remember(config, card, "dismiss"); onDone(card.id); }} />
+            <GhostButton title="Dismiss" size="sm" variant="secondary" onPress={() => { remember(config, card, "dismiss"); onDone(card.id); }} />
           </View>
         </CardShell>
       );
@@ -239,14 +246,19 @@ export function RichCardView({
       const items = Array.isArray(card.data?.items) ? card.data.items : [];
       return (
         <CardShell title={card.title} body={card.body}>
-          {items.map((it, i) => {
-            const r = it as Record<string, unknown>;
-            return (
-              <GhostText key={i} type="body" style={styles.item}>
-                • {String(r?.name ?? r ?? "")}{r?.price ? `: ${String(r.price)}` : ""}
-              </GhostText>
-            );
-          })}
+          {items.length > 0 ? (
+            <View style={styles.items}>
+              {items.map((it, i) => {
+                const r = (it && typeof it === "object" ? it : { name: it }) as Record<string, unknown>;
+                return (
+                  <View key={i} style={[styles.itemRow, i < items.length - 1 && styles.itemLine]}>
+                    <Text style={styles.itemName} numberOfLines={2}>{String(r.name ?? "")}</Text>
+                    {r.price ? <Text style={styles.itemPrice}>{String(r.price)}</Text> : null}
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
           <ActionRow card={card} config={config} onDone={onDone} />
         </CardShell>
       );
@@ -294,9 +306,7 @@ export function RichCardView({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    marginVertical: Space.sm,
-  },
+  card: {},
   title: {
     fontFamily: Fonts.voice,
     fontSize: 25,
@@ -314,9 +324,19 @@ const styles = StyleSheet.create({
   meta: {
     color: Ghost.text.tertiary,
   },
-  item: {
-    color: Ghost.text.primary,
+  items: {
+    marginTop: Space.xs,
+    borderRadius: 18,
+    borderCurve: "continuous",
+    backgroundColor: "rgba(255,255,255,0.045)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+    overflow: "hidden",
   },
+  itemRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  itemLine: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Ghost.border.subtle },
+  itemName: { flex: 1, fontSize: 15, lineHeight: 20, fontWeight: "400", color: Ghost.text.primary },
+  itemPrice: { fontSize: 14.5, fontWeight: "500", color: Ghost.text.secondary, fontVariant: ["tabular-nums"] },
   actions: {
     flexDirection: "row",
     gap: 8,

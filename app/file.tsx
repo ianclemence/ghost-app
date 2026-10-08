@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import { showDialog } from "@/lib/dialog";
 import { Text } from "@/components/text";
 import { Download, Trash2 } from "lucide-react-native";

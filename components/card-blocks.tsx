@@ -14,7 +14,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react-native";
-import { alpha, Aurora, Fonts, Ghost, Space } from "@/constants/theme";
+import { alpha, Aurora, Fonts, Ghost } from "@/constants/theme";
 import { CodeBlock } from "@/components/code-block";
 import type { Block, StepState, Tone } from "@/lib/blocks";
 

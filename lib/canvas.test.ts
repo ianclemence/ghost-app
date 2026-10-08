@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  withAlpha,
   CANVAS_MAX_CHARS,
   buildCanvasDocument,
   canvasCsp,
@@ -150,12 +151,24 @@ describe("asking Ghost", () => {
 });
 
 describe("the page's surface", () => {
-  test("only a plain colour comes through; a dark page needs none", () => {
+  test("only a plain colour comes through, dark or light", () => {
     expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: true }))).toEqual({ type: "surface", dark: true });
+    expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: true, color: "rgb(15, 23, 42)" }))).toEqual({ type: "surface", dark: true, color: "rgb(15, 23, 42)" });
     expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: false, color: "rgb(250, 250, 250)" }))).toEqual({ type: "surface", dark: false, color: "rgb(250, 250, 250)" });
     // A colour that is not a plain rgb() value is never used as one.
     expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: false, color: "url(javascript:alert(1))" }))).toEqual({ type: "surface", dark: true });
     expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: "yes" }))).toBeNull();
+  });
+
+  test("a page's ground fades to clear in its own colour", () => {
+    expect(withAlpha("rgb(250, 250, 250)", 0)).toBe("rgba(250, 250, 250, 0)");
+    expect(withAlpha("rgba(15, 23, 42, 1)", 0.5)).toBe("rgba(15, 23, 42, 0.5)");
+    expect(withAlpha("#0b0b10", 1)).toBe("rgba(11, 11, 16, 1)");
+    expect(withAlpha("nonsense", 0)).toBe("rgba(11, 11, 16, 0)");
+  });
+
+  test("the bridge never makes a page's ground transparent", () => {
+    expect(buildCanvasDocument("<p>x</p>", { inline: true })).not.toContain('"transparent"');
   });
 
   test("inline pages are told they are inline; full-screen pages are not", () => {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import * as Updates from 'expo-updates';
 import { Ghost, scheme } from '../constants/theme';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';

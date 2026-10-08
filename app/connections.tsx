@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { Ghost, Space, Type } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
-import { EmptyState, GhostButton, GhostInput, GhostList, GhostSheet, OfflineBadge, SectionHeader, StatusPill } from "@/components/ghost";
+import { EmptyState, GhostButton, GhostInput, GhostList, GhostSheet, OfflineBadge, SectionHeader } from "@/components/ghost";
 import { OAuthConnect } from "@/components/oauth-connect";
 import {
   connectConnectedApp,

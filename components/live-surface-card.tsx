@@ -388,7 +388,7 @@ export function LiveSurfaceCard({ config, surface, ownDeviceId, approval, answer
 
 const styles = StyleSheet.create({
   card: {
-    marginTop: Space.md,
+    marginTop: Space.lg,
     padding: 14,
     gap: Space.sm,
   },
