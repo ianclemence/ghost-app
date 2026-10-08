@@ -91,7 +91,7 @@ describe("what a page may say back", () => {
     expect(inlineHeight(null)).toBeGreaterThanOrEqual(120);
     expect(inlineHeight(10)).toBe(120);
     expect(inlineHeight(300)).toBe(300);
-    expect(inlineHeight(5000)).toBe(440);
+    expect(inlineHeight(5000)).toBe(520);
   });
 });
 
@@ -146,5 +146,20 @@ describe("asking Ghost", () => {
     expect(fixPrompt("Pong", "x is not defined")).toContain('"Pong"');
     expect(fixPrompt("Pong", "x is not defined")).toContain("x is not defined");
     expect(changeStarter("Pong")).toBe('Change the "Pong" canvas: ');
+  });
+});
+
+describe("the page's surface", () => {
+  test("only a plain colour comes through; a dark page needs none", () => {
+    expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: true }))).toEqual({ type: "surface", dark: true });
+    expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: false, color: "rgb(250, 250, 250)" }))).toEqual({ type: "surface", dark: false, color: "rgb(250, 250, 250)" });
+    // A colour that is not a plain rgb() value is never used as one.
+    expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: false, color: "url(javascript:alert(1))" }))).toEqual({ type: "surface", dark: true });
+    expect(parseCanvasMessage(JSON.stringify({ type: "surface", dark: "yes" }))).toBeNull();
+  });
+
+  test("inline pages are told they are inline; full-screen pages are not", () => {
+    expect(buildCanvasDocument("<p>x</p>", { inline: true })).toContain("__GHOST_INLINE__");
+    expect(buildCanvasDocument("<p>x</p>")).not.toContain("__GHOST_INLINE__=true");
   });
 });

@@ -29,7 +29,7 @@ export const CANVAS_HOSTS = [
 
 /** The page's own height is trusted only between these (px). */
 export const CANVAS_MIN_HEIGHT = 120;
-export const CANVAS_MAX_INLINE_HEIGHT = 440;
+export const CANVAS_MAX_INLINE_HEIGHT = 520;
 const CANVAS_MAX_REPORTED_HEIGHT = 20_000;
 
 /**
@@ -84,11 +84,15 @@ function err(m){say({type:"error",message:String(m||"Error").slice(0,300)})}
 window.addEventListener("error",function(e){err(e.message||(e.error&&e.error.message))});
 window.addEventListener("unhandledrejection",function(e){err((e.reason&&e.reason.message)||e.reason||"Unhandled rejection")});
 var ce=console.error;console.error=function(){try{err(Array.prototype.join.call(arguments," "))}catch(e){}return ce&&ce.apply(console,arguments)};
+function lum(c){var m=/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?\\)/.exec(c||"");if(!m)return null;if(m[4]!==undefined&&parseFloat(m[4])<0.05)return null;var v=[m[1],m[2],m[3]].map(function(x){x=x/255;return x<=0.03928?x/12.92:Math.pow((x+0.055)/1.055,2.4)});return 0.2126*v[0]+0.7152*v[1]+0.0722*v[2]}
+function surface(){if(!window.__GHOST_INLINE__)return;var d=document.documentElement,b=document.body;if(!b)return;var cb=getComputedStyle(b).backgroundColor,cd=getComputedStyle(d).backgroundColor;var l=lum(cb);var col=cb;if(l===null){l=lum(cd);col=cd}
+if(l===null||l<0.25){d.style.setProperty("background","transparent","important");b.style.setProperty("background","transparent","important");say({type:"surface",dark:true})}else{say({type:"surface",dark:false,color:col})}}
 var last=0;
 function height(){var d=document.documentElement,b=document.body;var v=Math.ceil(Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0));if(Math.abs(v-last)>1){last=v;say({type:"height",value:v})}}
 function watch(){height();try{var r=new ResizeObserver(height);r.observe(document.documentElement);if(document.body)r.observe(document.body)}catch(e){}}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",watch);else watch();
-window.addEventListener("load",function(){height();say({type:"ready"})});
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",surface);else surface();
+window.addEventListener("load",function(){surface();height();say({type:"ready"})});
 document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(a){var h=a.getAttribute("href")||"";if(h.charAt(0)!=="#")e.preventDefault()}},true);
 window.open=function(){return null};
 })();`.replace(/\n/g, "");
@@ -102,10 +106,13 @@ const HAS_VIEWPORT = /<meta[^>]+name\s*=\s*["']viewport["']/i;
  * look and the bridge placed before anything of the model's own runs. Null when
  * it is too large to load.
  */
-export function buildCanvasDocument(html: string): string | null {
+export function buildCanvasDocument(html: string, opts: { inline?: boolean } = {}): string | null {
   const source = html ?? "";
   if (source.length === 0 || source.length > CANVAS_MAX_CHARS) return null;
   const inject =
+    // In the chat the page sits on the conversation, not in a box of its own:
+    // when it is a dark page the bridge makes its ground transparent (see surface()).
+    (opts.inline ? `<script>window.__GHOST_INLINE__=true</script>` : "") +
     `<meta http-equiv="Content-Security-Policy" content="${canvasCsp().replace(/"/g, "&quot;")}">` +
     (HAS_VIEWPORT.test(source) ? "" : `<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`) +
     `<style id="ghost-base">${BASE_CSS}</style><script id="ghost-bridge">${BRIDGE_JS}</script>`;
@@ -117,6 +124,7 @@ export function buildCanvasDocument(html: string): string | null {
 
 export type CanvasMessage =
   | { type: "height"; value: number }
+  | { type: "surface"; dark: boolean; color?: string }
   | { type: "error"; message: string }
   | { type: "ready" };
 
@@ -136,6 +144,11 @@ export function parseCanvasMessage(raw: unknown): CanvasMessage | null {
   if (!m || typeof m !== "object") return null;
   const o = m as Record<string, unknown>;
   if (o.type === "ready") return { type: "ready" };
+  if (o.type === "surface" && typeof o.dark === "boolean") {
+    // The page's own ground colour, only ever a plain rgb()/rgba() value.
+    const ok = typeof o.color === "string" && /^rgba?\(\d{1,3},\s*\d{1,3},\s*\d{1,3}(,\s*[\d.]+)?\)$/.test(o.color);
+    return o.dark ? { type: "surface", dark: true } : ok ? { type: "surface", dark: false, color: o.color as string } : { type: "surface", dark: true };
+  }
   if (o.type === "height" && typeof o.value === "number" && Number.isFinite(o.value) && o.value >= 0) {
     return { type: "height", value: Math.min(Math.round(o.value), CANVAS_MAX_REPORTED_HEIGHT) };
   }

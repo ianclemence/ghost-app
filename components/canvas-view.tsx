@@ -27,6 +27,7 @@ export const CanvasView = memo(function CanvasView({
   onError,
   onReady,
   onHeight,
+  onSurface,
   onReload,
 }: {
   html: string;
@@ -37,9 +38,14 @@ export const CanvasView = memo(function CanvasView({
   onError?: (message: string) => void;
   onReady?: () => void;
   onHeight?: (px: number) => void;
+  /** Inline only: the page is dark (it sits on the conversation) or light (it keeps its own colour). */
+  onSurface?: (s: { dark: true } | { dark: false; color: string }) => void;
   onReload?: () => void;
 }) {
-  const doc = React.useMemo(() => buildCanvasDocument(html), [html]);
+  const doc = React.useMemo(() => buildCanvasDocument(html, { inline: mode === "inline" }), [html, mode]);
+  // In the chat a page has no box of its own: until it says it is a light page,
+  // the ground is clear and the conversation shows through.
+  const clear = mode === "inline";
   const [height, setHeight] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
   const [slow, setSlow] = useState(false);
@@ -77,12 +83,13 @@ export const CanvasView = memo(function CanvasView({
 
   const boxStyle = mode === "inline" ? { height: inlineHeight(height) } : styles.fill;
   return (
-    <View style={[styles.box, boxStyle]}>
+    <View style={[styles.box, clear && styles.clear, boxStyle]}>
       <WebView
         key={`${reloadKey}`}
         source={{ html: doc, baseUrl: "" }}
-        style={styles.web}
-        containerStyle={styles.web}
+        style={clear ? styles.webClear : styles.web}
+        containerStyle={clear ? styles.webClear : styles.web}
+        backgroundColor={clear ? "transparent" : CANVAS_BG}
         scrollEnabled={mode === "full"}
         nestedScrollEnabled
         javaScriptEnabled
@@ -109,6 +116,8 @@ export const CanvasView = memo(function CanvasView({
             setHeight(m.value);
             onHeight?.(m.value);
             settle();
+          } else if (m.type === "surface") {
+            onSurface?.(m.dark ? { dark: true } : { dark: false, color: m.color ?? CANVAS_BG });
           } else if (m.type === "ready") {
             settle();
             onReady?.();
@@ -122,7 +131,7 @@ export const CanvasView = memo(function CanvasView({
         onContentProcessDidTerminate={() => setFailed(true)}
       />
       {!ready && !failed ? (
-        <View style={[styles.overlay, styles.center]} pointerEvents="none">
+        <View style={[styles.overlay, clear && styles.clear, styles.center]} pointerEvents="none">
           <ActivityIndicator size="small" color={Ghost.text.secondary} />
           {slow ? <Text style={styles.note}>Still loading…</Text> : null}
         </View>
@@ -146,6 +155,8 @@ const styles = StyleSheet.create({
   box: { backgroundColor: CANVAS_BG, overflow: "hidden" },
   fill: { flex: 1 },
   web: { flex: 1, backgroundColor: CANVAS_BG },
+  webClear: { flex: 1, backgroundColor: "transparent" },
+  clear: { backgroundColor: "transparent" },
   overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: CANVAS_BG, gap: Space.sm },
   center: { alignItems: "center", justifyContent: "center" },
   note: { fontSize: 13.5, color: Ghost.text.tertiary },

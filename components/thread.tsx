@@ -262,12 +262,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.3,
   },
-  // The time lives in the gap above the next row, so that gap is always at
-  // least a line tall: the one after a user message is Ghost's row (marginTop
-  // lg), and one after another user message (a queued message) gets the same.
+  // The time lives in the gap below the message, so the gap is reserved: the
+  // time sits FOOT_GAP under the bubble, a line tall (16), and the next row
+  // starts below it. That is the same distance Ghost's replies keep between
+  // their last line and their time (the paragraph's 10px margin plus the line's
+  // own slack, then 1px), so both read as one rhythm: message, a breath, time.
   userRow: {
     alignItems: "flex-end",
     marginTop: Space.lg,
+    paddingBottom: 12,
   },
   bubble: {
     backgroundColor: Ghost.bubble.user,
@@ -296,7 +299,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: "100%",
     right: 6,
-    marginTop: 1,
+    // Ghost's reply: paragraph margin (10) + line slack (~1) + underFoot's 1.
+    marginTop: 12,
     fontFamily: Inter.regular,
     fontSize: 12,
     lineHeight: 16,
