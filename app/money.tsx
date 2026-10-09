@@ -76,7 +76,7 @@ export default function MoneyScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Money" subtitle="What you spend, and what's due" />
+      <ScreenHeader title="Finances" subtitle="What you spend, earn, and what's due" />
       {!config ? (
         <Empty title="Not connected." text="Your money records live on your Pod. Connect one to see them." />
       ) : (

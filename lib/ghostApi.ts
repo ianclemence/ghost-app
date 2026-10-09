@@ -1460,6 +1460,35 @@ export interface Trip { id: string; title: string; destination?: string; start: 
 export const fetchTrips = (cfg: GhostConfig) => lifeCall<{ trips: Trip[] }>(cfg, "/v1/life/trips");
 export const removeTrip = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/trips/${encodeURIComponent(id)}`, { method: "DELETE" });
 
+export interface StudyNote { text: string; quote?: boolean; where?: string; at: string; source: LifeSource }
+export interface Learning {
+  id: string;
+  kind: "book" | "course" | "subject" | "article" | "podcast" | "video" | "paper" | "other";
+  title: string;
+  author?: string;
+  status: "want" | "active" | "paused" | "done";
+  current?: number;
+  total?: number;
+  unit?: string;
+  goal?: string;
+  due?: string;
+  notes?: StudyNote[];
+  tags?: string[];
+  started?: string;
+  finished?: string;
+  source: LifeSource;
+  created_at: string;
+  updated_at: string;
+  last_touched?: string;
+}
+export interface LearningBody { kind?: string; title: string; author?: string; status?: string; current?: number; total?: number; unit?: string; goal?: string; due?: string; note?: string; drop_notes?: number[] }
+
+export const fetchKnowledge = (cfg: GhostConfig) => lifeCall<{ items: Learning[] }>(cfg, "/v1/life/knowledge");
+export const addLearning = (cfg: GhostConfig, body: LearningBody) => lifeCall<{ item: Learning }>(cfg, "/v1/life/knowledge", { method: "POST", body: JSON.stringify(body) });
+export const editLearning = (cfg: GhostConfig, id: string, body: LearningBody) =>
+  lifeCall<{ item: Learning }>(cfg, `/v1/life/knowledge/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) });
+export const removeLearning = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/knowledge/${encodeURIComponent(id)}`, { method: "DELETE" });
+
 export interface Meeting {
   id: string;
   title: string;

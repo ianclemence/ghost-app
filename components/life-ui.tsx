@@ -7,7 +7,7 @@ import { sourceLabel } from "@/lib/life";
 import type { LifeSource } from "@/lib/ghostApi";
 
 /**
- * The small pieces the People, Documents and Money screens share, so the three
+ * The small pieces the People, Documents and Finances screens share, so the three
  * read as one place: a labelled field for editing, a row of label and value,
  * the line that says where something came from, and a quiet empty state.
  */

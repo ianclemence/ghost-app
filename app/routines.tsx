@@ -295,7 +295,7 @@ export default function RoutinesScreen() {
           {finished.length > 0 ? (
             <>
               <SectionHeader title="Finished" style={{ paddingTop: Space.lg }} />
-              <GlassCard style={styles.doneCard}>
+              <GlassCard style={[styles.card, styles.doneCard]}>
                 {(showAllDone ? finished : finished.slice(0, 5)).map((t, i) => (
                   <View key={t.id} style={[styles.doneRow, i > 0 && styles.doneLine]}>
                     <View style={{ flex: 1, gap: 2 }}>
