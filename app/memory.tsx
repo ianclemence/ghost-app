@@ -221,7 +221,7 @@ function LifeDoors() {
 const doorStyles = StyleSheet.create({
   // Two by two: each door wide enough for its line.
   row: { flexDirection: "row", flexWrap: "wrap", gap: Space.sm, marginHorizontal: Space.lg, marginBottom: Space.md },
-  door: { flexBasis: "47%", flexGrow: 1, gap: 4, padding: Space.md, borderRadius: 20, borderCurve: "continuous", backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
+  door: { flexBasis: "47%", flexGrow: 1, gap: 4, padding: Space.md, borderRadius: 20, borderCurve: "continuous", backgroundColor: Ghost.glass.fill, borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
   icon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, marginBottom: 4 },
   label: { fontSize: 14.5, fontWeight: "500", color: Ghost.text.primary },
   line: { fontSize: 12, lineHeight: 16, color: Ghost.text.tertiary },
