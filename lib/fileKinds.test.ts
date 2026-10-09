@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { previewRender } from "./fileKinds";
+import { friendlyFileName, previewRender } from "./fileKinds";
 
 describe("previewRender", () => {
   test("only Markdown is Markdown", () => {
@@ -24,4 +24,11 @@ describe("previewRender", () => {
       expect(previewRender(p)).toEqual({ kind: "code", language: "" });
     }
   });
+});
+
+test("machine-made names read as what the file is", () => {
+  expect(friendlyFileName("browser-20261003-084512.png")).toBe("Browser screenshot");
+  expect(friendlyFileName("ceeae055-44d5-4e3a-9b1c-1234567890ab.jpg")).toBe("Photo");
+  expect(friendlyFileName("PXL_20260930_101010.jpg")).toBe("Photo");
+  expect(friendlyFileName("Ian_Clemence_CV.pdf")).toBe("Ian_Clemence_CV.pdf");
 });

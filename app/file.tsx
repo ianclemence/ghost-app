@@ -12,6 +12,7 @@ import { ScreenBackground } from "@/components/screen-glow";
 import { deleteFile, fetchFileContent, fetchFilePreview, type FilePreview } from "@/lib/ghostApi";
 import { fileSize } from "@/lib/attachments";
 import { writeCacheFile } from "@/lib/localFiles";
+import { friendlyFileName } from "@/lib/fileKinds";
 import { useGhostStore } from "@/lib/store";
 import { EdgeScrollView } from "@/components/scroll-edge";
 
@@ -81,7 +82,7 @@ export default function FileScreen() {
     ]);
   };
 
-  const title = p?.name ?? (typeof name === "string" ? name : "File");
+  const title = friendlyFileName(p?.name ?? (typeof name === "string" ? name : "File"));
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />

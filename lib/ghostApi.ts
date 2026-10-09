@@ -1754,6 +1754,10 @@ export interface ConnectedAppInfo {
   status: string;
   needs_reauth?: boolean;
   help?: string;
+  /** What Ghost can do with it, in everyday words (lists). */
+  summary?: string;
+  /** Keys and data sources most people never need. */
+  advanced?: boolean;
 }
 
 /** @deprecated Use ConnectedAppInfo + fetchConnectedApps. Channels are message

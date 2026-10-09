@@ -20,6 +20,7 @@ import {
   type RoutineItem,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
+import { isLive, routineDetail } from "@/lib/routineWords";
 import { EdgeScrollView } from "@/components/scroll-edge";
 
 // Routines — the one place that answers "what does Ghost do for me?".
@@ -71,6 +72,10 @@ export default function RoutinesScreen() {
   const { config } = useGhostStore();
   const connectionState = useGhostStore((s) => s.connectionState);
   const [items, setItems] = useState<RoutineItem[]>([]);
+  const [showAllDone, setShowAllDone] = useState(false);
+  const finished = items
+    .filter((t) => !isLive(t))
+    .sort((a, b) => Date.parse(b.last_run_at ?? b.next_run_at ?? "0") - Date.parse(a.last_run_at ?? a.next_run_at ?? "0"));
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,7 +236,7 @@ export default function RoutinesScreen() {
             />
           ) : null}
 
-          {items.length > 0 ? <SectionHeader title="Routines" style={{ paddingTop: Space.md }} /> : null}
+          {items.some(isLive) ? <SectionHeader title="Running" style={{ paddingTop: Space.md }} /> : null}
           {!error && items.length === 0 ? (
             <EmptyState
               title="Nothing yet"
@@ -239,7 +244,7 @@ export default function RoutinesScreen() {
               action={<GhostButton title="Start a chat" onPress={() => router.replace("/")} />}
             />
           ) : (
-            items.map((t) => {
+            items.filter(isLive).map((t) => {
               const busy = busyId === t.id;
               const badge = badgeFor(t);
               const canPause = t.state === "active";
@@ -258,7 +263,7 @@ export default function RoutinesScreen() {
                     {kindLabel(t.kind)} · {t.schedule}
                     {t.run_count > 0 ? ` · ran ${t.run_count}\u00d7` : ""}
                   </GhostText>
-                  {t.what ? (
+                  {routineDetail(t.title, t.what) ? (
                     <GhostText type="footnote" style={styles.rowWhat} numberOfLines={2}>
                       {t.what}
                     </GhostText>
@@ -268,6 +273,7 @@ export default function RoutinesScreen() {
                       {t.last_error}
                     </GhostText>
                   ) : null}
+                  {canPause || canResume || canStop ? (
                   <View style={styles.actions}>
                     {canPause ? (
                       <GhostButton title={busy ? "\u2026" : "Pause"} variant="secondary" size="sm" onPress={() => handleOp(t, "pause")} />
@@ -279,10 +285,39 @@ export default function RoutinesScreen() {
                       <GhostButton title={busy ? "\u2026" : "Stop"} variant="danger" size="sm" onPress={() => handleOp(t, "cancel")} />
                     ) : null}
                   </View>
+                  ) : null}
                 </GlassCard>
               );
             })
           )}
+
+          {/* What is over: one quiet group, newest first, never in the way. */}
+          {finished.length > 0 ? (
+            <>
+              <SectionHeader title="Finished" style={{ paddingTop: Space.lg }} />
+              <GlassCard style={styles.doneCard}>
+                {(showAllDone ? finished : finished.slice(0, 5)).map((t, i) => (
+                  <View key={t.id} style={[styles.doneRow, i > 0 && styles.doneLine]}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <GhostText type="body" style={styles.doneTitle} numberOfLines={1}>{t.title}</GhostText>
+                      <GhostText type="footnote" style={styles.rowMeta} numberOfLines={1}>
+                        {t.state === "cancelled" ? "Stopped" : "Done"} · {t.schedule}
+                      </GhostText>
+                    </View>
+                  </View>
+                ))}
+                {finished.length > 5 ? (
+                  <GhostButton
+                    title={showAllDone ? "Show fewer" : `Show all ${finished.length}`}
+                    variant="ghost"
+                    size="sm"
+                    style={{ alignSelf: "center", marginVertical: Space.sm }}
+                    onPress={() => setShowAllDone((v) => !v)}
+                  />
+                ) : null}
+              </GlassCard>
+            </>
+          ) : null}
 
           <SectionHeader title="Goals" subtitle="Standing intents Ghost keeps working on. Tell it once, it reports back." />
           {goalsError && goals.length === 0 ? (
@@ -394,6 +429,10 @@ const styles = StyleSheet.create({
     color: Ghost.status.error,
     marginTop: 2,
   },
+  doneCard: { paddingVertical: Space.xs, paddingHorizontal: 0 },
+  doneRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: Space.lg, paddingVertical: Space.md },
+  doneLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
+  doneTitle: { color: Ghost.text.secondary },
   actions: {
     flexDirection: "row",
     gap: Space.sm,

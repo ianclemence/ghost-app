@@ -11,7 +11,7 @@ import { ScreenBackground } from "@/components/screen-glow";
 import { correctMemoryFact, fetchMemorySelf, fetchMoney, fetchPeople, fetchTrips, fetchVault, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
 import { formatMoney } from "@/lib/life";
 import { useRouter } from "expo-router";
-import { Users, FileText, Wallet, Plane } from "lucide-react-native";
+import { MoreHorizontal, Users, FileText, Wallet, Plane } from "lucide-react-native";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo } from "@/lib/when";
 import { EdgeScrollView } from "@/components/scroll-edge";
@@ -30,6 +30,8 @@ export default function MemoryScreen() {
   const [editing, setEditing] = useState<MemoryFact | null>(null);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  // The memory whose sheet is open: what it says, and what can be done with it.
+  const [open, setOpen] = useState<{ title: string; label?: string; meta?: string; fact?: MemoryFact; forget: () => void } | null>(null);
 
   const saveEdit = async () => {
     if (!config || !editing) return;
@@ -132,11 +134,15 @@ export default function MemoryScreen() {
                   value={f.field ? undefined : secondLine(f)}
                   meta={memoryMeta(f)}
                   busy={busy === f.id}
-                  onEdit={() => {
-                    setDraft(f.value);
-                    setEditing(f);
-                  }}
-                  onForget={() => confirmForget(f.field ? `${f.label}: ${f.value}` : f.title || f.label, () => forgetMemoryFact(config!, f.id), f.id)}
+                  onPress={() =>
+                    setOpen({
+                      title: f.field ? f.value : f.title || f.label,
+                      label: f.field ? f.label : undefined,
+                      meta: memoryMeta(f),
+                      fact: f,
+                      forget: () => confirmForget(f.field ? `${f.label}: ${f.value}` : f.title || f.label, () => forgetMemoryFact(config!, f.id), f.id),
+                    })
+                  }
                 />
               ))}
             </Group>
@@ -144,12 +150,45 @@ export default function MemoryScreen() {
           {(mem?.notes.length ?? 0) > 0 ? (
             <Group title="Notes">
               {mem!.notes.map((n) => (
-                <Item key={`note-${n}`} title={n} busy={busy === `note-${n}`} onForget={() => confirmForget(n.slice(0, 40), () => forgetMemoryNote(config!, "memory", n), `note-${n}`)} />
+                <Item
+                  key={`note-${n}`}
+                  title={n}
+                  busy={busy === `note-${n}`}
+                  onPress={() => setOpen({ title: n, forget: () => confirmForget(n.slice(0, 40), () => forgetMemoryNote(config!, "memory", n), `note-${n}`) })}
+                />
               ))}
             </Group>
           ) : null}
         </EdgeScrollView>
       )}
+      <GhostSheet visible={open !== null} onClose={() => setOpen(null)} title={open?.label ?? "Remembered"} message={open?.meta}>
+        <Text style={styles.sheetText}>{open?.title}</Text>
+        <View style={styles.sheetActions}>
+          {open?.fact ? (
+            <GhostButton
+              title="Correct it"
+              variant="secondary"
+              style={{ flex: 1 }}
+              onPress={() => {
+                const f = open.fact!;
+                setOpen(null);
+                setDraft(f.value);
+                setEditing(f);
+              }}
+            />
+          ) : null}
+          <GhostButton
+            title="Forget"
+            variant="danger"
+            style={{ flex: 1 }}
+            onPress={() => {
+              const run = open?.forget;
+              setOpen(null);
+              run?.();
+            }}
+          />
+        </View>
+      </GhostSheet>
       <GhostSheet
         visible={editing !== null}
         onClose={() => { if (!saving) setEditing(null); }}
@@ -302,8 +341,7 @@ function Item({
   value,
   meta,
   busy,
-  onEdit,
-  onForget,
+  onPress,
 }: {
   /** A field's name ("Name"), shown small above its value. */
   label?: string;
@@ -311,25 +349,26 @@ function Item({
   value?: string;
   meta?: string;
   busy: boolean;
-  onEdit?: () => void;
-  onForget: () => void;
+  onPress: () => void;
 }) {
   return (
-    <Animated.View exiting={FadeOut.duration(180)} layout={LinearTransition.duration(200)} style={styles.item}>
-      <View style={styles.itemText}>
-        {label ? <Text style={styles.itemLabel}>{label}</Text> : null}
-        <Text style={label ? styles.itemField : styles.itemTitle}>{title}</Text>
-        {value ? <Text style={styles.itemValue}>{value}</Text> : null}
-        {meta ? <Text style={styles.itemMeta}>{meta}</Text> : null}
-      </View>
-      {busy ? (
-        <ActivityIndicator size="small" color={Ghost.text.tertiary} />
-      ) : (
-        <View style={styles.itemActions}>
-          {onEdit ? <GhostButton title="Edit" variant="secondary" size="sm" style={styles.itemAction} onPress={onEdit} /> : null}
-          <GhostButton title="Forget" variant="ghost" size="sm" style={styles.itemAction} onPress={onForget} />
+    <Animated.View exiting={FadeOut.duration(180)} layout={LinearTransition.duration(200)}>
+      <Pressable
+        onPress={onPress}
+        disabled={busy}
+        style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+        accessibilityRole="button"
+        accessibilityLabel={[label, title].filter(Boolean).join(": ")}
+        accessibilityHint="Correct or forget it"
+      >
+        <View style={styles.itemText}>
+          {label ? <Text style={styles.itemLabel}>{label}</Text> : null}
+          <Text style={label ? styles.itemField : styles.itemTitle}>{title}</Text>
+          {value ? <Text style={styles.itemValue}>{value}</Text> : null}
+          {meta ? <Text style={styles.itemMeta}>{meta}</Text> : null}
         </View>
-      )}
+        {busy ? <ActivityIndicator size="small" color={Ghost.text.tertiary} /> : <MoreHorizontal size={18} color={Ghost.text.tertiary} strokeWidth={1.8} />}
+      </Pressable>
     </Animated.View>
   );
 }
@@ -369,11 +408,9 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 16, lineHeight: 21, fontWeight: "500", letterSpacing: -0.15, color: Ghost.text.primary },
   itemLabel: { fontSize: 12, lineHeight: 16, fontWeight: "500", letterSpacing: 0.4, textTransform: "uppercase", color: Ghost.text.tertiary },
   itemField: { fontSize: 19, lineHeight: 25, fontWeight: "500", letterSpacing: -0.2, color: Ghost.text.primary },
-  itemActions: { gap: Space.xs, alignItems: "stretch" },
-  // Both pills fill the action column so Edit and Forget are always the same
-  // width with clean left and right edges (GhostButton defaults to
-  // content-width, which came out ragged).
-  itemAction: { alignSelf: "stretch" },
+  itemPressed: { backgroundColor: Ghost.glass.fill },
+  sheetText: { fontSize: 17, lineHeight: 24, color: Ghost.text.primary },
+  sheetActions: { flexDirection: "row", gap: Space.sm },
   itemValue: { fontSize: 14.5, lineHeight: 20, fontWeight: "300", color: Ghost.text.secondary },
   itemMeta: { fontSize: 12.5, lineHeight: 17, color: Ghost.text.tertiary },
   empty: {

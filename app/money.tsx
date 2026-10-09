@@ -113,7 +113,7 @@ export default function MoneyScreen() {
               </View>
               {s.spent > 0 ? (
                 <View style={{ marginTop: Space.md }}>
-                  <Chart showLatest={false} block={{ type: "chart", chart: "bar", label: "By week", unit: undefined, points: s.by_week.map((v, i) => ({ label: ["1–7", "8–14", "15–21", "22–28", "29+"][i], value: major(v) })) }} />
+                  <Chart showLatest={false} highlight={month === thisMonth() ? Math.min(4, Math.floor((new Date().getDate() - 1) / 7)) : -1} block={{ type: "chart", chart: "bar", label: "By week", unit: undefined, points: s.by_week.map((v, i) => ({ label: ["1–7", "8–14", "15–21", "22–28", "29+"][i], value: major(v) })) }} />
                 </View>
               ) : null}
               {s.other_currencies ? (

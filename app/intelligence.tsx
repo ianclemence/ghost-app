@@ -245,6 +245,11 @@ export default function IntelligenceScreen() {
   );
 
   const defaultProvider = (providersState?.provider || intelConfig?.provider || "").toLowerCase();
+  const [showAllProviders, setShowAllProviders] = useState(false);
+  const hiddenProviders = providerKeys.filter((key) => {
+    const info = providersState!.providers[key];
+    return !(info.configured || info.local || isLocalProvider(key) || key === defaultProvider);
+  }).length;
 
   const activeOption = useMemo(() => (state ? resolveActive(state.active, state.options) : null), [state]);
 
@@ -407,7 +412,13 @@ export default function IntelligenceScreen() {
             <GhostText type="footnote" style={styles.none}>No provider info yet.</GhostText>
           ) : (
             <GhostList>
-              {providerKeys.map((key) => {
+              {providerKeys
+                .filter((key) => {
+                  const info = providersState!.providers[key];
+                  // What is set up is always shown; the rest wait behind "Add a provider".
+                  return showAllProviders || info.configured || info.local || isLocalProvider(key) || key === defaultProvider;
+                })
+                .map((key) => {
                 const info = providersState!.providers[key];
                 const local = info.local || isLocalProvider(key);
                 const isDefault = key === defaultProvider;
@@ -433,6 +444,16 @@ export default function IntelligenceScreen() {
               })}
             </GhostList>
           )}
+          {hiddenProviders > 0 || showAllProviders ? (
+            <GhostButton
+              title={showAllProviders ? "Show fewer" : `Add a provider (${hiddenProviders} more)`}
+              variant="ghost"
+              size="sm"
+              style={{ alignSelf: "center", marginTop: Space.sm }}
+              onPress={() => setShowAllProviders((v) => !v)}
+            />
+          ) : null}
+
 
           <SectionHeader title="Routing" subtitle="Ghost automatically chooses the best model when a task requires something different." />
           {ghostPrivacy === "local_only" ? (

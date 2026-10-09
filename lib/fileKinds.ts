@@ -34,3 +34,19 @@ export function previewRender(path: string | undefined | null): PreviewRender {
   if (PLAIN.has(ext)) return { kind: "code", language: "" };
   return { kind: "code", language: LANGUAGE[ext] ?? "" };
 }
+
+/**
+ * A file's name as a person would say it. Names a machine made (a browser
+ * screenshot's timestamp, a random id) read as what the file is; a name
+ * someone chose is kept as it is.
+ */
+export function friendlyFileName(name: string): string {
+  const base = name.replace(/\.[a-z0-9]{2,5}$/i, "");
+  if (/^browser-\d{8}/i.test(base)) return "Browser screenshot";
+  if (/^(screenshot|screen[-_ ]shot)[-_ ]?\d/i.test(base)) return "Screenshot";
+  if (/^(img|pxl|dsc|photo)[-_]?\d{6,}/i.test(base)) return "Photo";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(base) || /^[0-9a-f]{24,}$/i.test(base)) {
+    return /\.(png|jpe?g|webp|heic|gif)$/i.test(name) ? "Photo" : /\.pdf$/i.test(name) ? "Document" : "File";
+  }
+  return name;
+}

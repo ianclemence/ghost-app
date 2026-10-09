@@ -68,7 +68,17 @@ const CHART_H = 132;
 /** The line chart is drawn in its own fixed space and stretched to the width it gets. */
 const LINE_W = 100;
 
-export function Chart({ block, showLatest = true }: { block: ChartBlock; /** The latest value large at the top right (off where a total is already shown). */ showLatest?: boolean }) {
+export function Chart({
+  block,
+  showLatest = true,
+  highlight,
+}: {
+  block: ChartBlock;
+  /** The latest value large at the top right (off where a total is already shown). */
+  showLatest?: boolean;
+  /** Which bar is "now" (the last by default; -1 for none). */
+  highlight?: number;
+}) {
   const scale = useMemo(() => chartScale(block.points.map((p) => p.value)), [block.points]);
   const last = block.points[block.points.length - 1];
   const fmt = (v: number) => formatAmount(v, block.unit);
@@ -94,7 +104,7 @@ export function Chart({ block, showLatest = true }: { block: ChartBlock; /** The
                   style={[
                     styles.bar,
                     { height: Math.max(2, scale.y(p.value) * (CHART_H - 8)) },
-                    i === n - 1 && { backgroundColor: Ghost.accent.primary },
+                    i === (highlight ?? n - 1) && { backgroundColor: Ghost.accent.primary },
                   ]}
                 />
               </View>

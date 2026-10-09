@@ -238,7 +238,7 @@ export default function MeetingScreen() {
                   <Text style={styles.secondaryText}>{phase === "recording" ? "Pause" : "Carry on"}</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.hint}>Keep Ghost open while it records. The recording goes to your Pod and is transcribed there.</Text>
+                <Text style={styles.hint}>It keeps recording with your screen locked. The recording goes to your Pod and is transcribed there.</Text>
               )}
             </>
           ) : phase === "sending" ? (

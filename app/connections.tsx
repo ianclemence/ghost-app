@@ -147,15 +147,21 @@ export default function ConnectionsScreen() {
             keyboardShouldPersistTaps="handled"
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.secondary} />}
           >
-          <SectionHeader title="Apps" style={styles.firstSection} />
+          {([
+            ["Apps", items.filter((c) => !c.advanced)],
+            ["For developers", items.filter((c) => c.advanced)],
+          ] as const).map(([title, list], gi) =>
+            list.length === 0 ? null : (
+              <React.Fragment key={title}>
+          <SectionHeader title={title} style={gi === 0 ? styles.firstSection : undefined} />
           <GhostList>
-            {items.map((c) => {
+            {list.map((c) => {
               const t = trailing(c);
               return (
                 <View key={c.id} style={styles.row} accessible accessibilityLabel={`${nameOf(c)}, ${t.text}`}>
                   <View style={styles.rowBody}>
                     <Text style={styles.name}>{nameOf(c)}</Text>
-                    {c.help ? <Text style={styles.help} numberOfLines={2}>{c.help}</Text> : null}
+                    {c.summary || c.help ? <Text style={styles.help}>{c.summary || c.help}</Text> : null}
                   </View>
                   {t.tone === "ok" ? (
                     <GhostButton title="Manage" size="sm" variant="secondary" onPress={() => open(c)} />
@@ -171,6 +177,9 @@ export default function ConnectionsScreen() {
               );
             })}
           </GhostList>
+              </React.Fragment>
+            ),
+          )}
           <SectionHeader title="Website logins" />
           <WebsiteLogins config={config} />
           </EdgeScrollView>

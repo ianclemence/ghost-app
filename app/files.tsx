@@ -10,6 +10,7 @@ import { fetchFiles, fetchFileThumb, type StoredFile } from "@/lib/ghostApi";
 import { fileKind, fileSize } from "@/lib/attachments";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo } from "@/lib/when";
+import { friendlyFileName } from "@/lib/fileKinds";
 import { EdgeScrollView } from "@/components/scroll-edge";
 
 type Filter = "all" | "photos" | "documents";
@@ -110,7 +111,7 @@ export default function FilesScreen() {
                     key={f.id}
                     file={f}
                     width={cardW}
-                    onPress={() => router.push({ pathname: "/file", params: { id: f.id, name: f.name } } as never)}
+                    onPress={() => router.push({ pathname: "/file", params: { id: f.id, name: friendlyFileName(f.name) } } as never)}
                   />
                 ))}
               </View>
@@ -153,7 +154,7 @@ function Tile({ file, width, onPress }: { file: StoredFile; width: number; onPre
         )}
       </View>
       <View style={styles.meta}>
-        <Text style={styles.name} numberOfLines={1} ellipsizeMode="middle">{file.name}</Text>
+        <Text style={styles.name} numberOfLines={1} ellipsizeMode="middle">{friendlyFileName(file.name)}</Text>
         <Text style={styles.sub} numberOfLines={1}>{[fileSize(file.size), whenAgo(file.created_at)].filter(Boolean).join(" · ")}</Text>
       </View>
     </Pressable>
