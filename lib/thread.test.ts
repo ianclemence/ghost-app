@@ -32,11 +32,14 @@ describe("buildThread", () => {
     expect(items[2].outOfTurn).toBe(false);
   });
 
-  test("resuming after a pause shows the time", () => {
-    const items = buildThread([m("u1", "user", NOW - 3 * H), m("a1", "assistant", NOW - 3 * H + 2000), m("u2", "user", NOW - H)], [], NOW)
+  test("resuming after a pause shows the time on Ghost's reply, not on yours", () => {
+    const user = buildThread([m("u1", "user", NOW - 3 * H), m("a1", "assistant", NOW - 3 * H + 2000), m("u2", "user", NOW - H)], [], NOW)
       .filter((i) => i.kind === "message") as Extract<ReturnType<typeof buildThread>[number], { kind: "message" }>[];
-    expect(items[2].showTime).toBe(true);
-    expect(items[1].showTime).toBe(false);
+    expect(user[2].showTime).toBe(false);
+    expect(user[1].showTime).toBe(false);
+    const ghost = buildThread([m("u1", "user", NOW - 3 * H), m("a2", "assistant", NOW - H)], [], NOW)
+      .filter((i) => i.kind === "message") as Extract<ReturnType<typeof buildThread>[number], { kind: "message" }>[];
+    expect(ghost[1].showTime).toBe(true);
   });
 
   test("artifacts sit where they happened", () => {

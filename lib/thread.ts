@@ -2,10 +2,11 @@
  * The conversation as the owner reads it: one continuous thread, broken
  * into days, with time shown only where it carries meaning.
  *
- * Time appears when (a) Ghost spoke out of turn — a message the owner did
+ * Time appears on Ghost's messages when (a) Ghost spoke out of turn — a message the owner did
  * not just ask for (a watch alert, a reminder, a finished background task),
- * or (b) the conversation resumed after a real pause. Everything else stays
- * uncluttered. "Out of turn" is read from the transcript's own structure
+ * or (b) the conversation resumed after a real pause. Your own messages never
+ * carry the centered time: tapping one already shows exactly when it was sent.
+ * Everything else stays uncluttered. "Out of turn" is read from the transcript's own structure
  * (an assistant message following another assistant message after a gap),
  * never guessed from wording.
  */
@@ -211,7 +212,10 @@ export function buildThread(
       key: m.key ?? m.id,
       message: m,
       outOfTurn,
-      showTime: outOfTurn || resumed,
+      // Your own messages never show the centered resume time: tapping one
+      // already reveals exactly when it was sent. Ghost's messages keep both
+      // cases, where the time explains an unprompted or resumed reply.
+      showTime: m.role === "assistant" && (outOfTurn || resumed),
       groupStart: prev === null || prev.role !== m.role || outOfTurn || resumed,
     });
     prev = m;
