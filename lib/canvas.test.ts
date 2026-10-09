@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   withAlpha,
+  CANVAS_MAX_SAVED,
+  canvasSavedKey,
+  savedScript,
   CANVAS_MAX_CHARS,
   buildCanvasDocument,
   canvasCsp,
@@ -180,5 +183,30 @@ describe("the page's surface", () => {
   test("inline pages are told they are inline; full-screen pages are not", () => {
     expect(buildCanvasDocument("<p>x</p>", { inline: true })).toContain("__GHOST_INLINE__");
     expect(buildCanvasDocument("<p>x</p>")).not.toContain("__GHOST_INLINE__=true");
+  });
+});
+
+describe("what a canvas keeps", () => {
+  test("a save is only ever JSON within the limit", () => {
+    expect(parseCanvasMessage(JSON.stringify({ type: "save", value: '{"due":{"jambo":1}}' }))).toEqual({ type: "save", value: '{"due":{"jambo":1}}' });
+    expect(parseCanvasMessage(JSON.stringify({ type: "save", value: "{nope" }))).toBeNull();
+    expect(parseCanvasMessage(JSON.stringify({ type: "save", value: JSON.stringify("a".repeat(CANVAS_MAX_SAVED)) }))).toBeNull();
+    // Other messages stay small.
+    expect(parseCanvasMessage(JSON.stringify({ type: "error", message: "x".repeat(5000) }))).toBeNull();
+  });
+  test("what it saved cannot end its script", () => {
+    const s = savedScript(JSON.stringify({ note: "</script><script>alert(1)</script> " }))!;
+    expect(s).not.toContain("<");
+    expect(s).not.toContain(" ");
+    expect(JSON.parse(s)).toEqual({ note: "</script><script>alert(1)</script> " });
+    expect(savedScript("null")).toBeNull();
+    expect(savedScript("{bad")).toBeNull();
+    const doc = buildCanvasDocument("<p>hi</p>", { saved: '{"n":3}' })!;
+    expect(doc).toContain('window.__GHOST_SAVED__={"n":3}');
+    expect(doc.indexOf("__GHOST_SAVED__")).toBeLessThan(doc.indexOf("ghost-bridge"));
+  });
+  test("one saved value per canvas, across versions", () => {
+    expect(canvasSavedKey("canvas/kiswahili-cards-v3.html")).toBe("kiswahili-cards");
+    expect(canvasSavedKey("documents/x.md")).toBeNull();
   });
 });

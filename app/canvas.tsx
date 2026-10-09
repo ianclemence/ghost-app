@@ -10,6 +10,7 @@ import { Text } from "@/components/text";
 import { GhostSheet } from "@/components/ghost";
 import { CanvasView } from "@/components/canvas-view";
 import { useCanvasSource } from "@/hooks/use-canvas-source";
+import { useCanvasSaved } from "@/hooks/use-canvas-saved";
 import { canvasVersions, changeStarter, fixPrompt } from "@/lib/canvas";
 import { getCanvasDraft } from "@/lib/canvasDraft";
 import { fetchArtifacts, type Artifact } from "@/lib/ghostApi";
@@ -48,7 +49,8 @@ export default function CanvasScreen() {
   const index = current ? versions.findIndex((a) => a.id === current.id) : -1;
 
   const { source, retry } = useCanvasSource(config, pick ? { id: pick, path: current?.path ?? "" } : null, !!pick && !!current);
-  const html = draft ? draft.html : source.state === "ready" ? source.html : null;
+  const kept = useCanvasSaved(config, current && !draft ? { id: current.id, path: current.path } : null, !!current && !draft);
+  const html = draft ? draft.html : source.state === "ready" && kept.ready ? source.html : null;
   const title = draft?.title ?? current?.title ?? "Canvas";
 
   const [reload, setReload] = useState(0);
@@ -125,6 +127,8 @@ export default function CanvasScreen() {
           <CanvasView
             html={html}
             mode="full"
+            saved={draft ? null : kept.saved}
+            onSave={draft ? undefined : kept.save}
             reloadKey={reload}
             onError={(m) => setError((prev) => prev ?? m)}
             onReload={() => setReload((n) => n + 1)}

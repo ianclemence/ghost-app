@@ -4,8 +4,9 @@
  * The page is model output and untrusted, so it is held to a small box:
  * every navigation is refused, there is no file access, no storage, no cookies
  * (incognito), no popups, and the network is closed by the page's own policy.
- * It can tell the app only its height, that it loaded, and an error it threw;
- * each is checked before use. Anything that goes wrong shows as a calm state
+ * It can tell the app only its height, that it loaded, an error it threw, and
+ * what it asks to keep (ghost.save, JSON within a limit); each is checked
+ * before use, and what it kept is handed back as ghost.saved when it loads. Anything that goes wrong shows as a calm state
  * with a way to try again, never as a blank box.
  */
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -29,8 +30,13 @@ export const CanvasView = memo(function CanvasView({
   onHeight,
   onSurface,
   onReload,
+  saved,
+  onSave,
 }: {
   html: string;
+  /** What the page kept with ghost.save (JSON text), given back to it as ghost.saved. */
+  saved?: string | null;
+  onSave?: (json: string) => void;
   /** "inline" sits in the chat at the page's own height; "full" fills its parent and scrolls. */
   mode: "inline" | "full";
   /** Changing it starts the page over. */
@@ -42,7 +48,12 @@ export const CanvasView = memo(function CanvasView({
   onSurface?: (s: { dark: boolean; color?: string }) => void;
   onReload?: () => void;
 }) {
-  const doc = React.useMemo(() => buildCanvasDocument(html, { inline: mode === "inline" }), [html, mode]);
+  // What the page saved is handed over as it loads: a save it makes itself
+  // must not start it over, but a reload (or another version) starts from the
+  // newest save.
+  const [kept, setKept] = useState({ saved: saved ?? null, at: reloadKey, html });
+  if (kept.at !== reloadKey || kept.html !== html) setKept({ saved: saved ?? null, at: reloadKey, html });
+  const doc = React.useMemo(() => buildCanvasDocument(html, { inline: mode === "inline", saved: kept.saved }), [html, mode, kept.saved]);
   const [height, setHeight] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
   const [slow, setSlow] = useState(false);
@@ -109,7 +120,9 @@ export const CanvasView = memo(function CanvasView({
         onMessage={(e) => {
           const m = parseCanvasMessage(e.nativeEvent.data);
           if (!m) return;
-          if (m.type === "height") {
+          if (m.type === "save") {
+            onSave?.(m.value);
+          } else if (m.type === "height") {
             setHeight(m.value);
             onHeight?.(m.value);
             settle();

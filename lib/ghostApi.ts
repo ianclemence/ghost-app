@@ -1409,6 +1409,16 @@ export const removeMoney = (cfg: GhostConfig, id: string) => lifeCall<object>(cf
 export const setRecurringActive = (cfg: GhostConfig, id: string, active: boolean) =>
   lifeCall<{ recurring: Recurring }>(cfg, `/v1/life/money/${encodeURIComponent(id)}/active`, { method: "POST", body: JSON.stringify({ active }) });
 
+// ─── What a canvas keeps (ghost.save) ─────────────────────────────────────
+
+/** The JSON text a canvas saved, "null" when nothing, or null when the Pod can't say. */
+export async function fetchCanvasSaved(cfg: GhostConfig, artifactId: string): Promise<string | null> {
+  const r = await lifeCall<{ saved: unknown }>(cfg, `/v1/artifacts/${encodeURIComponent(artifactId)}/saved`);
+  return r.ok ? JSON.stringify(r.data.saved ?? null) : null;
+}
+export const putCanvasSaved = (cfg: GhostConfig, artifactId: string, json: string) =>
+  lifeCall<object>(cfg, `/v1/artifacts/${encodeURIComponent(artifactId)}/saved`, { method: "PUT", body: `{"saved":${json}}` });
+
 // ─── Jobs: what Ghost takes on ─────────────────────────────────────────────
 
 export interface GhostJob {

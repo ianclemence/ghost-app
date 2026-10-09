@@ -7,6 +7,7 @@ import { AlertTriangle, AppWindow, ChevronDown, ChevronUp, Maximize2 } from "luc
 import { Text } from "@/components/text";
 import { CanvasView, CANVAS_BG } from "@/components/canvas-view";
 import { useCanvasSource } from "@/hooks/use-canvas-source";
+import { useCanvasSaved } from "@/hooks/use-canvas-saved";
 import { CANVAS_MAX_INLINE_HEIGHT, fixPrompt, withAlpha, type CanvasInfo } from "@/lib/canvas";
 import type { Artifact, GhostConfig } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
@@ -47,6 +48,7 @@ export const CanvasCard = memo(function CanvasCard({
   const [ground, setGround] = useState<string>(CANVAS_BG);
   const open = owner ?? info?.latest ?? true;
   const { source, retry } = useCanvasSource(config, artifact, open);
+  const kept = useCanvasSaved(config, artifact, open);
   const title = artifact.title || "Canvas";
   const version = info && info.total > 1 ? `v${info.version}` : null;
   const spokenVersion = info && info.total > 1 ? `, version ${info.version} of ${info.total}` : "";
@@ -83,7 +85,7 @@ export const CanvasCard = memo(function CanvasCard({
     );
   }
 
-  const ready = source.state === "ready";
+  const ready = source.state === "ready" && kept.ready;
   const clipped = pageHeight > CANVAS_MAX_INLINE_HEIGHT + 8;
   const meta = [version, clipped ? "More inside" : "Interactive"].filter(Boolean).join(" · ");
   return (
@@ -94,6 +96,8 @@ export const CanvasCard = memo(function CanvasCard({
             <CanvasView
               html={source.html}
               mode="inline"
+              saved={kept.saved}
+              onSave={kept.save}
               reloadKey={reload}
               onHeight={setPageHeight}
               onSurface={(s) => setGround(s.color ?? CANVAS_BG)}
@@ -107,7 +111,7 @@ export const CanvasCard = memo(function CanvasCard({
               </View>
             ) : null}
           </View>
-        ) : source.state === "loading" ? (
+        ) : source.state !== "error" ? (
           <View style={[styles.state, { height: 180 }]} accessibilityLiveRegion="polite">
             <ActivityIndicator size="small" color={Ghost.text.secondary} />
             <Text style={styles.stateText}>Opening {title}…</Text>

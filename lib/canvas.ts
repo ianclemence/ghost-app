@@ -106,6 +106,8 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 window.addEventListener("load",function(){surface();height();say({type:"ready"})});
 document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(a){var h=a.getAttribute("href")||"";if(h.charAt(0)!=="#")e.preventDefault()}},true);
 window.open=function(){return null};
+var kept=window.__GHOST_SAVED__===undefined?null:window.__GHOST_SAVED__;
+window.ghost={saved:kept,save:function(v){var s;try{s=JSON.stringify(v===undefined?null:v)}catch(e){err("ghost.save: "+e.message);return false}if(s.length>65536){err("ghost.save: more than 64 KB");return false}window.ghost.saved=JSON.parse(s);say({type:"save",value:s});return true}};
 })();`.replace(/\n/g, "");
 
 const HEAD_OPEN = /<head(\s[^>]*)?>/i;
@@ -117,13 +119,15 @@ const HAS_VIEWPORT = /<meta[^>]+name\s*=\s*["']viewport["']/i;
  * look and the bridge placed before anything of the model's own runs. Null when
  * it is too large to load.
  */
-export function buildCanvasDocument(html: string, opts: { inline?: boolean } = {}): string | null {
+export function buildCanvasDocument(html: string, opts: { inline?: boolean; saved?: string | null } = {}): string | null {
   const source = html ?? "";
   if (source.length === 0 || source.length > CANVAS_MAX_CHARS) return null;
+  const kept = savedScript(opts.saved);
   const inject =
     // In the chat the page runs in a window whose frame takes the page's own
     // ground colour (see surface()), so its edges and bar match what it drew.
     (opts.inline ? `<script>window.__GHOST_INLINE__=true</script>` : "") +
+    (kept ? `<script>window.__GHOST_SAVED__=${kept}</script>` : "") +
     `<meta http-equiv="Content-Security-Policy" content="${canvasCsp().replace(/"/g, "&quot;")}">` +
     (HAS_VIEWPORT.test(source) ? "" : `<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`) +
     `<style id="ghost-base">${BASE_CSS}</style><script id="ghost-bridge">${BRIDGE_JS}</script>`;
@@ -133,7 +137,33 @@ export function buildCanvasDocument(html: string, opts: { inline?: boolean } = {
   return `<!doctype html><html><head><meta charset="utf-8">${inject}</head><body>${source}</body></html>`;
 }
 
+/** The most a page may keep with ghost.save (characters of JSON). */
+export const CANVAS_MAX_SAVED = 65536;
+
+/**
+ * What the page saved, as a script literal: re-serialised from parsed JSON
+ * (never the text as it came) with everything that could end the script tag
+ * escaped. Null when there is nothing, or it is not JSON.
+ */
+export function savedScript(saved: string | null | undefined): string | null {
+  if (!saved || saved.length > CANVAS_MAX_SAVED) return null;
+  try {
+    const v = JSON.parse(saved);
+    if (v === null) return null;
+    return JSON.stringify(v).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+  } catch {
+    return null;
+  }
+}
+
+/** One saved value per canvas, across its versions (canvas/<name>-vN.html). */
+export function canvasSavedKey(path: string): string | null {
+  const m = /^canvas\/([a-z0-9-]+)-v\d+\.html$/.exec(path ?? "");
+  return m ? m[1] : null;
+}
+
 export type CanvasMessage =
+  | { type: "save"; value: string }
   | { type: "height"; value: number }
   | { type: "surface"; dark: boolean; color?: string }
   | { type: "error"; message: string }
@@ -145,7 +175,7 @@ export type CanvasMessage =
  * an error is plain text cut short. Anything else is ignored.
  */
 export function parseCanvasMessage(raw: unknown): CanvasMessage | null {
-  if (typeof raw !== "string" || raw.length > 2000) return null;
+  if (typeof raw !== "string" || raw.length > CANVAS_MAX_SAVED + 2000) return null;
   let m: unknown;
   try {
     m = JSON.parse(raw);
@@ -154,6 +184,17 @@ export function parseCanvasMessage(raw: unknown): CanvasMessage | null {
   }
   if (!m || typeof m !== "object") return null;
   const o = m as Record<string, unknown>;
+  if (o.type === "save") {
+    // Kept for the page with ghost.save: only ever JSON, within the limit.
+    if (typeof o.value !== "string" || o.value.length > CANVAS_MAX_SAVED) return null;
+    try {
+      JSON.parse(o.value);
+    } catch {
+      return null;
+    }
+    return { type: "save", value: o.value };
+  }
+  if (raw.length > 2000) return null;
   if (o.type === "ready") return { type: "ready" };
   if (o.type === "surface" && typeof o.dark === "boolean") {
     // The page's own ground colour, only ever a plain rgb()/rgba() value.
