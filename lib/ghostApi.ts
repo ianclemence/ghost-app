@@ -1224,6 +1224,24 @@ export async function decideIdea(
   }
 }
 
+// ─── Watches: what Ghost is checking for the owner ─────────────────────────
+
+export interface WatchItem {
+  id: string;
+  kind: string;
+  entity?: string;
+  label?: string;
+  url?: string;
+  rule?: { want: string; threshold?: number; phrase?: string };
+  status: string;
+  event_at?: string;
+  expires_at?: string;
+}
+
+export const fetchWatches = (cfg: GhostConfig) => lifeCall<{ watches: WatchItem[] | null }>(cfg, "/v1/watches");
+export const stopWatch = (cfg: GhostConfig, id: string) =>
+  lifeCall<object>(cfg, `/v1/watches/${encodeURIComponent(id)}/disable`, { method: "POST", body: "{}" });
+
 // ─── Goals: standing owner intents the heartbeat evaluates ───────────────
 
 export interface GoalItem {

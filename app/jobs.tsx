@@ -24,7 +24,9 @@ import { DateTimeSheet } from "@/components/card-inputs";
 import { GhostButton } from "@/components/ghost";
 import { lifeStyles } from "@/components/life-ui";
 import { alpha, Fonts, Ghost, Hue, Inter, Space } from "@/constants/theme";
-import { fetchJobs, setJob, type GhostJob } from "@/lib/ghostApi";
+import { createGoal, fetchGoals, fetchJobs, fetchWatches, goalAction, setJob, stopWatch, type GhostJob, type GoalItem, type WatchItem } from "@/lib/ghostApi";
+import { isWatching, watchName, watchWant } from "@/lib/watching";
+import { showDialog } from "@/lib/dialog";
 import { GET_TO_KNOW_YOU, jobWhen } from "@/lib/jobs";
 import { useGhostStore } from "@/lib/store";
 
@@ -105,9 +107,9 @@ export default function JobsScreen() {
 
         {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
         {jobs === null && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
-        {on.length > 0 ? <Text style={styles.count}>{on.length} {on.length === 1 ? "job" : "jobs"} on</Text> : null}
 
-        {(jobs ?? []).map((j) => {
+        {jobs && jobs.length > 0 ? <Text style={styles.section}>{on.length > 0 ? `Ghost’s jobs · ${on.length} on` : "Ghost’s jobs"}</Text> : null}
+        {(jobs ?? []).filter((j) => !!j.time).map((j) => {
           const look = LOOK[j.id] ?? LOOK.watch;
           const schedulable = !!j.time;
           const blocked = (j.missing ?? []).length > 0;
@@ -157,13 +159,12 @@ export default function JobsScreen() {
                   <Text style={styles.timeText}>{j.settings.time}</Text>
                 </Pressable>
               ) : null}
-              {!schedulable ? <GhostButton title="Show me how" size="sm" variant="secondary" onPress={() => {
-                useGhostStore.getState().setIntent({ text: "How do I ask you to watch a page for me?", send: true });
-                router.replace("/" as never);
-              }} /> : null}
             </View>
           );
         })}
+
+        {config && jobs ? <OwnJobs /> : null}
+        {config && jobs ? <Watching /> : null}
       </EdgeScrollView>
       <DateTimeSheet
         visible={picking !== null}
@@ -181,13 +182,157 @@ export default function JobsScreen() {
   );
 }
 
+/**
+ * Jobs in the owner's own words (Ghost's goals): something to keep looking
+ * after, with no fixed time ("keep my school emails in hand"). Ghost works
+ * on them as things come up and says when one has gone quiet.
+ */
+function OwnJobs() {
+  const config = useGhostStore((s) => s.config)!;
+  const [goals, setGoals] = useState<GoalItem[] | null>(null);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      setGoals(await fetchGoals(config));
+    } catch {
+      setError("Couldn't load your own jobs.");
+    }
+  }, [config]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const run = async (key: string, fn: () => Promise<void>) => {
+    setBusy(key);
+    setError(null);
+    try {
+      await fn();
+      Haptics.selectionAsync().catch(() => {});
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't work. Try again.");
+    }
+    setBusy(null);
+  };
+  const add = () => {
+    const t = text.trim();
+    if (!t) return;
+    void run("new", async () => {
+      await createGoal(config, t);
+      setText("");
+    });
+  };
+  const live = (goals ?? []).filter((g) => g.status === "active" || g.status === "paused" || g.status === "expired");
+  return (
+    <View style={{ gap: Space.sm }}>
+      <Text style={styles.section}>Your own</Text>
+      <Text style={styles.sectionLead}>Something for Ghost to keep looking after, in your words. No time needed: it works on it as things come up.</Text>
+      {live.length > 0 ? (
+        <View style={lifeStyles.group}>
+          {live.map((g, i) => (
+            <View key={g.id} style={[styles.ownRow, i > 0 && styles.rowLine]}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.ownText}>{g.text}</Text>
+                <Text style={[styles.when, g.status !== "active" && { color: Ghost.status.warning }]}>
+                  {g.status === "active" ? "Looking after it" : g.status === "paused" ? "Paused" : "Ran its course"}
+                </Text>
+              </View>
+              {busy === g.id ? (
+                <ActivityIndicator color={Ghost.text.secondary} />
+              ) : (
+                <View style={styles.ownActions}>
+                  <GhostButton title={g.status === "active" ? "Pause" : "Resume"} size="sm" variant="secondary"
+                    onPress={() => void run(g.id, () => goalAction(config, g.id, g.status === "active" ? "pause" : "resume"))} />
+                  <GhostButton title="Done" size="sm" variant="secondary" onPress={() => void run(g.id, () => goalAction(config, g.id, "complete"))} />
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      ) : null}
+      <View style={styles.addRow}>
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          placeholder="Keep on top of the car’s service"
+          placeholderTextColor={Ghost.text.tertiary}
+          style={[styles.topic, { flex: 1 }]}
+          maxLength={200}
+          returnKeyType="done"
+          onSubmitEditing={add}
+          accessibilityLabel="A job in your own words"
+          selectionColor={Ghost.accent.primary}
+        />
+        <GhostButton title={busy === "new" ? "Adding…" : "Add"} size="sm" disabled={!text.trim() || busy === "new"} onPress={add} />
+      </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
+/**
+ * What Ghost is checking for the owner: a page until it drops under a price
+ * or comes back in stock, a flight's times. Asked for in the conversation;
+ * stopped here.
+ */
+function Watching() {
+  const config = useGhostStore((s) => s.config)!;
+  const [items, setItems] = useState<WatchItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const r = await fetchWatches(config);
+    if (r.ok) setItems((r.data.watches ?? []).filter(isWatching));
+    else setError(r.error);
+  }, [config]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const stop = (w: WatchItem) =>
+    showDialog(`Stop watching ${watchName(w)}?`, "Ghost stops checking it and won't tell you about it again.", [
+      { text: "Keep watching", style: "cancel" },
+      { text: "Stop", style: "destructive", onPress: async () => {
+        const r = await stopWatch(config, w.id);
+        if (!r.ok) return setError(r.error);
+        await load();
+      } },
+    ]);
+  return (
+    <View style={{ gap: Space.sm }}>
+      <Text style={styles.section}>Watching</Text>
+      {items && items.length === 0 ? (
+        <Text style={styles.sectionLead}>Send Ghost a link and say what you&apos;re waiting for, like “tell me when this is under KES 25,000” or “when it&apos;s back in stock”. It checks and tells you.</Text>
+      ) : null}
+      {items && items.length > 0 ? (
+        <View style={lifeStyles.group}>
+          {items.map((w, i) => (
+            <View key={w.id} style={[styles.ownRow, i > 0 && styles.rowLine]}>
+              <View style={[styles.icon, { width: 34, height: 34, backgroundColor: alpha(Hue.stone, 0.12), borderColor: alpha(Hue.stone, 0.3) }]}>
+                <Eye size={16} color={Hue.stone} strokeWidth={1.8} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.ownText} numberOfLines={1}>{watchName(w)}</Text>
+                <Text style={styles.when} numberOfLines={1}>{watchWant(w)}</Text>
+              </View>
+              <GhostButton title="Stop" size="sm" variant="secondary" onPress={() => stop(w)} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
   content: { paddingBottom: 96, paddingHorizontal: Space.lg, gap: Space.md },
   intro: { flexDirection: "row", alignItems: "center", gap: Space.md, padding: Space.lg, borderRadius: 24, borderCurve: "continuous", backgroundColor: alpha(Ghost.accent.primary, 0.09), borderWidth: StyleSheet.hairlineWidth, borderColor: alpha(Ghost.accent.primary, 0.35) },
   introTitle: { fontFamily: Fonts.voice, fontSize: 24, lineHeight: 28, color: Ghost.text.primary },
   introText: { fontSize: 13.5, lineHeight: 19, color: Ghost.text.secondary },
-  count: { fontSize: 11.5, fontWeight: "500", letterSpacing: 1.1, textTransform: "uppercase", color: Ghost.text.tertiary, marginLeft: 4, marginTop: Space.xs },
+  section: { fontSize: 11.5, fontWeight: "500", letterSpacing: 1.1, textTransform: "uppercase", color: Ghost.text.tertiary, marginLeft: 4, marginTop: Space.md },
+  sectionLead: { fontSize: 13.5, lineHeight: 19, color: Ghost.text.tertiary, marginLeft: 4, marginRight: 8 },
+  ownRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
+  ownText: { fontSize: 15, lineHeight: 20, fontWeight: "500", color: Ghost.text.primary },
+  ownActions: { flexDirection: "row", gap: 6 },
+  addRow: { flexDirection: "row", alignItems: "center", gap: Space.sm },
   job: { padding: Space.lg, gap: Space.sm },
   jobOn: { borderColor: alpha(Ghost.accent.primary, 0.35) },
   head: { flexDirection: "row", alignItems: "center", gap: Space.md },

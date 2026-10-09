@@ -1,40 +1,29 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { showDialog } from "@/lib/dialog";
 import { useRouter } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { GhostText } from "@/components/themed-text";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
-import { GhostButton, EmptyState, GhostInput, OfflineBadge, Panel, SectionHeader, StatusPill } from "@/components/ghost";
+import { GhostButton, EmptyState, OfflineBadge, SectionHeader, StatusPill } from "@/components/ghost";
 import { GlassCard } from "@/components/glass";
 import {
   controlRoutineItem,
-  createGoal,
-  fetchGoals,
   fetchRoutines,
-  goalAction,
   kindLabel,
   stateLabel,
-  type GoalItem,
   type RoutineItem,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 import { isLive, routineDetail } from "@/lib/routineWords";
 import { EdgeScrollView } from "@/components/scroll-edge";
 
-// Routines — the one place that answers "what does Ghost do for me?".
-//
-// Scheduled work (reminders, recurring briefs, automations) and standing
-// goals live here together. The owner never files their intent as a
-// "routine", an "automation", or a "goal" — they say what they want in
-// conversation and Ghost infers the shape. Kind and goal badges are quiet
-// metadata, never a filing decision.
-//
-// Routines are created in conversation ("every Monday at 9…"). Goals are
-// declared here or in conversation; the heartbeat evaluates them. This
-// surface is for reviewing and steering, not for filling forms — matching
-// the design principle that talk is the primary verb, not configuration.
+// Routines: what runs on a schedule. Reminders, recurring briefs, the jobs
+// the owner switched on and anything else timed. The owner never files their
+// intent as a "routine": they say it in conversation and Ghost gives it a
+// time. What Ghost looks after without a time (goals, in the owner's own
+// words) and what it is watching live on Jobs, so each thing has one home.
 
 type PillTone = "ok" | "warn" | "bad" | "off";
 
@@ -52,20 +41,6 @@ function badgeFor(t: RoutineItem): { label: string; tone: PillTone } {
   }
 }
 
-function goalStatusLabel(s: string): string {
-  switch (s) {
-    case "active":
-      return "Active";
-    case "paused":
-      return "Paused";
-    case "completed":
-      return "Done";
-    case "expired":
-      return "Expired";
-    default:
-      return s ? s.replace(/_/g, " ") : "Unknown";
-  }
-}
 
 export default function RoutinesScreen() {
   const router = useRouter();
@@ -80,26 +55,15 @@ export default function RoutinesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [goals, setGoals] = useState<GoalItem[]>([]);
-  const [goalsError, setGoalsError] = useState<string | null>(null);
-  const [goalText, setGoalText] = useState("");
-  const [goalScope, setGoalScope] = useState("");
-  const [goalBusy, setGoalBusy] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!config) return;
     if (!silent) setLoading(true);
     setError(null);
-    setGoalsError(null);
     try {
       setItems(await fetchRoutines(config));
     } catch {
       setError("Couldn't load what Ghost is doing.");
-    }
-    try {
-      setGoals(await fetchGoals(config));
-    } catch {
-      setGoalsError("Couldn't load goals.");
     }
     setLoading(false);
   }, [config]);
@@ -133,57 +97,6 @@ export default function RoutinesScreen() {
     [config, busyId, load],
   );
 
-  const handleCreateGoal = useCallback(async () => {
-    if (!config || goalBusy) return;
-    const t = goalText.trim();
-    if (!t) {
-      showDialog("Missing goal", "Describe what Ghost should keep doing for you.");
-      return;
-    }
-    setGoalBusy("new");
-    try {
-      await createGoal(config, t, goalScope.trim() || undefined);
-      setGoalText("");
-      setGoalScope("");
-      await load(true);
-    } catch (e) {
-      showDialog("Couldn't create goal", e instanceof Error ? e.message : "Unknown error");
-    }
-    setGoalBusy(null);
-  }, [config, goalBusy, goalText, goalScope, load]);
-
-  const handleGoalOp = useCallback(
-    async (g: GoalItem, op: "pause" | "resume" | "complete") => {
-      if (!config || goalBusy) return;
-      if (op === "complete") {
-        showDialog("Mark done?", `"${g.text}" will stop being evaluated.`, [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Done", onPress: async () => {
-              setGoalBusy(g.id);
-              try {
-                await goalAction(config, g.id, op);
-                await load(true);
-              } catch (e) {
-                showDialog("Failed", e instanceof Error ? e.message : "Unknown error");
-              }
-              setGoalBusy(null);
-            },
-          },
-        ]);
-        return;
-      }
-      setGoalBusy(g.id);
-      try {
-        await goalAction(config, g.id, op);
-        await load(true);
-      } catch (e) {
-        showDialog("Failed", e instanceof Error ? e.message : "Unknown error");
-      }
-      setGoalBusy(null);
-    },
-    [config, goalBusy, load],
-  );
 
   const active = items.filter((t) => t.state === "active" || t.state === "waiting").length;
 
@@ -319,64 +232,9 @@ export default function RoutinesScreen() {
             </>
           ) : null}
 
-          <SectionHeader title="Goals" subtitle="Standing intents Ghost keeps working on. Tell it once, it reports back." />
-          {goalsError && goals.length === 0 ? (
-            <EmptyState
-              title="Couldn't load goals"
-              subtitle={goalsError}
-              action={<GhostButton title="Try again" onPress={() => load()} />}
-            />
-          ) : null}
-          <Panel style={{ marginTop: 0 }}>
-            <GhostInput
-              placeholder="e.g. Take care of school emails"
-              value={goalText}
-              onChangeText={setGoalText}
-              editable={goalBusy !== "new"}
-            />
-            <GhostInput
-              placeholder="Scope (optional, e.g. school.edu inbox)"
-              value={goalScope}
-              onChangeText={setGoalScope}
-              editable={goalBusy !== "new"}
-            />
-            <GhostButton title={goalBusy === "new" ? "Working…" : "Set goal"} onPress={handleCreateGoal} />
-          </Panel>
-          {goals.length === 0 && !goalsError ? (
-            <GhostText type="footnote" style={styles.none}>
-              No goals yet. Set one above and Ghost will keep at it.
-            </GhostText>
-          ) : (
-            goals.map((g) => {
-              const busy = goalBusy === g.id;
-              const isActive = g.status === "active";
-              return (
-                <GlassCard key={g.id} style={styles.card}>
-                  <View style={styles.rowHead}>
-                    <GhostText type="headline" style={styles.rowTitle}>
-                      {g.text}
-                    </GhostText>
-                    <StatusPill label={goalStatusLabel(g.status)} tone={isActive ? "ok" : g.status === "completed" ? "off" : "warn"} />
-                  </View>
-                  {g.scope ? (
-                    <GhostText type="footnote" style={styles.rowMeta}>
-                      {g.scope}
-                    </GhostText>
-                  ) : null}
-                  <View style={styles.actions}>
-                    {isActive ? (
-                      <GhostButton title={busy ? "…" : "Pause"} variant="secondary" size="sm" onPress={() => handleGoalOp(g, "pause")} />
-                    ) : g.status === "paused" || g.status === "expired" ? (
-                      <GhostButton title={busy ? "…" : "Resume"} variant="secondary" size="sm" onPress={() => handleGoalOp(g, "resume")} />
-                    ) : null}
-                    {g.status !== "completed" ? (
-                      <GhostButton title={busy ? "…" : "Done"} variant="secondary" size="sm" onPress={() => handleGoalOp(g, "complete")} />
-                    ) : null}
-                  </View>
-                </GlassCard>
-              );
-            })
-          )}
+          <Pressable onPress={() => router.push("/jobs" as never)} style={({ pressed }) => [styles.toJobs, pressed && { opacity: 0.7 }]} accessibilityRole="link">
+            <GhostText type="footnote" style={styles.toJobsText}>Things Ghost looks after in your words, and what it&apos;s watching, are on Jobs.</GhostText>
+          </Pressable>
         </EdgeScrollView>
       )}
     </View>
@@ -429,6 +287,8 @@ const styles = StyleSheet.create({
     color: Ghost.status.error,
     marginTop: 2,
   },
+  toJobs: { marginHorizontal: Space.lg, marginTop: Space.xl, paddingVertical: Space.sm },
+  toJobsText: { color: Ghost.text.tertiary, textAlign: "center" },
   doneCard: { paddingVertical: Space.xs, paddingHorizontal: 0 },
   doneRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: Space.lg, paddingVertical: Space.md },
   doneLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
