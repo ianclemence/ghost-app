@@ -3,19 +3,21 @@ import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, LinearTransition, useReducedMotion } from "react-native-reanimated";
-import { ChevronDown, Film } from "lucide-react-native";
+import { Check, ChevronDown, Film } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { EdgeScrollView } from "@/components/scroll-edge";
 import { CanvasView } from "@/components/canvas-view";
-import { GhostButton } from "@/components/ghost";
+import { GhostButton, GhostSheet } from "@/components/ghost";
+import { showDialog } from "@/lib/dialog";
 import { lifeStyles } from "@/components/life-ui";
 import { alpha, Ghost, Inter, Space } from "@/constants/theme";
-import { fetchMotion, motionVideo, saveMotion, startMotionVideo, type MotionSpec, type MotionVideo } from "@/lib/ghostApi";
-import { clock, motionFields, setField, type MotionField } from "@/lib/motion";
+import { deleteArtifact, fetchMotion, fetchVersions, motionVideo, saveMotion, startMotionVideo, type Artifact, type MotionSpec, type MotionVideo } from "@/lib/ghostApi";
+import { clock, motionFields, motionVersion, setField, type MotionField } from "@/lib/motion";
 import { shareExport } from "@/lib/documents";
 import { useGhostStore } from "@/lib/store";
+import { clockTime } from "@/lib/thread";
 
 /**
  * A motion, full screen: it plays at the top; below, the video is made (and
@@ -39,6 +41,8 @@ export default function MotionScreen() {
   const [openScene, setOpenScene] = useState<number | null>(0);
   const [reload, setReload] = useState(0);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [versions, setVersions] = useState<Artifact[]>([]);
+  const [versionsOpen, setVersionsOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!config || !id) return;
@@ -50,6 +54,9 @@ export default function MotionScreen() {
     setDuration(r.data.duration);
     setVideo(r.data.video);
     setError(null);
+    const v = await fetchVersions(config, id);
+    // Oldest first, numbered by the file each was saved as.
+    if (v.ok) setVersions([...v.data.versions].sort((a, b) => motionVersion(a.path) - motionVersion(b.path)));
   }, [config, id]);
   useEffect(() => { void load(); }, [load]);
 
@@ -95,6 +102,35 @@ export default function MotionScreen() {
     if (why) setError(why);
   };
 
+  const current = versions.find((v) => v.id === id);
+  const n = current ? motionVersion(current.path) : 0;
+  const latest = versions.length ? motionVersion(versions[versions.length - 1].path) : 0;
+
+  const pickVersion = (a: Artifact) => {
+    setVersionsOpen(false);
+    if (a.id === id) return;
+    setHtml(null);
+    setId(a.id);
+    router.setParams({ id: a.id } as never);
+  };
+
+  const removeVersion = () => {
+    if (!config || !current) return;
+    showDialog(`Delete version ${n}?`, "It leaves the conversation and Made by Ghost, with its video. The other versions stay.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        const r = await deleteArtifact(config, id);
+        if (!r.ok) return setError(r.error);
+        setVersionsOpen(false);
+        const next = versions.filter((v) => v.id !== id).pop();
+        if (!next) return router.back();
+        setHtml(null);
+        setId(next.id);
+        router.setParams({ id: next.id } as never);
+      } },
+    ]);
+  };
+
   const rendering = video?.state === "queued" || video?.state === "rendering";
   const pct = video?.total ? Math.round(((video.done ?? 0) / video.total) * 100) : 0;
   const scenes = draft ? motionFields(draft) : [];
@@ -103,13 +139,26 @@ export default function MotionScreen() {
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
       <ScreenHeader title={spec?.title ?? "Motion"} subtitle={duration ? `An animation · ${clock(duration)}` : "An animation"} />
-      <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" fade={false}>
         {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
         {!html && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
         {html ? (
           <View style={styles.player} key={`${id}-${reload}`}>
             <CanvasView html={html} mode="inline" />
           </View>
+        ) : null}
+
+        {versions.length > 1 && current ? (
+          <Pressable
+            onPress={() => setVersionsOpen(true)}
+            style={({ pressed }) => [styles.versionBar, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Version ${n} of ${versions.length}. Choose a version`}
+          >
+            <Text style={styles.versionText}>Version {n}{n === latest ? " · latest" : ""}</Text>
+            <Text style={styles.versionCount}>{versions.length} versions</Text>
+            <ChevronDown size={15} color={Ghost.text.tertiary} />
+          </Pressable>
         ) : null}
 
         {html ? (
@@ -184,6 +233,32 @@ export default function MotionScreen() {
           </>
         ) : null}
       </EdgeScrollView>
+      <GhostSheet visible={versionsOpen} onClose={() => setVersionsOpen(false)} title="Versions" message="Each change you or Ghost save is a new version. Play any of them, or delete one you don't need.">
+        <View style={lifeStyles.sheetGroup}>
+          {[...versions].reverse().map((a, i) => {
+            const v = motionVersion(a.path);
+            const on = a.id === id;
+            const t = a.created_at ? Date.parse(a.created_at) : NaN;
+            return (
+              <Pressable
+                key={a.id}
+                onPress={() => pickVersion(a)}
+                style={({ pressed }) => [styles.version, i > 0 && styles.versionLine, pressed && { opacity: 0.7 }]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[styles.versionName, on && { color: Ghost.text.primary }]}>Version {v}{v === latest ? " · latest" : ""}</Text>
+                  {a.summary ? <Text style={styles.versionSub} numberOfLines={1}>{a.summary.replace(/ · version \d+$/, "")}</Text> : null}
+                </View>
+                {Number.isFinite(t) ? <Text style={styles.versionSub}>{clockTime(t)}</Text> : null}
+                <View style={{ width: 18 }}>{on ? <Check size={16} color={Ghost.accent.primary} strokeWidth={2.2} /> : null}</View>
+              </Pressable>
+            );
+          })}
+        </View>
+        <GhostButton title={`Delete version ${n}`} variant="danger" fullWidth style={{ marginTop: Space.md }} onPress={removeVersion} />
+      </GhostSheet>
     </View>
   );
 }
@@ -241,4 +316,11 @@ const styles = StyleSheet.create({
   fieldErr: { fontSize: 12.5, color: Ghost.status.error },
   saveRow: { gap: Space.sm, marginTop: Space.xs },
   error: { fontSize: 13.5, lineHeight: 19, color: Ghost.status.error, textAlign: "center" },
+  versionBar: { flexDirection: "row", alignItems: "center", gap: Space.sm, height: 44, paddingHorizontal: Space.lg, borderRadius: 22, backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
+  versionText: { flex: 1, fontSize: 14.5, fontWeight: "500", color: Ghost.text.primary },
+  versionCount: { fontSize: 13, color: Ghost.text.tertiary },
+  version: { flexDirection: "row", alignItems: "center", gap: Space.md, minHeight: 56, paddingHorizontal: 14 },
+  versionLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
+  versionName: { fontSize: 15, fontWeight: "500", color: Ghost.text.secondary },
+  versionSub: { fontSize: 12.5, color: Ghost.text.tertiary },
 });

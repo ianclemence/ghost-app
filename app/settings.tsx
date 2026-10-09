@@ -10,12 +10,12 @@ import { pushLine, syncPushToken, type PushState } from "@/lib/push";
 
 /** The few things you set up once. Each row opens its own screen. */
 const ROWS = [
+  { title: "Intelligence", detail: "The models Ghost thinks with", path: "/intelligence" },
+  { title: "Connected apps", detail: "Email, calendar and other accounts", path: "/connections" },
   { title: "Jobs", detail: "What Ghost takes on for you", path: "/jobs" },
-  { title: "Intelligence", detail: "Ghost's thinking model", path: "/intelligence" },
-  { title: "Connected apps", detail: "Email, calendar, and logins", path: "/connections" },
   { title: "Data sources", detail: "What dashboards can read", path: "/datasources" },
   { title: "Phone", detail: "Notifications, health, places", path: "/phone" },
-  { title: "Your Pod", detail: "Health and the models on it", path: "/ghost" },
+  { title: "Your Pod", detail: "Health and updates", path: "/ghost" },
   { title: "About", detail: "What Ghost is and how it works", path: "/about" },
 ];
 
@@ -47,7 +47,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Settings" subtitle="Make Ghost yours" />
+      <ScreenHeader title="Settings" subtitle="Models, apps, jobs and your Pod" />
       <View style={styles.list}>
         <GhostList>
           {ROWS.filter((r) => r.path !== "/about").map((r) => (

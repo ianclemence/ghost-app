@@ -1,5 +1,6 @@
-// Your Pod: the machine Ghost lives on. Health, anything needing attention,
-// and the AI models installed on it. The Pod is Ghost's local brain; the
+// Your Pod: the machine Ghost lives on. Health, updates, anything needing
+// attention, and the web console's reset code. (Its models are in
+// Intelligence, with choosing what Ghost thinks with.) The Pod is Ghost's local brain; the
 // phone is a window into it, so there is no second, weaker Ghost here.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, RefreshControl, StyleSheet, View } from "react-native";
@@ -9,19 +10,17 @@ import { useRouter } from "expo-router";
 import { Fonts, Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
-import { GhostButton, GhostInput, SectionHeader, StatusDot } from "@/components/ghost";
+import { GhostButton, StatusDot } from "@/components/ghost";
 import { formatUptime } from "@/lib/format";
 import { checkTitle } from "@/lib/models";
 import {
   checkHealthInfo,
   fetchDoctorStatus,
-  fetchOllamaModels,
   fetchPodUpdate,
   startPodUpdate,
   requestConsoleResetCode,
   type PodUpdate,
   fetchStats,
-  pullOllamaModel,
   type DoctorStatus,
   type PiStats,
 } from "@/lib/ghostApi";
@@ -48,9 +47,6 @@ export default function PodScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
   const [diagRunning, setDiagRunning] = useState(false);
-  const [models, setModels] = useState<string[]>([]);
-  const [installName, setInstallName] = useState("");
-  const [installing, setInstalling] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [update, setUpdate] = useState<PodUpdate | null>(null);
   const [resetCode, setResetCode] = useState<string | null>(null);
@@ -61,11 +57,10 @@ export default function PodScreen() {
   const load = useCallback(async (silent = false) => {
     if (!config) return;
     if (!silent) setLoading(true);
-    const [health, s, d, m] = await Promise.all([
+    const [health, s, d] = await Promise.all([
       checkHealthInfo(config).catch(() => ({ ok: false, uptimeS: null as number | null })),
       fetchStats(config).catch(() => null),
       fetchDoctorStatus(config).catch(() => null),
-      fetchOllamaModels(config).catch(() => [] as string[]),
     ]);
     setUnreachable(!health.ok && !s && !d);
     if (health.uptimeS != null) setUptime(formatUptime(health.uptimeS));
@@ -73,7 +68,6 @@ export default function PodScreen() {
     setVersion(s?.version ?? null);
     setStats(s);
     setDoctor(d);
-    setModels(m);
     setLoading(false);
   }, [config]);
 
@@ -137,20 +131,6 @@ export default function PodScreen() {
     setDiagRunning(false);
   };
 
-  const install = async () => {
-    const name = installName.trim();
-    if (!config || installing || !name) return;
-    setInstalling(true);
-    setNote(null);
-    try {
-      await pullOllamaModel(config, name);
-      setNote(`Downloading ${name} to your Pod. This can take a while.`);
-      setInstallName("");
-    } catch {
-      setNote("Couldn't start that download. Check the model name.");
-    }
-    setInstalling(false);
-  };
 
   const attention = (doctor?.checks ?? []).filter((c) => c.status !== "ok");
   const loadRatio = stats?.load ? stats.load.one / (stats.cpu_count ?? 1) : 0;
@@ -160,7 +140,7 @@ export default function PodScreen() {
     return (
       <View style={styles.root}>
       <ScreenBackground variant="calm" />
-        <ScreenHeader title="Your Pod" subtitle="The machine Ghost lives on" />
+        <ScreenHeader title="Your Pod" subtitle="Where Ghost runs: its health and updates" />
         <View style={styles.body}>
           <Text style={styles.lead}>
             Ghost runs on a small computer you own: your memory, permissions, and tools stay there. Connect yours to talk to it from anywhere.
@@ -306,28 +286,7 @@ export default function PodScreen() {
           </>
         )}
 
-        <SectionHeader
-          title="Models on your Pod"
-          subtitle="What is installed here. Choose what Ghost thinks with in Intelligence."
-        />
-        <View style={styles.card}>
-          {models.length === 0 ? (
-            <Text style={styles.meta}>None installed yet.</Text>
-          ) : (
-            models.map((m) => (
-              <View key={m} style={styles.modelRow}>
-                <Text style={[styles.cardTitle, { flex: 1 }]} numberOfLines={1}>{m}</Text>
-              </View>
-            ))
-          )}
-          <View style={styles.installRow}>
-            <View style={{ flex: 1 }}>
-              <GhostInput value={installName} onChangeText={setInstallName} placeholder="Add a model, e.g. qwen3:8b" />
-            </View>
-            <GhostButton title="Install" variant="secondary" size="sm" onPress={() => void install()} disabled={installing || installName.trim() === ""} loading={installing} style={{ alignSelf: "center" }} />
-          </View>
-          {note ? <Text style={styles.meta} accessibilityLiveRegion="polite">{note}</Text> : null}
-        </View>
+        {note ? <Text style={[styles.meta, { textAlign: "center", marginTop: Space.lg, paddingHorizontal: Space.xl }]} accessibilityLiveRegion="polite">{note}</Text> : null}
       </EdgeScrollView>
     </View>
   );
@@ -378,6 +337,4 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 15, color: Ghost.text.secondary, fontWeight: "300" },
   infoRight: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, marginLeft: Space.lg },
   infoValue: { fontSize: 15, color: Ghost.text.primary, fontWeight: "500", flexShrink: 1, textAlign: "right" },
-  modelRow: { flexDirection: "row", alignItems: "center", gap: Space.md },
-  installRow: { flexDirection: "row", alignItems: "center", gap: Space.md, marginTop: Space.xs },
 });

@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { AppWindow, Clapperboard, LayoutDashboard, FileText, Image as ImageIcon, Link2, NotebookPen, Pin, Search, X } from "lucide-react-native";
+import { AppWindow, Check, ChevronDown, Clapperboard, LayoutDashboard, FileText, Image as ImageIcon, Layers, Link2, MoreHorizontal, NotebookPen, Search, X } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { EdgeScrollView } from "@/components/scroll-edge";
-import { GhostSheet } from "@/components/ghost";
+import { GhostButton, GhostSheet } from "@/components/ghost";
+import { lifeStyles as lifeSheet } from "@/components/life-ui";
+import { showDialog } from "@/lib/dialog";
 import { ArtifactCard } from "@/components/artifact-card";
 import { alpha, Fonts, Ghost, Space } from "@/constants/theme";
-import { fetchShelf, fetchWorkspacePreview, pinArtifact, type ShelfItem, type ShelfKind } from "@/lib/ghostApi";
+import { deleteArtifact, fetchShelf, fetchWorkspacePreview, pinArtifact, type ShelfItem, type ShelfKind } from "@/lib/ghostApi";
 import { isDocumentArtifact } from "@/lib/documents";
 import { isCanvasArtifact } from "@/lib/canvas";
 import { isMotionArtifact } from "@/lib/motion";
@@ -54,27 +56,30 @@ export default function ShelfScreen() {
   const [filter, setFilter] = useState<ShelfKind | "all">("all");
   const [query, setQuery] = useState("");
   const [peek, setPeek] = useState<ShelfItem | null>(null);
+  const [acting, setActing] = useState<ShelfItem | null>(null);
+  const [choosing, setChoosing] = useState(false);
   const asked = useRef(0);
 
   const load = useCallback(async () => {
     if (!config) return;
     const n = ++asked.current;
     try {
-      const list = await fetchShelf(config, { q: query, kind: filter === "all" ? undefined : filter, limit: 150 });
+      // Every kind for the words typed: the filter and its counts are worked out here.
+      const list = await fetchShelf(config, { q: query, limit: 200 });
       if (n !== asked.current) return; // a newer search is on its way
       setItems(list);
       setError(null);
     } catch {
       if (n === asked.current) setError("Couldn't reach your Pod to read the shelf.");
     }
-  }, [config, query, filter]);
+  }, [config, query]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
   // Typing searches after a breath, not on every letter.
   useEffect(() => {
     const t = setTimeout(() => void load(), 250);
     return () => clearTimeout(t);
-  }, [query, filter, load]);
+  }, [query, load]);
 
   const togglePin = async (it: ShelfItem) => {
     if (!config) return;
@@ -100,57 +105,74 @@ export default function ShelfScreen() {
     else setPeek(it);
   };
 
-  const pinned = (items ?? []).filter((i) => i.pinned);
-  const rest = (items ?? []).filter((i) => !i.pinned);
+  const counts = (items ?? []).reduce<Record<string, number>>((m, it) => {
+    const k = shelfKindOf(it);
+    m[k] = (m[k] ?? 0) + 1;
+    return m;
+  }, {});
+  const shown = (items ?? []).filter((it) => filter === "all" || shelfKindOf(it) === filter);
+  const pinned = shown.filter((i) => i.pinned);
+  const rest = shown.filter((i) => !i.pinned);
+  const current = FILTERS.find((f) => f.id === filter)!;
+
+  const remove = (it: ShelfItem, all: boolean) => {
+    const what = all && it.versions > 1 ? `all ${it.versions} versions of “${it.title}”` : it.versions > 1 ? `the latest version of “${it.title}”` : `“${it.title}”`;
+    showDialog(`Delete ${what}?`, it.path?.startsWith("uploads/") ? "It leaves the shelf and the conversation. The file stays in your Files." : "It leaves the shelf and the conversation, and Ghost's copy is deleted. This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        if (!config) return;
+        setActing(null);
+        const r = await deleteArtifact(config, it.id, all);
+        if (!r.ok) return setError(r.error);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        await load();
+      } },
+    ]);
+  };
   const searching = query.trim().length > 0 || filter !== "all";
 
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Made by Ghost" subtitle="Pages, documents and more" />
+      <ScreenHeader title="Made by Ghost" subtitle="Everything Ghost has made for you" />
       {!config ? (
         <Text style={styles.empty}>What Ghost makes lives on your Pod. Connect one to see it.</Text>
       ) : (
         <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.search}>
-            <Search size={16} color={Ghost.text.tertiary} strokeWidth={2} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search"
-              placeholderTextColor={Ghost.text.tertiary}
-              style={styles.searchInput}
-              returnKeyType="search"
-              accessibilityLabel="Search what Ghost made"
-              selectionColor={Ghost.accent.primary}
-            />
-            {query ? (
-              <Pressable onPress={() => setQuery("")} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear the search">
-                <X size={16} color={Ghost.text.tertiary} strokeWidth={2} />
-              </Pressable>
-            ) : null}
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipStrip} contentContainerStyle={styles.chips} accessibilityRole="tablist">
-            {FILTERS.map((f) => {
-              const on = filter === f.id;
-              return (
-                <Pressable
-                  key={f.id}
-                  onPress={() => setFilter(f.id)}
-                  style={[styles.chip, on && styles.chipOn]}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: on }}
-                >
-                  <Text style={[styles.chipText, on && styles.chipTextOn]}>{f.label}</Text>
+          <View style={styles.bar}>
+            <View style={styles.search}>
+              <Search size={16} color={Ghost.text.tertiary} strokeWidth={2} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search"
+                placeholderTextColor={Ghost.text.tertiary}
+                style={styles.searchInput}
+                returnKeyType="search"
+                accessibilityLabel="Search what Ghost made"
+                selectionColor={Ghost.accent.primary}
+              />
+              {query ? (
+                <Pressable onPress={() => setQuery("")} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear the search">
+                  <X size={16} color={Ghost.text.tertiary} strokeWidth={2} />
                 </Pressable>
-              );
-            })}
-          </ScrollView>
+              ) : null}
+            </View>
+            <Pressable
+              onPress={() => setChoosing(true)}
+              style={({ pressed }) => [styles.filter, filter !== "all" && styles.filterOn, pressed && { opacity: 0.75 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Showing ${current.label.toLowerCase()}. Change what is shown`}
+            >
+              <Text style={[styles.filterText, filter !== "all" && { color: Ghost.text.primary }]} numberOfLines={1}>{current.label}</Text>
+              <ChevronDown size={15} color={filter !== "all" ? Ghost.text.primary : Ghost.text.tertiary} strokeWidth={2} />
+            </Pressable>
+          </View>
 
           {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
           {items === null && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
 
-          {items && items.length === 0 ? (
+          {items && shown.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyTitle}>{searching ? "Nothing here." : "Nothing yet."}</Text>
               <Text style={styles.emptyText}>
@@ -161,10 +183,52 @@ export default function ShelfScreen() {
             </View>
           ) : null}
 
-          {pinned.length > 0 ? <Section title="Pinned" items={pinned} onOpen={open} onPin={togglePin} config={config} /> : null}
-          {rest.length > 0 ? <Section title={pinned.length > 0 ? "Everything else" : undefined} items={rest} onOpen={open} onPin={togglePin} config={config} /> : null}
+          {pinned.length > 0 ? <Section title="Pinned" items={pinned} onOpen={open} onMore={setActing} config={config} /> : null}
+          {rest.length > 0 ? <Section title={pinned.length > 0 ? "Everything else" : undefined} items={rest} onOpen={open} onMore={setActing} config={config} /> : null}
         </EdgeScrollView>
       )}
+      <GhostSheet visible={choosing} onClose={() => setChoosing(false)} title="Show">
+        <View style={lifeSheet.group}>
+          {FILTERS.filter((f) => f.id === "all" || f.id === filter || (counts[f.id] ?? 0) > 0).map((f, i) => {
+            const n = f.id === "all" ? (items ?? []).length : counts[f.id] ?? 0;
+            const on = filter === f.id;
+            const k = f.id === "all" ? null : KIND[f.id];
+            return (
+              <Pressable
+                key={f.id}
+                onPress={() => { setFilter(f.id); setChoosing(false); Haptics.selectionAsync().catch(() => {}); }}
+                style={({ pressed }) => [styles.option, i > 0 && styles.rowLine, pressed && styles.pressed]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on, disabled: n === 0 && f.id !== "all" }}
+                disabled={n === 0 && f.id !== "all"}
+              >
+                <View style={[styles.optionIcon, k && { backgroundColor: alpha(toHex(k.tint), 0.12), borderColor: alpha(toHex(k.tint), 0.3) }]}>
+                  {k ? <k.Icon size={15} color={k.tint} strokeWidth={1.9} /> : <Layers size={15} color={Ghost.text.secondary} strokeWidth={1.9} />}
+                </View>
+                <Text style={[styles.optionText, n === 0 && f.id !== "all" && { color: Ghost.text.tertiary }]}>{f.label}</Text>
+                <Text style={styles.optionCount}>{n}</Text>
+                <View style={styles.optionCheck}>{on ? <Check size={16} color={Ghost.accent.primary} strokeWidth={2.2} /> : null}</View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </GhostSheet>
+      <GhostSheet visible={acting !== null} onClose={() => setActing(null)} title={acting?.title} message={acting ? shelfMeta(acting) : undefined}>
+        {acting ? (
+          <View style={{ gap: Space.sm }}>
+            <GhostButton title="Open" fullWidth onPress={() => { const it = acting; setActing(null); open(it); }} />
+            <GhostButton title={acting.pinned ? "Unpin" : "Pin to the top"} fullWidth variant="secondary" onPress={() => { const it = acting; setActing(null); void togglePin(it); }} />
+            {acting.versions > 1 ? (
+              <>
+                <GhostButton title="Delete the latest version" fullWidth variant="danger" onPress={() => remove(acting, false)} />
+                <GhostButton title={`Delete all ${acting.versions} versions`} fullWidth variant="danger" onPress={() => remove(acting, true)} />
+              </>
+            ) : (
+              <GhostButton title="Delete" fullWidth variant="danger" onPress={() => remove(acting, true)} />
+            )}
+          </View>
+        ) : null}
+      </GhostSheet>
       <GhostSheet visible={peek !== null} onClose={() => setPeek(null)} title={peek?.title}>
         {peek && config ? <ArtifactCard config={config} artifact={peek} /> : null}
       </GhostSheet>
@@ -176,13 +240,13 @@ function Section({
   title,
   items,
   onOpen,
-  onPin,
+  onMore,
   config,
 }: {
   title?: string;
   items: ShelfItem[];
   onOpen: (it: ShelfItem) => void;
-  onPin: (it: ShelfItem) => void;
+  onMore: (it: ShelfItem) => void;
   config: NonNullable<ReturnType<typeof useGhostStore.getState>["config"]>;
 }) {
   return (
@@ -190,7 +254,7 @@ function Section({
       {title ? <Text style={styles.eyebrow}>{title}</Text> : null}
       <View style={styles.group}>
         {items.map((it, i) => (
-          <Row key={it.id} item={it} first={i === 0} onOpen={() => onOpen(it)} onPin={() => onPin(it)} config={config} />
+          <Row key={it.id} item={it} first={i === 0} onOpen={() => onOpen(it)} onMore={() => onMore(it)} config={config} />
         ))}
       </View>
     </View>
@@ -200,7 +264,7 @@ function Section({
 // Picture thumbnails are fetched once a session.
 const thumbs = new Map<string, string>();
 
-function Row({ item, first, onOpen, onPin, config }: { item: ShelfItem; first: boolean; onOpen: () => void; onPin: () => void; config: NonNullable<ReturnType<typeof useGhostStore.getState>["config"]> }) {
+function Row({ item, first, onOpen, onMore, config }: { item: ShelfItem; first: boolean; onOpen: () => void; onMore: () => void; config: NonNullable<ReturnType<typeof useGhostStore.getState>["config"]> }) {
   const kind = shelfKindOf(item);
   const k = KIND[kind];
   const [thumb, setThumb] = useState<string | null>(thumbs.get(item.id) ?? null);
@@ -230,14 +294,13 @@ function Row({ item, first, onOpen, onPin, config }: { item: ShelfItem; first: b
         <Text style={styles.rowMeta} numberOfLines={1}>{shelfMeta(item)}</Text>
       </View>
       <Pressable
-        onPress={onPin}
+        onPress={onMore}
         hitSlop={10}
-        style={({ pressed }) => [styles.pin, item.pinned && styles.pinOn, pressed && { opacity: 0.6 }]}
+        style={({ pressed }) => [styles.pin, pressed && { opacity: 0.6 }]}
         accessibilityRole="button"
-        accessibilityLabel={item.pinned ? "Unpin" : "Pin to the top"}
-        accessibilityState={{ selected: item.pinned }}
+        accessibilityLabel={`More for ${item.title}: open, pin or delete`}
       >
-        <Pin size={15} color={item.pinned ? Ghost.accent.primary : Ghost.text.tertiary} fill={item.pinned ? Ghost.accent.primary : "transparent"} strokeWidth={1.9} />
+        <MoreHorizontal size={18} color={Ghost.text.tertiary} strokeWidth={1.9} />
       </Pressable>
     </Pressable>
   );
@@ -250,15 +313,17 @@ function toHex(c: string) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
   content: { paddingBottom: 96, paddingHorizontal: Space.lg, gap: Space.md },
-  search: { flexDirection: "row", alignItems: "center", gap: 10, height: 46, paddingHorizontal: 16, borderRadius: 23, backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border, marginTop: Space.xs },
+  bar: { flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.xs },
+  search: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, height: 46, paddingHorizontal: 16, borderRadius: 23, backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
+  filter: { flexDirection: "row", alignItems: "center", gap: 6, height: 46, maxWidth: 150, paddingLeft: 16, paddingRight: 12, borderRadius: 23, backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
+  filterOn: { backgroundColor: alpha(Ghost.accent.primary, 0.16), borderColor: alpha(Ghost.accent.primary, 0.45) },
+  filterText: { fontSize: 14.5, fontWeight: "500", color: Ghost.text.secondary, flexShrink: 1 },
+  option: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingHorizontal: 14 },
+  optionIcon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border, backgroundColor: Ghost.glass.fill },
+  optionText: { flex: 1, fontSize: 15.5, color: Ghost.text.primary },
+  optionCount: { fontSize: 14, color: Ghost.text.tertiary, fontVariant: ["tabular-nums"] },
+  optionCheck: { width: 20, alignItems: "flex-end" },
   searchInput: { flex: 1, fontSize: 15.5, color: Ghost.text.primary, paddingVertical: 0 },
-  // The strip runs edge to edge so a chip scrolled to is never cut at the padding.
-  chipStrip: { marginHorizontal: -Space.lg },
-  chips: { gap: 6, paddingVertical: 2, paddingHorizontal: Space.lg },
-  chip: { height: 34, paddingHorizontal: 14, borderRadius: 17, justifyContent: "center", backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
-  chipOn: { backgroundColor: Ghost.text.primary, borderColor: Ghost.text.primary },
-  chipText: { fontSize: 13.5, fontWeight: "500", color: Ghost.text.secondary },
-  chipTextOn: { color: "#0B0B10" },
   section: { gap: Space.sm, marginTop: Space.xs },
   eyebrow: { fontSize: 11.5, fontWeight: "500", letterSpacing: 1.1, textTransform: "uppercase", color: Ghost.text.tertiary, marginLeft: 4 },
   group: { borderRadius: 24, borderCurve: "continuous", backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border, overflow: "hidden" },
@@ -271,7 +336,6 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 15.5, lineHeight: 20, fontWeight: "500", letterSpacing: -0.15, color: Ghost.text.primary },
   rowMeta: { fontSize: 12.5, lineHeight: 17, color: Ghost.text.tertiary },
   pin: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  pinOn: { backgroundColor: alpha(Ghost.accent.primary, 0.12) },
   error: { fontSize: 13.5, color: Ghost.status.error, textAlign: "center" },
   empty: { textAlign: "center", color: Ghost.text.tertiary, fontSize: 14.5, marginTop: Space.xxxl, paddingHorizontal: Space.xl },
   emptyWrap: { alignItems: "center", paddingTop: Space.huge, paddingHorizontal: Space.xl, gap: Space.sm },

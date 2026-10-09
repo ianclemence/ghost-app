@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import { showDialog } from "@/lib/dialog";
 import { Text } from "@/components/text";
+import { PdfPages } from "@/components/pdf-pages";
 import { Download, Trash2 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -17,9 +18,9 @@ import { useGhostStore } from "@/lib/store";
 import { EdgeScrollView } from "@/components/scroll-edge";
 
 /**
- * One file the owner sent Ghost: shown as itself when it is a photo or text,
- * as the text Ghost reads from it when it is a document or spreadsheet, and
- * always openable in the phone's own viewer (where a PDF is a real PDF).
+ * One file the owner sent Ghost: shown as itself when it is a photo, a PDF
+ * (its real pages, as printed) or text; as the text Ghost reads from it when
+ * it is another document or a spreadsheet; and always downloadable.
  */
 export default function FileScreen() {
   const router = useRouter();
@@ -28,6 +29,10 @@ export default function FileScreen() {
   const [p, setP] = useState<FilePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"download" | "delete" | null>(null);
+  const [pdfPages, setPdfPages] = useState<number | null>(null);
+  // A PDF is shown as its pages; if they can't be drawn, as its text.
+  const [pdfFailed, setPdfFailed] = useState(false);
+  const onPdfFail = useCallback(() => setPdfFailed(true), []);
 
   useEffect(() => {
     if (!config || !id) return;
@@ -82,17 +87,19 @@ export default function FileScreen() {
     ]);
   };
 
+  const isPdf = !!p && !pdfFailed && (p.mime === "application/pdf" || /\.pdf$/i.test(p.name));
   const title = friendlyFileName(p?.name ?? (typeof name === "string" ? name : "File"));
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title={title} subtitle={p ? `${fileSize(p.size)}${p.extracted ? " · text Ghost reads from it" : ""}` : undefined} />
+      <ScreenHeader title={title} subtitle={p ? (isPdf ? `PDF · ${fileSize(p.size)}${pdfPages ? ` · ${pdfPages} ${pdfPages === 1 ? "page" : "pages"}` : ""}` : `${fileSize(p.size)}${p.extracted ? " · the text Ghost reads from it" : ""}`) : undefined} />
       {!p && !error ? (
         <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} />
       ) : p ? (
         <>
           <EdgeScrollView contentContainerStyle={styles.content}>
-            {p.previewable && p.image_base64 ? (
+            {isPdf && config && id ? <PdfPages config={config} id={id} onPages={setPdfPages} onFail={onPdfFail} /> : null}
+            {!isPdf && p.previewable && p.image_base64 ? (
               <Image
                 source={{ uri: `data:${p.mime};base64,${p.image_base64}` }}
                 style={styles.image}
@@ -100,13 +107,13 @@ export default function FileScreen() {
                 accessibilityLabel={`Preview of ${p.name}`}
               />
             ) : null}
-            {p.previewable && p.content !== undefined ? (
+            {!isPdf && p.previewable && p.content !== undefined ? (
               <>
                 <Text style={styles.text} selectable>{p.content}</Text>
                 {p.truncated ? <Text style={styles.note}>Showing the first part. Download the file to see all of it.</Text> : null}
               </>
             ) : null}
-            {!p.previewable ? <Text style={[styles.note, { textAlign: "center" }]}>{p.reason ?? "There is no preview for this file. Download it instead."}</Text> : null}
+            {!isPdf && !p.previewable ? <Text style={[styles.note, { textAlign: "center" }]}>{p.reason ?? "There is no preview for this file. Download it instead."}</Text> : null}
           </EdgeScrollView>
           <View style={styles.actions}>
             <GhostButton

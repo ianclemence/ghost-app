@@ -1587,10 +1587,25 @@ export async function fetchDocumentPage(cfg: GhostConfig, id: string, page: numb
   }
 }
 
+/** A page of a PDF the owner sent, drawn on the Pod as it prints. */
+export async function fetchFilePage(cfg: GhostConfig, id: string, page: number, width = 900): Promise<{ ok: true; page: DocumentPage } | { ok: false; error: string }> {
+  try {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/files/${encodeURIComponent(id)}/page?n=${page}&w=${width}`, { headers: headers(cfg) }, 45000);
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok && typeof data.image_base64 === "string") {
+      return { ok: true, page: { page: data.page, pages: data.pages, uri: `data:image/png;base64,${data.image_base64}` } };
+    }
+    const msg = typeof data?.error === "string" ? data.error : data?.error?.message;
+    return { ok: false, error: msg || "Couldn't draw that page." };
+  } catch {
+    return { ok: false, error: "Couldn't reach your Pod for this page." };
+  }
+}
+
 // ─── Motion: animated explainers ──────────────────────────────────────────
 
 export interface MotionElement {
-  type: "title" | "text" | "number" | "bars" | "line" | "donut" | "list" | "steps" | "compare" | "quote";
+  type: "title" | "text" | "number" | "bars" | "line" | "donut" | "list" | "steps" | "compare" | "quote" | "flow" | "hub" | "gauge";
   text?: string;
   sub?: string;
   label?: string;
@@ -1603,6 +1618,10 @@ export interface MotionElement {
   labels?: string[];
   values?: number[];
   items?: string[];
+  /** flow: an arrow back to the start. */
+  loop?: boolean;
+  /** gauge: the full ring (100 unless set). */
+  max?: number;
   at?: number;
   stay?: number;
 }
@@ -1645,6 +1664,12 @@ export const fetchDataSources = (cfg: GhostConfig) => lifeCall<{ sources: DataSo
 export const connectDatabase = (cfg: GhostConfig, name: string, url: string) =>
   lifeCall<{ name: string }>(cfg, "/v1/datasources", { method: "POST", body: JSON.stringify({ name, url }) });
 export const forgetDatabase = (cfg: GhostConfig, name: string) => lifeCall<object>(cfg, `/v1/datasources/${encodeURIComponent(name)}`, { method: "DELETE" });
+
+/** Delete what Ghost made: this version, or (all) every version of it. */
+export const deleteArtifact = (cfg: GhostConfig, id: string, all = false) =>
+  lifeCall<{ deleted: number }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}${all ? "?all=1" : ""}`, { method: "DELETE" });
+/** Every version of the thing an artifact belongs to, newest first. */
+export const fetchVersions = (cfg: GhostConfig, id: string) => lifeCall<{ versions: Artifact[] }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/versions`);
 
 /** A file Ghost made, to share or keep: the PDF itself, or a Word copy of a document. */
 export async function exportArtifact(cfg: GhostConfig, id: string, format: "pdf" | "docx" | "mp4"): Promise<{ ok: true; name: string; mime: string; base64: string } | { ok: false; error: string }> {

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock } from "lucide-react-native";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock, X } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { GhostButton, GhostSheet } from "@/components/ghost";
 import { alpha, Fonts, Ghost, Inter, Space } from "@/constants/theme";
@@ -40,8 +40,14 @@ export function CardInput(props: Props<InputBlock>) {
   }
 }
 
-function Label({ text }: { text?: string }) {
-  return text ? <Text style={styles.label}>{text}</Text> : null;
+function Label({ text, optional }: { text?: string; optional?: boolean }) {
+  if (!text) return null;
+  return (
+    <Text style={styles.label}>
+      {text}
+      {optional ? <Text style={styles.optional}>{"  ·  Optional"}</Text> : null}
+    </Text>
+  );
 }
 
 /* ── choice: one tap each ──────────────────────────────────────────── */
@@ -100,7 +106,7 @@ function DateTimeInput({ block, value, onChange, disabled }: Props<Extract<Input
   const Icon = block.mode === "time" ? Clock : CalendarDays;
   return (
     <View>
-      <Label text={block.label} />
+      <Label text={block.label} optional={block.optional} />
       <Pressable
         onPress={() => !disabled && setOpen(true)}
         disabled={disabled}
@@ -113,7 +119,14 @@ function DateTimeInput({ block, value, onChange, disabled }: Props<Extract<Input
         <Text style={[styles.pickerText, !shown && styles.placeholder]}>
           {shown || (block.mode === "time" ? "Choose a time" : block.mode === "date" ? "Choose a date" : "Choose a date and time")}
         </Text>
-        {disabled ? null : <ChevronRight size={16} color={Ghost.text.tertiary} />}
+        {disabled ? null : block.optional && shown ? (
+          // Left empty again: the owner doesn't know it after all.
+          <Pressable onPress={() => onChange("")} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Clear ${block.label}`}>
+            <X size={16} color={Ghost.text.tertiary} strokeWidth={2} />
+          </Pressable>
+        ) : (
+          <ChevronRight size={16} color={Ghost.text.tertiary} />
+        )}
       </Pressable>
       <DateTimeSheet
         visible={open}
@@ -338,12 +351,12 @@ function FieldInput({ block, value, onChange, disabled }: Props<Extract<InputBlo
   const [focused, setFocused] = useState(false);
   return (
     <View>
-      <Label text={block.label} />
+      <Label text={block.label} optional={block.optional} />
       <TextInput
         value={typeof value === "string" ? value : ""}
         onChangeText={(t) => onChange(t)}
         editable={!disabled}
-        placeholder={block.placeholder ?? (block.optional ? "Optional" : "")}
+        placeholder={block.placeholder ?? ""}
         placeholderTextColor={Ghost.text.tertiary}
         multiline={block.multiline}
         maxLength={400}
@@ -404,6 +417,7 @@ function ChecklistInput({ block, value, onChange, disabled }: Props<Extract<Inpu
 
 const styles = StyleSheet.create({
   label: { fontSize: 11.5, fontWeight: "500", letterSpacing: 1.1, textTransform: "uppercase", color: Ghost.text.tertiary, marginBottom: 8 },
+  optional: { fontWeight: "400", color: Ghost.text.tertiary, textTransform: "none", letterSpacing: 0 },
   group: { borderRadius: 20, borderCurve: "continuous", backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border, overflow: "hidden" },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
   pressed: { opacity: 0.7 },

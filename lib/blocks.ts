@@ -34,7 +34,7 @@ export type MapBlock = { type: "map"; places: { name: string; detail?: string; l
 /** A block that asks the owner something; its answer comes back under `key`. */
 export type InputBlock =
   | { type: "choice"; key: string; label: string; options: Option[]; multiple: boolean }
-  | { type: "datetime"; key: string; label: string; mode: "date" | "time" | "datetime"; value?: string; earliest?: string }
+  | { type: "datetime"; key: string; label: string; mode: "date" | "time" | "datetime"; value?: string; earliest?: string; optional?: boolean }
   | { type: "slider"; key: string; label: string; min: number; max: number; step: number; number: number; unit?: string }
   | { type: "field"; key: string; label: string; placeholder?: string; value?: string; optional: boolean; multiline: boolean }
   | { type: "checklist"; key: string; label?: string; checks: Check[] };
@@ -215,7 +215,7 @@ export function parseBlock(raw: unknown): Block | null {
       const form = DATE_FORMS[mode];
       const value = typeof raw.value === "string" && form.test(raw.value) ? raw.value : undefined;
       const earliest = typeof raw.earliest === "string" && form.test(raw.earliest) ? raw.earliest : undefined;
-      return { type: "datetime", key, label, mode, value, earliest };
+      return { type: "datetime", key, label, mode, value, earliest, ...(raw.optional === true ? { optional: true } : {}) };
     }
     case "slider": {
       const key = typeof raw.key === "string" && ID.test(raw.key) ? raw.key : "";

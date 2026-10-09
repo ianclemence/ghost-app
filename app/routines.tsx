@@ -106,8 +106,8 @@ export default function RoutinesScreen() {
       <ScreenHeader
         title="Routines"
         subtitle={active > 0
-          ? `${active} ${active === 1 ? "routine" : "routines"} on autopilot`
-          : "Nothing on autopilot yet"}
+          ? `${active} ${active === 1 ? "routine" : "routines"} on a schedule`
+          : "Nothing scheduled yet"}
       />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>

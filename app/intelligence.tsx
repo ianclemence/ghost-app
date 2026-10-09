@@ -25,6 +25,7 @@ import {
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
 import { EdgeScrollView } from "@/components/scroll-edge";
+import { LocalModels } from "@/components/local-models";
 
 // Provider order, ported from the web console. Extras sort after.
 const PROVIDER_ORDER = [
@@ -297,7 +298,7 @@ export default function IntelligenceScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Intelligence" subtitle="Choose how Ghost thinks" />
+      <ScreenHeader title="Intelligence" subtitle="The models Ghost thinks with" />
       {config && connectionState !== "online" ? (
         <View style={styles.offlineWrap}>
           <OfflineBadge state={connectionState === "syncing" ? "syncing" : "offline"} />
@@ -406,6 +407,8 @@ export default function IntelligenceScreen() {
               })}
             </>
           ) : null}
+
+          {config ? <LocalModels config={config} onChanged={() => void load()} /> : null}
 
           <SectionHeader title="Providers" subtitle="The AI services Ghost can think with. It only uses what you connect." />
           {providerKeys.length === 0 ? (

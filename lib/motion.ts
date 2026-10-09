@@ -27,7 +27,14 @@ export interface MotionField {
 
 const KIND_WORD: Record<MotionElement["type"], string> = {
   title: "Title", text: "Text", number: "Number", bars: "Bars", line: "Line", donut: "Shares", list: "List", steps: "Steps", compare: "Compare", quote: "Quote",
+  flow: "Diagram", hub: "Diagram", gauge: "Gauge",
 };
+
+/** A motion's version, from its file (motion/name-v3.json → 3). */
+export function motionVersion(path: string | undefined): number {
+  const m = /-v(\d+)\.json$/.exec(path ?? "");
+  return m ? parseInt(m[1], 10) : 1;
+}
 
 /** Every word, number and timing in a motion, scene by scene. */
 export function motionFields(spec: MotionSpec): { scene: number; title: string; fields: MotionField[] }[] {
@@ -40,9 +47,14 @@ export function motionFields(spec: MotionSpec): { scene: number; title: string; 
         if (v === undefined || v === "") return;
         fields.push({ path: [si, ei, key], label: `${w}: ${label}`, kind, value: String(v) });
       };
-      add("text", "words");
+      add("text", e.type === "hub" ? "the centre" : "words");
       add("sub", "second line");
       add("label", "label");
+      if (e.type === "gauge") {
+        add("to", "value", "number");
+        add("max", "out of", "number");
+        add("suffix", "after it");
+      }
       if (e.type === "number") {
         add("to", "number", "number");
         add("prefix", "before it");
@@ -54,7 +66,7 @@ export function motionFields(spec: MotionSpec): { scene: number; title: string; 
         if (v !== undefined && e.type !== "line") fields.push({ path: [si, ei, "values", i], label: `${w}: ${l}`, kind: "number", value: String(v) });
       });
       if (e.type === "line") (e.values ?? []).forEach((v, i) => fields.push({ path: [si, ei, "values", i], label: `${w}: point ${i + 1}`, kind: "number", value: String(v) }));
-      (e.items ?? []).forEach((it, i) => fields.push({ path: [si, ei, "items", i], label: `${w}: ${e.type === "steps" ? "step" : "item"} ${i + 1}`, kind: "text", value: it }));
+      (e.items ?? []).forEach((it, i) => fields.push({ path: [si, ei, "items", i], label: `${w}: ${e.type === "steps" ? "step" : e.type === "flow" ? "box" : e.type === "hub" ? "part" : "item"} ${i + 1}`, kind: "text", value: it }));
       if (ei > 0 || (e.at ?? 0) > 0) fields.push({ path: [si, ei, "at"], label: `${w}: enters at (s)`, kind: "seconds", value: String(e.at ?? 0) });
     });
     if (sc.caption !== undefined) fields.push({ path: [si, "caption"], label: "Caption", kind: "text", value: sc.caption });

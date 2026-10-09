@@ -36,7 +36,7 @@ export default function ActivityScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Activity" subtitle="What Ghost has been up to" />
+      <ScreenHeader title="Activity" subtitle="What Ghost did, and when" />
       {!config ? (
         <Text style={styles.empty}>Activity is recorded on your Ghost Pod. Connect one to see it.</Text>
       ) : items === null && !error ? (

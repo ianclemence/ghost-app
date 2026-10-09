@@ -1,8 +1,12 @@
-import React, { forwardRef, useRef } from "react";
-import { StyleSheet, View, type ScrollViewProps } from "react-native";
+import React, { forwardRef, useRef, useState } from "react";
+import { Platform, StyleSheet, View, type ScrollViewProps } from "react-native";
+import * as Updates from "expo-updates";
+import MaskedView from "@react-native-masked-view/masked-view";
 import Animated, {
   Extrapolation,
   interpolate,
+  runOnJS,
+  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -15,8 +19,9 @@ import { LinearGradient } from "expo-linear-gradient";
  *
  * A header sits above the list, so content used to be cut off hard at its
  * lower edge. The aurora behind every screen rules out a fade to a solid
- * colour (it would show as a flat band) and a true fade to transparent needs a
- * native mask that is not in the build. So: once content has scrolled under the
+ * colour (it would show as a flat band), so the scroll view below masks its
+ * content to transparent instead. Where that native mask is not available
+ * (web, an app built before it), this shade stands in: once content has scrolled under the
  * header, a soft shade comes in over the top of the screen. It is eased, it is
  * strongest at the cut and it ramps away below it, so content melts into the
  * aurora's darkness before it reaches the edge instead of being sliced. At rest
@@ -119,12 +124,67 @@ export function useScrollEdge() {
 }
 
 /**
- * A ScrollView with the top edge built in. A drop-in: same props, same ref.
- * Put it directly under a screen header. The bottom stays natural: content
- * slides into the dark floor on its own, like the panel's timeline.
+ * The masking view is native, in builds from 1.5.0 on; on web or an older
+ * build (which still gets updates over the air) the shade stands in.
  */
-export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewProps, "onScroll">>(function EdgeScrollView(
-  { children, style, ...rest },
+const CAN_MASK = Platform.OS !== "web" && atLeast(Updates.runtimeVersion ?? "", [1, 5, 0]);
+
+function atLeast(version: string, want: number[]): boolean {
+  const got = version.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < want.length; i++) {
+    if ((got[i] ?? 0) !== want[i]) return (got[i] ?? 0) > want[i];
+  }
+  return true;
+}
+
+const FADE = 64; // how far above the edge content takes to fade out
+
+/**
+ * The fade itself: the scrolling content becomes transparent as it nears the
+ * header, so it dissolves into the aurora under the title instead of being
+ * cut. A mask (black shows, clear hides): a ramp from clear to black at the
+ * top, and black below. At rest a solid band covers the ramp, so nothing is
+ * faded until the content has actually moved under the edge.
+ */
+function FadeMask({ y }: { y: SharedValue<number> }) {
+  const rest = useAnimatedStyle(() => ({
+    opacity: interpolate(y.get(), [0, 40], [1, 0], Extrapolation.CLAMP),
+  }));
+  return (
+    <View style={styles.fill} pointerEvents="none">
+      <View style={{ height: FADE }}>
+        <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.55)", "#000"]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }, rest]} />
+      </View>
+      <View style={[styles.fill, { backgroundColor: "#000" }]} />
+    </View>
+  );
+}
+
+/** The same fade in a browser, with CSS's own mask: on once content has moved. */
+function WebFade({ y, children }: { y: SharedValue<number>; children: React.ReactNode }) {
+  const [moved, setMoved] = useState(false);
+  useAnimatedReaction(
+    () => y.get() > 4,
+    (now, before) => {
+      if (now !== before) runOnJS(setMoved)(now);
+    },
+  );
+  const mask = `linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0.55) ${FADE * 0.55}px, #000 ${FADE}px)`;
+  return (
+    <View style={[styles.fill, moved ? ({ WebkitMaskImage: mask, maskImage: mask } as object) : null]}>{children}</View>
+  );
+}
+
+/**
+ * A ScrollView with the top edge built in. A drop-in: same props, same ref.
+ * Put it directly under a screen header: content fades away as it scrolls up
+ * toward the title. The bottom stays natural: content slides into the dark
+ * floor on its own, like the panel's timeline. `fade={false}` keeps the shade
+ * for a screen holding web content, which a mask hides on Android.
+ */
+export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewProps, "onScroll"> & { fade?: boolean }>(function EdgeScrollView(
+  { children, style, fade = true, ...rest },
   ref,
 ) {
   const { y, target } = useScrollEdge();
@@ -143,6 +203,16 @@ export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewPro
       {children}
     </Animated.ScrollView>
   );
+  if (fade && Platform.OS === "web") {
+    return <WebFade y={y}>{scroller}</WebFade>;
+  }
+  if (fade && CAN_MASK) {
+    return (
+      <MaskedView style={styles.fill} maskElement={<FadeMask y={y} />}>
+        {scroller}
+      </MaskedView>
+    );
+  }
   return (
     <View style={styles.fill}>
       <EdgeTarget targetRef={target}>{scroller}</EdgeTarget>

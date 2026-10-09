@@ -73,6 +73,7 @@ export function answerProblem(blocks: Block[], answers: Answers, opts: { questio
         if (!b.multiple && (typeof v !== "string" || !v)) return `${word(b)}: pick one`;
         break;
       case "datetime":
+        if ((typeof v !== "string" || !v) && b.optional) break;
         if (typeof v !== "string" || !v) return `${word(b)}: choose a ${b.mode === "datetime" ? "date and time" : b.mode}`;
         if (b.earliest && v < b.earliest) return `${word(b)}: that's too early`;
         break;

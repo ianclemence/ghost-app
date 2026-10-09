@@ -335,11 +335,28 @@ function memoryMeta(f: MemoryFact): string | undefined {
   return parts.length ? parts.join(" · ") : undefined;
 }
 
+const SHOWN = 5;
+
+/** A section: its first five, then Show all (and back to Show fewer), as Routines does. */
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  const [all, setAll] = useState(false);
+  const items = React.Children.toArray(children);
+  const more = items.length > SHOWN;
   return (
     <View style={styles.group}>
       <Text style={styles.groupTitle} accessibilityRole="header">{title}</Text>
-      <View style={styles.card}>{children}</View>
+      <View style={styles.card}>
+        {all || !more ? items : items.slice(0, SHOWN)}
+        {more ? (
+          <GhostButton
+            title={all ? "Show fewer" : `Show all ${items.length}`}
+            variant="ghost"
+            size="sm"
+            style={styles.more}
+            onPress={() => setAll((v) => !v)}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -417,6 +434,7 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 16, lineHeight: 21, fontWeight: "500", letterSpacing: -0.15, color: Ghost.text.primary },
   itemLabel: { fontSize: 12, lineHeight: 16, fontWeight: "500", letterSpacing: 0.4, textTransform: "uppercase", color: Ghost.text.tertiary },
   itemField: { fontSize: 19, lineHeight: 25, fontWeight: "500", letterSpacing: -0.2, color: Ghost.text.primary },
+  more: { alignSelf: "center", marginVertical: Space.sm },
   itemPressed: { backgroundColor: Ghost.glass.fill },
   sheetText: { fontSize: 17, lineHeight: 24, color: Ghost.text.primary },
   sheetActions: { flexDirection: "row", gap: Space.sm },

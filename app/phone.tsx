@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Linking, Platform, Pressable, StyleSheet, Switch, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Bell, Check, HeartPulse, MapPin } from "lucide-react-native";
+import { Bell, HeartPulse, MapPin, Plus } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { EdgeScrollView } from "@/components/scroll-edge";
-import { GhostButton } from "@/components/ghost";
+import { GhostButton, GhostSheet } from "@/components/ghost";
 import { lifeStyles } from "@/components/life-ui";
 import { alpha, Ghost, Space } from "@/constants/theme";
 import { GhostDevice, type HealthStatus, type SeenApp } from "@/modules/ghost-device";
@@ -22,6 +22,14 @@ import { useGhostStore } from "@/lib/store";
  * where it goes (their Pod, nowhere else), and each can be turned off again,
  * with what was shared forgotten.
  */
+/** An app's name: as Android reported it, else made from its package (com.whatsapp → Whatsapp). */
+function appName(pkg: string, seen: SeenApp[]): string {
+  const known = seen.find((a) => a.package === pkg)?.app;
+  if (known) return known;
+  const last = pkg.split(".").filter((p) => p !== "android" && p !== "app").pop() ?? pkg;
+  return last.charAt(0).toUpperCase() + last.slice(1);
+}
+
 export default function PhoneScreen() {
   const config = useGhostStore((s) => s.config);
   const [s, setS] = useState<PhoneSettings>(DEFAULT_SETTINGS);
@@ -30,6 +38,7 @@ export default function PhoneScreen() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [locationOk, setLocationOk] = useState<boolean | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const native = !!GhostDevice;
 
   const refresh = useCallback(async () => {
@@ -138,7 +147,7 @@ export default function PhoneScreen() {
     return (
       <View style={styles.container}>
         <ScreenBackground variant="calm" />
-        <ScreenHeader title="Phone" subtitle="What your phone shares" />
+        <ScreenHeader title="Phone" subtitle="What your phone shares with Ghost" />
         <Text style={styles.unavailable}>
           {Platform.OS !== "android" ? "Sharing notifications, health and places with Ghost works on Android phones." : "This version of Ghost can't share from the phone yet. Install the latest version to turn it on."}
         </Text>
@@ -149,7 +158,7 @@ export default function PhoneScreen() {
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Phone" subtitle="What your phone shares" />
+      <ScreenHeader title="Phone" subtitle="What your phone shares with Ghost" />
       <EdgeScrollView contentContainerStyle={styles.content}>
         <Text style={styles.lead}>Each goes only to your Pod, and only once you turn it on.</Text>
 
@@ -167,21 +176,23 @@ export default function PhoneScreen() {
             <GhostButton title="Open Android settings" size="sm" variant="secondary" onPress={() => GhostDevice?.openNotificationAccessSettings()} />
           ) : null}
           {s.notifications && access ? (
-            apps.length === 0 ? (
-              <Text style={styles.small}>Apps appear here once they show a notification.</Text>
-            ) : (
-              <View style={lifeStyles.sheetGroup}>
-                {apps.map((a, i) => {
-                  const on = s.apps.includes(a.package);
-                  return (
-                    <Pressable key={a.package} onPress={() => toggleApp(a.package)} style={[styles.app, i > 0 && styles.line]} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={a.app}>
-                      <Text style={styles.appName} numberOfLines={1}>{a.app}</Text>
-                      <View style={[styles.check, on && styles.checkOn]}>{on ? <Check size={13} color="#0B0B10" strokeWidth={3} /> : null}</View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )
+            <>
+              {s.apps.length > 0 ? (
+                <View style={lifeStyles.sheetGroup}>
+                  {s.apps.map((pkg, i) => (
+                    <View key={pkg} style={[styles.app, i > 0 && styles.line]}>
+                      <Text style={styles.appName} numberOfLines={1}>{appName(pkg, apps)}</Text>
+                      <Pressable onPress={() => toggleApp(pkg)} hitSlop={12} style={({ pressed }) => [styles.remove, pressed && { opacity: 0.5 }]} accessibilityRole="button" accessibilityLabel={`Stop sharing ${appName(pkg, apps)}`}>
+                        <Text style={styles.removeText}>Remove</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.small}>No apps shared yet. Add the ones Ghost may read.</Text>
+              )}
+              <GhostButton title="Add an app" size="sm" variant="secondary" style={{ alignSelf: "flex-start" }} onPress={() => setPicking(true)} />
+            </>
           ) : null}
         </Section>
 
@@ -211,6 +222,20 @@ export default function PhoneScreen() {
 
         {note ? <Text style={styles.note} accessibilityLiveRegion="polite">{note}</Text> : null}
       </EdgeScrollView>
+      <GhostSheet visible={picking} onClose={() => setPicking(false)} title="Add an app" message="Apps that showed a notification recently. Ghost keeps a week of the ones you add.">
+        {apps.filter((a) => !s.apps.includes(a.package)).length === 0 ? (
+          <Text style={styles.small}>{apps.length === 0 ? "Apps appear here once they show a notification." : "Every app seen so far is already shared."}</Text>
+        ) : (
+          <View style={lifeStyles.sheetGroup}>
+            {apps.filter((a) => !s.apps.includes(a.package)).map((a, i) => (
+              <Pressable key={a.package} onPress={() => { toggleApp(a.package); setPicking(false); }} style={({ pressed }) => [styles.app, i > 0 && styles.line, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={`Add ${a.app}`}>
+                <Text style={styles.appName} numberOfLines={1}>{a.app}</Text>
+                <Plus size={17} color={Ghost.text.secondary} strokeWidth={2} />
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </GhostSheet>
     </View>
   );
 }
@@ -270,10 +295,10 @@ const styles = StyleSheet.create({
   status: { fontSize: 13, fontWeight: "500", color: Ghost.status.success },
   small: { fontSize: 13, color: Ghost.text.tertiary },
   app: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 48, paddingHorizontal: 14 },
+  remove: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12 },
+  removeText: { fontSize: 14, fontWeight: "500", color: Ghost.status.error },
   line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
   appName: { flex: 1, fontSize: 15, color: Ghost.text.primary },
-  check: { width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.32)", alignItems: "center", justifyContent: "center" },
-  checkOn: { backgroundColor: Ghost.accent.primary, borderColor: Ghost.accent.primary },
   note: { fontSize: 13.5, lineHeight: 19, color: Ghost.text.secondary, textAlign: "center" },
   unavailable: { fontSize: 15, lineHeight: 22, color: Ghost.text.secondary, textAlign: "center", paddingHorizontal: Space.xl, marginTop: Space.xxl },
 });
