@@ -705,7 +705,7 @@ export function GhostInput({
   placeholder?: string;
   multiline?: boolean;
   secureTextEntry?: boolean;
-  keyboardType?: "default" | "numeric" | "number-pad" | "email-address" | "url";
+  keyboardType?: "default" | "numeric" | "number-pad" | "phone-pad" | "email-address" | "url";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   autoCorrect?: boolean;
   accessibilityLabel?: string;

@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { showDialog } from "@/lib/dialog";
 import { Text } from "@/components/text";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeOut, LinearTransition } from "react-native-reanimated";
-import { Ghost, Space } from "@/constants/theme";
+import { alpha, Ghost, Space } from "@/constants/theme";
 import { GhostButton, GhostInput, GhostSheet } from "@/components/ghost";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
-import { correctMemoryFact, fetchMemorySelf, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
+import { correctMemoryFact, fetchMemorySelf, fetchMoney, fetchPeople, fetchVault, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
+import { formatMoney } from "@/lib/life";
+import { useRouter } from "expo-router";
+import { Users, FileText, Wallet } from "lucide-react-native";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo } from "@/lib/when";
 import { EdgeScrollView } from "@/components/scroll-edge";
@@ -112,6 +115,7 @@ export default function MemoryScreen() {
         <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} />
       ) : (
         <EdgeScrollView contentContainerStyle={styles.content}>
+          <LifeDoors />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {total === 0 && mem ? (
             <Text style={styles.empty}>
@@ -158,6 +162,64 @@ export default function MemoryScreen() {
     </View>
   );
 }
+
+/**
+ * What Ghost keeps about the owner's life besides memories: the people in it,
+ * their documents, their money. One door each, with a live line (how many,
+ * what needs attention, what went out this month).
+ */
+function LifeDoors() {
+  const router = useRouter();
+  const config = useGhostStore((s) => s.config);
+  const [lines, setLines] = useState<{ people?: string; vault?: string; vaultAlert?: boolean; money?: string }>({});
+  useEffect(() => {
+    if (!config) return;
+    let live = true;
+    void Promise.all([fetchPeople(config), fetchVault(config), fetchMoney(config)]).then(([p, v, m]) => {
+      if (!live) return;
+      const due = v.ok ? v.data.papers.filter((x) => x.days_left !== undefined && x.days_left <= 90).length : 0;
+      setLines({
+        people: p.ok ? (p.data.people.length === 0 ? "No one yet" : `${p.data.people.length} ${p.data.people.length === 1 ? "person" : "people"}`) : undefined,
+        vault: v.ok ? (due > 0 ? `${due} ${due === 1 ? "needs" : "need"} attention` : v.data.papers.length === 0 ? "Nothing yet" : `${v.data.papers.length} kept`) : undefined,
+        vaultAlert: due > 0,
+        money: m.ok ? (m.data.summary.currency ? `${formatMoney(m.data.summary.spent, m.data.summary.currency, { short: true })} this month` : "Nothing yet") : undefined,
+      });
+    });
+    return () => { live = false; };
+  }, [config]);
+  const doors = [
+    { key: "people", label: "People", line: lines.people, Icon: Users, tint: Ghost.accent.primary, go: "/people" },
+    { key: "vault", label: "Documents", line: lines.vault, Icon: FileText, tint: Ghost.status.warning, go: "/vault", alert: lines.vaultAlert },
+    { key: "money", label: "Money", line: lines.money, Icon: Wallet, tint: Ghost.status.success, go: "/money" },
+  ];
+  return (
+    <View style={doorStyles.row}>
+      {doors.map((d) => (
+        <Pressable
+          key={d.key}
+          onPress={() => router.push(d.go as never)}
+          style={({ pressed }) => [doorStyles.door, pressed && { opacity: 0.75, transform: [{ scale: 0.98 }] }]}
+          accessibilityRole="button"
+          accessibilityLabel={`${d.label}${d.line ? `. ${d.line}` : ""}`}
+        >
+          <View style={[doorStyles.icon, { backgroundColor: alpha(d.tint, 0.13), borderColor: alpha(d.tint, 0.3) }]}>
+            <d.Icon size={16} color={d.tint} strokeWidth={1.9} />
+          </View>
+          <Text style={doorStyles.label}>{d.label}</Text>
+          <Text style={[doorStyles.line, d.alert && { color: Ghost.status.warning }]} numberOfLines={1}>{d.line ?? " "}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+const doorStyles = StyleSheet.create({
+  row: { flexDirection: "row", gap: Space.sm, marginBottom: Space.md },
+  door: { flex: 1, gap: 4, padding: Space.md, borderRadius: 20, borderCurve: "continuous", backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
+  icon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, marginBottom: 4 },
+  label: { fontSize: 14.5, fontWeight: "500", color: Ghost.text.primary },
+  line: { fontSize: 12, lineHeight: 16, color: Ghost.text.tertiary },
+});
 
 // The line under a memory's title, only when it adds something. The title is
 // usually the whole sentence now, and repeating it ("Takes vitamins every

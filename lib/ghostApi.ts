@@ -1326,6 +1326,89 @@ export async function resolveCard(cfg: GhostConfig, id: string, actionId: string
   }
 }
 
+// ─── The owner's life: people, documents, money (pkg/life) ───────────────
+
+export interface LifeSource { kind: string; ref?: string; at: string; quote?: string }
+
+export interface Person {
+  id: string;
+  name: string;
+  aliases?: string[];
+  relation?: string;
+  birthday?: string;
+  phone?: string;
+  email?: string;
+  likes?: string[];
+  notes?: { text: string; source: LifeSource }[];
+  keep_in_touch_days?: number;
+  last_contact?: string;
+  source: LifeSource;
+  created_at: string;
+  updated_at: string;
+  next_birthday?: string;
+  turning?: number;
+  days_to_birthday?: number;
+}
+
+export interface Paper {
+  id: string;
+  kind: string;
+  title: string;
+  holder?: string;
+  facts?: { label: string; value: string }[];
+  expires?: string;
+  renews?: string;
+  file?: string;
+  source: LifeSource;
+  created_at: string;
+  updated_at: string;
+  days_left?: number;
+  what?: "expires" | "renews";
+}
+
+export interface MoneyEntry { id: string; kind: "expense" | "income"; amount: number; currency: string; merchant?: string; category: string; note?: string; date: string; source: LifeSource }
+export interface Recurring { id: string; kind: "subscription" | "bill"; name: string; amount: number; currency: string; every: string; next: string; category: string; active: boolean; source: LifeSource }
+export interface MonthSummary {
+  month: string;
+  currency: string;
+  spent: number;
+  earned: number;
+  count: number;
+  by_category: { category: string; amount: number }[] | null;
+  by_week: number[];
+  prev_spent: number;
+  upcoming: Recurring[] | null;
+  other_currencies?: Record<string, number>;
+}
+export interface MoneyView { summary: MonthSummary; entries: MoneyEntry[]; recurring: Recurring[]; categories: string[] }
+
+async function lifeCall<T>(cfg: GhostConfig, path: string, init: RequestInit = {}): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  try {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}${path}`, { ...init, headers: headers(cfg) }, 15000);
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok !== false) return { ok: true, data: data as T };
+    const msg = typeof data?.error === "string" ? data.error : data?.error?.message;
+    return { ok: false, error: msg ? msg.charAt(0).toUpperCase() + msg.slice(1) : "That didn't work. Try again." };
+  } catch {
+    return { ok: false, error: "Couldn't reach your Pod." };
+  }
+}
+
+export const fetchPeople = (cfg: GhostConfig) => lifeCall<{ people: Person[] }>(cfg, "/v1/life/people");
+export const editPerson = (cfg: GhostConfig, id: string, body: { name: string; relation: string; birthday: string; phone: string; email: string; likes: string[]; keep_in_touch_days: number; drop_notes?: number[] }) =>
+  lifeCall<{ person: Person }>(cfg, `/v1/life/people/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) });
+export const forgetPerson = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/people/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export const fetchVault = (cfg: GhostConfig) => lifeCall<{ papers: Paper[]; kinds: string[] }>(cfg, "/v1/life/vault");
+export const editPaper = (cfg: GhostConfig, id: string, body: { kind: string; title: string; holder: string; facts: { label: string; value: string }[]; expires: string; renews: string }) =>
+  lifeCall<{ paper: Paper }>(cfg, `/v1/life/vault/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) });
+export const removePaper = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/vault/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export const fetchMoney = (cfg: GhostConfig, month?: string) => lifeCall<MoneyView>(cfg, `/v1/life/money${month ? `?month=${encodeURIComponent(month)}` : ""}`);
+export const removeMoney = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/money/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const setRecurringActive = (cfg: GhostConfig, id: string, active: boolean) =>
+  lifeCall<{ recurring: Recurring }>(cfg, `/v1/life/money/${encodeURIComponent(id)}/active`, { method: "POST", body: JSON.stringify({ active }) });
+
 // ─── What Ghost made: the shelf, documents, pins ──────────────────────────
 
 export type ShelfKind = "pages" | "documents" | "pictures" | "links" | "notes";

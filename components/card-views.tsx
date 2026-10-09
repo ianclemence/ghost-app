@@ -68,7 +68,7 @@ const CHART_H = 132;
 /** The line chart is drawn in its own fixed space and stretched to the width it gets. */
 const LINE_W = 100;
 
-export function Chart({ block }: { block: ChartBlock }) {
+export function Chart({ block, showLatest = true }: { block: ChartBlock; /** The latest value large at the top right (off where a total is already shown). */ showLatest?: boolean }) {
   const scale = useMemo(() => chartScale(block.points.map((p) => p.value)), [block.points]);
   const last = block.points[block.points.length - 1];
   const fmt = (v: number) => formatAmount(v, block.unit);
@@ -80,7 +80,7 @@ export function Chart({ block }: { block: ChartBlock }) {
     <View accessible accessibilityLabel={`${block.label}. ${block.points.map((p) => `${p.label} ${fmt(p.value)}`).join(", ")}`}>
       <View style={styles.chartHead}>
         <Text style={styles.micro}>{block.label}</Text>
-        <Text style={styles.chartLast}>{fmt(last.value)}</Text>
+        {showLatest ? <Text style={styles.chartLast}>{fmt(last.value)}</Text> : null}
       </View>
       <View style={styles.chartBox}>
         {/* A baseline and a quiet midline, nothing more. */}
