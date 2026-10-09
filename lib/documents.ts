@@ -24,7 +24,7 @@ export const A4 = Math.SQRT2;
  * Fetch a file from the Pod and open the share sheet with it. Returns why it
  * did not, in the owner's words, or null when the sheet opened.
  */
-export async function shareExport(cfg: GhostConfig, id: string, format: "pdf" | "docx"): Promise<string | null> {
+export async function shareExport(cfg: GhostConfig, id: string, format: "pdf" | "docx" | "mp4"): Promise<string | null> {
   const Sharing = await import("expo-sharing");
   if (!(await Sharing.isAvailableAsync())) return "This device can't share files from here.";
   const r = await exportArtifact(cfg, id, format);

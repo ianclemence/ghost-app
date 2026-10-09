@@ -1517,7 +1517,7 @@ export const finishMeeting = (cfg: GhostConfig, id: string, chunks: number) =>
 
 // ─── What Ghost made: the shelf, documents, pins ──────────────────────────
 
-export type ShelfKind = "pages" | "documents" | "pictures" | "links" | "notes";
+export type ShelfKind = "pages" | "documents" | "pictures" | "links" | "notes" | "motion";
 
 export interface ShelfItem extends Artifact {
   pinned: boolean;
@@ -1569,8 +1569,39 @@ export async function fetchDocumentPage(cfg: GhostConfig, id: string, page: numb
   }
 }
 
+// ─── Motion: animated explainers ──────────────────────────────────────────
+
+export interface MotionElement {
+  type: "title" | "text" | "number" | "bars" | "line" | "donut" | "list" | "steps" | "compare" | "quote";
+  text?: string;
+  sub?: string;
+  label?: string;
+  from?: number;
+  to?: number;
+  prefix?: string;
+  suffix?: string;
+  decimals?: number;
+  unit?: string;
+  labels?: string[];
+  values?: number[];
+  items?: string[];
+  at?: number;
+  stay?: number;
+}
+export interface MotionScene { duration: number; caption?: string; elements: MotionElement[] }
+export interface MotionSpec { title: string; size?: "portrait" | "landscape" | "square"; accent?: string; scenes: MotionScene[] }
+export interface MotionVideo { motion: string; state: "none" | "queued" | "rendering" | "done" | "failed"; done?: number; total?: number; error?: string; video?: string }
+
+export const fetchMotion = (cfg: GhostConfig, id: string) =>
+  lifeCall<{ spec: MotionSpec; html: string; duration: number; video: MotionVideo }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/motion`);
+export const saveMotion = (cfg: GhostConfig, id: string, spec: MotionSpec) =>
+  lifeCall<{ artifact: Artifact }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/motion`, { method: "PUT", body: JSON.stringify({ spec }) });
+export const startMotionVideo = (cfg: GhostConfig, id: string) =>
+  lifeCall<{ video: MotionVideo }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/video`, { method: "POST", body: "{}" });
+export const motionVideo = (cfg: GhostConfig, id: string) => lifeCall<{ video: MotionVideo }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/video`);
+
 /** A file Ghost made, to share or keep: the PDF itself, or a Word copy of a document. */
-export async function exportArtifact(cfg: GhostConfig, id: string, format: "pdf" | "docx"): Promise<{ ok: true; name: string; mime: string; base64: string } | { ok: false; error: string }> {
+export async function exportArtifact(cfg: GhostConfig, id: string, format: "pdf" | "docx" | "mp4"): Promise<{ ok: true; name: string; mime: string; base64: string } | { ok: false; error: string }> {
   try {
     const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/artifacts/${encodeURIComponent(id)}/export?format=${format}`, { headers: headers(cfg) }, 60000);
     const data = await res.json().catch(() => null);

@@ -30,6 +30,8 @@ import { PermissionCard } from "@/components/permission-card";
 import { ArtifactCard } from "@/components/artifact-card";
 import { CanvasCard } from "@/components/canvas-card";
 import { DocumentCard } from "@/components/document-card";
+import { MotionCard } from "@/components/motion-card";
+import { isMotionArtifact } from "@/lib/motion";
 import { isDocumentArtifact } from "@/lib/documents";
 import { syncPhone } from "@/lib/phone";
 import { canvasInfos, isCanvasArtifact } from "@/lib/canvas";
@@ -1025,6 +1027,10 @@ export default function ConversationScreen() {
       // Something Ghost built to be run is shown running, not filed.
       if (isCanvasArtifact(item.artifact)) {
         return <CanvasCard config={config} artifact={item.artifact} info={canvasInfoById[item.artifact.id]} />;
+      }
+      // A motion plays where it is.
+      if (isMotionArtifact(item.artifact)) {
+        return <MotionCard config={config} artifact={item.artifact} />;
       }
       // A document is shown as its pages.
       if (isDocumentArtifact(item.artifact)) {

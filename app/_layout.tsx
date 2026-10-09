@@ -239,6 +239,10 @@ export default function RootLayout() {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
+          name="motion"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
           name="knowledge"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />

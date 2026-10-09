@@ -9,6 +9,7 @@ export function shelfKindOf(a: Pick<ShelfItem, "kind" | "path">): ShelfKind {
   if (a.kind === "link") return "links";
   if (a.kind === "text") return "notes";
   const p = (a.path ?? "").toLowerCase();
+  if (/^motion\/.+\.(json|mp4)$/.test(p)) return "motion";
   if (/\.html?$/.test(p)) return "pages";
   if (/\.(png|jpe?g|webp|gif)$/.test(p)) return "pictures";
   return "documents";
@@ -20,6 +21,7 @@ const NOUN: Record<ShelfKind, string> = {
   pictures: "Picture",
   links: "Link",
   notes: "Note",
+  motion: "Motion",
 };
 
 /** "Page · 3 versions · 2 days ago", "Link · example.com · today". */
