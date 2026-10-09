@@ -1280,8 +1280,10 @@ export interface CardPayload {
 }
 
 export async function fetchCards(cfg: GhostConfig, channel = "mobile"): Promise<CardPayload[]> {
+  // receipts=1: answered cards that stay in the conversation as one line (a
+  // sent draft, an answered question) come back too, so a reload keeps them.
   const res = await fetchWithTimeout(
-    `${baseURL(cfg)}/v1/cards?channel=${encodeURIComponent(channel)}`,
+    `${baseURL(cfg)}/v1/cards?channel=${encodeURIComponent(channel)}&receipts=1`,
     { headers: headers(cfg) },
     10000,
   );
@@ -1309,7 +1311,8 @@ export async function resolveCard(cfg: GhostConfig, id: string, actionId: string
     const res = await fetchWithTimeout(
       `${baseURL(cfg)}/v1/cards/resolve`,
       { method: "POST", headers: headers(cfg), body: JSON.stringify({ channel, id, action_id: actionId }) },
-      10000,
+      // Sending a draft waits on the mailbox or the calendar (the Pod gives it 30s).
+      35000,
     );
     const data = await res.json().catch(() => null);
     const card = normalizeCard(data?.card);
@@ -1318,6 +1321,76 @@ export async function resolveCard(cfg: GhostConfig, id: string, actionId: string
     // A card answered on another device comes back resolved: nothing to say.
     if (card?.resolved) return { ok: false, card };
     return { ok: false, card, error: raw || "That didn't go through. Try again." };
+  } catch {
+    return { ok: false, card: null, error: "Couldn't reach Ghost. Try again." };
+  }
+}
+
+/** What answering a card did: the Pod's copy of it, and where the answer went. */
+export interface CardRespondResult {
+  ok: boolean;
+  card: RichCard | null;
+  /** The answer in words: what the owner's next message says when deliver is "message". */
+  text?: string;
+  /**
+   * "turn": the turn that asked was still waiting and has the answer.
+   * "message": it is sent as the owner's next message.
+   */
+  deliver?: "turn" | "message";
+  error?: string;
+}
+
+async function postCard(cfg: GhostConfig, path: string, body: unknown): Promise<{ status: number; data: Record<string, unknown> | null }> {
+  const res = await fetchWithTimeout(`${baseURL(cfg)}${path}`, { method: "POST", headers: headers(cfg), body: JSON.stringify(body) }, 30000);
+  const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  return { status: res.status, data };
+}
+
+function cardErrorText(data: Record<string, unknown> | null): string {
+  const e = data?.error;
+  if (typeof e === "string" && e) return e.charAt(0).toUpperCase() + e.slice(1);
+  if (e && typeof e === "object" && typeof (e as { message?: unknown }).message === "string") return (e as { message: string }).message;
+  return "That didn't go through. Try again.";
+}
+
+/**
+ * Answer a card that asks. The Pod checks the answers against the card first;
+ * a refused answer leaves the card open and says why.
+ */
+export async function respondCard(cfg: GhostConfig, id: string, answers: Record<string, unknown>, channel = "mobile"): Promise<CardRespondResult> {
+  try {
+    const { status, data } = await postCard(cfg, "/v1/cards/respond", { channel, id, answers });
+    const card = normalizeCard(data?.card);
+    if (status === 200 && data?.ok !== false) {
+      return { ok: true, card, text: typeof data?.text === "string" ? data.text : "", deliver: data?.deliver === "turn" ? "turn" : "message" };
+    }
+    // Answered on another device: the card comes back resolved, nothing to say.
+    if (card?.resolved) return { ok: false, card };
+    return { ok: false, card, error: cardErrorText(data) };
+  } catch {
+    return { ok: false, card: null, error: "Couldn't reach Ghost. Try again." };
+  }
+}
+
+/** Tick or untick a line of a checklist card; the Pod keeps it. */
+export async function checkCardItem(cfg: GhostConfig, id: string, key: string, item: string, done: boolean, channel = "mobile"): Promise<CardResolveResult> {
+  try {
+    const { status, data } = await postCard(cfg, "/v1/cards/check", { channel, id, key, item, done });
+    const card = normalizeCard(data?.card);
+    if (status === 200 && data?.ok !== false) return { ok: true, card };
+    return { ok: false, card, error: cardErrorText(data) };
+  } catch {
+    return { ok: false, card: null, error: "Couldn't reach Ghost. Try again." };
+  }
+}
+
+/** Save the owner's edits to a draft. The Pod checks the whole draft. */
+export async function editDraft(cfg: GhostConfig, id: string, fields: Record<string, string>, channel = "mobile"): Promise<CardResolveResult> {
+  try {
+    const { status, data } = await postCard(cfg, "/v1/cards/draft", { channel, id, fields });
+    const card = normalizeCard(data?.card);
+    if (status === 200 && data?.ok !== false) return { ok: true, card };
+    return { ok: false, card, error: cardErrorText(data) };
   } catch {
     return { ok: false, card: null, error: "Couldn't reach Ghost. Try again." };
   }

@@ -16,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react-native";
 import { alpha, Aurora, Fonts, Ghost } from "@/constants/theme";
 import { CodeBlock } from "@/components/code-block";
+import { Chart, Compare, PlacesMap } from "@/components/card-views";
 import type { Block, StepState, Tone } from "@/lib/blocks";
 
 /**
@@ -61,6 +62,15 @@ function render(b: Block) {
       return <Progress label={b.label} value={b.progress} caption={b.caption} />;
     case "code":
       return <CodeBlock language={b.language} code={b.code} />;
+    case "compare":
+      return <Compare block={b} />;
+    case "chart":
+      return <Chart block={b} />;
+    case "map":
+      return <PlacesMap block={b} />;
+    default:
+      // Input blocks are drawn by the card that holds their answers.
+      return null;
   }
 }
 

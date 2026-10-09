@@ -15,10 +15,10 @@ describe("contract: cards the Pod accepts", () => {
       const card = asCard(c.spec as Spec);
       expect(card).not.toBeNull();
       expect(card!.blocks).toHaveLength(c.blocks);
-      // Choices survive intact; a presented card only ever has reply or dismiss.
+      // Choices survive intact; a presented card only ever has reply, submit or dismiss.
       const offered = ((c.spec as Spec).actions as unknown[] | undefined) ?? [];
       expect(card!.actions).toHaveLength(offered.length);
-      for (const a of card!.actions ?? []) expect(["reply", "dismiss"]).toContain(a.kind as string);
+      for (const a of card!.actions ?? []) expect(["reply", "submit", "dismiss"]).toContain(a.kind as string);
     });
   }
 });
@@ -35,7 +35,7 @@ describe("contract: cards the Pod refuses", () => {
         for (const a of (card as { actions?: { kind?: string; request_id?: string }[] }).actions ?? []) {
           if ((card as { kind: string }).kind === "present") {
             expect(a.request_id).toBeUndefined();
-            expect(["reply", "dismiss"]).toContain(a.kind as string);
+            expect(["reply", "submit", "dismiss"]).toContain(a.kind as string);
           }
         }
       }
@@ -43,7 +43,7 @@ describe("contract: cards the Pod refuses", () => {
   }
 
   test("an unknown kind, a missing title and an empty presented card are never drawn", () => {
-    for (const name of ["unknown kind", "no blocks", "no title", "unknown block type", "empty text"]) {
+    for (const name of ["unknown kind", "no blocks", "no title", "unknown block type", "empty text", "a question with no submit", "two inputs with one key"]) {
       const c = contract.invalid.find((x) => x.name === name)!;
       expect(asCard(c.spec as Spec)).toBeNull();
     }

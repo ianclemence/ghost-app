@@ -1,5 +1,5 @@
 import type { WSMessage } from "./ghostApi";
-import { LIMITS, parseBlocks, type Block } from "./blocks";
+import { isInput, LIMITS, parseBlocks, type Block } from "./blocks";
 
 export type CardKind =
   | "suggestion"
@@ -10,7 +10,9 @@ export type CardKind =
   | "browser_recovery"
   | "present"
   | "reminder"
-  | "digest";
+  | "digest"
+  | "question"
+  | "draft";
 
 export interface CardAction {
   id: string;
@@ -22,7 +24,7 @@ export interface CardAction {
    * "act" asks the Pod to carry out the choice named by `id` (a reminder's Done
    * or Snooze). Absent: the older broker-bound action.
    */
-  kind?: "reply" | "dismiss" | "act";
+  kind?: "reply" | "dismiss" | "act" | "submit";
   text?: string;
 }
 
@@ -30,6 +32,8 @@ export interface CardAction {
 export interface CardResolution {
   action_id: string;
   label: string;
+  /** What the owner answered, by block key, when the card asked. */
+  answers?: Record<string, unknown>;
 }
 
 export interface RichCard {
@@ -48,14 +52,14 @@ export interface RichCard {
   created_at?: number;
 }
 
-const KNOWN_KINDS: CardKind[] = ["suggestion", "goal_update", "cart", "browser_view", "memory_receipt", "browser_recovery", "present", "reminder", "digest"];
+const KNOWN_KINDS: CardKind[] = ["suggestion", "goal_update", "cart", "browser_view", "memory_receipt", "browser_recovery", "present", "reminder", "digest", "question", "draft"];
 
 /**
  * Cards whose buttons are only ever a reply, a dismissal or (for the Pod's own
  * kinds) an act: they carry no authority, so the phone may draw and send them
  * without a broker request behind them.
  */
-const CHOICE_KINDS: CardKind[] = ["present", "reminder", "digest"];
+const CHOICE_KINDS: CardKind[] = ["present", "reminder", "digest", "question", "draft"];
 
 /** Cards that keep a one-line receipt once the owner has answered them. */
 export function keepsReceipt(card: Pick<RichCard, "kind">): boolean {
@@ -67,13 +71,18 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object
 function parseActions(raw: unknown, cardKind: CardKind): CardAction[] {
   const out: CardAction[] = [];
   const present = cardKind === "present";
-  // Reminders and the morning digest are the Pod's own cards: they may also
-  // carry "act" (Done, Snooze), which the Pod carries out.
+  // Reminders, the morning digest and drafts are the Pod's own cards: they
+  // may also carry "act" (Done, Snooze, Send), which the Pod carries out. A
+  // card that asks (present, question) carries one "submit".
   const choices = CHOICE_KINDS.includes(cardKind);
+  const asks = present || cardKind === "question";
   const max = present ? 3 : 4;
   for (const a of (Array.isArray(raw) ? raw : []).slice(0, max)) {
     if (!isObj(a) || typeof a.id !== "string" || typeof a.label !== "string") continue;
-    const kind = a.kind === "reply" || a.kind === "dismiss" || (a.kind === "act" && choices && !present) ? a.kind : undefined;
+    const kind =
+      a.kind === "reply" || a.kind === "dismiss" || (a.kind === "act" && choices && !asks) || (a.kind === "submit" && asks)
+        ? a.kind
+        : undefined;
     const text = typeof a.text === "string" ? Array.from(a.text.trim()).slice(0, LIMITS.actionText).join("") : undefined;
     // A choice card's buttons are only ever a reply, a dismissal or an act.
     if (choices && !kind) continue;
@@ -113,23 +122,41 @@ export function normalizeCard(raw: unknown): RichCard | null {
   const id = typeof raw.id === "string" ? raw.id : typeof raw.card_id === "string" ? raw.card_id : "";
   const title = typeof raw.title === "string" ? raw.title.trim() : "";
   if (!id || !title) return null;
-  const present = kind === "present";
-  // A presented card is its blocks. The morning digest may carry some too (its
-  // list); a reminder has none.
+  const present = kind === "present" || kind === "question";
+  // A presented card (and a question) is its blocks. The morning digest may
+  // carry some too (its list); a reminder has none.
   const blocks = present || kind === "digest" ? parseBlocks(raw.blocks) : undefined;
   if (present && (!blocks || blocks.length === 0)) return null;
+  // A draft is its fields; one without a kind it knows is not drawn.
+  if (kind === "draft" && !(isObj(raw.data) && ["email", "event", "sms"].includes(String(raw.data.draft_kind)))) return null;
   const res = isObj(raw.resolved) && typeof raw.resolved.action_id === "string"
-    ? { action_id: raw.resolved.action_id, label: typeof raw.resolved.label === "string" ? raw.resolved.label : "Done" }
+    ? {
+      action_id: raw.resolved.action_id,
+      label: typeof raw.resolved.label === "string" ? raw.resolved.label : "Done",
+      answers: isObj(raw.resolved.answers) ? raw.resolved.answers : undefined,
+    }
     : undefined;
+  let actions = parseActions(raw.actions, kind as CardKind);
+  if (present && blocks) {
+    // The Pod's rule, mirrored: a card that asks has one Send, and a Send needs
+    // something to ask. A card that asks with no way to answer is not drawn; a
+    // list ticked as you go (checklists only) needs none.
+    const inputs = blocks.filter(isInput);
+    const submits = actions.filter((a) => a.kind === "submit");
+    if (inputs.length === 0) actions = actions.filter((a) => a.kind !== "submit");
+    else if (submits.length === 0 && inputs.some((b) => b.type !== "checklist")) return null;
+    else if (submits.length > 1) return null;
+    if (new Set(inputs.map((b) => (b as { key: string }).key)).size !== inputs.length) return null;
+  }
   return {
     id,
     kind: kind as CardKind,
-    title: present ? Array.from(title).slice(0, 80).join("") : title,
+    title: present || kind === "draft" ? Array.from(title).slice(0, kind === "question" ? 200 : 80).join("") : title,
     body: typeof raw.body === "string" && raw.body ? raw.body : undefined,
     topic: typeof raw.topic === "string" ? raw.topic : undefined,
     request_id: typeof raw.request_id === "string" ? raw.request_id : undefined,
     data: isObj(raw.data) ? raw.data : undefined,
-    actions: parseActions(raw.actions, kind as CardKind),
+    actions,
     blocks,
     resolved: res,
     created_at: toMs(raw.created_at),

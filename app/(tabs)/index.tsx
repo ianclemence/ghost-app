@@ -469,8 +469,10 @@ export default function ConversationScreen() {
       // A card frame carries the full payload; kind-gated by the parser.
       const card = parseCardMessage(msg, MAIN_SESSION_ID);
       if (card && (keepsReceipt(card) || !card.resolved)) {
+        // A card already on screen takes the newer copy (answered on another
+        // device, a list ticked elsewhere); a new one joins the conversation.
         setCards((prev) =>
-          prev.some((x) => x.id === card.id) ? prev : [...prev, card].slice(-60),
+          prev.some((x) => x.id === card.id) ? prev.map((x) => (x.id === card.id ? card : x)) : [...prev, card].slice(-60),
         );
       }
     });
@@ -1280,7 +1282,6 @@ export default function ConversationScreen() {
             />
           </View>
         ) : null}
-        {clarify ? <Text style={styles.status} accessibilityLiveRegion="polite">{clarify.question}</Text> : null}
         {cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{cancelLine}</Text> : null}
         {statusLine && !clarify && !cancelLine ? <Text style={styles.status} accessibilityLiveRegion="polite">{statusLine}</Text> : null}
         {sendError ? <Text style={styles.error} accessibilityLiveRegion="polite">{sendError}</Text> : null}

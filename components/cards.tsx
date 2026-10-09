@@ -10,7 +10,8 @@ import { GhostText } from "@/components/themed-text";
 import { Text } from "@/components/text";
 import type { CardAction, RichCard } from "@/lib/cards";
 import type { GhostConfig } from "@/lib/ghostApi";
-import { decideIdea, resolveApproval, resolveCard } from "@/lib/ghostApi";
+import { checkCardItem, decideIdea, editDraft, resolveApproval, resolveCard, respondCard } from "@/lib/ghostApi";
+import { DraftCard } from "@/components/draft-card";
 
 function CardShell({ title, body, children }: { title: string; body?: string; children?: React.ReactNode }) {
   return (
@@ -148,7 +149,14 @@ function useCardChoice(
   return { busy, error, act };
 }
 
-/** A presented card (and the morning digest) with its choices wired up. */
+/**
+ * A presented card (a question, the morning digest) with its choices wired up.
+ * Answers go to the Pod first and count only when it takes them: the card is
+ * put away with the Pod's copy, and the answer then reaches Ghost (straight to
+ * the turn that asked, or as the owner's next message). A refused answer keeps
+ * the card open with the reason. Ticks on a list ticked as you go are kept by
+ * the Pod one by one, and a tick it did not keep is undone on screen.
+ */
 function PresentHost({
   card,
   config,
@@ -161,7 +169,84 @@ function PresentHost({
   onResolved?: (card: RichCard) => void;
 }) {
   const { busy, error, act } = useCardChoice(card, config, onReply, onResolved);
-  return <PresentCard card={card} busy={busy} error={error} onAction={act} />;
+  const [sending, setSending] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const submit = useCallback(async (answers: Record<string, unknown>) => {
+    if (sending) return;
+    setSending(true);
+    setProblem(null);
+    Haptics.selectionAsync().catch(() => {});
+    const r = await respondCard(config, card.id, answers);
+    setSending(false);
+    if (r.card) onResolved?.(r.card);
+    if (!r.ok) {
+      if (r.error) setProblem(r.error);
+      return;
+    }
+    if (r.deliver === "message" && r.text) onReply?.(r.text);
+  }, [sending, config, card.id, onResolved, onReply]);
+  const check = useCallback(async (key: string, item: string, done: boolean) => {
+    const r = await checkCardItem(config, card.id, key, item, done);
+    // The Pod's copy wins either way: on a failure it puts the tick back.
+    if (r.card) onResolved?.(r.card);
+    else if (!r.ok) onResolved?.({ ...card });
+    if (!r.ok && r.error) setProblem(r.error);
+  }, [config, card, onResolved]);
+  return (
+    <PresentCard
+      card={card}
+      busy={busy || sending}
+      error={problem ?? error}
+      onAction={act}
+      onSubmit={(a) => void submit(a)}
+      onCheck={(k, i, d) => void check(k, i, d)}
+    />
+  );
+}
+
+/**
+ * A draft: edits are saved to the Pod (which checks them), Send asks the Pod to
+ * carry it out, and the card shows what the Pod says happened. Nothing is
+ * marked sent on the phone's word.
+ */
+function DraftHost({ card, config, onResolved }: { card: RichCard; config: GhostConfig; onResolved?: (card: RichCard) => void }) {
+  const [busy, setBusy] = useState<"send" | "save" | "discard" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const resolve = async (actionId: "send" | "discard") => {
+    setBusy(actionId);
+    setError(null);
+    const r = await resolveCard(config, card.id, actionId);
+    if (r.card) onResolved?.(r.card);
+    if (!alive.current) return;
+    setBusy(null);
+    if (!r.ok && r.error) setError(r.error);
+    else if (r.ok && actionId === "send") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  };
+  const edit = async (fields: Record<string, string>) => {
+    setBusy("save");
+    setError(null);
+    const r = await editDraft(config, card.id, fields);
+    if (!alive.current) return false;
+    setBusy(null);
+    if (r.card) onResolved?.(r.card);
+    if (!r.ok) {
+      setError(r.error ?? "That change wasn't saved.");
+      return false;
+    }
+    return true;
+  };
+  return (
+    <DraftCard
+      card={card}
+      busy={busy}
+      error={error}
+      onSend={() => void resolve("send")}
+      onDiscard={() => void resolve("discard")}
+      onEdit={edit}
+    />
+  );
 }
 
 /**
@@ -222,7 +307,10 @@ export function RichCardView({
   switch (card.kind) {
     case "present":
     case "digest":
+    case "question":
       return <PresentHost card={card} config={config} onReply={onReply} onResolved={onResolved} />;
+    case "draft":
+      return <DraftHost card={card} config={config} onResolved={onResolved} />;
     case "reminder":
       return <ReminderHost card={card} config={config} onResolved={onResolved} />;
     case "suggestion":
