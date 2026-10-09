@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AppWindow, Bell, Calendar, ChevronRight, FileText, Folder, Image as ImageIcon, Link2, NotebookPen, Pin, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
+import { AppWindow, Bell, Briefcase, Calendar, ChevronRight, FileText, Folder, Image as ImageIcon, Link2, NotebookPen, Pin, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
 import { alpha, Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { Dock } from "@/components/dock";
@@ -21,6 +21,7 @@ import {
   type ActivityChip,
   type RoutineItem,
   type ShelfItem,
+  fetchJobs,
 } from "@/lib/ghostApi";
 import { shelfKindOf, shelfMeta } from "@/lib/shelf";
 import { isCanvasArtifact } from "@/lib/canvas";
@@ -61,6 +62,7 @@ export default function PanelScreen() {
   const [owner, setOwner] = useState(knownOwner);
   const [activity, setActivity] = useState<ActivityChip[]>([]);
   const [made, setMade] = useState<ShelfItem[]>([]);
+  const [jobsOn, setJobsOn] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!config) return;
@@ -69,6 +71,7 @@ export default function PanelScreen() {
       fetchRoutines(config).then(setRoutines).catch(() => {}),
       fetchActivity(config, { limit: 12 }).then(setActivity).catch(() => {}),
       fetchShelf(config, { limit: 3 }).then(setMade).catch(() => {}),
+      fetchJobs(config).then((r) => r.ok && setJobsOn(r.data.jobs.filter((j) => j.enabled && j.time).length)).catch(() => {}),
       fetchMemorySelf(config).then((m) => setMemoryCount(m.entries.length + m.notes.length)).catch(() => {}),
       fetchIdentity(config).then((id) => {
         if (id?.owner) {
@@ -94,8 +97,7 @@ export default function PanelScreen() {
 
   const live = routines.filter((x) => x.state === "active" || x.state === "waiting");
   const next = [...live].sort((a, b) => Date.parse(a.next_run_at ?? "9999") - Date.parse(b.next_run_at ?? "9999"))[0] ?? null;
-  const reminderCount = live.filter((x) => x.kind === "reminder").length;
-  const routineCount = live.filter((x) => x.kind !== "reminder").length;
+  const scheduledCount = live.length;
   const todayKey = new Date().toDateString();
   const todayItems = activity.filter((a) => {
     const t = Date.parse(a.timestamp);
@@ -148,15 +150,16 @@ export default function PanelScreen() {
             {/* Live counts, each one a door to its screen. */}
             <Text style={styles.eyebrow}>At a glance</Text>
             <View style={styles.tiles}>
-              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${reminderCount} ${reminderCount === 1 ? "reminder" : "reminders"}.`}>
-                <Bell size={18} color={Ghost.text.primary} strokeWidth={1.5} />
-                <Text style={styles.tileNumber}>{reminderCount}</Text>
-                <Text style={styles.tileLabel}>{reminderCount === 1 ? "Reminder" : "Reminders"}</Text>
-              </Pressable>
-              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${routineCount} ${routineCount === 1 ? "active routine" : "active routines"}.`}>
+              {/* Reminders and routines are one list on one screen, so one door. */}
+              <Pressable style={styles.tile} onPress={go("/routines")} accessibilityRole="button" accessibilityLabel={`${scheduledCount} scheduled: reminders and routines.`}>
                 <Calendar size={18} color={Ghost.text.primary} strokeWidth={1.5} />
-                <Text style={styles.tileNumber}>{routineCount}</Text>
-                <Text style={styles.tileLabel}>{routineCount === 1 ? "Routine" : "Routines"}</Text>
+                <Text style={styles.tileNumber}>{scheduledCount}</Text>
+                <Text style={styles.tileLabel}>Scheduled</Text>
+              </Pressable>
+              <Pressable style={styles.tile} onPress={go("/jobs")} accessibilityRole="button" accessibilityLabel={jobsOn !== null ? `${jobsOn} ${jobsOn === 1 ? "job" : "jobs"} on.` : "Jobs Ghost can take on."}>
+                <Briefcase size={18} color={Ghost.text.primary} strokeWidth={1.5} />
+                <Text style={styles.tileNumber}>{jobsOn ?? "–"}</Text>
+                <Text style={styles.tileLabel}>{jobsOn === 1 ? "Job On" : "Jobs On"}</Text>
               </Pressable>
               {/* Needs-you only exists when something actually needs you. */}
               {approvals > 0 ? (

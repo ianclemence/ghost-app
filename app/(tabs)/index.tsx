@@ -923,13 +923,18 @@ export default function ConversationScreen() {
     }
   }, [config, hasMore, loadingEarlier, setMessages]);
 
-  const attachPhoto = useCallback(async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.7,
-      base64: true,
-      allowsMultipleSelection: true,
-    }).catch(() => null);
+  const attachPhoto = useCallback(async (camera = false) => {
+    if (camera) {
+      const perm = await ImagePicker.requestCameraPermissionsAsync().catch(() => null);
+      if (!perm?.granted) {
+        setSendError("Ghost needs the camera to take a photo. Allow it in your phone's settings.");
+        return;
+      }
+    }
+    const res = await (camera
+      ? ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.7, base64: true })
+      : ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7, base64: true, allowsMultipleSelection: true })
+    ).catch(() => null);
     if (!res || res.canceled) return;
     let next = attachments;
     for (const a of res.assets ?? []) {
@@ -1311,6 +1316,7 @@ export default function ConversationScreen() {
           placeholder={composerPlaceholder({ online: podOnline, streaming: isStreaming, firstTime: messages.length === 0 })}
           suggestion={suggestion}
           // Photos and files go to the Pod, which identifies and reads them.
+          onCamera={podOnline ? () => void attachPhoto(true) : undefined}
           onPhoto={podOnline ? () => void attachPhoto() : undefined}
           onFile={podOnline ? () => void attachFile() : undefined}
           onMeeting={podOnline ? () => router.push("/meeting" as never) : undefined}

@@ -22,16 +22,13 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View, type TextInput as RNTextInput } from "react-native";
 import { Text } from "@/components/text";
 
-import { Ghost, Radius, Space, Type } from "@/constants/theme";
+import { Ghost, Space, Type } from "@/constants/theme";
 import { composerPlaceholder } from "@/lib/placeholder";
 import { showSuggestion } from "@/lib/suggestion";
 
 const MAX_VOICE_MS = 120_000;
 // Strong ease-out: the element is already moving on the first frame.
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
-// Ease-in: starts slow, accelerates into place. Used for the tray buttons
-// appearing when "+" is tapped.
-const EASE_IN = Easing.bezier(0.55, 0.06, 0.68, 0.19);
 
 interface ComposerProps {
   value: string;
@@ -259,10 +256,9 @@ export function Composer({
   const fade = reduceMotion ? undefined : FadeIn.duration(140);
   // Tray choreography: buttons ease in when "+" opens the tray, and ease out
   // when "x" closes it.
-  const trayIn = (i: number) =>
-    reduceMotion
-      ? undefined
-      : FadeInDown.duration(200).delay(60 + i * 55).easing(EASE_IN).withInitialValues({ opacity: 0, transform: [{ translateY: -10 }, { scale: 0.92 }] });
+  const trayIn = reduceMotion
+    ? undefined
+    : FadeInDown.duration(180).easing(EASE_OUT).withInitialValues({ opacity: 0, transform: [{ translateY: 8 }, { scale: 0.96 }] });
   const trayOut = reduceMotion ? undefined : FadeOut.duration(140).easing(EASE_OUT);
 
   // What the button on the right is, right now.
@@ -319,27 +315,34 @@ export function Composer({
   }
 
   const chips = [
-    onPhoto ? { key: "photo", label: "Photo", hint: "Attach a photo", Icon: ImageIcon, fn: onPhoto } : null,
     onCamera ? { key: "camera", label: "Camera", hint: "Take a photo", Icon: Camera, fn: onCamera } : null,
-    onFile ? { key: "file", label: "File", hint: "Attach a file", Icon: Paperclip, fn: onFile } : null,
-    onMeeting ? { key: "meeting", label: "Meeting", hint: "Record a meeting, transcribed on your Pod", Icon: Mic, fn: onMeeting } : null,
+    onPhoto ? { key: "photo", label: "Photo", hint: "From your gallery", Icon: ImageIcon, fn: onPhoto } : null,
+    onFile ? { key: "file", label: "File", hint: "A document or any file", Icon: Paperclip, fn: onFile } : null,
+    onMeeting ? { key: "meeting", label: "Meeting", hint: "Record it, transcribed on your Pod", Icon: Mic, fn: onMeeting } : null,
   ].filter(<T,>(c: T | null): c is T => c !== null);
 
   return (
     <View style={styles.wrap}>
       {tray && canAttach ? (
-        <Animated.View exiting={trayOut} style={styles.tray}>
+        // One menu, always opening from the + in the same place: it floats
+        // above the composer and never moves the input.
+        <Animated.View entering={trayIn} exiting={trayOut} style={styles.tray} accessibilityRole="menu">
           {chips.map(({ key, label, hint, Icon, fn }, i) => (
-            <Animated.View
+            <Pressable
               key={key}
-              entering={trayIn(i)}
-              exiting={trayOut}
+              style={({ pressed }) => [styles.chip, i > 0 && styles.chipLine, pressed && styles.chipPressed]}
+              onPress={pick(fn)}
+              accessibilityRole="menuitem"
+              accessibilityLabel={`${label}. ${hint}`}
             >
-              <Pressable style={styles.chip} onPress={pick(fn)} accessibilityRole="button" accessibilityLabel={hint}>
-                <Icon size={16} color={Ghost.text.primary} />
+              <View style={styles.chipIcon}>
+                <Icon size={17} color={Ghost.text.primary} strokeWidth={1.8} />
+              </View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.chipText}>{label}</Text>
-              </Pressable>
-            </Animated.View>
+                <Text style={styles.chipHint}>{hint}</Text>
+              </View>
+            </Pressable>
           ))}
         </Animated.View>
       ) : null}
@@ -482,24 +485,28 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: "100%",
     left: 0,
+    width: 248,
     marginBottom: Space.sm,
-    flexDirection: "row",
-    gap: Space.sm,
-    paddingLeft: 6,
-    zIndex: 10,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderRadius: Radius.full,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderCurve: "continuous",
     backgroundColor: Ghost.bg.raised,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.glass.border,
+    transformOrigin: "bottom left",
+    shadowColor: "#000",
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+    zIndex: 10,
   },
+  chip: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54, paddingHorizontal: 12 },
+  chipLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
+  chipPressed: { backgroundColor: Ghost.glass.fill },
+  chipIcon: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: Ghost.glass.fill, borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
   chipText: { ...Type.callout, fontWeight: "500", color: Ghost.text.primary },
+  chipHint: { fontSize: 12.5, lineHeight: 16, color: Ghost.text.tertiary },
   rec: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 24, paddingHorizontal: 2 },
   recDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: Ghost.status.error },
   clock: { ...Type.body, color: Ghost.text.primary, fontVariant: ["tabular-nums"], fontWeight: "500" },
