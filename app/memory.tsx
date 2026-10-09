@@ -8,8 +8,8 @@ import { alpha, Ghost, Space } from "@/constants/theme";
 import { GhostButton, GhostInput, GhostSheet } from "@/components/ghost";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
-import { correctMemoryFact, fetchKnowledge, fetchMemorySelf, fetchMoney, fetchPeople, fetchTrips, fetchVault, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
-import { formatMoney } from "@/lib/life";
+import { correctMemoryFact, fetchKnowledge, fetchMemorySelf, fetchFinances, fetchPeople, fetchTrips, fetchVault, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
+import { formatCurrency } from "@/lib/life";
 import { progressText } from "@/lib/knowledge";
 import { useRouter } from "expo-router";
 import { BookOpen, MoreHorizontal, Users, FileText, Wallet, Plane } from "lucide-react-native";
@@ -211,18 +211,18 @@ export default function MemoryScreen() {
 function LifeDoors() {
   const router = useRouter();
   const config = useGhostStore((s) => s.config);
-  const [lines, setLines] = useState<{ people?: string; vault?: string; vaultAlert?: boolean; money?: string; trips?: string; knowledge?: string }>({});
+  const [lines, setLines] = useState<{ people?: string; vault?: string; vaultAlert?: boolean; finances?: string; trips?: string; knowledge?: string }>({});
   useEffect(() => {
     if (!config) return;
     let live = true;
-    void Promise.all([fetchPeople(config), fetchVault(config), fetchMoney(config), fetchTrips(config), fetchKnowledge(config)]).then(([p, v, m, t, k]) => {
+    void Promise.all([fetchPeople(config), fetchVault(config), fetchFinances(config), fetchTrips(config), fetchKnowledge(config)]).then(([p, v, m, t, k]) => {
       if (!live) return;
       const due = v.ok ? v.data.papers.filter((x) => x.days_left !== undefined && x.days_left <= 90).length : 0;
       setLines({
         people: p.ok ? (p.data.people.length === 0 ? "No one yet" : `${p.data.people.length} ${p.data.people.length === 1 ? "person" : "people"}`) : undefined,
         vault: v.ok ? (due > 0 ? `${due} ${due === 1 ? "needs" : "need"} attention` : v.data.papers.length === 0 ? "Nothing yet" : `${v.data.papers.length} kept`) : undefined,
         vaultAlert: due > 0,
-        money: m.ok ? (m.data.summary.currency ? `${formatMoney(m.data.summary.spent, m.data.summary.currency, { short: true })} this month` : "Nothing yet") : undefined,
+        finances: m.ok ? (m.data.summary.currency ? `${formatCurrency(m.data.summary.spent, m.data.summary.currency, { short: true })} this month` : "Nothing yet") : undefined,
         trips: t.ok ? (() => {
           const next = t.data.trips.find((x) => x.state !== "past");
           return next ? `${next.destination || next.title}${next.state === "now" ? ", now" : ""}` : t.data.trips.length ? "None coming up" : "Nothing yet";
@@ -241,7 +241,7 @@ function LifeDoors() {
   const doors = [
     { key: "people", label: "People", line: lines.people, Icon: Users, tint: Ghost.accent.primary, go: "/people" },
     { key: "vault", label: "Documents", line: lines.vault, Icon: FileText, tint: Ghost.status.warning, go: "/vault", alert: lines.vaultAlert },
-    { key: "money", label: "Finances", line: lines.money, Icon: Wallet, tint: Ghost.status.success, go: "/money" },
+    { key: "finances", label: "Finances", line: lines.finances, Icon: Wallet, tint: Ghost.status.success, go: "/finances" },
     { key: "trips", label: "Trips", line: lines.trips, Icon: Plane, tint: Ghost.status.info, go: "/trips" },
     { key: "knowledge", label: "Knowledge", line: lines.knowledge, Icon: BookOpen, tint: "#9C95FF", go: "/knowledge" },
   ];

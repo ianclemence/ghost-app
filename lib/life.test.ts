@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { birthdayLine, formatMoney, initials, monthName, paperStatus, shiftMonth, sourceLabel } from "./life";
+import { birthdayLine, formatCurrency, initials, monthName, paperStatus, shiftMonth, sourceLabel } from "./life";
 
-describe("money the way the Pod writes it", () => {
+describe("amounts the way the Pod writes them", () => {
   test("minor units, grouping, decimals only when there are some", () => {
-    expect(formatMoney(125050, "KES")).toBe("KES 1,250.50");
-    expect(formatMoney(100000, "KES")).toBe("KES 1,000");
-    expect(formatMoney(1200, "UGX")).toBe("UGX 1,200");
-    expect(formatMoney(1234500000, "KES", { short: true })).toBe("KES 12M");
-    expect(formatMoney(4560000, "KES", { short: true })).toBe("KES 45.6K");
+    expect(formatCurrency(125050, "KES")).toBe("KES 1,250.50");
+    expect(formatCurrency(100000, "KES")).toBe("KES 1,000");
+    expect(formatCurrency(1200, "UGX")).toBe("UGX 1,200");
+    expect(formatCurrency(1234500000, "KES", { short: true })).toBe("KES 12M");
+    expect(formatCurrency(4560000, "KES", { short: true })).toBe("KES 45.6K");
   });
 });
 

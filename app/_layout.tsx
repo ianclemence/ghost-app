@@ -235,7 +235,7 @@ export default function RootLayout() {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
-          name="money"
+          name="finances"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen

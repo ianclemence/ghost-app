@@ -1,5 +1,5 @@
 /**
- * How the phone says what Ghost knows about the owner's life (pkg/life): money
+ * How the phone says what Ghost knows about the owner's life (pkg/life): finances
  * the way the Pod writes it, where each fact came from, how long until a
  * birthday or an expiry. Pure, so it is testable.
  */
@@ -13,7 +13,7 @@ export function minorDigits(cur: string): number {
 }
 
 /** Minor units as "KES 1,250.50" (whole amounts without decimals), the Pod's form. */
-export function formatMoney(minor: number, cur: string, opts: { short?: boolean } = {}): string {
+export function formatCurrency(minor: number, cur: string, opts: { short?: boolean } = {}): string {
   const dg = minorDigits(cur);
   const neg = minor < 0;
   const abs = Math.abs(minor);

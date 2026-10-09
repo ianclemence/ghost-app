@@ -10,8 +10,8 @@ import { EdgeScrollView } from "@/components/scroll-edge";
 import { Chart } from "@/components/card-views";
 import { Empty, lifeStyles, Pill } from "@/components/life-ui";
 import { alpha, Aurora, Fonts, Ghost, Space } from "@/constants/theme";
-import { fetchMoney, removeMoney, setRecurringActive, type MoneyView, type Recurring } from "@/lib/ghostApi";
-import { formatMoney, minorDigits, monthName, shiftMonth } from "@/lib/life";
+import { fetchFinances, removeFinanceItem, setRecurringActive, type FinancesView, type Recurring } from "@/lib/ghostApi";
+import { formatCurrency, minorDigits, monthName, shiftMonth } from "@/lib/life";
 import { showDialog } from "@/lib/dialog";
 import { useGhostStore } from "@/lib/store";
 
@@ -21,23 +21,23 @@ const thisMonth = () => {
 };
 
 /**
- * The owner's money, as they have told Ghost about it (no bank connection):
+ * The owner's finances, as they have told Ghost about them (no bank connection):
  * one month at a glance (what went out, against the month before, week by week,
  * by kind of thing), what is still to come, the subscriptions and bills it
  * keeps an eye on, and every entry, each removable. Amounts in another currency
  * are kept beside, never converted.
  */
-export default function MoneyScreen() {
+export default function FinancesScreen() {
   const config = useGhostStore((s) => s.config);
   const [month, setMonth] = useState(thisMonth());
-  const [view, setView] = useState<MoneyView | null>(null);
+  const [view, setView] = useState<FinancesView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!config) return;
     setLoading(true);
-    const r = await fetchMoney(config, month);
+    const r = await fetchFinances(config, month);
     setLoading(false);
     if (r.ok) {
       setView(r.data);
@@ -59,7 +59,7 @@ export default function MoneyScreen() {
     showDialog(`Remove ${what}?`, "It leaves your records on the Pod.", [
       { text: "Cancel", style: "cancel" },
       { text: "Remove", style: "destructive", onPress: async () => {
-        const r = await removeMoney(config, id);
+        const r = await removeFinanceItem(config, id);
         if (!r.ok) return setError(r.error);
         await load();
       } },
@@ -78,7 +78,7 @@ export default function MoneyScreen() {
       <ScreenBackground variant="calm" />
       <ScreenHeader title="Finances" subtitle="What you spend, earn, and what's due" />
       {!config ? (
-        <Empty title="Not connected." text="Your money records live on your Pod. Connect one to see them." />
+        <Empty title="Not connected." text="Your finances live on your Pod. Connect one to see them." />
       ) : (
         <EdgeScrollView contentContainerStyle={styles.content}>
           <View style={styles.monthBar}>
@@ -106,10 +106,10 @@ export default function MoneyScreen() {
           {s && cur ? (
             <View style={[lifeStyles.group, styles.hero, loading && { opacity: 0.6 }]}>
               <Text style={styles.micro}>Spent</Text>
-              <Text style={styles.big} adjustsFontSizeToFit numberOfLines={1}>{formatMoney(s.spent, cur)}</Text>
+              <Text style={styles.big} adjustsFontSizeToFit numberOfLines={1}>{formatCurrency(s.spent, cur)}</Text>
               <View style={styles.heroLine}>
                 {delta !== null ? <Pill text={`${delta > 0 ? "+" : ""}${delta}% on ${monthName(shiftMonth(month, -1))}`} tone={delta > 10 ? "warn" : delta < -5 ? "good" : "neutral"} /> : null}
-                {s.earned > 0 ? <Text style={styles.earned}>Earned {formatMoney(s.earned, cur)}</Text> : null}
+                {s.earned > 0 ? <Text style={styles.earned}>Earned {formatCurrency(s.earned, cur)}</Text> : null}
               </View>
               {s.spent > 0 ? (
                 <View style={{ marginTop: Space.md }}>
@@ -117,7 +117,7 @@ export default function MoneyScreen() {
                 </View>
               ) : null}
               {s.other_currencies ? (
-                <Text style={styles.other}>Also {Object.entries(s.other_currencies).map(([c, a]) => formatMoney(a, c)).join(", ")} (kept apart, not converted)</Text>
+                <Text style={styles.other}>Also {Object.entries(s.other_currencies).map(([c, a]) => formatCurrency(a, c)).join(", ")} (kept apart, not converted)</Text>
               ) : null}
             </View>
           ) : null}
@@ -130,7 +130,7 @@ export default function MoneyScreen() {
                   <View key={c.category} style={{ gap: 6 }}>
                     <View style={styles.catHead}>
                       <Text style={styles.catName}>{c.category.charAt(0).toUpperCase() + c.category.slice(1)}</Text>
-                      <Text style={styles.catAmount}>{formatMoney(c.amount, cur)}</Text>
+                      <Text style={styles.catAmount}>{formatCurrency(c.amount, cur)}</Text>
                     </View>
                     <View style={styles.track}>
                       <View style={[styles.fill, { width: `${Math.max(3, (c.amount / topMax) * 100)}%`, backgroundColor: i === 0 ? Ghost.accent.primary : alpha(Aurora.violet, 0.55) }]} />
@@ -151,7 +151,7 @@ export default function MoneyScreen() {
                     onLongPress={() => remove(r.id, r.name)}
                     delayLongPress={400}
                     style={[styles.row, i > 0 && styles.rowLine, !r.active && { opacity: 0.55 }]}
-                    accessibilityLabel={`${r.name}, ${formatMoney(r.amount, r.currency)} every ${r.every}${r.active ? `, next ${r.next}` : ", not tracked"}`}
+                    accessibilityLabel={`${r.name}, ${formatCurrency(r.amount, r.currency)} every ${r.every}${r.active ? `, next ${r.next}` : ", not tracked"}`}
                     accessibilityHint="Long press to remove"
                   >
                     <View style={[styles.tile, { backgroundColor: alpha(r.kind === "bill" ? Ghost.status.warning : Ghost.accent.primary, 0.12) }]}>
@@ -160,7 +160,7 @@ export default function MoneyScreen() {
                     <View style={styles.rowText}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{r.name}</Text>
                       <Text style={styles.rowSub} numberOfLines={1}>
-                        {r.active ? `${formatMoney(r.amount, r.currency)} every ${r.every} · next ${new Date(r.next).toLocaleDateString([], { day: "numeric", month: "short" })}` : "Not tracked"}
+                        {r.active ? `${formatCurrency(r.amount, r.currency)} every ${r.every} · next ${new Date(r.next).toLocaleDateString([], { day: "numeric", month: "short" })}` : "Not tracked"}
                       </Text>
                     </View>
                     <Pressable onPress={() => void toggle(r)} hitSlop={8} style={({ pressed }) => [styles.smallBtn, pressed && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={r.active ? `Stop tracking ${r.name}` : `Track ${r.name} again`}>
@@ -182,7 +182,7 @@ export default function MoneyScreen() {
                     onLongPress={() => remove(e.id, e.merchant || "this entry")}
                     delayLongPress={400}
                     style={({ pressed }) => [styles.entry, i > 0 && styles.rowLine, pressed && { backgroundColor: "rgba(255,255,255,0.03)" }]}
-                    accessibilityLabel={`${e.merchant || e.category}, ${formatMoney(e.amount, e.currency)}, ${e.date}`}
+                    accessibilityLabel={`${e.merchant || e.category}, ${formatCurrency(e.amount, e.currency)}, ${e.date}`}
                     accessibilityHint="Long press to remove"
                   >
                     <View style={styles.rowText}>
@@ -190,7 +190,7 @@ export default function MoneyScreen() {
                       <Text style={styles.rowSub} numberOfLines={1}>{[e.category.charAt(0).toUpperCase() + e.category.slice(1), new Date(e.date).toLocaleDateString([], { day: "numeric", month: "short" })].join(" · ")}</Text>
                     </View>
                     <Text style={[styles.entryAmount, e.kind === "income" && { color: Ghost.status.success }]}>
-                      {e.kind === "income" ? "+" : ""}{formatMoney(e.amount, e.currency)}
+                      {e.kind === "income" ? "+" : ""}{formatCurrency(e.amount, e.currency)}
                     </Text>
                   </Pressable>
                 ))}

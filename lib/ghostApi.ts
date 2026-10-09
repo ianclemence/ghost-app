@@ -878,7 +878,7 @@ export interface MemoryFact {
   value: string;
   /** Who this is about, when it is someone other than you. */
   about?: string;
-  /** Private: health, money, legal. Handled with care. */
+  /** Private: health, finances, legal. Handled with care. */
   sensitive?: boolean;
   /** When a dated or temporary memory stops being true. */
   valid_until?: string | null;
@@ -1326,7 +1326,7 @@ export async function resolveCard(cfg: GhostConfig, id: string, actionId: string
   }
 }
 
-// ─── The owner's life: people, documents, money (pkg/life) ───────────────
+// ─── The owner's life: people, documents, finances (pkg/life) ────────────
 
 export interface LifeSource { kind: string; ref?: string; at: string; quote?: string }
 
@@ -1366,7 +1366,7 @@ export interface Paper {
   what?: "expires" | "renews";
 }
 
-export interface MoneyEntry { id: string; kind: "expense" | "income"; amount: number; currency: string; merchant?: string; category: string; note?: string; date: string; source: LifeSource }
+export interface FinanceEntry { id: string; kind: "expense" | "income"; amount: number; currency: string; merchant?: string; category: string; note?: string; date: string; source: LifeSource }
 export interface Recurring { id: string; kind: "subscription" | "bill"; name: string; amount: number; currency: string; every: string; next: string; category: string; active: boolean; source: LifeSource }
 export interface MonthSummary {
   month: string;
@@ -1380,7 +1380,7 @@ export interface MonthSummary {
   upcoming: Recurring[] | null;
   other_currencies?: Record<string, number>;
 }
-export interface MoneyView { summary: MonthSummary; entries: MoneyEntry[]; recurring: Recurring[]; categories: string[] }
+export interface FinancesView { summary: MonthSummary; entries: FinanceEntry[]; recurring: Recurring[]; categories: string[] }
 
 async function lifeCall<T>(cfg: GhostConfig, path: string, init: RequestInit = {}): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
   try {
@@ -1404,10 +1404,10 @@ export const editPaper = (cfg: GhostConfig, id: string, body: { kind: string; ti
   lifeCall<{ paper: Paper }>(cfg, `/v1/life/vault/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) });
 export const removePaper = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/vault/${encodeURIComponent(id)}`, { method: "DELETE" });
 
-export const fetchMoney = (cfg: GhostConfig, month?: string) => lifeCall<MoneyView>(cfg, `/v1/life/money${month ? `?month=${encodeURIComponent(month)}` : ""}`);
-export const removeMoney = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/money/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const fetchFinances = (cfg: GhostConfig, month?: string) => lifeCall<FinancesView>(cfg, `/v1/life/finances${month ? `?month=${encodeURIComponent(month)}` : ""}`);
+export const removeFinanceItem = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/finances/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const setRecurringActive = (cfg: GhostConfig, id: string, active: boolean) =>
-  lifeCall<{ recurring: Recurring }>(cfg, `/v1/life/money/${encodeURIComponent(id)}/active`, { method: "POST", body: JSON.stringify({ active }) });
+  lifeCall<{ recurring: Recurring }>(cfg, `/v1/life/finances/${encodeURIComponent(id)}/active`, { method: "POST", body: JSON.stringify({ active }) });
 
 // ─── What a canvas keeps (ghost.save) ─────────────────────────────────────
 
