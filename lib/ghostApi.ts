@@ -1326,6 +1326,73 @@ export async function resolveCard(cfg: GhostConfig, id: string, actionId: string
   }
 }
 
+// ─── What Ghost made: the shelf, documents, pins ──────────────────────────
+
+export type ShelfKind = "pages" | "documents" | "pictures" | "links" | "notes";
+
+export interface ShelfItem extends Artifact {
+  pinned: boolean;
+  /** How many versions of this canvas or document there are (the newest is shown). */
+  versions: number;
+}
+
+/** Everything Ghost has made, across conversations: pinned first, then newest. */
+export async function fetchShelf(cfg: GhostConfig, opts: { q?: string; kind?: ShelfKind; limit?: number } = {}): Promise<ShelfItem[]> {
+  const qs = new URLSearchParams();
+  if (opts.q?.trim()) qs.set("q", opts.q.trim());
+  if (opts.kind) qs.set("kind", opts.kind);
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/shelf?${qs.toString()}`, { headers: headers(cfg) }, 15000);
+  if (!res.ok) throw new Error(`shelf ${res.status}`);
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+/** Pin something to the top of the shelf, or let it go back to its place. */
+export async function pinArtifact(cfg: GhostConfig, id: string, pinned: boolean): Promise<boolean> {
+  try {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/artifacts/${encodeURIComponent(id)}/pin`, { method: "POST", headers: headers(cfg), body: JSON.stringify({ pinned }) }, 10000);
+    const data = await res.json().catch(() => null);
+    return res.ok && data?.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+export interface DocumentPage {
+  page: number;
+  pages: number;
+  uri: string;
+}
+
+/** One page of a PDF Ghost made, as a picture (made once on the Pod and kept). */
+export async function fetchDocumentPage(cfg: GhostConfig, id: string, page: number, width = 900): Promise<{ ok: true; page: DocumentPage } | { ok: false; error: string; pages?: number }> {
+  try {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/artifacts/${encodeURIComponent(id)}/page?n=${page}&w=${width}`, { headers: headers(cfg) }, 45000);
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok && typeof data.image_base64 === "string") {
+      return { ok: true, page: { page: data.page, pages: data.pages, uri: `data:image/png;base64,${data.image_base64}` } };
+    }
+    const msg = typeof data?.error === "string" ? data.error : data?.error?.message;
+    return { ok: false, error: msg || "Couldn't draw that page.", pages: typeof data?.pages === "number" ? data.pages : undefined };
+  } catch {
+    return { ok: false, error: "Couldn't reach your Pod for this page." };
+  }
+}
+
+/** A file Ghost made, to share or keep: the PDF itself, or a Word copy of a document. */
+export async function exportArtifact(cfg: GhostConfig, id: string, format: "pdf" | "docx"): Promise<{ ok: true; name: string; mime: string; base64: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/artifacts/${encodeURIComponent(id)}/export?format=${format}`, { headers: headers(cfg) }, 60000);
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok && typeof data.base64 === "string") return { ok: true, name: data.name, mime: data.mime_type, base64: data.base64 };
+    const msg = typeof data?.error === "string" ? data.error : data?.error?.message;
+    return { ok: false, error: msg || "Couldn't get that file." };
+  } catch {
+    return { ok: false, error: "Couldn't reach your Pod for that file." };
+  }
+}
+
 /** What answering a card did: the Pod's copy of it, and where the answer went. */
 export interface CardRespondResult {
   ok: boolean;

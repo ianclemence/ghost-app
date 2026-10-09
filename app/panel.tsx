@@ -3,8 +3,8 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, Calendar, ChevronRight, Folder, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
-import { Fonts, Ghost, Space, Type } from "@/constants/theme";
+import { AppWindow, Bell, Calendar, ChevronRight, FileText, Folder, Image as ImageIcon, Link2, NotebookPen, Pin, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
+import { alpha, Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { Dock } from "@/components/dock";
 import { ActivityTree } from "@/components/activity-tree";
@@ -17,9 +17,14 @@ import {
   fetchMemorySelf,
   fetchPendingApprovals,
   fetchRoutines,
+  fetchShelf,
   type ActivityChip,
   type RoutineItem,
+  type ShelfItem,
 } from "@/lib/ghostApi";
+import { shelfKindOf, shelfMeta } from "@/lib/shelf";
+import { isCanvasArtifact } from "@/lib/canvas";
+import { isDocumentArtifact } from "@/lib/documents";
 import { useGhostStore } from "@/lib/store";
 import { nextLine } from "@/lib/when";
 
@@ -55,6 +60,7 @@ export default function PanelScreen() {
   const [memoryCount, setMemoryCount] = useState<number | null>(null);
   const [owner, setOwner] = useState(knownOwner);
   const [activity, setActivity] = useState<ActivityChip[]>([]);
+  const [made, setMade] = useState<ShelfItem[]>([]);
 
   const load = useCallback(async () => {
     if (!config) return;
@@ -62,6 +68,7 @@ export default function PanelScreen() {
       fetchPendingApprovals(config).then((r) => setApprovals(r.length)).catch(() => {}),
       fetchRoutines(config).then(setRoutines).catch(() => {}),
       fetchActivity(config, { limit: 12 }).then(setActivity).catch(() => {}),
+      fetchShelf(config, { limit: 3 }).then(setMade).catch(() => {}),
       fetchMemorySelf(config).then((m) => setMemoryCount(m.entries.length + m.notes.length)).catch(() => {}),
       fetchIdentity(config).then((id) => {
         if (id?.owner) {
@@ -165,6 +172,43 @@ export default function PanelScreen() {
                 <Text style={styles.tileLabel}>Remembered</Text>
               </Pressable>
             </View>
+            {/* What Ghost made: the newest (and pinned) things, a door to the shelf. */}
+            {made.length > 0 ? (
+              <View style={styles.todayCard}>
+                <View style={styles.todayHead}>
+                  <Text style={styles.todayTitle}>Made by Ghost</Text>
+                  <View style={{ flex: 1 }} />
+                  <Pressable onPress={go("/shelf")} hitSlop={8} accessibilityRole="button" accessibilityLabel="See everything Ghost made.">
+                    <Text style={styles.todayAll}>See all</Text>
+                  </Pressable>
+                </View>
+                {made.map((it, i) => {
+                  const k = MADE[shelfKindOf(it)];
+                  return (
+                    <Pressable
+                      key={it.id}
+                      onPress={() => {
+                        if (isCanvasArtifact(it)) router.push({ pathname: "/canvas", params: { id: it.id } } as never);
+                        else if (isDocumentArtifact(it)) router.push({ pathname: "/document", params: { id: it.id } } as never);
+                        else router.push("/shelf" as never);
+                      }}
+                      style={({ pressed }) => [styles.madeRow, i > 0 && styles.madeLine, pressed && { opacity: 0.7 }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${it.title}. ${shelfMeta(it)}`}
+                    >
+                      <View style={[styles.madeTile, { backgroundColor: alpha(k.tint, 0.12), borderColor: alpha(k.tint, 0.3) }]}>
+                        <k.Icon size={17} color={k.tint} strokeWidth={1.8} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+                        <Text style={styles.madeTitle} numberOfLines={1}>{it.title}</Text>
+                        <Text style={styles.madeMeta} numberOfLines={1}>{shelfMeta(it)}</Text>
+                      </View>
+                      {it.pinned ? <Pin size={13} color={Ghost.accent.primary} fill={Ghost.accent.primary} strokeWidth={1.9} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
             {/* Today: what Ghost did, newest first, in its own words. */}
             {todayItems.length > 0 ? (
               <View style={styles.todayCard}>
@@ -206,8 +250,21 @@ export default function PanelScreen() {
   );
 }
 
+const MADE = {
+  pages: { Icon: AppWindow, tint: Ghost.accent.primary },
+  documents: { Icon: FileText, tint: Ghost.status.warning },
+  pictures: { Icon: ImageIcon, tint: Ghost.status.success },
+  links: { Icon: Link2, tint: Ghost.status.info },
+  notes: { Icon: NotebookPen, tint: "#B3B1BD" },
+} as const;
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
+  madeRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingVertical: 8 },
+  madeLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
+  madeTile: { width: 38, height: 38, borderRadius: 12, borderCurve: "continuous", borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
+  madeTitle: { fontSize: 15, lineHeight: 20, fontWeight: "500", color: Ghost.text.primary, letterSpacing: -0.1 },
+  madeMeta: { fontSize: 12.5, lineHeight: 17, color: Ghost.text.tertiary },
   content: { paddingHorizontal: 28, gap: Space.md },
   title: {
     fontFamily: Fonts.voice,

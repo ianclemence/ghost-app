@@ -29,6 +29,8 @@ import { DaySeparator, GhostMessage, UserMessage } from "@/components/thread";
 import { PermissionCard } from "@/components/permission-card";
 import { ArtifactCard } from "@/components/artifact-card";
 import { CanvasCard } from "@/components/canvas-card";
+import { DocumentCard } from "@/components/document-card";
+import { isDocumentArtifact } from "@/lib/documents";
 import { canvasInfos, isCanvasArtifact } from "@/lib/canvas";
 import { LiveSurfaceCard } from "@/components/live-surface-card";
 import {
@@ -1008,6 +1010,10 @@ export default function ConversationScreen() {
       // Something Ghost built to be run is shown running, not filed.
       if (isCanvasArtifact(item.artifact)) {
         return <CanvasCard config={config} artifact={item.artifact} info={canvasInfoById[item.artifact.id]} />;
+      }
+      // A document is shown as its pages.
+      if (isDocumentArtifact(item.artifact)) {
+        return <DocumentCard config={config} artifact={item.artifact} />;
       }
       return (
         <View style={styles.inlineCard}>
