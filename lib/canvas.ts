@@ -76,6 +76,14 @@ const BASE_CSS = `
 /**
  * Runs first in the page. It tells the app the page's height and any error it
  * throws, and nothing else: no way to ask the app for anything.
+ *
+ * The height is what the content needs, not the document's scrollHeight: a page
+ * that sets `html, body { height: 100% }` and centres a card lets the card
+ * overflow its own padding, and scrollHeight never sees the padding, so the
+ * window shrank to the card's edges. So it is the span of the body's children
+ * plus the body's own padding, border and margins. A child as tall as the
+ * viewport (100vh) is measured by what is inside it, so the window does not
+ * chase its own height.
  */
 const BRIDGE_JS = `(function(){
 var P=window.ReactNativeWebView;
@@ -88,8 +96,11 @@ function lum(c){var m=/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?\\
 function surface(){if(!window.__GHOST_INLINE__)return;var d=document.documentElement,b=document.body;if(!b)return;var cb=getComputedStyle(b).backgroundColor,cd=getComputedStyle(d).backgroundColor;var l=lum(cb);var col=cb;if(l===null){l=lum(cd);col=cd}
 if(l===null){say({type:"surface",dark:true})}else{say({type:"surface",dark:l<0.25,color:col})}}
 var last=0;
-function height(){var d=document.documentElement,b=document.body;var v=Math.ceil(Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0));if(Math.abs(v-last)>1){last=v;say({type:"height",value:v})}}
-function watch(){height();try{var r=new ResizeObserver(height);r.observe(document.documentElement);if(document.body)r.observe(document.body)}catch(e){}}
+function px(cs,a){return parseFloat(cs[a])||0}
+function box(el){var cs=getComputedStyle(el);return px(cs,"paddingTop")+px(cs,"paddingBottom")+px(cs,"borderTopWidth")+px(cs,"borderBottomWidth")}
+function ext(el,depth){var top=Infinity,bot=-Infinity,k=el.children;for(var i=0;i<k.length;i++){var c=k[i],cs=getComputedStyle(c);if(cs.display==="none"||cs.position==="fixed"||c.tagName==="SCRIPT"||c.tagName==="STYLE")continue;var r=c.getBoundingClientRect(),h=r.height;if(depth<3&&h>=innerHeight-1&&c.children.length){var e=ext(c,depth+1);if(e>0)h=Math.min(h,e+box(c))}top=Math.min(top,r.top-px(cs,"marginTop"));bot=Math.max(bot,r.top+h+px(cs,"marginBottom"))}return bot>top?bot-top:0}
+function height(){var d=document.documentElement,b=document.body;if(!b)return;var v;var e=ext(b,0);if(e>0){var bs=getComputedStyle(b);v=e+box(b)+px(bs,"marginTop")+px(bs,"marginBottom")+box(d)}else{v=Math.max(d.scrollHeight,b.scrollHeight)}v=Math.ceil(v);if(Math.abs(v-last)>1){last=v;say({type:"height",value:v})}}
+function watch(){height();window.addEventListener("resize",height);try{var r=new ResizeObserver(height);r.observe(document.documentElement);if(document.body)r.observe(document.body)}catch(e){}}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",watch);else watch();
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",surface);else surface();
 window.addEventListener("load",function(){surface();height();say({type:"ready"})});

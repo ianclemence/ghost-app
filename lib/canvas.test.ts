@@ -167,6 +167,12 @@ describe("the page's surface", () => {
     expect(withAlpha("nonsense", 0)).toBe("rgba(11, 11, 16, 0)");
   });
 
+  test("the height is the content's, not the document's", () => {
+    const doc = buildCanvasDocument("<p>x</p>", { inline: true })!;
+    expect(doc).toContain("getBoundingClientRect");
+    expect(doc).toContain('addEventListener("resize",height)');
+  });
+
   test("the bridge never makes a page's ground transparent", () => {
     expect(buildCanvasDocument("<p>x</p>", { inline: true })).not.toContain('"transparent"');
   });
