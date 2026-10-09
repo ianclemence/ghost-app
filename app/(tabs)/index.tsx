@@ -1303,6 +1303,7 @@ export default function ConversationScreen() {
           // Photos and files go to the Pod, which identifies and reads them.
           onPhoto={podOnline ? () => void attachPhoto() : undefined}
           onFile={podOnline ? () => void attachFile() : undefined}
+          onMeeting={podOnline ? () => router.push("/meeting" as never) : undefined}
           // Voice transcription runs on the Pod (POST /v1/voice/turn). Offline
           // or local-only there is no transcriber, so no handler: Composer
           // renders the mic visibly disabled ("Voice needs Pod. Type instead").

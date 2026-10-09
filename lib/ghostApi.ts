@@ -1384,7 +1384,7 @@ export interface MoneyView { summary: MonthSummary; entries: MoneyEntry[]; recur
 
 async function lifeCall<T>(cfg: GhostConfig, path: string, init: RequestInit = {}): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
   try {
-    const res = await fetchWithTimeout(`${baseURL(cfg)}${path}`, { ...init, headers: headers(cfg) }, 15000);
+    const res = await fetchWithTimeout(`${baseURL(cfg)}${path}`, { ...init, headers: headers(cfg) }, path.includes("/chunk") ? 90000 : 15000);
     const data = await res.json().catch(() => null);
     if (res.ok && data?.ok !== false) return { ok: true, data: data as T };
     const msg = typeof data?.error === "string" ? data.error : data?.error?.message;
@@ -1408,6 +1408,40 @@ export const fetchMoney = (cfg: GhostConfig, month?: string) => lifeCall<MoneyVi
 export const removeMoney = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/money/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const setRecurringActive = (cfg: GhostConfig, id: string, active: boolean) =>
   lifeCall<{ recurring: Recurring }>(cfg, `/v1/life/money/${encodeURIComponent(id)}/active`, { method: "POST", body: JSON.stringify({ active }) });
+
+// ─── Trips and recorded meetings ──────────────────────────────────────────
+
+export interface TripLeg { kind: string; title: string; ref?: string; from?: string; to?: string; start: string; end?: string; place?: string; international?: boolean; travel_minutes?: number; leave_by?: string }
+export interface Trip { id: string; title: string; destination?: string; start: string; end: string; legs: TripLeg[]; notes?: string; source: LifeSource; state: "upcoming" | "now" | "past" }
+
+export const fetchTrips = (cfg: GhostConfig) => lifeCall<{ trips: Trip[] }>(cfg, "/v1/life/trips");
+export const removeTrip = (cfg: GhostConfig, id: string) => lifeCall<object>(cfg, `/v1/life/trips/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export interface Meeting {
+  id: string;
+  title: string;
+  state: "receiving" | "transcribing" | "done" | "failed";
+  mime: string;
+  chunks: number;
+  bytes: number;
+  seconds?: number;
+  parts?: number;
+  part_done?: number;
+  words?: number;
+  transcript?: string;
+  artifact_id?: string;
+  error?: string;
+  created_at: string;
+}
+
+export const fetchMeetings = (cfg: GhostConfig) => lifeCall<{ meetings: Meeting[] }>(cfg, "/v1/meetings");
+export const fetchMeeting = (cfg: GhostConfig, id: string) => lifeCall<{ meeting: Meeting }>(cfg, `/v1/meetings/${encodeURIComponent(id)}`);
+export const startMeeting = (cfg: GhostConfig, title: string, mime: string) =>
+  lifeCall<{ meeting: Meeting }>(cfg, "/v1/meetings", { method: "POST", body: JSON.stringify({ title, mime }) });
+export const sendMeetingChunk = (cfg: GhostConfig, id: string, seq: number, data: string) =>
+  lifeCall<{ meeting: Meeting }>(cfg, `/v1/meetings/${encodeURIComponent(id)}/chunk`, { method: "POST", body: JSON.stringify({ seq, data }) });
+export const finishMeeting = (cfg: GhostConfig, id: string, chunks: number) =>
+  lifeCall<{ meeting: Meeting }>(cfg, `/v1/meetings/${encodeURIComponent(id)}/finish`, { method: "POST", body: JSON.stringify({ chunks }) });
 
 // ─── What Ghost made: the shelf, documents, pins ──────────────────────────
 

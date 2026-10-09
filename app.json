@@ -84,7 +84,15 @@
       ],
       "expo-asset",
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Ghost uses the microphone for voice messages and to record meetings you ask it to.",
+          "enableBackgroundRecording": true,
+          "enableBackgroundPlayback": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

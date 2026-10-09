@@ -8,10 +8,10 @@ import { alpha, Ghost, Space } from "@/constants/theme";
 import { GhostButton, GhostInput, GhostSheet } from "@/components/ghost";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
-import { correctMemoryFact, fetchMemorySelf, fetchMoney, fetchPeople, fetchVault, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
+import { correctMemoryFact, fetchMemorySelf, fetchMoney, fetchPeople, fetchTrips, fetchVault, forgetMemoryFact, forgetMemoryNote, type MemoryFact, type MemorySelf } from "@/lib/ghostApi";
 import { formatMoney } from "@/lib/life";
 import { useRouter } from "expo-router";
-import { Users, FileText, Wallet } from "lucide-react-native";
+import { Users, FileText, Wallet, Plane } from "lucide-react-native";
 import { useGhostStore } from "@/lib/store";
 import { whenAgo } from "@/lib/when";
 import { EdgeScrollView } from "@/components/scroll-edge";
@@ -171,11 +171,11 @@ export default function MemoryScreen() {
 function LifeDoors() {
   const router = useRouter();
   const config = useGhostStore((s) => s.config);
-  const [lines, setLines] = useState<{ people?: string; vault?: string; vaultAlert?: boolean; money?: string }>({});
+  const [lines, setLines] = useState<{ people?: string; vault?: string; vaultAlert?: boolean; money?: string; trips?: string }>({});
   useEffect(() => {
     if (!config) return;
     let live = true;
-    void Promise.all([fetchPeople(config), fetchVault(config), fetchMoney(config)]).then(([p, v, m]) => {
+    void Promise.all([fetchPeople(config), fetchVault(config), fetchMoney(config), fetchTrips(config)]).then(([p, v, m, t]) => {
       if (!live) return;
       const due = v.ok ? v.data.papers.filter((x) => x.days_left !== undefined && x.days_left <= 90).length : 0;
       setLines({
@@ -183,6 +183,10 @@ function LifeDoors() {
         vault: v.ok ? (due > 0 ? `${due} ${due === 1 ? "needs" : "need"} attention` : v.data.papers.length === 0 ? "Nothing yet" : `${v.data.papers.length} kept`) : undefined,
         vaultAlert: due > 0,
         money: m.ok ? (m.data.summary.currency ? `${formatMoney(m.data.summary.spent, m.data.summary.currency, { short: true })} this month` : "Nothing yet") : undefined,
+        trips: t.ok ? (() => {
+          const next = t.data.trips.find((x) => x.state !== "past");
+          return next ? `${next.destination || next.title}${next.state === "now" ? ", now" : ""}` : t.data.trips.length ? "None coming up" : "Nothing yet";
+        })() : undefined,
       });
     });
     return () => { live = false; };
@@ -191,6 +195,7 @@ function LifeDoors() {
     { key: "people", label: "People", line: lines.people, Icon: Users, tint: Ghost.accent.primary, go: "/people" },
     { key: "vault", label: "Documents", line: lines.vault, Icon: FileText, tint: Ghost.status.warning, go: "/vault", alert: lines.vaultAlert },
     { key: "money", label: "Money", line: lines.money, Icon: Wallet, tint: Ghost.status.success, go: "/money" },
+    { key: "trips", label: "Trips", line: lines.trips, Icon: Plane, tint: Ghost.status.info, go: "/trips" },
   ];
   return (
     <View style={doorStyles.row}>
@@ -214,8 +219,9 @@ function LifeDoors() {
 }
 
 const doorStyles = StyleSheet.create({
-  row: { flexDirection: "row", gap: Space.sm, marginBottom: Space.md },
-  door: { flex: 1, gap: 4, padding: Space.md, borderRadius: 20, borderCurve: "continuous", backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
+  // Two by two: each door wide enough for its line.
+  row: { flexDirection: "row", flexWrap: "wrap", gap: Space.sm, marginBottom: Space.md },
+  door: { flexBasis: "47%", flexGrow: 1, gap: 4, padding: Space.md, borderRadius: 20, borderCurve: "continuous", backgroundColor: "rgba(0,0,0,0.42)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border },
   icon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, marginBottom: 4 },
   label: { fontSize: 14.5, fontWeight: "500", color: Ghost.text.primary },
   line: { fontSize: 12, lineHeight: 16, color: Ghost.text.tertiary },

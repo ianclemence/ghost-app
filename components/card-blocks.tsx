@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   itemSub: { fontSize: 13.5, lineHeight: 19, fontWeight: "300", color: Ghost.text.secondary },
   trailing: { fontSize: 14, fontWeight: "500", color: Ghost.text.secondary, fontVariant: ["tabular-nums"] },
   step: { flexDirection: "row", paddingBottom: 14 },
-  stepTime: { width: 54, fontSize: 12.5, lineHeight: 21, color: Ghost.text.tertiary, fontVariant: ["tabular-nums"] },
+  stepTime: { width: 66, fontSize: 12.5, lineHeight: 21, color: Ghost.text.tertiary, fontVariant: ["tabular-nums"] },
   rail: { width: 22, alignItems: "center" },
   trunk: { position: "absolute", top: 12, bottom: -14, width: StyleSheet.hairlineWidth * 2, backgroundColor: "rgba(255,255,255,0.14)" },
   halo: { position: "absolute", top: 1, width: 20, height: 20, borderRadius: 10, backgroundColor: alpha(Ghost.ember, 0.28) },

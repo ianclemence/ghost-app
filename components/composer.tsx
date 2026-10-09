@@ -1,4 +1,4 @@
-import { ArrowUp, AudioLines, Camera, Check, Image as ImageIcon, Paperclip, Plus, Square, X } from "lucide-react-native";
+import { ArrowUp, AudioLines, Camera, Check, Image as ImageIcon, Mic, Paperclip, Plus, Square, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Animated, {
   Easing,
@@ -44,6 +44,8 @@ interface ComposerProps {
   /** Attach a document or any other file. */
   onFile?: () => void;
   onCamera?: () => void;
+  /** Record a meeting, a lecture or a visit, transcribed on the Pod. */
+  onMeeting?: () => void;
   showMic?: boolean;
   minHeight?: number;
   maxLength?: number;
@@ -130,6 +132,7 @@ export function Composer({
   busy = false,
   onPhoto,
   onFile,
+  onMeeting,
   onCamera,
   showMic = true,
   minHeight,
@@ -153,7 +156,7 @@ export function Composer({
   const valueRef = useRef(value);
   valueRef.current = value;
 
-  const canAttach = !!(onPhoto || onFile || onCamera);
+  const canAttach = !!(onPhoto || onFile || onCamera || onMeeting);
   const spin = useSharedValue(0);
   useEffect(() => {
     spin.set(reduceMotion ? (tray ? 1 : 0) : withTiming(tray ? 1 : 0, { duration: 180, easing: EASE_OUT }));
@@ -319,6 +322,7 @@ export function Composer({
     onPhoto ? { key: "photo", label: "Photo", hint: "Attach a photo", Icon: ImageIcon, fn: onPhoto } : null,
     onCamera ? { key: "camera", label: "Camera", hint: "Take a photo", Icon: Camera, fn: onCamera } : null,
     onFile ? { key: "file", label: "File", hint: "Attach a file", Icon: Paperclip, fn: onFile } : null,
+    onMeeting ? { key: "meeting", label: "Meeting", hint: "Record a meeting, transcribed on your Pod", Icon: Mic, fn: onMeeting } : null,
   ].filter(<T,>(c: T | null): c is T => c !== null);
 
   return (
