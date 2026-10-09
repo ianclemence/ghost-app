@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Linking, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
-import Animated, { Easing, FadeIn, FadeInDown, LinearTransition, useReducedMotion } from "react-native-reanimated";
+import Animated, { Easing, FadeIn, FadeInDown, useReducedMotion } from "react-native-reanimated";
 import { AlarmClock, CalendarPlus, ChevronDown, CircleCheck, Mail, MapPin, MessageSquare, Pencil } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { GlassCard } from "@/components/glass";
@@ -31,6 +31,9 @@ const KIND: Record<DraftKind, { label: string; Icon: typeof Mail }> = {
  * A text is opened in the phone's own Messages, ready to send: the owner sends
  * it there, and the card says only that it was opened.
  */
+/** Drafts already shown this session (by id), so their entrance plays once. */
+const seenDrafts = new Set<string>();
+
 export function DraftCard({
   card,
   busy,
@@ -47,6 +50,12 @@ export function DraftCard({
   onEdit: (fields: Record<string, string>) => Promise<boolean>;
 }) {
   const reduce = useReducedMotion();
+  // The entrance plays the first time only: the thread re-mounts rows as it
+  // scrolls, and a replayed entrance reads as the card jittering.
+  const [firstTime] = useState(() => !seenDrafts.has(card.id));
+  useEffect(() => {
+    seenDrafts.add(card.id);
+  }, [card.id]);
   const fields = draftFields(card);
   const kind = fields.kind;
   const meta = KIND[kind];
@@ -87,12 +96,11 @@ export function DraftCard({
     }
     onSend();
   };
-  const layout = reduce ? undefined : LinearTransition.duration(200).easing(EASE);
   const discarded = resolved?.action_id === "discard";
 
   if (resolved && !open) {
     return (
-      <Animated.View layout={layout}>
+      <Animated.View>
         <Pressable
           onPress={() => setOpen(true)}
           style={({ pressed }) => [styles.collapsed, pressed && { opacity: 0.7 }]}
@@ -111,7 +119,7 @@ export function DraftCard({
   const sendAction = (card.actions ?? []).find((a) => a.id === "send");
   const allDay = value("all_day") === "true";
   return (
-    <Animated.View layout={layout} entering={reduce ? undefined : FadeInDown.duration(240).easing(EASE)}>
+    <Animated.View entering={reduce || !firstTime ? undefined : FadeInDown.duration(240).easing(EASE)}>
       <GlassCard style={styles.card} accessibilityLabel={`${meta.label}: ${card.title}`}>
         <View style={styles.head}>
           <View style={styles.badge}>

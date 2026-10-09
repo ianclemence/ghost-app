@@ -37,8 +37,8 @@ const TONE: Record<Tone, string> = {
 /** A tone's light: neutral is a quiet grey rather than white. */
 const LIGHT: Record<Tone, string> = { ...TONE, neutral: "rgba(255,255,255,0.32)" };
 
-export function CardBlock({ block, index }: { block: Block; index: number }) {
-  const reduce = useReducedMotion();
+export function CardBlock({ block, index, still = false }: { block: Block; index: number; /** No entrance (already seen). */ still?: boolean }) {
+  const reduce = useReducedMotion() || still;
   // A card draws top to bottom, a breath apart: occasional, so it may have a moment.
   const entering = reduce ? undefined : FadeInDown.duration(220).delay(Math.min(index, 5) * 45).easing(EASE_OUT);
   return <Animated.View entering={entering}>{render(block)}</Animated.View>;

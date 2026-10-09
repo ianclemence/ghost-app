@@ -25,17 +25,20 @@ export function FileCard({
   mime,
   width,
   onPress,
+  solid = false,
 }: {
   name: string;
   size: number;
   mime?: string;
   width?: number;
   onPress?: () => void;
+  /** On the raised surface the composer uses, for a card floating above it (not see-through). */
+  solid?: boolean;
 }) {
   const kind = fileKind(name, mime);
   const color = TONE[kind.tone];
   const body = (
-    <View style={[styles.card, width ? { width } : null]} accessibilityLabel={`${name}, ${fileSize(size)}`}>
+    <View style={[styles.card, solid && styles.solid, width ? { width } : null]} accessibilityLabel={`${name}, ${fileSize(size)}`}>
       <View style={[styles.badge, { backgroundColor: alpha(color, 0.14), borderColor: alpha(color, 0.3) }]}>
         <Text style={[styles.badgeText, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
           {kind.label.slice(0, 4)}
@@ -72,6 +75,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Ghost.glass.border,
   },
+  solid: { backgroundColor: Ghost.bg.raised, borderColor: Ghost.glass.border },
   badge: {
     width: 46,
     height: 46,

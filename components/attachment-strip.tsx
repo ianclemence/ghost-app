@@ -3,12 +3,12 @@ import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from "react-native-reanimated";
 import { X } from "lucide-react-native";
-import { Ghost } from "@/constants/theme";
+import { Ghost, Space } from "@/constants/theme";
 import { attachmentSummary, type Attachment } from "@/lib/attachments";
 import { FileCard } from "@/components/file-card";
 
-const TILE = 68;
-const FILE_W = 176;
+const TILE = 88;
+const FILE_W = 240;
 
 /**
  * What is about to be sent: photos as themselves, files as cards that say what
@@ -38,7 +38,7 @@ export function AttachmentStrip({ items, onRemove }: { items: Attachment[]; onRe
             {a.kind === "image" ? (
               <Image source={{ uri: a.uri }} style={styles.tile} accessibilityLabel={`Photo ${a.name}`} />
             ) : (
-              <FileCard name={a.name} size={a.size} mime={a.mime} width={FILE_W} />
+              <FileCard name={a.name} size={a.size} mime={a.mime} width={FILE_W} solid />
             )}
             <Pressable
               onPress={() => onRemove(i)}
@@ -58,9 +58,11 @@ export function AttachmentStrip({ items, onRemove }: { items: Attachment[]; onRe
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginBottom: 8 },
+  // The same distance from the composer as the attach menu (Space.sm).
+  wrap: { marginBottom: Space.sm },
   scroll: { flexGrow: 0 },
-  row: { gap: 10, paddingTop: 8, paddingBottom: 4, paddingRight: 8, paddingLeft: 2 },
+  // Top room for the remove buttons, which sit over each corner.
+  row: { gap: 10, alignItems: "center", paddingTop: 8, paddingRight: 8, paddingLeft: 2 },
   photo: { width: TILE, height: TILE },
   file: { width: FILE_W },
   tile: {

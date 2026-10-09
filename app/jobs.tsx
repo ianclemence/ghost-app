@@ -23,22 +23,24 @@ import { EdgeScrollView } from "@/components/scroll-edge";
 import { DateTimeSheet } from "@/components/card-inputs";
 import { GhostButton } from "@/components/ghost";
 import { lifeStyles } from "@/components/life-ui";
-import { alpha, Fonts, Ghost, Inter, Space } from "@/constants/theme";
+import { alpha, Fonts, Ghost, Hue, Inter, Space } from "@/constants/theme";
 import { fetchJobs, setJob, type GhostJob } from "@/lib/ghostApi";
 import { GET_TO_KNOW_YOU, jobWhen } from "@/lib/jobs";
 import { useGhostStore } from "@/lib/store";
 
+// One hue each, none repeated: the sun for the morning, green for money,
+// rose for the heart, cool teal for travel, lilac for the house at night.
 const LOOK: Record<string, { Icon: typeof Inbox; tint: string }> = {
-  morning_brief: { Icon: Sunrise, tint: "#FFC24D" },
-  inbox: { Icon: Inbox, tint: "#8FB8FF" },
-  bills: { Icon: Receipt, tint: "#6FE3A0" },
-  trips: { Icon: Plane, tint: "#8FB8FF" },
-  meals: { Icon: UtensilsCrossed, tint: "#FFA928" },
-  life_admin: { Icon: ListChecks, tint: "#9C95FF" },
-  home: { Icon: Home, tint: "#FFC24D" },
-  health: { Icon: HeartPulse, tint: "#6FE3A0" },
-  learn: { Icon: BookOpen, tint: "#9C95FF" },
-  watch: { Icon: Eye, tint: "#B3B1BD" },
+  morning_brief: { Icon: Sunrise, tint: Hue.gold },
+  inbox: { Icon: Inbox, tint: Hue.sky },
+  bills: { Icon: Receipt, tint: Hue.mint },
+  trips: { Icon: Plane, tint: Hue.teal },
+  meals: { Icon: UtensilsCrossed, tint: Hue.coral },
+  life_admin: { Icon: ListChecks, tint: Hue.iris },
+  home: { Icon: Home, tint: Hue.lilac },
+  health: { Icon: HeartPulse, tint: Hue.rose },
+  learn: { Icon: BookOpen, tint: Hue.lime },
+  watch: { Icon: Eye, tint: Hue.stone },
 };
 
 /**

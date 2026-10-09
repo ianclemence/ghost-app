@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
-import Animated, { Easing, FadeIn, FadeInDown, LinearTransition, useReducedMotion } from "react-native-reanimated";
+import Animated, { Easing, FadeIn, FadeInDown, useReducedMotion } from "react-native-reanimated";
 import { ChevronDown, CircleCheck } from "lucide-react-native";
 import { Fonts, Ghost, Space } from "@/constants/theme";
 import { GlassCard } from "@/components/glass";
@@ -10,7 +10,7 @@ import { GhostButton } from "@/components/ghost";
 import { EmberDot } from "@/components/ember-dot";
 import { CardBlock } from "@/components/card-blocks";
 import { CardInput } from "@/components/card-inputs";
-import { blockSpeech, isInput, type InputBlock } from "@/lib/blocks";
+import { blockSpeech, isInput, type Block, type InputBlock } from "@/lib/blocks";
 import { answerPayload, answerProblem, initialAnswers, type Answers, type AnswerValue } from "@/lib/cardAnswers";
 import type { CardAction, RichCard } from "@/lib/cards";
 
@@ -28,6 +28,9 @@ const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
  * conversation does not fill with spent cards. The Pod remembers it, so it is
  * put away on every device.
  */
+/** Cards already shown this session (by id), so their entrance plays once. */
+const seenCards = new Set<string>();
+
 export function PresentCard({
   card,
   busy,
@@ -46,7 +49,15 @@ export function PresentCard({
   /** Tick a line of a list that is ticked as you go. */
   onCheck?: (key: string, item: string, done: boolean) => void;
 }) {
-  const reduce = useReducedMotion();
+  const reducedMotion = useReducedMotion();
+  // A card eases in the first time it appears, never again: the thread is a
+  // virtualized list that unmounts rows scrolled away and mounts them again,
+  // and an entrance replayed on every scroll reads as the card jittering.
+  const [firstTime] = useState(() => !seenCards.has(card.id));
+  useEffect(() => {
+    seenCards.add(card.id);
+  }, [card.id]);
+  const reduce = reducedMotion || !firstTime;
   const [open, setOpen] = useState(false);
   const resolved = card.resolved;
   const question = card.kind === "question";
@@ -58,11 +69,14 @@ export function PresentCard({
   const [answers, setAnswers] = useState<Answers>(() => ({ ...initialAnswers(blocks), ...(resolved?.answers as Answers | undefined) }));
   const [problem, setProblem] = useState<string | null>(null);
   // The Pod's copy wins: a list ticked on another device, an answer given there.
+  // Only when what the Pod holds changed: the thread refreshes cards as new
+  // objects, and resetting on each of those re-rendered the inputs mid-scroll.
+  const podCopy = JSON.stringify([card.blocks ?? [], card.resolved?.answers ?? null]);
   useEffect(() => {
-    setAnswers({ ...initialAnswers(card.blocks ?? []), ...(card.resolved?.answers as Answers | undefined) });
-  }, [card]);
+    const [b, a] = JSON.parse(podCopy) as [Block[], Answers | null];
+    setAnswers({ ...initialAnswers(b), ...(a ?? undefined) });
+  }, [podCopy]);
   const collapsed = !!resolved && !open;
-  const layout = reduce ? undefined : LinearTransition.duration(200).easing(EASE_OUT);
   const speech = [question ? "Ghost is asking" : null, card.title, card.body, ...blocks.map(blockSpeech)].filter(Boolean).join(". ");
 
   const change = (b: InputBlock, v: AnswerValue) => {
@@ -88,7 +102,7 @@ export function PresentCard({
 
   if (collapsed) {
     return (
-      <Animated.View layout={layout}>
+      <View>
         <Pressable
           onPress={() => setOpen(true)}
           style={({ pressed }) => [styles.collapsed, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]}
@@ -100,13 +114,13 @@ export function PresentCard({
           <Text style={styles.collapsedLabel} numberOfLines={1}>{resolved.label}</Text>
           <ChevronDown size={15} color={Ghost.text.tertiary} strokeWidth={1.8} />
         </Pressable>
-      </Animated.View>
+      </View>
     );
   }
 
   const locked = !!resolved || !!busy;
   return (
-    <Animated.View layout={layout} entering={reduce ? undefined : FadeInDown.duration(240).easing(EASE_OUT)}>
+    <Animated.View entering={reduce ? undefined : FadeInDown.duration(240).easing(EASE_OUT)}>
       <GlassCard style={styles.card} accessibilityLabel={speech}>
         <View style={styles.head}>
           {question ? (
@@ -133,7 +147,7 @@ export function PresentCard({
                 <CardInput block={b} value={answers[b.key]} onChange={(v) => change(b, v)} disabled={locked && !living} />
               </Animated.View>
             ) : (
-              <CardBlock key={i} block={b} index={i} />
+              <CardBlock key={i} block={b} index={i} still={reduce} />
             ),
           )}
         </View>

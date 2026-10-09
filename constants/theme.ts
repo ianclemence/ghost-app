@@ -148,6 +148,24 @@ export const Fonts = Platform.select({
 
 // ─── Spacing ───────────────────────────────────────────────────────────────
 
+/**
+ * Ten hues for things that sit side by side and must not look alike (the
+ * jobs, kinds of things): spaced around the wheel at the same soft, light
+ * tone as the accent, so none shouts and no two read as the same.
+ */
+export const Hue = {
+  gold: "#FFC24D", // 42°
+  coral: "#FF8A6B", // 14°
+  rose: "#FF7A9E", // 345°
+  lilac: "#D08BFF", // 280°
+  iris: "#9C95FF", // 245° (the accent)
+  sky: "#8FB8FF", // 218°
+  teal: "#5FD4E0", // 186°
+  mint: "#6FE3A0", // 145°
+  lime: "#B9E36B", // 85°
+  stone: "#B3B1BD", // neutral
+} as const;
+
 export const Space = {
   xxs: 2,
   xs: 4,

@@ -318,7 +318,7 @@ export function Composer({
     onCamera ? { key: "camera", label: "Camera", hint: "Take a photo", Icon: Camera, fn: onCamera } : null,
     onPhoto ? { key: "photo", label: "Photo", hint: "From your gallery", Icon: ImageIcon, fn: onPhoto } : null,
     onFile ? { key: "file", label: "File", hint: "A document or any file", Icon: Paperclip, fn: onFile } : null,
-    onMeeting ? { key: "meeting", label: "Meeting", hint: "Record it, transcribed on your Pod", Icon: Mic, fn: onMeeting } : null,
+    onMeeting ? { key: "meeting", label: "Meeting", hint: "Recorded and transcribed", Icon: Mic, fn: onMeeting } : null,
   ].filter(<T,>(c: T | null): c is T => c !== null);
 
   return (
