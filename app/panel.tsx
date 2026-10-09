@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AppWindow, Bell, Briefcase, Clapperboard, Calendar, ChevronRight, FileText, Folder, Image as ImageIcon, Link2, NotebookPen, Pin, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
+import { AppWindow, Bell, Briefcase, Clapperboard, LayoutDashboard, Calendar, ChevronRight, FileText, Folder, Image as ImageIcon, Link2, NotebookPen, Pin, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
 import { alpha, Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { Dock } from "@/components/dock";
@@ -26,6 +26,7 @@ import {
 import { shelfKindOf, shelfMeta } from "@/lib/shelf";
 import { isCanvasArtifact } from "@/lib/canvas";
 import { isMotionArtifact } from "@/lib/motion";
+import { isDashboardArtifact } from "@/lib/dashboards";
 import { isDocumentArtifact } from "@/lib/documents";
 import { useGhostStore } from "@/lib/store";
 import { nextLine } from "@/lib/when";
@@ -193,6 +194,8 @@ export default function PanelScreen() {
                       key={it.id}
                       onPress={() => {
                         if (isMotionArtifact(it)) router.push({ pathname: "/motion", params: { id: it.id } } as never);
+                        else if (isDashboardArtifact(it)) router.push({ pathname: "/dashboard", params: { id: it.id } } as never);
+    else if (isDashboardArtifact(it)) router.push({ pathname: "/dashboard", params: { id: it.id } } as never);
     else if (isCanvasArtifact(it)) router.push({ pathname: "/canvas", params: { id: it.id } } as never);
                         else if (isDocumentArtifact(it)) router.push({ pathname: "/document", params: { id: it.id } } as never);
                         else router.push("/shelf" as never);
@@ -262,6 +265,7 @@ const MADE = {
   links: { Icon: Link2, tint: Ghost.status.info },
   notes: { Icon: NotebookPen, tint: "#B3B1BD" },
   motion: { Icon: Clapperboard, tint: "#FFB547" },
+  dashboards: { Icon: LayoutDashboard, tint: "#8FB8FF" },
 } as const;
 
 const styles = StyleSheet.create({

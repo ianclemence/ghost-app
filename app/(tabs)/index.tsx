@@ -31,6 +31,8 @@ import { ArtifactCard } from "@/components/artifact-card";
 import { CanvasCard } from "@/components/canvas-card";
 import { DocumentCard } from "@/components/document-card";
 import { MotionCard } from "@/components/motion-card";
+import { DashboardCard } from "@/components/dashboard-card";
+import { isDashboardArtifact } from "@/lib/dashboards";
 import { isMotionArtifact } from "@/lib/motion";
 import { isDocumentArtifact } from "@/lib/documents";
 import { syncPhone } from "@/lib/phone";
@@ -1027,6 +1029,10 @@ export default function ConversationScreen() {
       // Something Ghost built to be run is shown running, not filed.
       if (isCanvasArtifact(item.artifact)) {
         return <CanvasCard config={config} artifact={item.artifact} info={canvasInfoById[item.artifact.id]} />;
+      }
+      // A dashboard shows its first charts, live.
+      if (isDashboardArtifact(item.artifact)) {
+        return <DashboardCard config={config} artifact={item.artifact} />;
       }
       // A motion plays where it is.
       if (isMotionArtifact(item.artifact)) {

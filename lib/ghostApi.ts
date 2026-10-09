@@ -1517,7 +1517,7 @@ export const finishMeeting = (cfg: GhostConfig, id: string, chunks: number) =>
 
 // ─── What Ghost made: the shelf, documents, pins ──────────────────────────
 
-export type ShelfKind = "pages" | "documents" | "pictures" | "links" | "notes" | "motion";
+export type ShelfKind = "pages" | "documents" | "pictures" | "links" | "notes" | "motion" | "dashboards";
 
 export interface ShelfItem extends Artifact {
   pinned: boolean;
@@ -1599,6 +1599,34 @@ export const saveMotion = (cfg: GhostConfig, id: string, spec: MotionSpec) =>
 export const startMotionVideo = (cfg: GhostConfig, id: string) =>
   lifeCall<{ video: MotionVideo }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/video`, { method: "POST", body: "{}" });
 export const motionVideo = (cfg: GhostConfig, id: string) => lifeCall<{ video: MotionVideo }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/video`);
+
+// ─── Dashboards and where they draw from ─────────────────────────────────
+
+export interface DashTile {
+  title: string;
+  chart: "metric" | "bar" | "line" | "donut" | "table";
+  source: string;
+  query: string;
+  unit?: string;
+  note?: string;
+  value?: number;
+  previous?: number;
+  label?: string;
+  points?: { label: string; value: number }[];
+  columns?: string[];
+  rows?: unknown[][];
+  error?: string;
+}
+export interface DataTable { name: string; about?: string; columns: { name: string; type: string }[]; rows: number }
+export interface DataSource { name: string; kind: "pod" | "postgres"; about: string; tables?: DataTable[]; error?: string }
+export interface DatabaseMeta { name: string; kind: string; host: string; database: string; user: string }
+
+export const fetchDashboard = (cfg: GhostConfig, id: string) =>
+  lifeCall<{ title: string; tiles: DashTile[]; ran_at: string }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/dashboard`);
+export const fetchDataSources = (cfg: GhostConfig) => lifeCall<{ sources: DataSource[]; databases: DatabaseMeta[] }>(cfg, "/v1/datasources");
+export const connectDatabase = (cfg: GhostConfig, name: string, url: string) =>
+  lifeCall<{ name: string }>(cfg, "/v1/datasources", { method: "POST", body: JSON.stringify({ name, url }) });
+export const forgetDatabase = (cfg: GhostConfig, name: string) => lifeCall<object>(cfg, `/v1/datasources/${encodeURIComponent(name)}`, { method: "DELETE" });
 
 /** A file Ghost made, to share or keep: the PDF itself, or a Word copy of a document. */
 export async function exportArtifact(cfg: GhostConfig, id: string, format: "pdf" | "docx" | "mp4"): Promise<{ ok: true; name: string; mime: string; base64: string } | { ok: false; error: string }> {

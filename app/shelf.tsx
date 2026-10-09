@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { AppWindow, Clapperboard, FileText, Image as ImageIcon, Link2, NotebookPen, Pin, Search, X } from "lucide-react-native";
+import { AppWindow, Clapperboard, LayoutDashboard, FileText, Image as ImageIcon, Link2, NotebookPen, Pin, Search, X } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
@@ -14,6 +14,7 @@ import { fetchShelf, fetchWorkspacePreview, pinArtifact, type ShelfItem, type Sh
 import { isDocumentArtifact } from "@/lib/documents";
 import { isCanvasArtifact } from "@/lib/canvas";
 import { isMotionArtifact } from "@/lib/motion";
+import { isDashboardArtifact } from "@/lib/dashboards";
 import { shelfKindOf, shelfMeta } from "@/lib/shelf";
 import { useGhostStore } from "@/lib/store";
 
@@ -21,6 +22,7 @@ const FILTERS: { id: ShelfKind | "all"; label: string }[] = [
   { id: "all", label: "All" },
   { id: "pages", label: "Pages" },
   { id: "motion", label: "Motion" },
+  { id: "dashboards", label: "Dashboards" },
   { id: "documents", label: "Documents" },
   { id: "pictures", label: "Pictures" },
   { id: "links", label: "Links" },
@@ -34,6 +36,7 @@ const KIND = {
   links: { Icon: Link2, tint: Ghost.status.info },
   notes: { Icon: NotebookPen, tint: Ghost.text.secondary },
   motion: { Icon: Clapperboard, tint: "#FFB547" },
+  dashboards: { Icon: LayoutDashboard, tint: "#8FB8FF" },
 } as const;
 
 /**
@@ -90,6 +93,7 @@ export default function ShelfScreen() {
 
   const open = (it: ShelfItem) => {
     if (isMotionArtifact(it)) router.push({ pathname: "/motion", params: { id: it.id } } as never);
+    else if (isDashboardArtifact(it)) router.push({ pathname: "/dashboard", params: { id: it.id } } as never);
     else if (isCanvasArtifact(it)) router.push({ pathname: "/canvas", params: { id: it.id } } as never);
     else if (isDocumentArtifact(it)) router.push({ pathname: "/document", params: { id: it.id } } as never);
     else if (it.kind === "link" && it.url) Linking.openURL(it.url).catch(() => setError("Couldn't open that link."));

@@ -13,6 +13,7 @@ const ROWS = [
   { title: "Jobs", detail: "What Ghost takes on for you", path: "/jobs" },
   { title: "Intelligence", detail: "Ghost's thinking model", path: "/intelligence" },
   { title: "Connected apps", detail: "Email, calendar, and logins", path: "/connections" },
+  { title: "Data sources", detail: "What dashboards can read", path: "/datasources" },
   { title: "Phone", detail: "Notifications, health, places", path: "/phone" },
   { title: "Your Pod", detail: "Health and the models on it", path: "/ghost" },
   { title: "About", detail: "What Ghost is and how it works", path: "/about" },
