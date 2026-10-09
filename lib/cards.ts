@@ -128,7 +128,7 @@ export function normalizeCard(raw: unknown): RichCard | null {
   const blocks = present || kind === "digest" ? parseBlocks(raw.blocks) : undefined;
   if (present && (!blocks || blocks.length === 0)) return null;
   // A draft is its fields; one without a kind it knows is not drawn.
-  if (kind === "draft" && !(isObj(raw.data) && ["email", "event", "sms"].includes(String(raw.data.draft_kind)))) return null;
+  if (kind === "draft" && !(isObj(raw.data) && ["email", "event", "sms", "alarm"].includes(String(raw.data.draft_kind)))) return null;
   const res = isObj(raw.resolved) && typeof raw.resolved.action_id === "string"
     ? {
       action_id: raw.resolved.action_id,

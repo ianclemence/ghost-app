@@ -1409,6 +1409,20 @@ export const removeMoney = (cfg: GhostConfig, id: string) => lifeCall<object>(cf
 export const setRecurringActive = (cfg: GhostConfig, id: string, active: boolean) =>
   lifeCall<{ recurring: Recurring }>(cfg, `/v1/life/money/${encodeURIComponent(id)}/active`, { method: "POST", body: JSON.stringify({ active }) });
 
+// ─── The phone: what it shares, the places it watches ─────────────────────
+
+export interface PhonePlace { id: string; name: string; lat: number; lon: number; radius: number; message: string; on: "enter" | "exit"; once: boolean; active: boolean }
+
+/** A call to the Pod's /v1/phone routes (the same rules as every life call). */
+export const phoneCall = <T,>(cfg: GhostConfig, path: string, init: RequestInit = {}) => lifeCall<T>(cfg, path, init);
+
+/** Tell the Pod the phone crossed a place (it puts the reminder in the conversation). */
+export const placeCrossed = (cfg: GhostConfig, id: string, event: "enter" | "exit") =>
+  lifeCall<{ fired: boolean }>(cfg, `/v1/phone/places/${encodeURIComponent(id)}/crossed`, { method: "POST", body: JSON.stringify({ event }) });
+
+/** Forget every notification the phone shared. */
+export const forgetPhoneNotes = (cfg: GhostConfig) => lifeCall<object>(cfg, "/v1/phone/notes", { method: "DELETE" });
+
 // ─── Trips and recorded meetings ──────────────────────────────────────────
 
 export interface TripLeg { kind: string; title: string; ref?: string; from?: string; to?: string; start: string; end?: string; place?: string; international?: boolean; travel_minutes?: number; leave_by?: string }

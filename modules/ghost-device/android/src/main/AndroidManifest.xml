@@ -1,0 +1,50 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Health Connect: read only, and only what Ghost summarises (daily totals). -->
+  <uses-permission android:name="android.permission.health.READ_STEPS" />
+  <uses-permission android:name="android.permission.health.READ_SLEEP" />
+  <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+
+  <queries>
+    <package android:name="com.google.android.apps.healthdata" />
+    <!-- So a notification's app can be named, not shown as a package id. -->
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+  </queries>
+
+  <application>
+    <!-- Reads notifications only after the owner grants access in Android settings,
+         and keeps only those of the apps they chose in Ghost. -->
+    <service
+      android:name="expo.modules.ghostdevice.GhostNotificationService"
+      android:label="Ghost"
+      android:exported="true"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+
+    <!-- Health Connect shows why Ghost asks (Android 13 and older). -->
+    <activity
+      android:name="expo.modules.ghostdevice.HealthRationaleActivity"
+      android:exported="true"
+      android:theme="@android:style/Theme.Translucent.NoTitleBar">
+      <intent-filter>
+        <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+      </intent-filter>
+    </activity>
+    <!-- And on Android 14 and newer. -->
+    <activity-alias
+      android:name="expo.modules.ghostdevice.ViewPermissionUsageActivity"
+      android:exported="true"
+      android:targetActivity="expo.modules.ghostdevice.HealthRationaleActivity"
+      android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+        <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+      </intent-filter>
+    </activity-alias>
+  </application>
+</manifest>

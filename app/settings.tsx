@@ -12,6 +12,7 @@ import { pushLine, syncPushToken, type PushState } from "@/lib/push";
 const ROWS = [
   { title: "Intelligence", detail: "Ghost's thinking model", path: "/intelligence" },
   { title: "Connected apps", detail: "Email, calendar, and logins", path: "/connections" },
+  { title: "Phone", detail: "Notifications, health, places", path: "/phone" },
   { title: "Your Pod", detail: "Health and the models on it", path: "/ghost" },
   { title: "About", detail: "What Ghost is and how it works", path: "/about" },
 ];

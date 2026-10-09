@@ -31,6 +31,7 @@ import { ArtifactCard } from "@/components/artifact-card";
 import { CanvasCard } from "@/components/canvas-card";
 import { DocumentCard } from "@/components/document-card";
 import { isDocumentArtifact } from "@/lib/documents";
+import { syncPhone } from "@/lib/phone";
 import { canvasInfos, isCanvasArtifact } from "@/lib/canvas";
 import { LiveSurfaceCard } from "@/components/live-surface-card";
 import {
@@ -536,6 +537,15 @@ export default function ConversationScreen() {
     const sub = AppState.addEventListener("change", (st) => { if (st === "active") { refreshSurfaces(); syncHistory(true); } });
     return () => sub.remove();
   }, [refreshSurfaces, syncHistory]);
+
+  // What the owner lets the phone share (notifications, health totals, the
+  // places to watch) goes to the Pod on opening and on every return.
+  useEffect(() => {
+    if (!config) return;
+    void syncPhone(config).catch(() => {});
+    const sub = AppState.addEventListener("change", (st) => { if (st === "active") void syncPhone(config).catch(() => {}); });
+    return () => sub.remove();
+  }, [config]);
 
   // Hold a message for when the Pod is back. The same words already waiting
   // are the same request (a second tap while nothing seemed to happen): the

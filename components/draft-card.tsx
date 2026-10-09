@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Linking, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Linking, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
 import Animated, { Easing, FadeIn, FadeInDown, LinearTransition, useReducedMotion } from "react-native-reanimated";
-import { CalendarPlus, ChevronDown, CircleCheck, Mail, MapPin, MessageSquare, Pencil } from "lucide-react-native";
+import { AlarmClock, CalendarPlus, ChevronDown, CircleCheck, Mail, MapPin, MessageSquare, Pencil } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { GlassCard } from "@/components/glass";
 import { GhostButton } from "@/components/ghost";
 import { DateTimeSheet } from "@/components/card-inputs";
 import { alpha, Fonts, Ghost, Inter, Space } from "@/constants/theme";
 import { humanValue } from "@/lib/cardAnswers";
-import { draftFields, smsUrl, type DraftKind } from "@/lib/drafts";
+import { alarmIntent, draftFields, smsUrl, type DraftKind } from "@/lib/drafts";
 import type { RichCard } from "@/lib/cards";
 
 const EASE = Easing.bezier(0.23, 1, 0.32, 1);
@@ -17,6 +17,7 @@ const KIND: Record<DraftKind, { label: string; Icon: typeof Mail }> = {
   email: { label: "Draft email", Icon: Mail },
   event: { label: "Draft event", Icon: CalendarPlus },
   sms: { label: "Draft text", Icon: MessageSquare },
+  alarm: { label: "Alarm", Icon: AlarmClock },
 };
 
 /**
@@ -66,7 +67,19 @@ export function DraftCard({
     }
     if (await onEdit(edit)) setEditing(false);
   };
+  const [local, setLocal] = useState<string | null>(null);
   const send = () => {
+    if (kind === "alarm") {
+      // The phone's own clock app sets it; the card is marked only after it did.
+      const intent = alarmIntent(value("start"), value("subject"));
+      if (!intent || Platform.OS !== "android") {
+        setLocal(Platform.OS !== "android" ? "Setting alarms from Ghost works on Android." : "That time isn't one the clock can set.");
+        return;
+      }
+      setLocal(null);
+      Linking.sendIntent(intent.action, intent.extras).then(onSend).catch(() => setLocal("Your clock app didn't take the alarm. Set it there yourself."));
+      return;
+    }
     if (kind === "sms") {
       // The phone's own Messages, filled in: the owner sends it there.
       Linking.openURL(smsUrl(value("to"), value("body"))).then(onSend).catch(() => onSend());
@@ -161,6 +174,20 @@ export function DraftCard({
             ) : null}
             {editing || value("body") ? <Body value={value("body")} editing={editing} onChange={(v) => set("body", v)} placeholder="Notes (optional)" /> : null}
           </View>
+        ) : kind === "alarm" ? (
+          <View style={[styles.sheet, styles.alarmSheet]}>
+            {editing ? (
+              <>
+                <Row label="Time" value={value("start")} editing onChange={(v) => set("start", v)} placeholder="07:30" />
+                <Row label="Label" value={value("subject")} editing onChange={(v) => set("subject", v)} placeholder="Optional" />
+              </>
+            ) : (
+              <>
+                <Text style={styles.alarmTime}>{value("start")}</Text>
+                {value("subject") ? <Text style={styles.alarmLabel}>{value("subject")}</Text> : null}
+              </>
+            )}
+          </View>
         ) : (
           <View style={styles.sheet}>
             <Row label="To" value={value("to")} editing={editing} onChange={(v) => set("to", v)} keyboard="phone-pad" />
@@ -176,9 +203,9 @@ export function DraftCard({
           </View>
         )}
 
-        {error ? (
+        {local || error ? (
           <Animated.Text entering={reduce ? undefined : FadeIn.duration(160)} style={styles.error} accessibilityLiveRegion="polite">
-            {error}
+            {local ?? error}
           </Animated.Text>
         ) : null}
 
@@ -192,7 +219,7 @@ export function DraftCard({
             ) : (
               <>
                 <GhostButton
-                  title={busy === "send" ? (kind === "event" ? "Adding…" : kind === "sms" ? "Opening…" : "Sending…") : sendAction?.label ?? "Send"}
+                  title={busy === "send" ? (kind === "event" ? "Adding…" : kind === "sms" ? "Opening…" : kind === "alarm" ? "Setting…" : "Sending…") : sendAction?.label ?? "Send"}
                   size="sm"
                   variant="primary"
                   disabled={busy !== null}
@@ -307,6 +334,9 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: "88%", backgroundColor: alpha(Ghost.accent.primary, 0.22), borderRadius: 20, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
   bubbleText: { fontSize: 15.5, lineHeight: 22, color: Ghost.text.primary },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: Space.sm },
+  alarmSheet: { alignItems: "center", paddingVertical: Space.lg },
+  alarmTime: { fontFamily: Fonts.voice, fontSize: 64, lineHeight: 70, letterSpacing: -1.5, color: Ghost.text.primary, fontVariant: ["tabular-nums"] },
+  alarmLabel: { fontSize: 15, color: Ghost.text.secondary, marginTop: 2 },
   error: { fontSize: 13.5, lineHeight: 19, color: Ghost.status.error },
   collapsed: {
     flexDirection: "row",

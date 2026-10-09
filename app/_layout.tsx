@@ -17,6 +17,8 @@ import {
 import { recordMilestone } from '../lib/onboarding-metrics';
 import { useGhostStore } from '../lib/store';
 import { restoreForBoot } from '../lib/boot';
+// Background tasks must be defined before anything else runs.
+import '../lib/placeTask';
 import { BootVeil } from '../components/boot-veil';
 import { DialogHost } from '../components/dialog-host';
 
@@ -234,6 +236,10 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="money"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="phone"
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
