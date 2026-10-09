@@ -1409,6 +1409,25 @@ export const removeMoney = (cfg: GhostConfig, id: string) => lifeCall<object>(cf
 export const setRecurringActive = (cfg: GhostConfig, id: string, active: boolean) =>
   lifeCall<{ recurring: Recurring }>(cfg, `/v1/life/money/${encodeURIComponent(id)}/active`, { method: "POST", body: JSON.stringify({ active }) });
 
+// ─── Jobs: what Ghost takes on ─────────────────────────────────────────────
+
+export interface GhostJob {
+  id: string;
+  title: string;
+  promise: string;
+  when: string;
+  time?: string;
+  needs?: string[];
+  ask?: string;
+  enabled: boolean;
+  settings: { time?: string; topic?: string };
+  missing?: string[];
+}
+
+export const fetchJobs = (cfg: GhostConfig) => lifeCall<{ jobs: GhostJob[] }>(cfg, "/v1/jobs");
+export const setJob = (cfg: GhostConfig, id: string, body: { enabled: boolean; time?: string; topic?: string }) =>
+  lifeCall<{ enabled: boolean; next_run_at?: string }>(cfg, `/v1/jobs/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) });
+
 // ─── The phone: what it shares, the places it watches ─────────────────────
 
 export interface PhonePlace { id: string; name: string; lat: number; lon: number; radius: number; message: string; on: "enter" | "exit"; once: boolean; active: boolean }

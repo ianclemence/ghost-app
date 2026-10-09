@@ -10,6 +10,7 @@ import { pushLine, syncPushToken, type PushState } from "@/lib/push";
 
 /** The few things you set up once. Each row opens its own screen. */
 const ROWS = [
+  { title: "Jobs", detail: "What Ghost takes on for you", path: "/jobs" },
   { title: "Intelligence", detail: "Ghost's thinking model", path: "/intelligence" },
   { title: "Connected apps", detail: "Email, calendar, and logins", path: "/connections" },
   { title: "Phone", detail: "Notifications, health, places", path: "/phone" },
