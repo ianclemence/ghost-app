@@ -1,8 +1,6 @@
-import React, { forwardRef, useEffect, useRef, useState } from "react";
-import { Platform, StyleSheet, View, type ScrollViewProps } from "react-native";
-import * as Updates from "expo-updates";
-import { useIsFocused, useNavigation } from "expo-router";
-import MaskedView from "@react-native-masked-view/masked-view";
+import React, { forwardRef, useCallback, useRef, useState } from "react";
+import { Platform, StyleSheet, useWindowDimensions, View, type ScrollViewProps } from "react-native";
+import { AuroraVeil } from "@/components/screen-glow";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -18,15 +16,14 @@ import { LinearGradient } from "expo-linear-gradient";
 /**
  * The edge of a scrolling screen, under its header.
  *
- * A header sits above the list, so content used to be cut off hard at its
- * lower edge. The aurora behind every screen rules out a fade to a solid
- * colour (it would show as a flat band), so the scroll view below masks its
- * content to transparent instead. Where that native mask is not available
- * (web, an app built before it), this shade stands in: once content has scrolled under the
- * header, a soft shade comes in over the top of the screen. It is eased, it is
- * strongest at the cut and it ramps away below it, so content melts into the
- * aurora's darkness before it reaches the edge instead of being sliced. At rest
- * it is not there at all, and the header (above it) never dims.
+ * Content used to be cut off hard at the header's lower edge. On a phone the
+ * list now fades into the screen's own light (`AuroraVeil`, drawn again over
+ * the top of the list, solid at the edge and clear a little below), so content
+ * dissolves into the background under the title instead of being cut. It is
+ * drawn, never a native mask: a mask erases pixels, and that erasing captured
+ * as black on the screen being left while screens slid past each other. In a
+ * browser, CSS masks the list instead. `TopEdge`, a soft shade, is what lists
+ * that drive their own scrolling still use.
  */
 const FADE_RAMP = 120;  // px below the edge it takes to clear
 const FADE_ABOVE = 520; // covers the header and status bar above the edge
@@ -112,11 +109,6 @@ export function BottomEdge({ remaining }: { remaining: SharedValue<number> }) {
   );
 };
 
-/** Kept so screens need no change: the edge is a fade now, so there is nothing to wrap. */
-export function EdgeTarget({ children }: { targetRef?: React.RefObject<View | null>; children: React.ReactNode }) {
-  return <>{children}</>;
-}
-
 /** What to call from a list's own onScroll, to drive the edge. */
 export function useScrollEdge() {
   const y = useSharedValue(0);
@@ -124,70 +116,27 @@ export function useScrollEdge() {
   return { y, target };
 }
 
-/**
- * The masking view is native, in builds from 1.5.0 on; on web or an older
- * build (which still gets updates over the air) the shade stands in.
- */
-const CAN_MASK = Platform.OS !== "web" && atLeast(Updates.runtimeVersion ?? "", [1, 5, 0]);
-
-function atLeast(version: string, want: number[]): boolean {
-  const got = version.split(".").map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < want.length; i++) {
-    if ((got[i] ?? 0) !== want[i]) return (got[i] ?? 0) > want[i];
-  }
-  return true;
-}
-
-/**
- * Whether the native mask may stay on. The mask erases pixels to transparent,
- * and while its screen slides past another (a push or a pop) that erasing
- * showed through as black on the screen being left. So the mask is only on
- * while its screen is focused and settled: everywhere else the shade stands
- * in, which is plain drawing and looks the same mid-transition as at rest.
- * A screen arriving at the top starts there, where the mask changes nothing,
- * so the handover is invisible.
- */
-function useMaskSteady(): boolean {
-  const focused = useIsFocused();
-  // Stack screens announce their slide; anything else (tabs) never fires
-  // these, and the focus flag alone covers it.
-  const navigation = useNavigation() as unknown as {
-    addListener: (event: "transitionStart" | "transitionEnd", cb: () => void) => () => void;
-  };
-  const [moving, setMoving] = useState(false);
-  useEffect(() => {
-    try {
-      const offStart = navigation.addListener("transitionStart", () => setMoving(true));
-      const offEnd = navigation.addListener("transitionEnd", () => setMoving(false));
-      return () => { offStart(); offEnd(); };
-    } catch {
-      return;
-    }
-  }, [navigation]);
-  return CAN_MASK && focused && !moving;
-}
-
 const FADE = 64; // how far above the edge content takes to fade out
 
 /**
- * The fade itself: the scrolling content becomes transparent as it nears the
- * header, so it dissolves into the aurora under the title instead of being
- * cut. A mask (black shows, clear hides): a ramp from clear to black at the
- * top, and black below. At rest a solid band covers the ramp, so nothing is
- * faded until the content has actually moved under the edge.
+ * The fade on a phone: the screen's own light drawn again over the top of the
+ * list, solid at the edge and clear 64px below it, so content dissolves into
+ * the background under the title instead of being cut. It is one SVG in
+ * band-local coordinates with its own mask inside it — plain drawing, so it
+ * looks the same mid-transition as at rest. It comes in once content has
+ * moved. `background`/`alive` are the screen's own background, so the copy
+ * matches it.
  */
-function FadeMask({ y }: { y: SharedValue<number> }) {
-  const rest = useAnimatedStyle(() => ({
-    opacity: interpolate(y.get(), [0, 40], [1, 0], Extrapolation.CLAMP),
+function Veil({ y, top, w, h, variant, alive }: {
+  y: SharedValue<number>; top: number; w: number; h: number; variant: "hero" | "calm"; alive: boolean;
+}) {
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(y.get(), [0, 28], [0, 1], Extrapolation.CLAMP),
   }));
   return (
-    <View style={styles.fill} pointerEvents="none">
-      <View style={{ height: FADE }}>
-        <LinearGradient colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.55)", "#000"]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }, rest]} />
-      </View>
-      <View style={[styles.fill, { backgroundColor: "#000" }]} />
-    </View>
+    <Animated.View pointerEvents="none" style={[styles.veil, style]}>
+      <AuroraVeil top={top} height={FADE} w={w} h={h} variant={variant} alive={alive} />
+    </Animated.View>
   );
 }
 
@@ -210,15 +159,31 @@ function WebFade({ y, children }: { y: SharedValue<number>; children: React.Reac
  * A ScrollView with the top edge built in. A drop-in: same props, same ref.
  * Put it directly under a screen header: content fades away as it scrolls up
  * toward the title. The bottom stays natural: content slides into the dark
- * floor on its own, like the panel's timeline. `fade={false}` keeps the shade
- * for a screen holding web content, which a mask hides on Android.
+ * floor on its own, like the panel's timeline. `background`/`alive` are the
+ * screen's own background, so the fade draws the same light. `fade={false}`
+ * keeps the shade for a screen holding web content.
  */
-export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewProps, "onScroll"> & { fade?: boolean }>(function EdgeScrollView(
-  { children, style, fade = true, ...rest },
+export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewProps, "onScroll"> & { fade?: boolean; background?: "hero" | "calm"; alive?: boolean }>(function EdgeScrollView(
+  { children, style, fade = true, background = "calm", alive = false, ...rest },
   ref,
 ) {
-  const { y, target } = useScrollEdge();
-  const steady = useMaskSteady();
+  const { y } = useScrollEdge();
+  const { width, height } = useWindowDimensions();
+  // Where the list starts on the screen, for the light drawn there. Measured
+  // again as scrolling starts, by when any slide has settled.
+  const [top, setTop] = useState<number | null>(null);
+  const box = useRef<View>(null);
+  const measure = useCallback(() => {
+    box.current?.measureInWindow((_x, wy) => {
+      if (Number.isFinite(wy)) setTop(wy);
+    });
+  }, []);
+  useAnimatedReaction(
+    () => y.get() > 1,
+    (moved, before) => {
+      if (moved && !before) runOnJS(measure)();
+    },
+  );
   const handler = useAnimatedScrollHandler((e) => {
     y.set(e.contentOffset.y);
   });
@@ -237,16 +202,17 @@ export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewPro
   if (fade && Platform.OS === "web") {
     return <WebFade y={y}>{scroller}</WebFade>;
   }
-  if (fade && steady) {
+  if (fade) {
     return (
-      <MaskedView style={styles.fill} maskElement={<FadeMask y={y} />}>
+      <View ref={box} style={styles.fill} onLayout={measure}>
         {scroller}
-      </MaskedView>
+        {top !== null ? <Veil y={y} top={top} w={width} h={height} variant={background} alive={alive} /> : null}
+      </View>
     );
   }
   return (
     <View style={styles.fill}>
-      <EdgeTarget targetRef={target}>{scroller}</EdgeTarget>
+      {scroller}
       <TopEdge y={y} />
     </View>
   );
@@ -256,6 +222,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   // Reaches up over the header, which paints above it (see ScreenHeader's zIndex).
   shade: { position: "absolute", left: 0, right: 0, top: -FADE_ABOVE, height: FADE_ABOVE + FADE_RAMP, zIndex: 1 },
+  veil: { position: "absolute", left: 0, right: 0, top: 0, height: FADE, zIndex: 1 },
   // Conversation only: reaches down behind the floating dock, which paints
   // above it (see dock's zIndex).
   shadeBottom: { position: "absolute", left: 0, right: 0, bottom: -FADE_ABOVE, height: FADE_ABOVE + FADE_RAMP, zIndex: 1 },

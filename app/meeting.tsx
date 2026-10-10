@@ -203,7 +203,7 @@ export default function MeetingScreen() {
     <View style={styles.container}>
       <ScreenBackground variant="calm" alive={phase === "recording"} />
       <ScreenHeader title="Record" subtitle="Ghost listens, then writes it up" />
-      <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" alive={phase === "recording"}>
         {phase === "idle" || live ? (
           <TextInput
             value={title}
