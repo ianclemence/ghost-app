@@ -21,6 +21,7 @@ import { restoreForBoot } from '../lib/boot';
 import '../lib/placeTask';
 import { BootVeil } from '../components/boot-veil';
 import { DialogHost } from '../components/dialog-host';
+import { useOtaUpdates } from "@/hooks/use-ota-updates";
 
 const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
 
@@ -34,6 +35,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 const notifiedEventIds = new Set<string>();
 
 export default function RootLayout() {
+  useOtaUpdates();
   const router = useRouter();
   const [fontsReady, fontError] = useFonts({
     InstrumentSerif: require('../assets/fonts/InstrumentSerif-Regular.ttf'),

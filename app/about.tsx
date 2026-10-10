@@ -9,12 +9,15 @@ import { GhostMark } from "@/components/ghost-mark";
 import { GhostList, GhostRow, Panel, SectionHeader } from "@/components/ghost";
 import { useGhostStore } from "@/lib/store";
 import { EdgeScrollView } from "@/components/scroll-edge";
+import { runningUpdate } from "@/hooks/use-ota-updates";
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
   const ghostName = useGhostStore((s) => s.ghostName);
   const name = ghostName || "Ghost";
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
+  // Which over-the-air update is running, so it is easy to see one arrived.
+  const update = runningUpdate();
 
   return (
     <View style={{ flex: 1, backgroundColor: Ghost.bg.base }}>
@@ -60,7 +63,7 @@ export default function AboutScreen() {
           <GhostRow title="Report an issue" chevron onPress={() => Linking.openURL("https://github.com/ianclemence/ghost/issues")} />
         </GhostList>
 
-        <Text style={styles.license}>Ghost Mobile v{appVersion} · Open source under the MIT License.</Text>
+        <Text style={styles.license}>Ghost Mobile v{appVersion}{update ? ` · updated ${update}` : ""} · Open source under the MIT License.</Text>
       </EdgeScrollView>
     </View>
   );
