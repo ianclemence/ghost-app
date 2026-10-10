@@ -145,7 +145,7 @@ export default function MotionScreen() {
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
       <ScreenHeader title={spec?.title ?? "Motion"} subtitle={duration ? `An animation · ${clock(duration)}` : "An animation"} />
-      <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" fade={false}>
         {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
         {!html && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
         {html ? (

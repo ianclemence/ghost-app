@@ -111,7 +111,6 @@ export default function PanelScreen() {
     <View style={styles.container}>
       <ScreenBackground variant="hero" />
       <EdgeScrollView
-        background="hero"
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >
