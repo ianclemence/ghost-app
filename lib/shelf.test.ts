@@ -26,3 +26,9 @@ describe("documents", () => {
     expect(hasWordCopy({ path: "downloads/statement.pdf" })).toBe(false);
   });
 });
+
+test("a motion's video says Video, the motion says Motion", () => {
+  const base = { kind: "file", url: undefined, versions: 1, created_at: undefined } as const;
+  expect(shelfMeta({ ...base, path: "motion/grocery-v1.mp4" } as never)).toBe("Video");
+  expect(shelfMeta({ ...base, path: "motion/grocery-v1.json" } as never)).toBe("Motion");
+});

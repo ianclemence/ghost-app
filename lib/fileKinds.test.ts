@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { friendlyFileName, previewRender } from "./fileKinds";
+import { friendlyFileName, previewReason, previewRender } from "./fileKinds";
 
 describe("previewRender", () => {
   test("only Markdown is Markdown", () => {
@@ -31,4 +31,11 @@ test("machine-made names read as what the file is", () => {
   expect(friendlyFileName("ceeae055-44d5-4e3a-9b1c-1234567890ab.jpg")).toBe("Photo");
   expect(friendlyFileName("PXL_20260930_101010.jpg")).toBe("Photo");
   expect(friendlyFileName("Ian_Clemence_CV.pdf")).toBe("Ian_Clemence_CV.pdf");
+});
+
+test("a file with no preview says why in words, never as a code", () => {
+  expect(previewReason("binary_or_unsupported_encoding")).not.toContain("_");
+  expect(previewReason("something_new")).not.toContain("_");
+  expect(previewReason(undefined)).toContain("preview");
+  expect(previewReason("The file is gone.")).toBe("The file is gone.");
 });

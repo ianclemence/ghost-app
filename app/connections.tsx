@@ -148,8 +148,8 @@ export default function ConnectionsScreen() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} tintColor={Ghost.text.secondary} />}
           >
           {([
-            ["Apps", items.filter((c) => !c.advanced)],
-            ["For developers", items.filter((c) => c.advanced)],
+            ["Everyday", items.filter((c) => !c.advanced)],
+            ["More services", items.filter((c) => c.advanced)],
           ] as const).map(([title, list], gi) =>
             list.length === 0 ? null : (
               <React.Fragment key={title}>

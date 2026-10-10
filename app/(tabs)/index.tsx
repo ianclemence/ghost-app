@@ -543,12 +543,16 @@ export default function ConversationScreen() {
   }, [refreshSurfaces, syncHistory]);
 
   // What the owner lets the phone share (notifications, health totals, the
-  // places to watch) goes to the Pod on opening and on every return.
+  // places to watch) goes to the Pod on opening and on every return, and new
+  // notifications every minute while the app is open.
   useEffect(() => {
     if (!config) return;
     void syncPhone(config).catch(() => {});
     const sub = AppState.addEventListener("change", (st) => { if (st === "active") void syncPhone(config).catch(() => {}); });
-    return () => sub.remove();
+    const tick = setInterval(() => {
+      if (AppState.currentState === "active") void syncPhone(config, { quick: true }).catch(() => {});
+    }, 60_000);
+    return () => { sub.remove(); clearInterval(tick); };
   }, [config]);
 
   // Hold a message for when the Pod is back. The same words already waiting
@@ -635,6 +639,10 @@ export default function ConversationScreen() {
     const q = text.trim();
     if (!q) return "failed";
     const entry = opts?.entry;
+    // A notification that just came in is on the Pod before Ghost is asked
+    // about it. Quick: nothing goes out unless something is new, and a slow
+    // Pod never holds the message for more than a moment.
+    await Promise.race([syncPhone(config, { quick: true }).catch(() => null), new Promise((r) => setTimeout(r, 1200))]);
 
     // Send-while-working: never drop the owner's input.
     if (useGhostStore.getState().isStreaming && !entry) {

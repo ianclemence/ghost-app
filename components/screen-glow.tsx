@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useSyncExternalStore } from "react";
 import { Image, PixelRatio, StyleSheet, useWindowDimensions, View } from "react-native";
-import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from "react-native-svg";
+import Svg, { Defs, G, Image as SvgImage, LinearGradient, Mask, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -9,7 +9,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
-import { Aurora } from "@/constants/theme";
+import { Aurora, Ghost } from "@/constants/theme";
 
 /**
  * The aurora: one large soft light behind the screen, amber at the top through
@@ -36,13 +36,13 @@ const COOL: Spot[] = [
   { id: "blue", color: Aurora.blue, cx: 0.66, cy: 0.5, r: 0.32, a: 1 },
 ];
 
-function Layer({ spots, dx, dy, seconds }: { spots: Spot[]; dx: number; dy: number; seconds: number }) {
+function Layer({ spots, dx, dy, seconds, still }: { spots: Spot[]; dx: number; dy: number; seconds: number; still?: boolean }) {
   const reduce = useReducedMotion();
   const t = useSharedValue(0);
   useEffect(() => {
-    if (reduce) return;
+    if (reduce || still) return;
     t.set(withRepeat(withTiming(1, { duration: seconds * 1000, easing: Easing.inOut(Easing.sin) }), -1, true));
-  }, [reduce, seconds, t]);
+  }, [reduce, still, seconds, t]);
   const anim = useAnimatedStyle(() => ({
     transform: [{ translateX: dx * t.get() }, { translateY: dy * t.get() }, { scale: 1.12 + 0.05 * t.get() }],
   }));
@@ -115,11 +115,15 @@ export function ScreenBackground({ variant = "hero", alive = false }: { variant?
     level.set(reduce ? to : withTiming(to, { duration: 600, easing: Easing.out(Easing.cubic) }));
   }, [variant, level, reduce]);
   const fade = useAnimatedStyle(() => ({ opacity: Math.min(1, level.get() + breath.get() * SWELL) }));
+  // The calm light holds still: turned down this far its drift was never seen,
+  // and a still light can be drawn again, exactly, where a list fades into it
+  // (see AuroraVeil).
+  const still = variant === "calm";
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={StyleSheet.absoluteFill} pointerEvents="none" onLayout={(e) => setBackgroundSize(e.nativeEvent.layout.width, e.nativeEvent.layout.height)}>
       <Animated.View style={[StyleSheet.absoluteFill, fade]}>
-        <Layer spots={WARM} dx={-14} dy={10} seconds={30} />
-        <Layer spots={COOL} dx={16} dy={-12} seconds={37} />
+        <Layer spots={WARM} dx={-14} dy={10} seconds={30} still={still} />
+        <Layer spots={COOL} dx={16} dy={-12} seconds={37} still={still} />
       </Animated.View>
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
         <Defs>
@@ -134,5 +138,77 @@ export function ScreenBackground({ variant = "hero", alive = false }: { variant?
           gives the aurora some texture. Tiled, so it costs one small image. */}
       <Grain />
     </View>
+  );
+}
+
+// The size the background was drawn at (every screen's is the whole screen),
+// so the veil below can draw the same light in the same place.
+let bgSize: { w: number; h: number } | null = null;
+const sizeListeners = new Set<() => void>();
+function setBackgroundSize(w: number, h: number) {
+  if (bgSize && bgSize.w === w && bgSize.h === h) return;
+  bgSize = { w, h };
+  sizeListeners.forEach((f) => f());
+}
+function useBackgroundSize() {
+  return useSyncExternalStore(
+    (f) => { sizeListeners.add(f); return () => { sizeListeners.delete(f); }; },
+    () => bgSize,
+  );
+}
+
+const GRAIN_TILE = GRAIN_PX / PixelRatio.get();
+
+/**
+ * The screen's own background, drawn again over a band of it and faded from
+ * solid at the top to clear at the bottom: whatever scrolls under the band
+ * dissolves into the light behind it, the way the panel's timeline sinks into
+ * the dark below. It is plain drawing (no mask erasing pixels), so it looks
+ * the same mid-transition as at rest. `top` and `height` are where the band
+ * sits on the screen.
+ */
+export function AuroraVeil({ top, height, variant = "calm" }: { top: number; height: number; variant?: "hero" | "calm" }) {
+  const size = useBackgroundSize();
+  if (!size) return null;
+  const { w, h } = size;
+  const level = variant === "hero" ? 1 : 0.34;
+  // The light layers are drawn scaled 1.12 about the screen's centre.
+  const scale = `translate(${w / 2} ${h / 2}) scale(1.12) translate(${-w / 2} ${-h / 2})`;
+  const ramp = [0, 0.18, 0.36, 0.54, 0.72, 0.86, 1].map((t) => ({ t, a: 1 - t * t * (3 - 2 * t) }));
+  return (
+    <Svg width={w} height={height} viewBox={`0 ${top} ${w} ${height}`} pointerEvents="none">
+      <Defs>
+        {[...WARM, ...COOL].map((s) => (
+          <RadialGradient key={s.id} id={`v-${s.id}`} cx={s.cx} cy={s.cy} rx={s.r} ry={s.r} fx={s.cx} fy={s.cy}>
+            <Stop offset="0" stopColor={s.color} stopOpacity={s.a} />
+            <Stop offset="0.45" stopColor={s.color} stopOpacity={s.a * 0.55} />
+            <Stop offset="1" stopColor={s.color} stopOpacity={0} />
+          </RadialGradient>
+        ))}
+        <LinearGradient id="v-floor" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0.46" stopColor="#000" stopOpacity={0} />
+          <Stop offset="0.82" stopColor="#000" stopOpacity={1} />
+        </LinearGradient>
+        <LinearGradient id="v-ramp" gradientUnits="userSpaceOnUse" x1="0" y1={top} x2="0" y2={top + height}>
+          {ramp.map((r) => <Stop key={r.t} offset={r.t} stopColor="#fff" stopOpacity={r.a} />)}
+        </LinearGradient>
+        <Pattern id="v-grain" patternUnits="userSpaceOnUse" x="0" y="0" width={GRAIN_TILE} height={GRAIN_TILE}>
+          <SvgImage href={GRAIN} x="0" y="0" width={GRAIN_TILE} height={GRAIN_TILE} />
+        </Pattern>
+        <Mask id="v-mask" maskUnits="userSpaceOnUse" x="0" y={top} width={w} height={height}>
+          <Rect x="0" y={top} width={w} height={height} fill="url(#v-ramp)" />
+        </Mask>
+      </Defs>
+      <G mask="url(#v-mask)">
+        <Rect x="0" y="0" width={w} height={h} fill={Ghost.bg.base} />
+        <G opacity={level} transform={scale}>
+          {[...WARM, ...COOL].map((s) => (
+            <Rect key={s.id} x="0" y="0" width={w} height={h} fill={`url(#v-${s.id})`} />
+          ))}
+        </G>
+        <Rect x="0" y="0" width={w} height={h} fill="url(#v-floor)" />
+        <Rect x="0" y="0" width={w} height={h} fill="url(#v-grain)" opacity={0.55} />
+      </G>
+    </Svg>
   );
 }

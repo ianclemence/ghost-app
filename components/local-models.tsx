@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
-import { GhostButton, GhostInput, GhostList, SectionHeader } from "@/components/ghost";
+import { GhostButton, GhostInput, SectionHeader } from "@/components/ghost";
 import { Ghost, Space } from "@/constants/theme";
 import { pullOllamaModel, type GhostConfig } from "@/lib/ghostApi";
 
@@ -34,20 +34,18 @@ export function LocalModels({ config, onChanged }: { config: GhostConfig; onChan
   return (
     <>
       <SectionHeader title="Add a local model" subtitle="It runs on your Pod: nothing you say leaves it, and it works without the internet, though slower than cloud models. Once downloaded, it is under Local above." />
-      <GhostList>
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <GhostInput value={name} onChangeText={setName} placeholder="e.g. qwen3:8b" autoCapitalize="none" autoCorrect={false} accessibilityLabel="The model's name" />
-          </View>
-          <GhostButton title="Download" variant="secondary" size="sm" onPress={() => void download()} disabled={busy || !name.trim()} loading={busy} />
+      <View style={styles.row}>
+        <View style={{ flex: 1 }}>
+          <GhostInput value={name} onChangeText={setName} placeholder="e.g. qwen3:8b" autoCapitalize="none" autoCorrect={false} accessibilityLabel="The model's name" />
         </View>
-      </GhostList>
+        <GhostButton title="Download" variant="secondary" size="sm" style={{ alignSelf: "center" }} onPress={() => void download()} disabled={busy || !name.trim()} loading={busy} />
+      </View>
       {note ? <Text style={styles.note} accessibilityLiveRegion="polite">{note}</Text> : null}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: Space.md, paddingVertical: Space.md, paddingHorizontal: Space.xl },
+  row: { flexDirection: "row", alignItems: "center", gap: Space.md, marginHorizontal: Space.lg },
   note: { fontSize: 13, lineHeight: 18, color: Ghost.text.tertiary, textAlign: "center", marginTop: Space.sm, paddingHorizontal: Space.xl },
 });

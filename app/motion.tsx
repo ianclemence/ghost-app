@@ -48,6 +48,12 @@ export default function MotionScreen() {
     if (!config || !id) return;
     const r = await fetchMotion(config, id);
     if (!r.ok) return setError(r.error);
+    // Opened from its video: show the motion it was made from.
+    if (r.data.motion_id && r.data.motion_id !== id) {
+      setId(r.data.motion_id);
+      router.setParams({ id: r.data.motion_id } as never);
+      return;
+    }
     setSpec(r.data.spec);
     setDraft(r.data.spec);
     setHtml(r.data.html);
@@ -57,7 +63,7 @@ export default function MotionScreen() {
     const v = await fetchVersions(config, id);
     // Oldest first, numbered by the file each was saved as.
     if (v.ok) setVersions([...v.data.versions].sort((a, b) => motionVersion(a.path) - motionVersion(b.path)));
-  }, [config, id]);
+  }, [config, id, router]);
   useEffect(() => { void load(); }, [load]);
 
   // While a video is being made, ask how it is going.
@@ -139,7 +145,7 @@ export default function MotionScreen() {
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
       <ScreenHeader title={spec?.title ?? "Motion"} subtitle={duration ? `An animation · ${clock(duration)}` : "An animation"} />
-      <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" fade={false}>
+      <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
         {!html && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
         {html ? (

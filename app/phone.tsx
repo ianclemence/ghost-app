@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { AppState, Linking, Platform, Pressable, StyleSheet, Switch, View } from "react-native";
+import { AppState, Linking, Platform, Pressable, StyleSheet, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Bell, HeartPulse, MapPin, Plus } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { EdgeScrollView } from "@/components/scroll-edge";
-import { GhostButton, GhostSheet } from "@/components/ghost";
+import { GhostButton, GhostSheet, GhostToggle } from "@/components/ghost";
 import { lifeStyles } from "@/components/life-ui";
 import { alpha, Ghost, Space } from "@/constants/theme";
 import { GhostDevice, type HealthStatus, type SeenApp } from "@/modules/ghost-device";
@@ -268,13 +268,7 @@ function Section({
           <Icon size={17} color={tint} strokeWidth={1.9} />
         </View>
         <Text style={styles.title}>{title}</Text>
-        <Switch
-          value={on}
-          onValueChange={onChange}
-          trackColor={{ false: "rgba(255,255,255,0.14)", true: alpha(Ghost.accent.primary, 0.7) }}
-          thumbColor={on ? "#FFFFFF" : "#B3B1BD"}
-          accessibilityLabel={title}
-        />
+        <GhostToggle value={on} onValueChange={onChange} accessibilityLabel={title} />
       </View>
       <Text style={styles.text}>{text}</Text>
       {status ? <Text style={[styles.status, warn && { color: Ghost.status.warning }]}>{status}</Text> : null}

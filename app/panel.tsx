@@ -3,12 +3,13 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AppWindow, Bell, Briefcase, Clapperboard, LayoutDashboard, Calendar, ChevronRight, FileText, Folder, Image as ImageIcon, Link2, NotebookPen, Pin, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
+import { Bell, Briefcase, Calendar, ChevronRight, Folder, Pin, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
 import { alpha, Fonts, Ghost, Space, Type } from "@/constants/theme";
 import { ScreenBackground } from "@/components/screen-glow";
 import { Dock } from "@/components/dock";
 import { ActivityTree } from "@/components/activity-tree";
 import { EdgeScrollView } from "@/components/scroll-edge";
+import { MADE_LOOK } from "@/components/made-look";
 import { GhostButton } from "@/components/ghost";
 import { GhostMark } from "@/components/ghost-mark";
 import {
@@ -110,6 +111,7 @@ export default function PanelScreen() {
     <View style={styles.container}>
       <ScreenBackground variant="hero" />
       <EdgeScrollView
+        background="hero"
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -258,15 +260,7 @@ export default function PanelScreen() {
   );
 }
 
-const MADE = {
-  pages: { Icon: AppWindow, tint: Ghost.accent.primary },
-  documents: { Icon: FileText, tint: Ghost.status.warning },
-  pictures: { Icon: ImageIcon, tint: Ghost.status.success },
-  links: { Icon: Link2, tint: Ghost.status.info },
-  notes: { Icon: NotebookPen, tint: "#B3B1BD" },
-  motion: { Icon: Clapperboard, tint: "#FFB547" },
-  dashboards: { Icon: LayoutDashboard, tint: "#8FB8FF" },
-} as const;
+const MADE = MADE_LOOK;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },

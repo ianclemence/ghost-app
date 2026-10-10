@@ -29,7 +29,8 @@ const NOUN: Record<ShelfKind, string> = {
 /** "Page · 3 versions · 2 days ago", "Link · example.com · today". */
 export function shelfMeta(it: Pick<ShelfItem, "kind" | "path" | "url" | "versions" | "created_at">, now = Date.now()): string {
   const kind = shelfKindOf(it);
-  const parts: string[] = [NOUN[kind]];
+  // A motion's video is the motion's kind, but it is a video.
+  const parts: string[] = [kind === "motion" && /\.mp4$/i.test(it.path ?? "") ? "Video" : NOUN[kind]];
   if (it.versions > 1) parts.push(`${it.versions} versions`);
   if (kind === "links" && it.url) {
     const m = /^[a-z]+:\/\/([^/?#]+)/i.exec(it.url);

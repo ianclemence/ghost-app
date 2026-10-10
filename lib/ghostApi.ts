@@ -1630,7 +1630,7 @@ export interface MotionSpec { title: string; size?: "portrait" | "landscape" | "
 export interface MotionVideo { motion: string; state: "none" | "queued" | "rendering" | "done" | "failed"; done?: number; total?: number; error?: string; video?: string }
 
 export const fetchMotion = (cfg: GhostConfig, id: string) =>
-  lifeCall<{ spec: MotionSpec; html: string; duration: number; video: MotionVideo }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/motion`);
+  lifeCall<{ spec: MotionSpec; html: string; duration: number; video: MotionVideo; motion_id?: string }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/motion`);
 export const saveMotion = (cfg: GhostConfig, id: string, spec: MotionSpec) =>
   lifeCall<{ artifact: Artifact }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/motion`, { method: "PUT", body: JSON.stringify({ spec }) });
 export const startMotionVideo = (cfg: GhostConfig, id: string) =>

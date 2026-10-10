@@ -2,7 +2,12 @@ import { writeCacheFile } from "@/lib/localFiles";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, View } from "react-native";
 import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanimated";
-import { ArrowDownToLine, ArrowUpRight, ChevronDown, ChevronUp, FileText, Link2, Maximize2 } from "lucide-react-native";
+import { ArrowDownToLine, ArrowUpRight, ChevronDown, ChevronUp, Clapperboard, FileText, Link2, Maximize2 } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import { MADE_LOOK } from "@/components/made-look";
+import { isMotionVideo } from "@/lib/motion";
+import { shareExport } from "@/lib/documents";
+import { previewReason, previewRender } from "@/lib/fileKinds";
 import { PhotoViewer } from "@/components/photo-viewer";
 import { Text } from "@/components/text";
 import { alpha, Fonts, Ghost, Space } from "@/constants/theme";
@@ -10,7 +15,6 @@ import { GlassCard } from "@/components/glass";
 import { MarkdownBubble } from "@/components/markdown-bubble";
 import { CodeBlock } from "@/components/code-block";
 import { TONE } from "@/components/file-card";
-import { previewRender } from "@/lib/fileKinds";
 import { fileKind } from "@/lib/attachments";
 import {
   fetchWorkspacePreview,
@@ -38,6 +42,7 @@ interface Props {
  * A picture is shown, not filed. Nothing here offers an action the Pod did not.
  */
 export function ArtifactCard({ config, artifact }: Props) {
+  const router = useRouter();
   const reduce = useReducedMotion();
   const [expanded, setExpanded] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -59,7 +64,7 @@ export function ArtifactCard({ config, artifact }: Props) {
     const p = await fetchWorkspacePreview(config, artifact.path);
     setPreviewBusy(false);
     if (!p || !p.previewable) {
-      setPreviewError(p?.reason ?? "This file can't be previewed.");
+      setPreviewError(previewReason(p?.reason));
       return;
     }
     if (p.kind === "image" && p.image_base64) {
@@ -225,6 +230,36 @@ export function ArtifactCard({ config, artifact }: Props) {
             {expanded ? <ChevronUp size={14} color={Ghost.accent.primary} strokeWidth={2} /> : <ChevronDown size={14} color={Ghost.accent.primary} strokeWidth={2} />}
           </Pressable>
         ) : null}
+      </GlassCard>
+    );
+  }
+
+  // ── A motion's video: it plays in the Motion screen, the button saves the MP4 ──
+  if (artifact.kind === "file" && isMotionVideo(artifact)) {
+    const saveVideo = async () => {
+      if (saving) return;
+      setSaving(true);
+      setPreviewError(null);
+      const why = await shareExport(config, artifact.id, "mp4").catch(() => "Couldn't save the video.");
+      setSaving(false);
+      if (why) setPreviewError(why);
+    };
+    return (
+      <GlassCard style={styles.rowCard} accessibilityLabel={`Video from Ghost: ${artifact.title}`}>
+        <Pressable
+          onPress={() => router.push({ pathname: "/motion", params: { id: artifact.id } } as never)}
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityHint="Plays it"
+        >
+          <Badge tint={MADE_LOOK.motion.tint} icon={<Clapperboard size={18} color={MADE_LOOK.motion.tint} strokeWidth={1.9} />} />
+          <View style={styles.titles}>
+            <Text style={styles.name} numberOfLines={2}>{artifact.title}</Text>
+            <Text style={styles.meta} numberOfLines={1}>Video · MP4</Text>
+          </View>
+          <RoundButton label={`Save the video of ${artifact.title}`} busy={saving} onPress={() => void saveVideo()} />
+        </Pressable>
+        {previewError ? <Text style={[styles.error, styles.inset]}>{previewError}</Text> : null}
       </GlassCard>
     );
   }

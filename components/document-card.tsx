@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { FileText, Maximize2 } from "lucide-react-native";
 import { Text } from "@/components/text";
+import { MADE_LOOK } from "@/components/made-look";
 import { fetchDocumentPage, type Artifact, type GhostConfig } from "@/lib/ghostApi";
 import { hasWordCopy } from "@/lib/documents";
 import { alpha, Ghost, Space } from "@/constants/theme";
@@ -84,7 +85,7 @@ export const DocumentCard = memo(function DocumentCard({ config, artifact }: { c
         </Pressable>
         <Pressable onPress={open} style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} accessibilityRole="button" accessibilityLabel={`${artifact.title}, ${meta}. Open`}>
           <View style={styles.badge}>
-            <FileText size={17} color={Ghost.status.warning} strokeWidth={1.9} />
+            <FileText size={17} color={MADE_LOOK.documents.tint} strokeWidth={1.9} />
           </View>
           <View style={styles.titles}>
             <Text style={styles.title} numberOfLines={1}>{artifact.title}</Text>
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 13.5, color: Ghost.text.primary, fontWeight: "500" },
   bar: { flexDirection: "row", alignItems: "center", gap: Space.md, height: 60, paddingLeft: 12, paddingRight: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.default },
   barPressed: { backgroundColor: "#15151B" },
-  badge: { width: 36, height: 36, borderRadius: 12, borderCurve: "continuous", alignItems: "center", justifyContent: "center", backgroundColor: alpha(Ghost.status.warning, 0.12), borderWidth: StyleSheet.hairlineWidth, borderColor: alpha(Ghost.status.warning, 0.32) },
+  badge: { width: 36, height: 36, borderRadius: 12, borderCurve: "continuous", alignItems: "center", justifyContent: "center", backgroundColor: alpha(MADE_LOOK.documents.tint, 0.13), borderWidth: StyleSheet.hairlineWidth, borderColor: alpha(MADE_LOOK.documents.tint, 0.32) },
   titles: { flex: 1, minWidth: 0, gap: 1 },
   title: { fontSize: 14.5, lineHeight: 19, fontWeight: "500", letterSpacing: -0.1, color: Ghost.text.primary },
   meta: { fontSize: 12.5, lineHeight: 16, color: Ghost.text.tertiary },

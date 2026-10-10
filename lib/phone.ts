@@ -39,6 +39,14 @@ export async function savePhoneSettings(s: PhoneSettings): Promise<void> {
 }
 
 let syncing = false;
+// What the Pod was last told the phone shares, so it is said again only when it changes.
+let toldSharing = "";
+
+/** Names for the shared apps, as Android labels them (com.google.android.gm → Gmail). */
+function sharedAppNames(packages: string[]): string[] {
+  const seen = GhostDevice?.recentApps() ?? [];
+  return packages.map((p) => seen.find((a) => a.package === p)?.app ?? p.split(".").filter((x) => x !== "android" && x !== "app").pop() ?? p);
+}
 
 /**
  * Send what the owner allowed and refresh the places the phone watches. Safe
@@ -46,7 +54,7 @@ let syncing = false;
  * notifications back for next time. Returns what happened, for the Settings
  * screen to say.
  */
-export async function syncPhone(cfg: GhostConfig): Promise<{ notes: number; healthDays: number; places: number; error?: string }> {
+export async function syncPhone(cfg: GhostConfig, opts?: { quick?: boolean }): Promise<{ notes: number; healthDays: number; places: number; error?: string }> {
   const out = { notes: 0, healthDays: 0, places: 0 } as { notes: number; healthDays: number; places: number; error?: string };
   if (syncing || Platform.OS !== "android") return out;
   syncing = true;
@@ -55,16 +63,21 @@ export async function syncPhone(cfg: GhostConfig): Promise<{ notes: number; heal
     let notes: SharedNotification[] = [];
     if (s.notifications && GhostDevice?.notificationAccessGranted()) notes = GhostDevice.takeNotifications();
     let health: { date: string; steps?: number; sleep_minutes?: number; resting_hr?: number }[] = [];
-    if (s.health && GhostDevice) {
+    if (s.health && GhostDevice && !opts?.quick) {
       try {
         if ((await GhostDevice.healthStatus()) !== "not_granted") health = await GhostDevice.readHealth(14);
       } catch {
         // Health Connect unavailable right now: nothing to send this time.
       }
     }
-    if (notes.length || health.length) {
-      const r = await phoneCall<{ notes: number; health_days: number }>(cfg, "/v1/phone/signals", { method: "POST", body: JSON.stringify({ notes: toPodNotes(notes), health }) });
+    // The Pod is told what is shared (so Ghost can say "Gmail isn't shared"
+    // rather than guess) whenever that changes, with whatever is new.
+    const sharing = { notifications: s.notifications, apps: s.notifications ? sharedAppNames(s.apps) : [] };
+    const sharingKey = JSON.stringify(sharing);
+    if (notes.length || health.length || sharingKey !== toldSharing) {
+      const r = await phoneCall<{ notes: number; health_days: number }>(cfg, "/v1/phone/signals", { method: "POST", body: JSON.stringify({ notes: toPodNotes(notes), health, sharing }) });
       if (r.ok) {
+        toldSharing = sharingKey;
         out.notes = r.data.notes;
         out.healthDays = r.data.health_days;
       } else {
@@ -72,6 +85,7 @@ export async function syncPhone(cfg: GhostConfig): Promise<{ notes: number; heal
         out.error = r.error;
       }
     }
+    if (opts?.quick) return out;
     if (s.places) out.places = await watchPlaces(cfg);
     else await stopPlaces();
   } finally {

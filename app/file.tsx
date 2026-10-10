@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import { showDialog } from "@/lib/dialog";
 import { Text } from "@/components/text";
 import { PdfPages } from "@/components/pdf-pages";
+import { friendlyFileName, previewReason } from "@/lib/fileKinds";
 import { Download, Trash2 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -13,7 +14,6 @@ import { ScreenBackground } from "@/components/screen-glow";
 import { deleteFile, fetchFileContent, fetchFilePreview, type FilePreview } from "@/lib/ghostApi";
 import { fileSize } from "@/lib/attachments";
 import { writeCacheFile } from "@/lib/localFiles";
-import { friendlyFileName } from "@/lib/fileKinds";
 import { useGhostStore } from "@/lib/store";
 import { EdgeScrollView } from "@/components/scroll-edge";
 
@@ -113,7 +113,7 @@ export default function FileScreen() {
                 {p.truncated ? <Text style={styles.note}>Showing the first part. Download the file to see all of it.</Text> : null}
               </>
             ) : null}
-            {!isPdf && !p.previewable ? <Text style={[styles.note, { textAlign: "center" }]}>{p.reason ?? "There is no preview for this file. Download it instead."}</Text> : null}
+            {!isPdf && !p.previewable ? <Text style={[styles.note, { textAlign: "center" }]}>{previewReason(p.reason)}</Text> : null}
           </EdgeScrollView>
           <View style={styles.actions}>
             <GhostButton

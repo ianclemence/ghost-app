@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Switch, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import {
@@ -21,7 +21,7 @@ import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { EdgeScrollView } from "@/components/scroll-edge";
 import { DateTimeSheet } from "@/components/card-inputs";
-import { GhostButton } from "@/components/ghost";
+import { GhostButton, GhostToggle } from "@/components/ghost";
 import { lifeStyles } from "@/components/life-ui";
 import { alpha, Fonts, Ghost, Hue, Inter, Space } from "@/constants/theme";
 import { createGoal, fetchGoals, fetchJobs, fetchWatches, goalAction, setJob, stopWatch, type GhostJob, type GoalItem, type WatchItem } from "@/lib/ghostApi";
@@ -56,7 +56,6 @@ export default function JobsScreen() {
   const config = useGhostStore((s) => s.config);
   const [jobs, setJobs] = useState<GhostJob[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [picking, setPicking] = useState<GhostJob | null>(null);
   const [topics, setTopics] = useState<Record<string, string>>({});
 
@@ -70,18 +69,21 @@ export default function JobsScreen() {
   }, [config]);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
+  // A switch moves the moment it is touched, like every switch in the app;
+  // it goes back only if the Pod couldn't set the job up.
+  const [flipped, setFlipped] = useState<Record<string, boolean>>({});
   const apply = async (j: GhostJob, enabled: boolean, time?: string) => {
     if (!config) return;
-    setBusy(j.id);
+    setFlipped((f) => ({ ...f, [j.id]: enabled }));
     setError(null);
     const r = await setJob(config, j.id, { enabled, time: time ?? j.settings.time ?? j.time, topic: topics[j.id] ?? j.settings.topic });
-    setBusy(null);
     if (!r.ok) {
+      setFlipped((f) => { const next = { ...f }; delete next[j.id]; return next; });
       setError(`${j.title}: ${r.error}`);
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     await load();
+    setFlipped((f) => { const next = { ...f }; delete next[j.id]; return next; });
   };
 
   const getToKnow = () => {
@@ -114,7 +116,7 @@ export default function JobsScreen() {
           const schedulable = !!j.time;
           const blocked = (j.missing ?? []).length > 0;
           return (
-            <View key={j.id} style={[lifeStyles.group, styles.job, j.enabled && schedulable && styles.jobOn]}>
+            <View key={j.id} style={[lifeStyles.group, styles.job]}>
               <View style={styles.head}>
                 <View style={[styles.icon, { backgroundColor: alpha(look.tint, 0.13), borderColor: alpha(look.tint, 0.32) }]}>
                   <look.Icon size={18} color={look.tint} strokeWidth={1.8} />
@@ -124,18 +126,12 @@ export default function JobsScreen() {
                   <Text style={styles.when}>{jobWhen(j)}</Text>
                 </View>
                 {schedulable ? (
-                  busy === j.id ? (
-                    <ActivityIndicator color={Ghost.text.secondary} />
-                  ) : (
-                    <Switch
-                      value={j.enabled}
-                      onValueChange={(v) => void apply(j, v)}
-                      disabled={blocked && !j.enabled}
-                      trackColor={{ false: "rgba(255,255,255,0.14)", true: alpha(Ghost.accent.primary, 0.7) }}
-                      thumbColor={j.enabled ? "#FFFFFF" : "#B3B1BD"}
-                      accessibilityLabel={`${j.title}, ${j.enabled ? "on" : "off"}`}
-                    />
-                  )
+                  <GhostToggle
+                    value={flipped[j.id] ?? j.enabled}
+                    onValueChange={(v) => void apply(j, v)}
+                    disabled={blocked && !j.enabled}
+                    accessibilityLabel={j.title}
+                  />
                 ) : null}
               </View>
               <Text style={styles.promise}>{j.promise}</Text>
@@ -334,7 +330,6 @@ const styles = StyleSheet.create({
   ownActions: { flexDirection: "row", gap: 6 },
   addRow: { flexDirection: "row", alignItems: "center", gap: Space.sm },
   job: { padding: Space.lg, gap: Space.sm },
-  jobOn: { borderColor: alpha(Ghost.accent.primary, 0.35) },
   head: { flexDirection: "row", alignItems: "center", gap: Space.md },
   icon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth },
   title: { fontSize: 16.5, fontWeight: "500", color: Ghost.text.primary, letterSpacing: -0.15 },

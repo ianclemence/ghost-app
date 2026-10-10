@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { AlertTriangle, AppWindow, ChevronDown, ChevronUp, Maximize2 } from "lucide-react-native";
 import { Text } from "@/components/text";
+import { MADE_LOOK } from "@/components/made-look";
 import { CanvasView, CANVAS_BG } from "@/components/canvas-view";
 import { useCanvasSource } from "@/hooks/use-canvas-source";
 import { useCanvasSaved } from "@/hooks/use-canvas-saved";
@@ -192,7 +193,7 @@ export const CanvasCard = memo(function CanvasCard({
 function Badge() {
   return (
     <View style={styles.badge}>
-      <AppWindow size={17} color={Ghost.accent.primary} strokeWidth={1.9} />
+      <AppWindow size={17} color={MADE_LOOK.pages.tint} strokeWidth={1.9} />
     </View>
   );
 }
@@ -234,9 +235,9 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: alpha(Ghost.accent.primary, 0.13),
+    backgroundColor: alpha(MADE_LOOK.pages.tint, 0.13),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: alpha(Ghost.accent.primary, 0.32),
+    borderColor: alpha(MADE_LOOK.pages.tint, 0.32),
   },
   titles: { flex: 1, minWidth: 0, gap: 1 },
   title: { fontSize: 14.5, lineHeight: 19, fontWeight: "500", letterSpacing: -0.1, color: Ghost.text.primary },

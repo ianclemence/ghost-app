@@ -4,6 +4,7 @@ import Animated, { Easing, FadeIn, useReducedMotion } from "react-native-reanima
 import { useRouter } from "expo-router";
 import { LayoutDashboard, Maximize2 } from "lucide-react-native";
 import { Text } from "@/components/text";
+import { MADE_LOOK } from "@/components/made-look";
 import { DashTileView } from "@/components/dash-tile";
 import { fetchDashboard, type Artifact, type DashTile, type GhostConfig } from "@/lib/ghostApi";
 import { alpha, Ghost, Space } from "@/constants/theme";
@@ -41,7 +42,7 @@ export const DashboardCard = memo(function DashboardCard({ config, artifact }: {
         </View>
         <Pressable onPress={open} style={({ pressed }) => [styles.bar, pressed && styles.barPressed]} accessibilityRole="button" accessibilityLabel={`${artifact.title}, a live dashboard. Open it`}>
           <View style={styles.badge}>
-            <LayoutDashboard size={17} color={Ghost.accent.primary} strokeWidth={1.9} />
+            <LayoutDashboard size={17} color={MADE_LOOK.dashboards.tint} strokeWidth={1.9} />
           </View>
           <View style={styles.titles}>
             <Text style={styles.title} numberOfLines={1}>{artifact.title}</Text>
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
   error: { fontSize: 13.5, color: Ghost.status.warning, padding: Space.md },
   bar: { flexDirection: "row", alignItems: "center", gap: Space.md, height: 60, paddingLeft: 12, paddingRight: 10, backgroundColor: Ghost.bg.raised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.default },
   barPressed: { backgroundColor: "#15151B" },
-  badge: { width: 36, height: 36, borderRadius: 12, borderCurve: "continuous", alignItems: "center", justifyContent: "center", backgroundColor: alpha(Ghost.accent.primary, 0.13), borderWidth: StyleSheet.hairlineWidth, borderColor: alpha(Ghost.accent.primary, 0.32) },
+  badge: { width: 36, height: 36, borderRadius: 12, borderCurve: "continuous", alignItems: "center", justifyContent: "center", backgroundColor: alpha(MADE_LOOK.dashboards.tint, 0.13), borderWidth: StyleSheet.hairlineWidth, borderColor: alpha(MADE_LOOK.dashboards.tint, 0.32) },
   titles: { flex: 1, minWidth: 0, gap: 1 },
   title: { fontSize: 14.5, lineHeight: 19, fontWeight: "500", letterSpacing: -0.1, color: Ghost.text.primary },
   meta: { fontSize: 12.5, lineHeight: 16, color: Ghost.text.tertiary },

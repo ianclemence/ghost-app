@@ -50,3 +50,18 @@ export function friendlyFileName(name: string): string {
   }
   return name;
 }
+
+/**
+ * Why a file has no preview, in words: the Pod answers with a code
+ * ("binary_or_unsupported_encoding"), which is never shown as it is.
+ */
+export function previewReason(code: string | undefined | null): string {
+  switch (code) {
+    case "binary_or_unsupported_encoding":
+      return "There's no preview for this kind of file. Save it to open it in another app.";
+    case "image_too_large":
+      return "This picture is too large to show here. Save it to see it.";
+    default:
+      return code && !/^[a-z0-9_]+$/.test(code) ? code : "There's no preview for this file. Save it to open it in another app.";
+  }
+}
