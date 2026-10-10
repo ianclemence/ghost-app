@@ -1050,6 +1050,10 @@ export interface ActivityChip {
   // Why explains, in owner language, why Ghost acted or asked. Empty for
   // routine reads that need no justification.
   why?: string;
+  // The thing Ghost made this chip is about: the artifact a publish chip
+  // created, or the one a removal chip retracted. Clients drop publish
+  // chips whose artifact a removal chip names.
+  artifact_id?: string;
 }
 
 export async function fetchActivity(
@@ -1667,7 +1671,7 @@ export const forgetDatabase = (cfg: GhostConfig, name: string) => lifeCall<objec
 
 /** Delete what Ghost made: this version, or (all) every version of it. */
 export const deleteArtifact = (cfg: GhostConfig, id: string, all = false) =>
-  lifeCall<{ deleted: number }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}${all ? "?all=1" : ""}`, { method: "DELETE" });
+  lifeCall<{ deleted: number; deleted_ids?: string[]; title?: string }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}${all ? "?all=1" : ""}`, { method: "DELETE" });
 /** Every version of the thing an artifact belongs to, newest first. */
 export const fetchVersions = (cfg: GhostConfig, id: string) => lifeCall<{ versions: Artifact[] }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/versions`);
 

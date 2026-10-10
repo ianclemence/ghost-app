@@ -93,7 +93,6 @@ export interface ActivityEntry {
   /** Every item in the run, newest first. */
   items: ActivityChip[];
 }
-
 /**
  * Folds consecutive items with the same title, outcome and summary into one
  * entry, so a failure that happened six times in a minute is one line saying
@@ -121,4 +120,25 @@ export function collapseRepeats(items: ActivityChip[]): ActivityEntry[] {
     }
   }
   return out;
+}
+
+/**
+ * Drops publish chips whose artifact the owner later deleted (an
+ * `artifact.deleted` chip in the same feed names the id). The shelf no
+ * longer holds them, so Today must not show them as if Ghost still did.
+ * With hideTombstones the removal chips go too, for views where a deleted
+ * thing reads as gone entirely rather than as an audit trail.
+ */
+export function withoutDeletedArtifacts(items: ActivityChip[], hideTombstones = false): ActivityChip[] {
+  const deleted = new Set(
+    items
+      .filter((c) => c.kind === "artifact.deleted" && (c.artifact_id ?? "").trim() !== "")
+      .map((c) => c.artifact_id as string),
+  );
+  if (deleted.size === 0 && !hideTombstones) return items;
+  return items.filter((c) => {
+    if (c.kind === "artifact.deleted") return !hideTombstones;
+    const id = (c.artifact_id ?? "").trim();
+    return id === "" || !deleted.has(id);
+  });
 }

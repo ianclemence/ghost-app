@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Bell, Briefcase, Calendar, ChevronRight, Folder, Pin, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react-native";
 import { alpha, Fonts, Ghost, Space, Type } from "@/constants/theme";
@@ -25,6 +25,7 @@ import {
   fetchJobs,
 } from "@/lib/ghostApi";
 import { shelfKindOf, shelfMeta } from "@/lib/shelf";
+import { withoutDeletedArtifacts } from "@/lib/activity";
 import { isCanvasArtifact } from "@/lib/canvas";
 import { isMotionArtifact } from "@/lib/motion";
 import { isDashboardArtifact } from "@/lib/dashboards";
@@ -85,9 +86,9 @@ export default function PanelScreen() {
     ]);
   }, [config]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Refetch on every visit, not just on mount: dismissing the shelf (or
+  // any other screen) resumes this one, and a delete elsewhere must show.
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const go = (path: string) => () => router.push(path as never);
   const online = connectionState === "online";
@@ -102,7 +103,9 @@ export default function PanelScreen() {
   const next = [...live].sort((a, b) => Date.parse(a.next_run_at ?? "9999") - Date.parse(b.next_run_at ?? "9999"))[0] ?? null;
   const scheduledCount = live.length;
   const todayKey = new Date().toDateString();
-  const todayItems = activity.filter((a) => {
+  // A deleted thing is gone entirely: its publish chip and its removal chip
+  // both stay out of Today.
+  const todayItems = withoutDeletedArtifacts(activity, true).filter((a) => {
     const t = Date.parse(a.timestamp);
     return Number.isFinite(t) && new Date(t).toDateString() === todayKey;
   });
@@ -111,7 +114,6 @@ export default function PanelScreen() {
     <View style={styles.container}>
       <ScreenBackground variant="hero" />
       <EdgeScrollView
-        background="hero"
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >

@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, RefreshControl, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
+import { useFocusEffect } from "expo-router";
 import { Ghost, Space } from "@/constants/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { ActivityTree } from "@/components/activity-tree";
 import { EdgeScrollView } from "@/components/scroll-edge";
 import { fetchActivity, type ActivityChip } from "@/lib/ghostApi";
+import { withoutDeletedArtifacts } from "@/lib/activity";
 import { useGhostStore } from "@/lib/store";
 
 /**
@@ -32,6 +34,10 @@ export default function ActivityScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+  // Same staleness class as the panel: a delete on the shelf must show here
+  // without a restart. The audit trail keeps the removal chip; only the
+  // retracted publish chip goes.
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   return (
     <View style={styles.container}>
@@ -61,7 +67,7 @@ export default function ActivityScreen() {
           {items && items.length === 0 && !error ? (
             <Text style={styles.empty}>Nothing yet. Every action Ghost takes for you is recorded here.</Text>
           ) : null}
-          {items ? <ActivityTree items={items} foldable /> : null}
+          {items ? <ActivityTree items={withoutDeletedArtifacts(items)} foldable /> : null}
         </EdgeScrollView>
       )}
     </View>
