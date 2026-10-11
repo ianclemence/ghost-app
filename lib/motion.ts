@@ -27,7 +27,7 @@ export interface MotionField {
 
 const KIND_WORD: Record<MotionElement["type"], string> = {
   title: "Title", text: "Text", number: "Number", bars: "Bars", line: "Line", donut: "Shares", list: "List", steps: "Steps", compare: "Compare", quote: "Quote",
-  flow: "Diagram", hub: "Diagram", gauge: "Gauge",
+  flow: "Diagram", hub: "Diagram", gauge: "Gauge", timeline: "Timeline", table: "Table", sketch: "Sketch",
 };
 
 /** A motion's version, from its file (motion/name-v3.json → 3). */
@@ -66,7 +66,7 @@ export function motionFields(spec: MotionSpec): { scene: number; title: string; 
         if (v !== undefined && e.type !== "line") fields.push({ path: [si, ei, "values", i], label: `${w}: ${l}`, kind: "number", value: String(v) });
       });
       if (e.type === "line") (e.values ?? []).forEach((v, i) => fields.push({ path: [si, ei, "values", i], label: `${w}: point ${i + 1}`, kind: "number", value: String(v) }));
-      (e.items ?? []).forEach((it, i) => fields.push({ path: [si, ei, "items", i], label: `${w}: ${e.type === "steps" ? "step" : e.type === "flow" ? "box" : e.type === "hub" ? "part" : "item"} ${i + 1}`, kind: "text", value: it }));
+      (e.items ?? []).forEach((it, i) => fields.push({ path: [si, ei, "items", i], label: `${w}: ${e.type === "steps" ? "step" : e.type === "flow" || e.type === "sketch" ? "box" : e.type === "hub" ? "part" : e.type === "timeline" ? "milestone" : e.type === "table" ? "row" : "item"} ${i + 1}`, kind: "text", value: it }));
       if (ei > 0 || (e.at ?? 0) > 0) fields.push({ path: [si, ei, "at"], label: `${w}: enters at (s)`, kind: "seconds", value: String(e.at ?? 0) });
     });
     if (sc.caption !== undefined) fields.push({ path: [si, "caption"], label: "Caption", kind: "text", value: sc.caption });

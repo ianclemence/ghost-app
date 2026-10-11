@@ -1609,7 +1609,7 @@ export async function fetchFilePage(cfg: GhostConfig, id: string, page: number, 
 // ─── Motion: animated explainers ──────────────────────────────────────────
 
 export interface MotionElement {
-  type: "title" | "text" | "number" | "bars" | "line" | "donut" | "list" | "steps" | "compare" | "quote" | "flow" | "hub" | "gauge";
+  type: "title" | "text" | "number" | "bars" | "line" | "donut" | "list" | "steps" | "compare" | "quote" | "flow" | "hub" | "gauge" | "timeline" | "table" | "sketch";
   text?: string;
   sub?: string;
   label?: string;
