@@ -13,9 +13,10 @@ import { GhostButton, GhostSheet } from "@/components/ghost";
 import { showDialog } from "@/lib/dialog";
 import { lifeStyles } from "@/components/life-ui";
 import { alpha, Ghost, Inter, Space } from "@/constants/theme";
-import { deleteArtifact, fetchMotion, fetchVersions, motionVideo, saveMotion, startMotionVideo, type Artifact, type MotionSpec, type MotionVideo } from "@/lib/ghostApi";
-import { clock, motionFields, motionVersion, setField, type MotionField } from "@/lib/motion";
+import { deleteArtifact, fetchMotion, fetchMotionCaptions, fetchVersions, motionVideo, saveMotion, startMotionVideo, type Artifact, type MotionSpec, type MotionVideo } from "@/lib/ghostApi";
+import { clock, motionFields, motionStoryFields, motionVersion, sceneCues, setField, studioCheck, type MotionField } from "@/lib/motion";
 import { shareExport } from "@/lib/documents";
+import { writeCacheFile } from "@/lib/localFiles";
 import { useGhostStore } from "@/lib/store";
 import { clockTime } from "@/lib/thread";
 
@@ -43,6 +44,10 @@ export default function MotionScreen() {
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   const [versions, setVersions] = useState<Artifact[]>([]);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [captionsOpen, setCaptionsOpen] = useState(false);
+  const [captionsSrt, setCaptionsSrt] = useState<string | null>(null);
+  const [captionsBusy, setCaptionsBusy] = useState(false);
+  const [sharingCaptions, setSharingCaptions] = useState(false);
 
   const load = useCallback(async () => {
     if (!config || !id) return;
@@ -59,6 +64,7 @@ export default function MotionScreen() {
     setHtml(r.data.html);
     setDuration(r.data.duration);
     setVideo(r.data.video);
+    setCaptionsSrt(null);
     setError(null);
     const v = await fetchVersions(config, id);
     // Oldest first, numbered by the file each was saved as.
@@ -109,6 +115,32 @@ export default function MotionScreen() {
   };
 
   const current = versions.find((v) => v.id === id);
+
+  const openCaptions = async () => {
+    if (!config || !current?.path) return;
+    setCaptionsOpen(true);
+    if (captionsSrt) return;
+    setCaptionsBusy(true);
+    const r = await fetchMotionCaptions(config, current.path);
+    setCaptionsBusy(false);
+    if (!r.ok) return setError(r.error);
+    setCaptionsSrt(r.srt);
+  };
+
+  const shareCaptions = async () => {
+    if (!captionsSrt || !current?.path) return;
+    const Sharing = await import("expo-sharing");
+    if (!(await Sharing.isAvailableAsync())) return setError("This device can't share files from here.");
+    setSharingCaptions(true);
+    try {
+      const base = (current.path.split("/").pop() ?? "motion").replace(/\.json$/, "");
+      const uri = await writeCacheFile(`${base}.srt`, captionsSrt, "utf8");
+      await Sharing.shareAsync(uri, { mimeType: "application/x-subrip", dialogTitle: `${base}.srt` });
+    } catch {
+      setError("Couldn't share the captions.");
+    }
+    setSharingCaptions(false);
+  };
   const n = current ? motionVersion(current.path) : 0;
   const latest = versions.length ? motionVersion(versions[versions.length - 1].path) : 0;
 
@@ -116,6 +148,7 @@ export default function MotionScreen() {
     setVersionsOpen(false);
     if (a.id === id) return;
     setHtml(null);
+    setCaptionsSrt(null);
     setId(a.id);
     router.setParams({ id: a.id } as never);
   };
@@ -140,11 +173,15 @@ export default function MotionScreen() {
   const rendering = video?.state === "queued" || video?.state === "rendering";
   const pct = video?.total ? Math.round(((video.done ?? 0) / video.total) * 100) : 0;
   const scenes = draft ? motionFields(draft) : [];
+  const story = draft ? motionStoryFields(draft) : [];
+  const check = draft ? studioCheck(draft) : null;
+  const cues = draft ? sceneCues(draft) : [];
+  const hasStory = !!draft?.question?.trim();
 
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title={spec?.title ?? "Motion"} subtitle={duration ? `An animation · ${clock(duration)}` : "An animation"} />
+      <ScreenHeader title={spec?.title ?? "Motion"} subtitle={spec?.question?.trim() ? spec.question.trim() : duration ? `An animation · ${clock(duration)}` : "An animation"} />
       <EdgeScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" fade={false}>
         {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
         {!html && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
@@ -179,12 +216,12 @@ export default function MotionScreen() {
                 </Text>
                 <Text style={styles.videoSub}>
                   {video?.state === "done"
-                    ? "An MP4 to keep, send or post."
+                    ? "An MP4 with a soft sound bed, plus captions."
                     : rendering
                       ? `${pct}% · your Pod draws every frame`
                       : video?.state === "failed"
                         ? video.error ?? "It didn't work. Try again."
-                        : `An MP4, made on your Pod in about ${Math.max(1, Math.round((duration * 3) / 60))} min.`}
+                        : `An MP4 with sound and captions, made on your Pod in about ${Math.max(1, Math.round((duration * 3) / 60))} min.`}
                 </Text>
               </View>
             </View>
@@ -194,7 +231,10 @@ export default function MotionScreen() {
               </View>
             ) : null}
             {video?.state === "done" ? (
-              <GhostButton title={sharing ? "Getting it…" : "Save or share the video"} disabled={sharing} onPress={() => void share()} />
+              <>
+                <GhostButton title={sharing ? "Getting it…" : "Save or share the video"} disabled={sharing} onPress={() => void share()} />
+                <GhostButton title="Captions" variant="secondary" onPress={() => void openCaptions()} />
+              </>
             ) : !rendering ? (
               <GhostButton title={video?.state === "failed" ? "Try again" : "Make the video"} variant="secondary" disabled={changed} onPress={() => void make()} />
             ) : null}
@@ -202,8 +242,35 @@ export default function MotionScreen() {
           </View>
         ) : null}
 
+        {check ? (
+          <View style={[lifeStyles.group, styles.checkBox]}>
+            <Text style={styles.videoTitle}>{check.ok ? "Studio check · passes" : `Studio check · ${check.failed.length} to fix`}</Text>
+            {check.failed.map((f) => (
+              <Text key={f} style={styles.checkFail}>· {f}</Text>
+            ))}
+            {check.ok ? (
+              <Text style={styles.videoSub}>Deterministic frames, a cue at every beat, sources, one focus, no flashes.</Text>
+            ) : (
+              <Text style={styles.videoSub}>Fix them in the story and scenes below, then export.</Text>
+            )}
+          </View>
+        ) : null}
+
         {draft ? (
           <>
+            <Text style={lifeStyles.eyebrow}>Story{hasStory ? "" : " · optional"}</Text>
+            <View style={[lifeStyles.group, styles.scene]}>
+              <View style={styles.fields}>
+                {story.map((f) => (
+                  <FieldRow key={f.path.join(".")} f={f} onSet={(raw) => {
+                    const r = setField(draft, f, raw);
+                    if ("error" in r) return r.error;
+                    setDraft(r.spec);
+                    return null;
+                  }} />
+                ))}
+              </View>
+            </View>
             <Text style={lifeStyles.eyebrow}>Change it</Text>
             {scenes.map((sc) => {
               const open = openScene === sc.scene;
@@ -211,7 +278,7 @@ export default function MotionScreen() {
                 <Animated.View key={sc.scene} layout={reduce ? undefined : LinearTransition.duration(200)} style={[lifeStyles.group, styles.scene]}>
                   <Pressable onPress={() => setOpenScene(open ? null : sc.scene)} style={styles.sceneHead} accessibilityRole="button" accessibilityState={{ expanded: open }}>
                     <Text style={styles.sceneNum}>{sc.scene + 1}</Text>
-                    <Text style={styles.sceneTitle} numberOfLines={1}>{sc.title}</Text>
+                    <Text style={styles.sceneTitle} numberOfLines={1}>{sc.title}{sc.focus ? " · focal" : ""}</Text>
                     <Text style={styles.sceneDur}>{draft.scenes[sc.scene].duration}s</Text>
                     <ChevronDown size={16} color={Ghost.text.tertiary} style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }} />
                   </Pressable>
@@ -265,6 +332,25 @@ export default function MotionScreen() {
         </View>
         <GhostButton title={`Delete version ${n}`} variant="danger" fullWidth style={{ marginTop: Space.md }} onPress={removeVersion} />
       </GhostSheet>
+      <GhostSheet visible={captionsOpen} onClose={() => setCaptionsOpen(false)} title="Captions" message="One cue per scene — the voice line first, then the source. They burn on screen and ship beside the video.">
+        <View style={lifeStyles.sheetGroup}>
+          {captionsBusy ? (
+            <ActivityIndicator color={Ghost.text.tertiary} />
+          ) : captionsSrt ? (
+            cues.map((c) => (
+              <View key={c.scene} style={[styles.cue, c.scene > 0 && styles.versionLine]}>
+                <Text style={styles.cueNum}>{c.scene + 1}</Text>
+                <Text style={styles.cueText}>{c.cue || "—"}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.videoSub}>No captions yet — make the video and they ship with it.</Text>
+          )}
+        </View>
+        {captionsSrt ? (
+          <GhostButton title={sharingCaptions ? "Sharing…" : "Share the .srt"} variant="secondary" fullWidth disabled={sharingCaptions} style={{ marginTop: Space.md }} onPress={() => void shareCaptions()} />
+        ) : null}
+      </GhostSheet>
     </View>
   );
 }
@@ -307,6 +393,11 @@ const styles = StyleSheet.create({
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: alpha(Ghost.accent.primary, 0.13), borderWidth: StyleSheet.hairlineWidth, borderColor: alpha(Ghost.accent.primary, 0.32) },
   videoTitle: { fontSize: 16, fontWeight: "500", color: Ghost.text.primary },
   videoSub: { fontSize: 13, lineHeight: 18, color: Ghost.text.tertiary },
+  checkBox: { padding: Space.lg, gap: Space.xs },
+  checkFail: { fontSize: 13, lineHeight: 18, color: Ghost.status.error },
+  cue: { flexDirection: "row", gap: Space.md, paddingVertical: 10, paddingHorizontal: 14, alignItems: "flex-start" },
+  cueNum: { width: 20, fontSize: 13, fontWeight: "600", color: Ghost.text.tertiary, fontVariant: ["tabular-nums"] },
+  cueText: { flex: 1, fontSize: 14, lineHeight: 19, color: Ghost.text.primary },
   track: { height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
   fill: { height: 4, borderRadius: 2, backgroundColor: Ghost.accent.primary },
   scene: { overflow: "hidden" },
