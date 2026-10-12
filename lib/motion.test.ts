@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { clock, isMotionArtifact, isMotionVideo, motionFields, setField } from "./motion";
+import { captionsPath, clock, cueText, isMotionArtifact, isMotionVideo, motionFields, motionStoryFields, sceneCues, setField, studioCheck } from "./motion";
 import type { MotionSpec } from "./ghostApi";
 
 const spec: MotionSpec = {
@@ -39,5 +39,60 @@ describe("motion", () => {
     const r2 = setField(spec, bar, "Rye");
     expect("spec" in r2 && r2.spec.scenes[1].elements[1].labels).toEqual(["Croissants", "Rye"]);
     expect(clock(23.4)).toBe("0:23");
+  });
+  test("studio scenes carry teaches, voice, sound and check", () => {
+    const f = motionFields(spec);
+    const labels = f[0].fields.map((x) => x.label);
+    expect(labels).toContain("Teaches");
+    expect(labels).toContain("Voice");
+    expect(labels).toContain("Sound cue");
+    expect(labels).toContain("Viewer can now say");
+    expect(f[0].focus).toBeNull();
+  });
+  test("the brief is fields, and set", () => {
+    const s = motionStoryFields(spec);
+    expect(s.map((x) => x.label)).toEqual(["Question", "Audience", "Outcome", "Hook (the wrong belief)", "Sources (one per line)"]);
+    const q = s.find((x) => x.label === "Question")!;
+    const r = setField(spec, q, "Why did profit fall?");
+    expect("spec" in r && r.spec.question).toBe("Why did profit fall?");
+    expect(setField(spec, q, "x".repeat(141))).toEqual({ error: "One short line — 140 characters at most." });
+    const src = s.find((x) => x.label === "Sources (one per line)")!;
+    const r2 = setField(spec, src, "Till exports\nSep counts\n\n");
+    expect("spec" in r2 && r2.spec.sources).toEqual(["Till exports", "Sep counts"]);
+    const voice = motionFields(spec)[0].fields.find((x) => x.label === "Voice")!;
+    expect(setField(spec, voice, Array(50).fill("word").join(" "))).toEqual({ error: "Spoken, so 48 words at most — the rest is cut." });
+    const vr = setField(spec, voice, "Sales rose.");
+    expect("spec" in vr && vr.spec.scenes[0].voice).toBe("Sales rose.");
+  });
+  test("cues prefer voice, then caption, then words", () => {
+    expect(cueText(spec.scenes[0])).toBe("Q3 at the bakery — In numbers");
+    const voiced: MotionSpec = JSON.parse(JSON.stringify(spec));
+    voiced.scenes[0].voice = "The till was busy.";
+    expect(cueText(voiced.scenes[0])).toBe("The till was busy.");
+    expect(sceneCues(spec).length).toBe(2);
+    expect(captionsPath("motion/q3-v2.json")).toBe("motion/q3-v2.srt");
+    expect(captionsPath("motion/q3-v2.mp4")).toBe("");
+  });
+  test("the studio check passes and fails in words", () => {
+    const legacy = studioCheck(spec);
+    expect(legacy.ok).toBe(true);
+    const studio: MotionSpec = {
+      title: "Why",
+      question: "Why did profit fall?",
+      sources: ["Till exports"],
+      scenes: [
+        { duration: 3, teaches: "Busy is not rich", voice: "The till was busy, so why did profit fall?", elements: [{ type: "title", text: "Busy?" }] },
+        { duration: 3, teaches: "Costs ate it", caption: "Till exports", elements: [{ type: "compare", labels: ["Sales", "Profit"], values: [141, 88], focus: true }] },
+        { duration: 3, teaches: "Watch costs", voice: "Watch the costs.", elements: [{ type: "text", text: "Watch the costs" }] },
+      ],
+    };
+    const v = studioCheck(studio);
+    expect(v.ok).toBe(true);
+    expect(v.passed.join(";")).toContain("Every number has a source");
+    const bad: MotionSpec = JSON.parse(JSON.stringify(studio));
+    bad.scenes[1].elements.push({ type: "text", text: "Also this", focus: true });
+    const b = studioCheck(bad);
+    expect(b.ok).toBe(false);
+    expect(b.failed.join(";")).toContain("two focal actions");
   });
 });

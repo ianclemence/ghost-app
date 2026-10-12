@@ -1610,6 +1610,10 @@ export async function fetchFilePage(cfg: GhostConfig, id: string, page: number, 
 
 export interface MotionElement {
   type: "title" | "text" | "number" | "bars" | "line" | "donut" | "list" | "steps" | "compare" | "quote" | "flow" | "hub" | "gauge" | "timeline" | "table" | "sketch";
+  /** Keeps the object alive across scenes: the same id transforms instead of being replaced. */
+  id?: string;
+  /** The one focal action: everything else holds still and dims while this moves. */
+  focus?: boolean;
   text?: string;
   sub?: string;
   label?: string;
@@ -1629,9 +1633,37 @@ export interface MotionElement {
   at?: number;
   stay?: number;
 }
-export interface MotionScene { duration: number; caption?: string; elements: MotionElement[] }
-export interface MotionSpec { title: string; size?: "portrait" | "landscape" | "square"; accent?: string; scenes: MotionScene[] }
-export interface MotionVideo { motion: string; state: "none" | "queued" | "rendering" | "done" | "failed"; done?: number; total?: number; error?: string; video?: string }
+export interface MotionScene {
+  duration: number;
+  /** Stable beat id (q, model-1, proof-1, turn, payoff). */
+  id?: string;
+  /** The one thing this scene adds. */
+  teaches?: string;
+  /** The spoken line (at most 48 words); captions burn it on screen. */
+  voice?: string;
+  /** The cue that marks the key action. */
+  sound?: string;
+  /** What the viewer can now say. */
+  check?: string;
+  caption?: string;
+  elements: MotionElement[];
+}
+export interface MotionSpec {
+  title: string;
+  size?: "portrait" | "landscape" | "square";
+  accent?: string;
+  /** The one question the film answers, in the viewer's words. */
+  question?: string;
+  audience?: string;
+  /** What they can now say or do. */
+  outcome?: string;
+  /** The wrong belief most viewers hold, opened on as an image. */
+  hook?: string;
+  /** Where every number came from. */
+  sources?: string[];
+  scenes: MotionScene[];
+}
+export interface MotionVideo { motion: string; state: "none" | "queued" | "rendering" | "done" | "failed"; done?: number; total?: number; error?: string; video?: string; captions?: string }
 
 export const fetchMotion = (cfg: GhostConfig, id: string) =>
   lifeCall<{ spec: MotionSpec; html: string; duration: number; video: MotionVideo; motion_id?: string }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/motion`);
@@ -1640,6 +1672,21 @@ export const saveMotion = (cfg: GhostConfig, id: string, spec: MotionSpec) =>
 export const startMotionVideo = (cfg: GhostConfig, id: string) =>
   lifeCall<{ video: MotionVideo }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/video`, { method: "POST", body: "{}" });
 export const motionVideo = (cfg: GhostConfig, id: string) => lifeCall<{ video: MotionVideo }>(cfg, `/v1/artifacts/${encodeURIComponent(id)}/video`);
+
+/**
+ * A motion's captions (.srt), shipped beside its MP4 on export: one cue per
+ * scene, voice first, then the source caption. Null when the video (and so
+ * the captions) has not been made yet, or the Pod can't be reached.
+ */
+export async function fetchMotionCaptions(cfg: GhostConfig, motionPath: string): Promise<{ ok: true; srt: string } | { ok: false; error: string }> {
+  const name = motionPath.replace(/\.json$/, ".srt");
+  if (name === motionPath) return { ok: false, error: "That isn't a motion." };
+  const p = await fetchWorkspacePreview(cfg, name);
+  if (!p || !p.previewable || p.kind !== "text" || typeof p.content !== "string" || !p.content.trim()) {
+    return { ok: false, error: "No captions yet — make the video and they ship with it." };
+  }
+  return { ok: true, srt: p.content };
+}
 
 // ─── Dashboards and where they draw from ─────────────────────────────────
 

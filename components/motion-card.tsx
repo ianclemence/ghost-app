@@ -11,7 +11,7 @@ import { clock } from "@/lib/motion";
 import { alpha, Ghost, Space } from "@/constants/theme";
 
 const EASE = Easing.bezier(0.23, 1, 0.32, 1);
-const cache = new Map<string, { html: string; duration: number }>();
+const cache = new Map<string, { html: string; duration: number; question?: string }>();
 
 /**
  * An animated explainer Ghost made, playing in the conversation in the same
@@ -31,7 +31,7 @@ export const MotionCard = memo(function MotionCard({ config, artifact }: { confi
     fetchMotion(config, artifact.id).then((r) => {
       if (!live) return;
       if (r.ok) {
-        const v = { html: r.data.html, duration: r.data.duration };
+        const v = { html: r.data.html, duration: r.data.duration, question: r.data.spec.question?.trim() || undefined };
         cache.set(artifact.id, v);
         setM(v);
         setError(null);
@@ -66,7 +66,7 @@ export const MotionCard = memo(function MotionCard({ config, artifact }: { confi
           </View>
           <View style={styles.titles}>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>
-            <Text style={styles.meta} numberOfLines={1}>{["Motion", m ? clock(m.duration) : null, "Tap it to play"].filter(Boolean).join(" · ")}</Text>
+            <Text style={styles.meta} numberOfLines={1}>{m?.question ?? ["Motion", m ? clock(m.duration) : null, "Tap it to play"].filter(Boolean).join(" · ")}</Text>
           </View>
           <View style={styles.open}>
             <Maximize2 size={13} color={Ghost.text.primary} strokeWidth={2.1} />
