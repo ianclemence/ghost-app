@@ -362,7 +362,13 @@ export default function ConversationScreen() {
     loadHistory(0);
     const loadApprovals = () => {
       fetchPendingApprovals(config).then((r) => {
-        if (!cancelled) setApprovals(r);
+        if (!cancelled) {
+          setApprovals(r);
+          // Self-heal a stale "Waiting for your approval.": answered on
+          // another device, expired, or resolved without a fresh outcome
+          // event — empty means nothing is waited on.
+          if (r.length === 0) setOutcome((o) => (o === "waiting_for_permission" ? null : o));
+        }
       }).catch(() => {});
     };
     const loadArtifacts = () => {
@@ -1010,7 +1016,14 @@ export default function ConversationScreen() {
   const answering = isStreaming && !!messages[messages.length - 1]?.content.trim() && messages[messages.length - 1]?.role === "assistant";
   const refreshAfterApproval = useCallback(() => {
     if (!config) return;
-    fetchPendingApprovals(config).then(setApprovals).catch(() => {});
+    fetchPendingApprovals(config).then((r) => {
+      setApprovals(r);
+      // An answered approval resumes the turn outside any stream, so no new
+      // outcome event arrives to replace "waiting_for_permission" — without
+      // this the conversation keeps saying "Waiting for your approval."
+      // after Allow was tapped. Nothing pending means nothing is waited on.
+      if (r.length === 0) setOutcome((o) => (o === "waiting_for_permission" ? null : o));
+    }).catch(() => {});
     fetchHistory(config, 50, 0, undefined, MAIN_SESSION_ID)
       .then(({ messages: h }) => setMessages(reconcileHistory(useGhostStore.getState().messages, h)))
       .catch(() => {});
