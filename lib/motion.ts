@@ -139,11 +139,16 @@ export function studioCheck(spec: MotionSpec): { ok: boolean; passed: string[]; 
   const passed: string[] = [];
   const failed: string[] = [];
   const cues = spec.scenes.map(cueText);
-  if (cues.every((c) => c.trim())) passed.push(`A cue at every beat (${cues.length}/${spec.scenes.length})`);
-  else failed.push("A cue at every beat (a scene has no voice, caption or words)");
-  const long = cues.flatMap((c) => c.split("\n")).filter((l) => [...l].length > 48).length;
-  if (!long) passed.push("Every line reads at phone width");
-  else failed.push(`${long} caption ${long === 1 ? "line is" : "lines are"} too long for phone width`);
+  // Captions are opt-in: a clean picture has no cues and skips both gates.
+  if (spec.captions !== "on") {
+    passed.push("Captions off: a clean picture, nothing to read");
+  } else {
+    if (cues.every((c) => c.trim())) passed.push(`A cue at every beat (${cues.length}/${spec.scenes.length})`);
+    else failed.push("A cue at every beat (a scene has no voice, caption or words)");
+    const long = cues.flatMap((c) => c.split("\n")).filter((l) => [...l].length > 48).length;
+    if (!long) passed.push("Every line reads at phone width");
+    else failed.push(`${long} caption ${long === 1 ? "line is" : "lines are"} too long for phone width`);
+  }
   if (!spec.question?.trim()) {
     passed.push("Sources: legacy motion, studio rule skipped");
   } else {

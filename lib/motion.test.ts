@@ -95,4 +95,16 @@ describe("motion", () => {
     expect(b.ok).toBe(false);
     expect(b.failed.join(";")).toContain("two focal actions");
   });
+  test("captions gate only when asked", () => {
+    // No captions: a scene with no words at all still passes the cue gates.
+    const quiet: MotionSpec = { title: "Q", scenes: [{ duration: 3, elements: [{ type: "bars", labels: ["A", "B"], values: [1, 2] }] }] };
+    const q = studioCheck(quiet);
+    expect(q.ok).toBe(true);
+    expect(q.passed.join(";")).toContain("Captions off");
+    // Asked for: the same scene fails for want of a cue.
+    const loud: MotionSpec = { ...quiet, captions: "on" };
+    const l = studioCheck(loud);
+    expect(l.ok).toBe(false);
+    expect(l.failed.join(";")).toContain("A cue at every beat");
+  });
 });
