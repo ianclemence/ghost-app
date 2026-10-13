@@ -1661,6 +1661,8 @@ export interface MotionSpec {
   hook?: string;
   /** Where every number came from. */
   sources?: string[];
+  /** "on" only when the owner asked for captions; otherwise a clean picture. */
+  captions?: "on" | "off";
   scenes: MotionScene[];
 }
 export interface MotionVideo { motion: string; state: "none" | "queued" | "rendering" | "done" | "failed"; done?: number; total?: number; error?: string; video?: string; captions?: string }

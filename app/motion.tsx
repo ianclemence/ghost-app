@@ -216,12 +216,16 @@ export default function MotionScreen() {
                 </Text>
                 <Text style={styles.videoSub}>
                   {video?.state === "done"
-                    ? "An MP4 with a soft sound bed, plus captions."
+                    ? draft?.captions === "on"
+                      ? "An MP4 with a soft sound bed, plus captions."
+                      : "An MP4 with a soft sound bed."
                     : rendering
                       ? `${pct}% · your Pod draws every frame`
                       : video?.state === "failed"
                         ? video.error ?? "It didn't work. Try again."
-                        : `An MP4 with sound and captions, made on your Pod in about ${Math.max(1, Math.round((duration * 3) / 60))} min.`}
+                        : draft?.captions === "on"
+                          ? `An MP4 with sound and captions, made on your Pod in about ${Math.max(1, Math.round((duration * 3) / 60))} min.`
+                          : `An MP4 with sound, made on your Pod in about ${Math.max(1, Math.round((duration * 3) / 60))} min.`}
                 </Text>
               </View>
             </View>
@@ -233,7 +237,17 @@ export default function MotionScreen() {
             {video?.state === "done" ? (
               <>
                 <GhostButton title={sharing ? "Getting it…" : "Save or share the video"} disabled={sharing} onPress={() => void share()} />
-                <GhostButton title="Captions" variant="secondary" onPress={() => void openCaptions()} />
+                {draft?.captions === "on" ? (
+                  <GhostButton title="Captions" variant="secondary" onPress={() => void openCaptions()} />
+                ) : (
+                  <GhostButton
+                    title="Turn captions on"
+                    variant="secondary"
+                    onPress={() => {
+                      if (draft) setDraft({ ...draft, captions: "on" });
+                    }}
+                  />
+                )}
               </>
             ) : !rendering ? (
               <GhostButton title={video?.state === "failed" ? "Try again" : "Make the video"} variant="secondary" disabled={changed} onPress={() => void make()} />
@@ -348,7 +362,19 @@ export default function MotionScreen() {
           )}
         </View>
         {captionsSrt ? (
-          <GhostButton title={sharingCaptions ? "Sharing…" : "Share the .srt"} variant="secondary" fullWidth disabled={sharingCaptions} style={{ marginTop: Space.md }} onPress={() => void shareCaptions()} />
+          <>
+            <GhostButton title={sharingCaptions ? "Sharing…" : "Share the .srt"} variant="secondary" fullWidth disabled={sharingCaptions} style={{ marginTop: Space.md }} onPress={() => void shareCaptions()} />
+            <GhostButton
+              title="Turn captions off"
+              variant="secondary"
+              fullWidth
+              style={{ marginTop: Space.md }}
+              onPress={() => {
+                if (draft) setDraft({ ...draft, captions: "off" });
+                setCaptionsOpen(false);
+              }}
+            />
+          </>
         ) : null}
       </GhostSheet>
     </View>
