@@ -210,3 +210,12 @@ describe("what a canvas keeps", () => {
     expect(canvasSavedKey("documents/x.md")).toBeNull();
   });
 });
+
+describe("canvas base look", () => {
+  test("gives every page the motion, spacing and press tokens the design skill names", () => {
+    const doc = buildCanvasDocument("<p>hi</p>") ?? "";
+    for (const token of ["--ease-out", "--ease-in-out", "--ease-drawer", "--fast", "--s4", "--shadow", ":where(button:active)"]) {
+      expect(doc).toContain(token);
+    }
+  });
+});

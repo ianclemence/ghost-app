@@ -64,13 +64,23 @@ export function canvasCsp(): string {
  * Wrapped in :where() so it has no specificity: anything the page sets wins.
  */
 const BASE_CSS = `
-:root{color-scheme:dark;--bg:#0b0b10;--surface:#14141b;--fg:#f4f3fa;--muted:#a3a1b0;--accent:#9c95ff;--ok:#6fe3a0;--warn:#ffc24d;--bad:#ff7a7a;--line:rgba(255,255,255,.14);--radius:14px}
-:where(html){background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+:root{color-scheme:dark;--bg:#0b0b10;--surface:#14141b;--fg:#f4f3fa;--muted:#a3a1b0;--accent:#9c95ff;--ok:#6fe3a0;--warn:#ffc24d;--bad:#ff7a7a;--line:rgba(255,255,255,.14);--radius:14px;--ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--ease-drawer:cubic-bezier(.32,.72,0,1);--fast:140ms;--base:200ms;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;--s8:72px;--shadow:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.28)}
+:where(html){background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 :where(body){margin:0;padding:16px}
 :where(*,*::before,*::after){box-sizing:border-box}
+:where(h1,h2,h3,h4){line-height:1.15;letter-spacing:-.02em;text-wrap:balance}
+:where(p,li){text-wrap:pretty}
+:where(img,video,canvas){max-width:100%}
+:where(img){height:auto}
 :where(button,input,select,textarea){font:inherit;color:inherit}
-:where(button){min-height:44px;padding:0 16px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);cursor:pointer}
+:where(input,select,textarea){font-size:16px;min-height:44px;padding:0 var(--s3);border-radius:var(--radius);border:1px solid var(--line);background:var(--surface)}
+:where(textarea){padding:var(--s3)}
+:where(button){min-height:44px;padding:0 16px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);cursor:pointer;transition:transform var(--fast) var(--ease-out),background-color var(--fast) ease,border-color var(--fast) ease,opacity var(--fast) ease}
+:where(button:active){transform:scale(.97)}
+:where(button:disabled){opacity:.5;cursor:not-allowed}
+:where(:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 :where(a){color:var(--accent)}
+:where(::selection){background:color-mix(in srgb,var(--accent) 35%,transparent)}
 `.replace(/\n/g, "");
 
 /**
