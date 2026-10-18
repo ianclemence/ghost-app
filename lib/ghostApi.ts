@@ -35,6 +35,8 @@ export interface Message {
   media_urls?: string[];
   /** Files (not photos) sent with this message, shown as cards. */
   files?: { name: string; size: number; mime?: string }[];
+  /** Stored uploads the Pod kept with this message (history only; drawn as media_urls and files). */
+  attachments?: { id: string; name: string; kind: string; mime: string; size: number }[];
 }
 
 export interface GhostConfig {
@@ -402,10 +404,38 @@ export async function fetchHistory(
   if (!res.ok) throw new Error(`Failed to fetch history (HTTP ${res.status})`);
   const data = (await res.json()) as { messages?: Message[]; total?: number; has_more?: boolean };
   return {
-    messages: normalizeHistoryTimestamps(Array.isArray(data?.messages) ? data.messages : []),
+    messages: await hydrateAttachments(cfg, normalizeHistoryTimestamps(Array.isArray(data?.messages) ? data.messages : [])),
     total: data?.total ?? 0,
     hasMore: data?.has_more === true,
   };
+}
+
+/**
+ * The Pod keeps what the owner sent as stored uploads and names them on the
+ * message. Photos come back as thumbnails, everything else as file cards, so a
+ * restarted app shows them as it did when they were sent.
+ */
+async function hydrateAttachments(cfg: GhostConfig, list: Message[]): Promise<Message[]> {
+  return Promise.all(
+    list.map(async (m) => {
+      const at = m.attachments;
+      if (!at?.length || m.media_urls?.length) return m;
+      const isPhoto = (a: { mime: string }) => a.mime.startsWith("image/");
+      const thumbs = await Promise.all(at.filter(isPhoto).map((a) => fetchFileThumb(cfg, a.id)));
+      const photos = thumbs.filter((t): t is string => !!t);
+      const mime = at.find(isPhoto)?.mime;
+      // A photo whose thumbnail can't be had still shows as a card, not nothing.
+      const files = [
+        ...at.filter((a) => !isPhoto(a)),
+        ...at.filter(isPhoto).filter((_, i) => !thumbs[i]),
+      ].map((a) => ({ name: a.name, size: a.size, mime: a.mime }));
+      return {
+        ...m,
+        ...(photos.length ? { media_type: mime, media_url: photos[0], media_urls: photos } : {}),
+        ...(files.length ? { files } : {}),
+      };
+    }),
+  );
 }
 
 // ─── Send (streaming SSE) ─────────────────────────────────────────────────
