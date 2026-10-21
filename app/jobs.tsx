@@ -258,7 +258,7 @@ function OwnJobs() {
           accessibilityLabel="A job in your own words"
           selectionColor={Ghost.accent.primary}
         />
-        <GhostButton title={busy === "new" ? "Adding…" : "Add"} size="sm" disabled={!text.trim() || busy === "new"} onPress={add} />
+        <GhostButton title={busy === "new" ? "Adding…" : "Add"} size="sm" style={{ alignSelf: "center" }} disabled={!text.trim() || busy === "new"} onPress={add} />
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>

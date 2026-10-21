@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 import { Text } from "@/components/text";
-import { GhostButton, GhostInput, SectionHeader } from "@/components/ghost";
-import { Ghost, Space } from "@/constants/theme";
+import { GhostButton, SectionHeader } from "@/components/ghost";
+import { Ghost, Inter, Space } from "@/constants/theme";
 import { pullOllamaModel, type GhostConfig } from "@/lib/ghostApi";
 
 /**
@@ -35,9 +35,19 @@ export function LocalModels({ config, onChanged }: { config: GhostConfig; onChan
     <>
       <SectionHeader title="Add a local model" subtitle="It runs on your Pod: nothing you say leaves it, and it works without the internet, though slower than cloud models. Once downloaded, it is under Local above." />
       <View style={styles.row}>
-        <View style={{ flex: 1 }}>
-          <GhostInput value={name} onChangeText={setName} placeholder="e.g. qwen3:8b" autoCapitalize="none" autoCorrect={false} accessibilityLabel="The model's name" />
-        </View>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="e.g. qwen3:8b"
+          placeholderTextColor={Ghost.text.tertiary}
+          style={[styles.input, { flex: 1 }]}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="done"
+          onSubmitEditing={() => void download()}
+          accessibilityLabel="The model's name"
+          selectionColor={Ghost.accent.primary}
+        />
         <GhostButton title="Download" variant="secondary" size="sm" style={{ alignSelf: "center" }} onPress={() => void download()} disabled={busy || !name.trim()} loading={busy} />
       </View>
       {note ? <Text style={styles.note} accessibilityLiveRegion="polite">{note}</Text> : null}
@@ -46,6 +56,7 @@ export function LocalModels({ config, onChanged }: { config: GhostConfig; onChan
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: Space.md, marginHorizontal: Space.lg },
+  row: { flexDirection: "row", alignItems: "center", gap: Space.sm, marginHorizontal: Space.lg },
+  input: { height: 44, paddingHorizontal: 14, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: Ghost.glass.border, color: Ghost.text.primary, fontFamily: Inter.regular, fontSize: 15 },
   note: { fontSize: 13, lineHeight: 18, color: Ghost.text.tertiary, textAlign: "center", marginTop: Space.sm, paddingHorizontal: Space.xl },
 });

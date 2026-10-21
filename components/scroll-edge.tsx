@@ -1,6 +1,5 @@
-import React, { forwardRef, useCallback, useRef, useState } from "react";
-import { Platform, StyleSheet, useWindowDimensions, View, type ScrollViewProps } from "react-native";
-import { AuroraVeil } from "@/components/screen-glow";
+import React, { forwardRef, useRef, useState } from "react";
+import { Platform, StyleSheet, View, type ScrollViewProps } from "react-native";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -16,14 +15,14 @@ import { LinearGradient } from "expo-linear-gradient";
 /**
  * The edge of a scrolling screen, under its header.
  *
- * Content used to be cut off hard at the header's lower edge. On a phone the
- * list now fades into the screen's own light (`AuroraVeil`, drawn again over
- * the top of the list, solid at the edge and clear a little below), so content
- * dissolves into the background under the title instead of being cut. It is
- * drawn, never a native mask: a mask erases pixels, and that erasing captured
- * as black on the screen being left while screens slid past each other. In a
- * browser, CSS masks the list instead. `TopEdge`, a soft shade, is what lists
- * that drive their own scrolling still use.
+ * Content fades under the header through a soft drawn shade: once content has
+ * scrolled under the header, darkness eases in over the top of the screen,
+ * strongest at the cut and ramping away below it, so content melts into the
+ * dark before it reaches the edge instead of being sliced. At rest it is not
+ * there at all, and the header (above it) never dims. It is plain drawing —
+ * no transparency tricks of any kind — so a screen looks the same
+ * mid-transition as at rest, and can never capture black while sliding past
+ * another. In a browser, CSS masks the list instead.
  */
 const FADE_RAMP = 120;  // px below the edge it takes to clear
 const FADE_ABOVE = 520; // covers the header and status bar above the edge
@@ -116,29 +115,7 @@ export function useScrollEdge() {
   return { y, target };
 }
 
-const FADE = 64; // how far above the edge content takes to fade out
-
-/**
- * The fade on a phone: the screen's own light drawn again over the top of the
- * list, solid at the edge and clear 64px below it, so content dissolves into
- * the background under the title instead of being cut. It is one SVG in
- * band-local coordinates with its own mask inside it — plain drawing, so it
- * looks the same mid-transition as at rest. It comes in once content has
- * moved. `background`/`alive` are the screen's own background, so the copy
- * matches it.
- */
-function Veil({ y, top, w, h, variant, alive }: {
-  y: SharedValue<number>; top: number; w: number; h: number; variant: "hero" | "calm"; alive: boolean;
-}) {
-  const style = useAnimatedStyle(() => ({
-    opacity: interpolate(y.get(), [0, 28], [0, 1], Extrapolation.CLAMP),
-  }));
-  return (
-    <Animated.View pointerEvents="none" style={[styles.veil, style]}>
-      <AuroraVeil top={top} height={FADE} w={w} h={h} variant={variant} alive={alive} />
-    </Animated.View>
-  );
-}
+const FADE = 64; // how far below the edge the shade takes to clear
 
 /** The same fade in a browser, with CSS's own mask: on once content has moved. */
 function WebFade({ y, children }: { y: SharedValue<number>; children: React.ReactNode }) {
@@ -157,33 +134,15 @@ function WebFade({ y, children }: { y: SharedValue<number>; children: React.Reac
 
 /**
  * A ScrollView with the top edge built in. A drop-in: same props, same ref.
- * Put it directly under a screen header: content fades away as it scrolls up
+ * Put it directly under a screen header: content dims away as it scrolls up
  * toward the title. The bottom stays natural: content slides into the dark
- * floor on its own, like the panel's timeline. `background`/`alive` are the
- * screen's own background, so the fade draws the same light. `fade={false}`
- * keeps the shade for a screen holding web content.
+ * floor on its own, like the panel's timeline.
  */
-export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewProps, "onScroll"> & { fade?: boolean; background?: "hero" | "calm"; alive?: boolean }>(function EdgeScrollView(
-  { children, style, fade = true, background = "calm", alive = false, ...rest },
+export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewProps, "onScroll"> & { fade?: boolean }>(function EdgeScrollView(
+  { children, style, fade = true, ...rest },
   ref,
 ) {
   const { y } = useScrollEdge();
-  const { width, height } = useWindowDimensions();
-  // Where the list starts on the screen, for the light drawn there. Measured
-  // again as scrolling starts, by when any slide has settled.
-  const [top, setTop] = useState<number | null>(null);
-  const box = useRef<View>(null);
-  const measure = useCallback(() => {
-    box.current?.measureInWindow((_x, wy) => {
-      if (Number.isFinite(wy)) setTop(wy);
-    });
-  }, []);
-  useAnimatedReaction(
-    () => y.get() > 1,
-    (moved, before) => {
-      if (moved && !before) runOnJS(measure)();
-    },
-  );
   const handler = useAnimatedScrollHandler((e) => {
     y.set(e.contentOffset.y);
   });
@@ -202,14 +161,6 @@ export const EdgeScrollView = forwardRef<Animated.ScrollView, Omit<ScrollViewPro
   if (fade && Platform.OS === "web") {
     return <WebFade y={y}>{scroller}</WebFade>;
   }
-  if (fade) {
-    return (
-      <View ref={box} style={styles.fill} onLayout={measure}>
-        {scroller}
-        {top !== null ? <Veil y={y} top={top} w={width} h={height} variant={background} alive={alive} /> : null}
-      </View>
-    );
-  }
   return (
     <View style={styles.fill}>
       {scroller}
@@ -222,7 +173,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   // Reaches up over the header, which paints above it (see ScreenHeader's zIndex).
   shade: { position: "absolute", left: 0, right: 0, top: -FADE_ABOVE, height: FADE_ABOVE + FADE_RAMP, zIndex: 1 },
-  veil: { position: "absolute", left: 0, right: 0, top: 0, height: FADE, zIndex: 1 },
   // Conversation only: reaches down behind the floating dock, which paints
   // above it (see dock's zIndex).
   shadeBottom: { position: "absolute", left: 0, right: 0, bottom: -FADE_ABOVE, height: FADE_ABOVE + FADE_RAMP, zIndex: 1 },
