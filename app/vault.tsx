@@ -132,13 +132,6 @@ export default function VaultScreen() {
             })}
           </View>
 
-          <View style={styles.promise}>
-            <ShieldCheck size={17} color={Ghost.status.success} strokeWidth={1.8} />
-            <Text style={styles.promiseText}>
-              Ghost never sees a saved card&apos;s number or security code. It can see logins and contact info so it can type them in for you.
-            </Text>
-          </View>
-
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {items === null && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
 
@@ -169,10 +162,13 @@ export default function VaultScreen() {
             </View>
           ))}
 
-          {items && total > 0 ? (
-            <Text style={styles.footer}>
-              {total} {total === 1 ? "item" : "items"} sealed on your Pod. Secrets never leave it.
-            </Text>
+          {items ? (
+            <View style={styles.note}>
+              <ShieldCheck size={17} color={Ghost.status.success} strokeWidth={1.8} />
+              <Text style={styles.noteText}>
+                Ghost never sees a saved card&apos;s number or security code. It can see logins and contact info so it can type them in for you.
+              </Text>
+            </View>
           ) : null}
         </EdgeScrollView>
       )}
@@ -361,19 +357,6 @@ const styles = StyleSheet.create({
   segOn: { backgroundColor: Ghost.glass.fillStrong },
   segText: { fontSize: 13.5, fontWeight: "500", color: Ghost.text.secondary },
   segTextOn: { color: Ghost.text.primary },
-  promise: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    paddingVertical: 11,
-    paddingHorizontal: 13,
-    borderRadius: 16,
-    borderCurve: "continuous",
-    backgroundColor: alpha(Ghost.status.success, 0.06),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: alpha(Ghost.status.success, 0.18),
-  },
-  promiseText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontWeight: "300", color: Ghost.text.secondary },
   row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 68, paddingLeft: 12, paddingRight: 10, paddingVertical: 10 },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
   rowPressed: { backgroundColor: "rgba(255,255,255,0.04)" },
@@ -383,7 +366,14 @@ const styles = StyleSheet.create({
   error: { fontSize: 14, lineHeight: 20, color: Ghost.status.error, textAlign: "center", marginTop: Space.md },
   emptyWrap: { alignItems: "center", gap: Space.lg, marginTop: Space.lg },
   emptyLine: { fontSize: 15, lineHeight: 22, fontWeight: "300", color: Ghost.text.secondary, textAlign: "center", marginTop: Space.xxl, paddingHorizontal: Space.xl },
-  footer: { fontSize: 12.5, lineHeight: 18, color: Ghost.text.tertiary, textAlign: "center", marginTop: Space.xxl },
+  note: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginTop: Space.xxl,
+    paddingHorizontal: Space.xs,
+  },
+  noteText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontWeight: "300", color: Ghost.text.tertiary },
   detail: { gap: Space.md },
   detailHead: { flexDirection: "row", alignItems: "center", gap: Space.md },
   detailTitle: { fontSize: 28, lineHeight: 34, letterSpacing: -0.5, color: Ghost.text.primary, fontFamily: Fonts.voice },
