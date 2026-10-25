@@ -173,3 +173,34 @@ describe("the Pod's own reminder and morning cards", () => {
     expect(keepsReceipt({ kind: "suggestion" })).toBe(false);
   });
 });
+
+describe("a credentials card", () => {
+  const form = {
+    id: "card_creds", kind: "credentials", title: "Sign in to Google Ads Manager",
+    body: "Pause the campaigns that are over budget.",
+    data: { host: "ads.google.com", service: "Google Ads Manager", url: "https://ads.google.com" },
+    actions: [
+      { id: "submitted", label: "Signed in", style: "primary", kind: "act" },
+      { id: "dismiss", label: "Not now", style: "secondary", kind: "dismiss" },
+    ],
+  };
+
+  test("names its site and keeps only its own answers", () => {
+    const c = normalizeCard(form);
+    expect(c?.kind).toBe("credentials");
+    expect(c?.data?.host).toBe("ads.google.com");
+    expect(c?.actions?.map((a) => [a.id, a.kind])).toEqual([["submitted", "act"], ["dismiss", "dismiss"]]);
+    expect(keepsReceipt({ kind: "credentials" })).toBe(true);
+  });
+
+  test("a form with no site, or a site that is not one, is never drawn", () => {
+    for (const host of [undefined, "", "localhost", "https://ads.google.com", "not a site", "127.0.0.1"]) {
+      expect(normalizeCard({ ...form, data: { service: "X", host } })).toBeNull();
+    }
+  });
+
+  test("the resolved card is a one-line receipt", () => {
+    const c = normalizeCard({ ...form, resolved: { action_id: "submitted", label: "Signed in to ads.google.com · saved to your Vault" } });
+    expect(c?.resolved?.label).toContain("saved to your Vault");
+  });
+});

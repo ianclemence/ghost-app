@@ -12,6 +12,7 @@ import type { CardAction, RichCard } from "@/lib/cards";
 import type { GhostConfig } from "@/lib/ghostApi";
 import { checkCardItem, decideIdea, editDraft, resolveApproval, resolveCard, respondCard } from "@/lib/ghostApi";
 import { DraftCard } from "@/components/draft-card";
+import { CredentialsCard } from "@/components/vault-credentials-card";
 
 function CardShell({ title, body, children }: { title: string; body?: string; children?: React.ReactNode }) {
   return (
@@ -311,6 +312,8 @@ export function RichCardView({
       return <PresentHost card={card} config={config} onReply={onReply} onResolved={onResolved} />;
     case "draft":
       return <DraftHost card={card} config={config} onResolved={onResolved} />;
+    case "credentials":
+      return <CredentialsCard card={card} config={config} onResolved={onResolved} />;
     case "reminder":
       return <ReminderHost card={card} config={config} onResolved={onResolved} />;
     case "suggestion":

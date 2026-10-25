@@ -19,13 +19,21 @@ export function Field({
   placeholder,
   keyboard,
   hint,
+  secure,
+  multiline,
+  editable = true,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-  keyboard?: "email-address" | "phone-pad" | "numeric";
+  keyboard?: "email-address" | "phone-pad" | "numeric" | "url";
   hint?: string;
+  /** A secret: no autocorrect, no capitalisation, dots on screen. */
+  secure?: boolean;
+  multiline?: boolean;
+  /** False for a value that identifies the item and cannot change. */
+  editable?: boolean;
 }) {
   return (
     <View style={styles.field}>
@@ -35,8 +43,11 @@ export function Field({
         onChangeText={onChange}
         placeholder={placeholder}
         keyboardType={keyboard}
-        autoCapitalize={keyboard ? "none" : "sentences"}
-        autoCorrect={!keyboard}
+        secureTextEntry={secure}
+        multiline={multiline}
+        editable={editable}
+        autoCapitalize={keyboard || secure ? "none" : "sentences"}
+        autoCorrect={!keyboard && !secure}
         accessibilityLabel={label}
       />
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}

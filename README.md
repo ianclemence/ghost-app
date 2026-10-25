@@ -45,8 +45,8 @@ with the outcome. Everything it does on its own, which you can pause or stop.
 you confirm), and a one-time code to reset the web console password without a
 terminal.
 
-**Connect things.** Apps by key or sign-in, and website logins saved once and
-sealed on the Pod, never passed through the model.
+**Connect things.** Apps by key or sign-in, and logins, cards and contacts kept in the Vault,
+sealed on the Pod and never passed through the model.
 
 **Be told.** Reminders, questions, finished tasks, and anything Ghost thinks you
 should know arrive as push notifications, with the app closed. They carry fixed

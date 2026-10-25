@@ -1,224 +1,408 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "expo-router";
-import * as Haptics from "expo-haptics";
-import { BadgeCheck, Car, FileSignature, FileText, HeartPulse, Home, IdCard, Plane, Receipt, ShieldCheck, Stamp, Ticket, Wrench } from "lucide-react-native";
+import { ChevronRight, Plus, ShieldCheck } from "lucide-react-native";
 import { Text } from "@/components/text";
 import { ScreenHeader } from "@/components/screen-header";
 import { ScreenBackground } from "@/components/screen-glow";
 import { EdgeScrollView } from "@/components/scroll-edge";
+import { Empty, InfoRow, lifeStyles, Pill } from "@/components/life-ui";
 import { GhostButton, GhostSheet } from "@/components/ghost";
-import { Empty, Field, InfoRow, lifeStyles, Pill, SourceLine } from "@/components/life-ui";
+import { VaultMark } from "@/components/vault-icon";
+import { VaultForm } from "@/components/vault-form";
 import { alpha, Fonts, Ghost, Space } from "@/constants/theme";
-import { editPaper, fetchVault, fetchWorkspacePreview, removePaper, type Paper } from "@/lib/ghostApi";
-import { paperStatus } from "@/lib/life";
 import { showDialog } from "@/lib/dialog";
+import { deleteVaultItem, fetchVaultItems } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
+import {
+  brandLabel,
+  kindOfTab,
+  kindPlural,
+  kindWord,
+  tabCount,
+  VAULT_TABS,
+  vaultStatus,
+  type VaultCounts,
+  type VaultItem,
+  type VaultKind,
+  type VaultTab,
+} from "@/lib/vault";
 
-const ICON: Record<string, typeof FileText> = {
-  passport: Plane, id: IdCard, visa: Stamp, license: IdCard, insurance: ShieldCheck, warranty: Wrench, lease: Home,
-  contract: FileSignature, vehicle: Car, medical: HeartPulse, certificate: BadgeCheck, ticket: Ticket, receipt: Receipt, other: FileText,
-};
-const KIND_WORD: Record<string, string> = {
-  passport: "Passport", id: "ID", visa: "Visa", license: "Licence", insurance: "Insurance", warranty: "Warranty", lease: "Lease",
-  contract: "Contract", vehicle: "Vehicle", medical: "Medical", certificate: "Certificate", ticket: "Ticket", receipt: "Receipt", other: "Document",
-};
+type Editor = { item: VaultItem | null; kind: VaultKind };
 
 /**
- * The owner's important documents, as Ghost keeps them: what each is, the
- * facts read off it, and when it expires or renews, with the photo it was read
- * from. What needs attention (expired, or due within three months) comes first.
+ * The Vault: what the owner keeps for Ghost to use on their behalf — website
+ * logins, payment cards, contact details and API keys. Sealed on the Pod. The
+ * phone lists what each is and never a secret; a card's number and security
+ * code, a login's password and a key's value are not in any response.
+ *
+ * The line under the tabs is the promise the screen makes, in the same words
+ * everywhere: Ghost never sees a saved card's number or security code; it can
+ * see logins and contact details so it can type them in.
  */
 export default function VaultScreen() {
   const config = useGhostStore((s) => s.config);
-  const [papers, setPapers] = useState<Paper[] | null>(null);
+  const [items, setItems] = useState<VaultItem[] | null>(null);
+  const [counts, setCounts] = useState<VaultCounts>({});
+  const [tab, setTab] = useState<VaultTab>("all");
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<Paper | null>(null);
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     if (!config) return;
-    const r = await fetchVault(config);
-    if (r.ok) {
-      setPapers(r.data.papers);
+    try {
+      const r = await fetchVaultItems(config);
+      setItems(r.items);
+      setCounts(r.counts);
       setError(null);
-      setOpen((o) => (o ? r.data.papers.find((p) => p.id === o.id) ?? null : null));
-    } else setError(r.error);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't reach your Pod to read your Vault.");
+    }
   }, [config]);
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const attention = (papers ?? []).filter((p) => p.days_left !== undefined && p.days_left <= 90);
-  const rest = (papers ?? []).filter((p) => !attention.includes(p));
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  const detail = detailId ? (items ?? []).find((i) => i.id === detailId) ?? null : null;
+
+  const groups = useMemo(() => {
+    const all = items ?? [];
+    const kind = kindOfTab(tab);
+    if (kind) return [{ kind, items: all.filter((i) => i.kind === kind) }];
+    return (["login", "card", "contact", "key"] as VaultKind[])
+      .map((k) => ({ kind: k, items: all.filter((i) => i.kind === k) }))
+      .filter((g) => g.items.length > 0);
+  }, [items, tab]);
+
+  const total = items?.length ?? 0;
+  const shown = groups.reduce((n, g) => n + g.items.length, 0);
+  const addKind = kindOfTab(tab) ?? "login";
+
+  const remove = (item: VaultItem) => {
+    if (!config) return;
+    showDialog(`Remove ${titleOf(item)}?`, "Ghost stops using it and forgets it. This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteVaultItem(config, item.kind, item.id);
+            setDetailId(null);
+            await load();
+          } catch (e) {
+            showDialog("Couldn't remove that", e instanceof Error ? e.message : undefined);
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <View style={styles.container}>
       <ScreenBackground variant="calm" />
-      <ScreenHeader title="Documents" subtitle="Passports, policies, warranties" />
+      <ScreenHeader
+        title="Vault"
+        subtitle="Logins, cards and details Ghost can use"
+        trailing={config ? <HeaderAdd onPress={() => setEditor({ item: null, kind: addKind })} /> : undefined}
+      />
       {!config ? (
-        <Empty title="Not connected." text="Your documents live on your Pod. Connect one to see them." />
+        <Empty title="Not connected." text="Your Vault lives on your Ghost Pod. Connect one to use it." />
       ) : (
         <EdgeScrollView contentContainerStyle={styles.content}>
+          <View style={styles.seg} accessibilityRole="tablist">
+            {VAULT_TABS.map((t) => {
+              const on = tab === t.id;
+              return (
+                <Pressable
+                  key={t.id}
+                  onPress={() => setTab(t.id)}
+                  style={[styles.segBtn, on && styles.segOn]}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`${t.label}, ${tabCount(t.id, counts)}`}
+                >
+                  <Text style={[styles.segText, on && styles.segTextOn]} numberOfLines={1}>{t.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.promise}>
+            <ShieldCheck size={17} color={Ghost.status.success} strokeWidth={1.8} />
+            <Text style={styles.promiseText}>
+              Ghost never sees a saved card&apos;s number or security code. It can see logins and contact info so it can type them in for you.
+            </Text>
+          </View>
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          {papers === null && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
-          {papers && papers.length === 0 ? (
-            <Empty title="Nothing kept yet." text="Send Ghost a photo of your passport, an insurance policy or a warranty. It keeps the details that matter and reminds you before anything runs out." />
+          {items === null && !error ? <ActivityIndicator style={{ marginTop: Space.xxxl }} color={Ghost.text.tertiary} /> : null}
+
+          {items && total === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Empty
+                title="Nothing kept yet."
+                text="Save a website login, a card, a contact or an API key. Ghost uses it for you and never puts a secret in the conversation."
+              />
+              <GhostButton title="Add your first item" onPress={() => setEditor({ item: null, kind: "login" })} />
+            </View>
           ) : null}
-          {attention.length > 0 ? (
-            <>
-              <Text style={lifeStyles.eyebrow}>Needs attention</Text>
-              <View style={lifeStyles.group}>{attention.map((p, i) => <Row key={p.id} p={p} first={i === 0} onPress={() => setOpen(p)} />)}</View>
-            </>
+
+          {items && total > 0 && shown === 0 ? (
+            <Text style={styles.emptyLine}>
+              No {kindPlural(kindOfTab(tab) ?? "login").toLowerCase()} saved yet. Add one with the + above.
+            </Text>
           ) : null}
-          {rest.length > 0 ? (
-            <>
-              {attention.length > 0 ? <Text style={lifeStyles.eyebrow}>Everything else</Text> : null}
-              <View style={lifeStyles.group}>{rest.map((p, i) => <Row key={p.id} p={p} first={i === 0} onPress={() => setOpen(p)} />)}</View>
-            </>
+
+          {groups.map((g) => (
+            <View key={g.kind}>
+              {tab === "all" ? <Text style={lifeStyles.eyebrow}>{kindPlural(g.kind)}</Text> : null}
+              <View style={lifeStyles.group}>
+                {g.items.map((item, i) => (
+                  <Row key={`${item.kind}:${item.id}`} item={item} first={i === 0} onPress={() => setDetailId(item.id)} />
+                ))}
+              </View>
+            </View>
+          ))}
+
+          {items && total > 0 ? (
+            <Text style={styles.footer}>
+              {total} {total === 1 ? "item" : "items"} sealed on your Pod. Secrets never leave it.
+            </Text>
           ) : null}
         </EdgeScrollView>
       )}
-      {config ? <PaperSheet paper={open} onClose={() => setOpen(null)} onChanged={load} /> : null}
+
+      <GhostSheet visible={editor !== null} onClose={() => setEditor(null)}>
+        {editor ? (
+          <VaultForm
+            key={editor.item?.id ?? `new-${editor.kind}`}
+            editing={editor.item}
+            initialKind={editor.kind}
+            onCancel={() => setEditor(null)}
+            onSaved={() => {
+              setEditor(null);
+              void load();
+            }}
+          />
+        ) : null}
+      </GhostSheet>
+
+      <GhostSheet visible={detail !== null} onClose={() => setDetailId(null)}>
+        {detail ? (
+          <Detail
+            item={detail}
+            onEdit={() => {
+              setDetailId(null);
+              setEditor({ item: detail, kind: detail.kind });
+            }}
+            onRemove={() => remove(detail)}
+          />
+        ) : null}
+      </GhostSheet>
     </View>
   );
 }
 
-function Tile({ kind, tone }: { kind: string; tone: string }) {
-  const Icon = ICON[kind] ?? FileText;
+function HeaderAdd({ onPress }: { onPress: () => void }) {
   return (
-    <View style={[styles.tile, { backgroundColor: alpha(tone, 0.12), borderColor: alpha(tone, 0.32) }]}>
-      <Icon size={19} color={tone} strokeWidth={1.8} />
-    </View>
-  );
-}
-
-function toneColor(t: "bad" | "warn" | "neutral" | undefined) {
-  return t === "bad" ? Ghost.status.error : t === "warn" ? Ghost.status.warning : Ghost.status.info;
-}
-
-function Row({ p, first, onPress }: { p: Paper; first: boolean; onPress: () => void }) {
-  const st = paperStatus(p);
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, !first && styles.rowLine, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={[p.title, p.holder, st?.text].filter(Boolean).join(", ")}>
-      <Tile kind={p.kind} tone={toneColor(st?.tone)} />
-      <View style={styles.rowText}>
-        <Text style={styles.rowTitle} numberOfLines={2}>{p.title}</Text>
-        <Text style={styles.rowSub} numberOfLines={1}>{[KIND_WORD[p.kind] ?? "Document", p.holder ? `${p.holder}'s` : null].filter(Boolean).join(" · ")}</Text>
-      </View>
-      {st ? <Pill text={st.text} tone={st.tone} centered /> : null}
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.add, pressed && { opacity: 0.65 }]}
+      accessibilityRole="button"
+      accessibilityLabel="Add something to the Vault"
+    >
+      <Plus size={19} color={Ghost.text.primary} strokeWidth={1.9} />
     </Pressable>
   );
 }
 
-function PaperSheet({ paper, onClose, onChanged }: { paper: Paper | null; onClose: () => void; onChanged: () => Promise<void> }) {
-  const config = useGhostStore((s) => s.config)!;
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ title: "", holder: "", expires: "", renews: "", facts: "" });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    setPhoto(null);
-    if (!paper?.file || !/\.(png|jpe?g|webp)$/i.test(paper.file)) return;
-    let live = true;
-    fetchWorkspacePreview(config, paper.file).then((p) => {
-      if (live && p?.image_base64) setPhoto(`data:${p.mime_type ?? "image/jpeg"};base64,${p.image_base64}`);
-    }).catch(() => {});
-    return () => { live = false; };
-  }, [paper?.file, config]);
-  const close = () => { setEditing(false); setError(null); onClose(); };
-  const begin = () => {
-    if (!paper) return;
-    setForm({ title: paper.title, holder: paper.holder ?? "", expires: paper.expires ?? "", renews: paper.renews ?? "", facts: (paper.facts ?? []).map((f) => `${f.label}: ${f.value}`).join("\n") });
-    setError(null);
-    setEditing(true);
-  };
-  const save = async () => {
-    if (!paper) return;
-    const facts = form.facts.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
-      const i = l.indexOf(":");
-      return i > 0 ? { label: l.slice(0, i).trim(), value: l.slice(i + 1).trim() } : { label: "Note", value: l };
-    });
-    setBusy(true);
-    const r = await editPaper(config, paper.id, { kind: paper.kind, title: form.title, holder: form.holder, facts, expires: form.expires.trim(), renews: form.renews.trim() });
-    setBusy(false);
-    if (!r.ok) return setError(r.error);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setEditing(false);
-    await onChanged();
-  };
-  const remove = () => {
-    if (!paper) return;
-    showDialog(`Remove ${paper.title}?`, "Ghost stops keeping it and won't remind you about it. Any photo of it stays in your files.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: async () => {
-        const r = await removePaper(config, paper.id);
-        if (!r.ok) return setError(r.error);
-        close();
-        await onChanged();
-      } },
-    ]);
-  };
-  const p = paper;
-  const st = p ? paperStatus(p) : null;
+function titleOf(item: VaultItem): string {
+  if (item.title) return item.title;
+  switch (item.kind) {
+    case "card":
+      return `${brandLabel(item.brand)}${item.last4 ? ` •••• ${item.last4}` : ""}`;
+    case "contact":
+      return item.name || item.company || "Contact";
+    case "key":
+      return item.service || "Key";
+    case "login":
+      return item.host || "Login";
+  }
+}
+
+function Row({ item, first, onPress }: { item: VaultItem; first: boolean; onPress: () => void }) {
+  const status = vaultStatus(item);
+  const commands = item.kind === "key" && item.use_in_commands ? "Commands" : null;
   return (
-    <GhostSheet visible={p !== null} onClose={close}>
-      {p ? (
-        editing ? (
-          <View style={{ gap: Space.md }}>
-            <Text style={styles.sheetTitle}>Edit</Text>
-            <Field label="Name" value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
-            <Field label="Whose" value={form.holder} onChange={(v) => setForm({ ...form, holder: v })} placeholder="Leave empty if it's yours" />
-            <Field label="Expires" value={form.expires} onChange={(v) => setForm({ ...form, expires: v })} placeholder="2030-02-01" />
-            <Field label="Renews" value={form.renews} onChange={(v) => setForm({ ...form, renews: v })} placeholder="2026-11-01" />
-            <Field label="Details" value={form.facts} onChange={(v) => setForm({ ...form, facts: v })} placeholder={"Number: AK123456"} hint="One per line: label, a colon, the value." />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <View style={styles.actions}>
-              <GhostButton title={busy ? "Saving…" : "Save"} size="sm" disabled={busy} onPress={() => void save()} />
-              <GhostButton title="Cancel" size="sm" variant="secondary" disabled={busy} onPress={() => setEditing(false)} />
-            </View>
-          </View>
-        ) : (
-          <View style={{ gap: Space.md }}>
-            <View style={styles.head}>
-              <Tile kind={p.kind} tone={toneColor(st?.tone)} />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={styles.sheetTitle}>{p.title}</Text>
-                {st ? <Pill text={st.text} tone={st.tone} /> : null}
-              </View>
-            </View>
-            {photo ? <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" accessibilityLabel={`Photo of ${p.title}`} /> : null}
-            {(p.facts ?? []).length > 0 || p.holder || p.expires || p.renews ? (
-              <View style={lifeStyles.sheetGroup}>
-                {p.holder ? <InfoRow first label="Whose" value={p.holder} /> : null}
-                {(p.facts ?? []).map((f, i) => <InfoRow key={i} first={!p.holder && i === 0} label={f.label} value={f.value} />)}
-                {p.expires ? <InfoRow first={!p.holder && !(p.facts ?? []).length} label="Expires" value={new Date(p.expires).toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })} /> : null}
-                {p.renews ? <InfoRow first={!p.holder && !(p.facts ?? []).length && !p.expires} label="Renews" value={new Date(p.renews).toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })} /> : null}
-              </View>
-            ) : null}
-            <SourceLine source={p.source} />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <View style={styles.actions}>
-              <GhostButton title="Edit" size="sm" variant="secondary" onPress={begin} />
-              <GhostButton title="Remove" size="sm" variant="danger" onPress={remove} />
-            </View>
-          </View>
-        )
-      ) : null}
-    </GhostSheet>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, !first && styles.rowLine, pressed && styles.rowPressed]}
+      accessibilityRole="button"
+      accessibilityLabel={[titleOf(item), item.subtitle, status ?? commands].filter(Boolean).join(", ")}
+    >
+      <VaultMark item={item} />
+      <View style={styles.rowText}>
+        <Text style={styles.rowTitle} numberOfLines={2}>{titleOf(item)}</Text>
+        {item.subtitle ? <Text style={styles.rowSub} numberOfLines={1}>{item.subtitle}</Text> : null}
+      </View>
+      {status ? <Pill text={status} tone={status === "Expired" ? "bad" : "warn"} /> : commands ? <Pill text={commands} tone="neutral" /> : null}
+      <ChevronRight size={16} color={Ghost.text.tertiary} strokeWidth={1.7} />
+    </Pressable>
   );
+}
+
+function Detail({ item, onEdit, onRemove }: { item: VaultItem; onEdit: () => void; onRemove: () => void }) {
+  const rows: { label: string; value: string }[] = [];
+  if (item.kind === "login") {
+    rows.push({ label: "Site", value: item.host ?? "" });
+    rows.push({ label: "Username", value: item.username || "—" });
+    rows.push({ label: "Password", value: item.has_password ? "Saved" : "—" });
+  } else if (item.kind === "card") {
+    rows.push({ label: "Brand", value: brandLabel(item.brand) });
+    rows.push({ label: "Number", value: `•••• •••• •••• ${item.last4 || "••••"}` });
+    rows.push({ label: "Expires", value: item.exp_month ? `${String(item.exp_month).padStart(2, "0")}/${String((item.exp_year ?? 0) % 100).padStart(2, "0")}` : "—" });
+    if (item.holder) rows.push({ label: "Name on card", value: item.holder });
+    rows.push({ label: "Security code", value: item.has_cvc ? "Saved" : "—" });
+  } else if (item.kind === "contact") {
+    if (item.name) rows.push({ label: "Name", value: item.name });
+    if (item.company) rows.push({ label: "Company", value: item.company });
+    if (item.email) rows.push({ label: "Email", value: item.email });
+    if (item.phone) rows.push({ label: "Phone", value: item.phone });
+    const address = [item.street, item.city, item.region, item.postal, item.country].filter(Boolean).join(", ");
+    if (address) rows.push({ label: "Address", value: address });
+  } else {
+    if (item.service) rows.push({ label: "Service", value: item.service });
+    rows.push({ label: "Key", value: item.key_hint ? `••••${item.key_hint}` : "Saved" });
+    if (item.env_name) rows.push({ label: "Variable", value: `$${item.env_name}` });
+    rows.push({ label: "Commands", value: item.use_in_commands ? "May use it when named" : "Not allowed" });
+  }
+
+  return (
+    <View style={styles.detail}>
+      <View style={styles.detailHead}>
+        <VaultMark item={item} />
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={styles.detailTitle} numberOfLines={2}>{titleOf(item)}</Text>
+          <Text style={styles.detailKind}>{kindWord(item.kind)}</Text>
+        </View>
+      </View>
+
+      {rows.length > 0 ? (
+        <View style={lifeStyles.sheetGroup}>
+          {rows.map((r, i) => (
+            <InfoRow key={`${r.label}-${i}`} first={i === 0} label={r.label} value={r.value} />
+          ))}
+        </View>
+      ) : null}
+
+      {item.notes ? (
+        <View style={styles.notes}>
+          <Text style={styles.notesLabel}>Notes</Text>
+          <Text style={styles.notesBody}>{item.notes}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.security}>
+        <ShieldCheck size={16} color={Ghost.status.success} strokeWidth={1.8} />
+        <Text style={styles.securityText}>{securityNote(item.kind)}</Text>
+      </View>
+
+      <View style={styles.actions}>
+        <GhostButton title="Edit" variant="secondary" onPress={onEdit} />
+        <GhostButton title="Remove" variant="danger" onPress={onRemove} />
+      </View>
+    </View>
+  );
+}
+
+function securityNote(kind: VaultKind): string {
+  switch (kind) {
+    case "card":
+      return "Ghost never sees this card's number or security code. It can only fill them at a checkout, with your OK.";
+    case "login":
+      return "Ghost sees the site and username. It can use the password to sign in, but never sees it.";
+    case "contact":
+      return "Ghost can see contact details so it can type them into a form for you.";
+    case "key":
+      return "Ghost sees this key's name, never its value. A command gets it only when it names the variable and you allow it.";
+  }
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Ghost.bg.base },
   content: { paddingBottom: 96, paddingHorizontal: Space.lg },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 66, paddingLeft: 12, paddingRight: 14, paddingVertical: 10 },
+  add: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.38)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
+  seg: {
+    flexDirection: "row",
+    gap: 2,
+    padding: 3,
+    marginTop: Space.xs,
+    marginBottom: Space.md,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.42)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Ghost.glass.border,
+  },
+  segBtn: { flex: 1, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
+  segOn: { backgroundColor: Ghost.glass.fillStrong },
+  segText: { fontSize: 13.5, fontWeight: "500", color: Ghost.text.secondary },
+  segTextOn: { color: Ghost.text.primary },
+  promise: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    borderCurve: "continuous",
+    backgroundColor: alpha(Ghost.status.success, 0.06),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha(Ghost.status.success, 0.18),
+  },
+  promiseText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontWeight: "300", color: Ghost.text.secondary },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 68, paddingLeft: 12, paddingRight: 10, paddingVertical: 10 },
   rowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Ghost.border.subtle },
-  pressed: { backgroundColor: "rgba(255,255,255,0.04)" },
-  tile: { width: 44, height: 44, borderRadius: 14, borderCurve: "continuous", borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
+  rowPressed: { backgroundColor: "rgba(255,255,255,0.04)" },
   rowText: { flex: 1, minWidth: 0, gap: 2 },
   rowTitle: { fontSize: 15.5, lineHeight: 20, fontWeight: "500", letterSpacing: -0.15, color: Ghost.text.primary },
   rowSub: { fontSize: 13, lineHeight: 17, color: Ghost.text.tertiary },
-  head: { flexDirection: "row", alignItems: "center", gap: Space.md },
-  sheetTitle: { fontFamily: Fonts.voice, fontSize: 28, lineHeight: 33, letterSpacing: -0.5, color: Ghost.text.primary },
-  photo: { width: "100%", aspectRatio: 1.5, borderRadius: 16, backgroundColor: Ghost.bg.sunken },
-  actions: { flexDirection: "row", gap: Space.sm, marginTop: Space.xs },
-  error: { fontSize: 13.5, color: Ghost.status.error },
+  error: { fontSize: 14, lineHeight: 20, color: Ghost.status.error, textAlign: "center", marginTop: Space.md },
+  emptyWrap: { alignItems: "center", gap: Space.lg, marginTop: Space.lg },
+  emptyLine: { fontSize: 15, lineHeight: 22, fontWeight: "300", color: Ghost.text.secondary, textAlign: "center", marginTop: Space.xxl, paddingHorizontal: Space.xl },
+  footer: { fontSize: 12.5, lineHeight: 18, color: Ghost.text.tertiary, textAlign: "center", marginTop: Space.xxl },
+  detail: { gap: Space.md },
+  detailHead: { flexDirection: "row", alignItems: "center", gap: Space.md },
+  detailTitle: { fontSize: 28, lineHeight: 34, letterSpacing: -0.5, color: Ghost.text.primary, fontFamily: Fonts.voice },
+  detailKind: { fontSize: 13, fontWeight: "500", color: Ghost.text.tertiary, textTransform: "uppercase", letterSpacing: 1.1 },
+  notes: { gap: 4, paddingHorizontal: 4 },
+  notesLabel: { fontSize: 11.5, fontWeight: "500", letterSpacing: 1.1, textTransform: "uppercase", color: Ghost.text.tertiary },
+  notesBody: { fontSize: 14.5, lineHeight: 21, fontWeight: "300", color: Ghost.text.secondary },
+  security: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    borderCurve: "continuous",
+    backgroundColor: alpha(Ghost.status.success, 0.06),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha(Ghost.status.success, 0.18),
+  },
+  securityText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontWeight: "300", color: Ghost.text.secondary },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: Space.sm, marginTop: Space.xs },
 });

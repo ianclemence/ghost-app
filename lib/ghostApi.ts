@@ -1,6 +1,7 @@
 import { sealedFetch } from "./sealedFetch";
 import { isChatModel, type ModelOption } from "./models";
 import { normalizeCard, type RichCard } from "./cards";
+import type { VaultCounts, VaultItem, VaultItemInput } from "./vault";
 import { normalizeHistoryTimestamps } from "./reconcile";
 import { toMediaItems, type Attachment } from "./attachments";
 import { usableSuggestion } from "./suggestion";
@@ -2871,52 +2872,110 @@ export function disconnectWebSocket(): void {
   wsInstance = null;
 }
 
-// ─── Website logins (browser sign-ins; secrets stay on the Pod) ───────────
+// ─── The Vault (logins, cards, contacts, keys; secrets stay on the Pod) ───
+// Every request goes through the same sealed transport as the rest of the app
+// when the phone is paired, so a relay carries bytes it cannot read. The
+// response never carries a password, a card number or a key's value.
 
-export interface WebsiteLoginInfo {
-  host: string;
-  url: string;
-  username: string;
+export interface VaultList {
+  items: VaultItem[];
+  counts: VaultCounts;
 }
 
-export async function fetchWebsiteLogins(cfg: GhostConfig): Promise<WebsiteLoginInfo[]> {
-  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/website-logins`, { headers: headers(cfg) }, 10000);
-  if (!res.ok) throw new Error(`Website logins failed (HTTP ${res.status})`);
+/** The Pod's error body, in the owner's words when it has them. */
+async function vaultError(res: Response, fallback: string): Promise<Error> {
+  const body = await res.json().catch(() => null);
+  const message = body?.error?.message;
+  return new Error(typeof message === "string" && message ? message : `${fallback} (HTTP ${res.status})`);
+}
+
+export async function fetchVaultItems(cfg: GhostConfig, kind?: string): Promise<VaultList> {
+  const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+  const res = await fetchWithTimeout(`${baseURL(cfg)}/v1/vault/items${q}`, { headers: headers(cfg) }, 15000, cfg);
+  if (!res.ok) throw await vaultError(res, "Couldn't read your Vault");
   const data = await res.json().catch(() => null);
-  return Array.isArray(data?.logins) ? data.logins : [];
+  return {
+    items: Array.isArray(data?.items) ? data.items : [],
+    counts: data && typeof data.counts === "object" && data.counts ? data.counts : {},
+  };
 }
 
-export async function saveWebsiteLogin(
-  cfg: GhostConfig,
-  input: { url: string; username: string; password: string },
-): Promise<void> {
+export async function saveVaultItem(cfg: GhostConfig, input: VaultItemInput): Promise<VaultItem> {
+  const editing = Boolean(input.id);
   const res = await fetchWithTimeout(
-    `${baseURL(cfg)}/v1/website-logins`,
-    { method: "POST", headers: headers(cfg), body: JSON.stringify(input) },
-    15000,
+    `${baseURL(cfg)}/v1/vault/items`,
+    { method: editing ? "PUT" : "POST", headers: headers(cfg), body: JSON.stringify(input) },
+    20000,
+    cfg,
   );
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(body || `Save failed (HTTP ${res.status})`);
-  }
+  if (!res.ok) throw await vaultError(res, "Couldn't save that");
+  const data = await res.json().catch(() => null);
+  const item = data?.item;
+  if (!item || typeof item.id !== "string") throw new Error("The Pod saved it but did not send it back.");
+  return item as VaultItem;
 }
 
-export async function deleteWebsiteLogin(cfg: GhostConfig, host: string): Promise<void> {
+export async function deleteVaultItem(cfg: GhostConfig, kind: string, id: string): Promise<void> {
   const res = await fetchWithTimeout(
-    `${baseURL(cfg)}/v1/website-logins?host=${encodeURIComponent(host)}`,
+    `${baseURL(cfg)}/v1/vault/items?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`,
     { method: "DELETE", headers: headers(cfg) },
     15000,
+    cfg,
   );
-  if (!res.ok) throw new Error(`Remove failed (HTTP ${res.status})`);
+  if (!res.ok) throw await vaultError(res, "Couldn't remove that");
 }
 
-export async function signOutBrowser(cfg: GhostConfig): Promise<void> {
+/**
+ * The site's icon, fetched and kept by the Pod. A data URI when the site has
+ * one, null when it does not (the phone then draws its letter). Asking the Pod
+ * rather than an icon service keeps the list of the owner's sites private.
+ */
+export async function fetchVaultIcon(cfg: GhostConfig, host: string): Promise<string | null> {
   const res = await fetchWithTimeout(
-    `${baseURL(cfg)}/v1/browser/signout`,
-    { method: "POST", headers: headers(cfg) },
-    15000,
+    `${baseURL(cfg)}/v1/vault/icon?host=${encodeURIComponent(host)}`,
+    { headers: headers(cfg) },
+    20000,
+    cfg,
   );
-  if (!res.ok) throw new Error(`Sign out failed (HTTP ${res.status})`);
+  if (!res.ok) throw new Error(`Failed to load the site icon (HTTP ${res.status})`);
+  const data = await res.json().catch(() => null);
+  if (!data?.ok || typeof data.data !== "string" || typeof data.mime !== "string") return null;
+  return `data:${data.mime};base64,${data.data}`;
+}
+
+export interface VaultCredentialAnswer {
+  ok: boolean;
+  saved: boolean;
+  card?: RichCard;
+  error?: string;
+}
+
+/**
+ * The owner's answer to a credentials card. The card id is the only site the
+ * Pod will accept: the form cannot be redirected to another. The username and
+ * password live in this request and nowhere else — not in the transcript, not
+ * in the card, not in the app's storage.
+ */
+export async function answerVaultCredentials(
+  cfg: GhostConfig,
+  input: { card_id: string; username: string; password: string; save: boolean },
+): Promise<VaultCredentialAnswer> {
+  const res = await fetchWithTimeout(
+    `${baseURL(cfg)}/v1/vault/credentials`,
+    { method: "POST", headers: headers(cfg), body: JSON.stringify(input) },
+    25000,
+    cfg,
+  );
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const message = data?.error?.message;
+    return { ok: false, saved: false, error: typeof message === "string" ? message : "That sign-in wasn't saved." };
+  }
+  return {
+    ok: true,
+    saved: Boolean(data?.saved),
+    card: data?.card ? normalizeCard(data.card) ?? undefined : undefined,
+  };
 }
 
 // ─── Files the owner has sent Ghost ───────────────────────────────────────

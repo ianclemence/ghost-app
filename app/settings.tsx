@@ -17,6 +17,7 @@ const ROWS = [
   { title: "Phone", detail: "Notifications, health, places", path: "/phone" },
   { title: "Your Pod", detail: "Health and updates", path: "/ghost" },
   { title: "About", detail: "What Ghost is and how it works", path: "/about" },
+  { title: "Vault", detail: "Logins, cards and keys Ghost can use", path: "/vault" },
 ];
 
 export default function SettingsScreen() {
@@ -50,7 +51,7 @@ export default function SettingsScreen() {
       <ScreenHeader title="Settings" subtitle="Models, apps, jobs and your Pod" />
       <View style={styles.list}>
         <GhostList>
-          {ROWS.filter((r) => r.path !== "/about").map((r) => (
+          {ROWS.filter((r) => r.path !== "/about" && r.path !== "/vault").map((r) => (
             <GhostRow key={r.path} title={r.title} subtitle={r.detail} chevron onPress={() => router.push(r.path as never)} />
           ))}
           <GhostRow
@@ -59,7 +60,7 @@ export default function SettingsScreen() {
             chevron={push === "denied"}
             onPress={push === "denied" ? fixPush : undefined}
           />
-          {ROWS.filter((r) => r.path === "/about").map((r) => (
+          {ROWS.filter((r) => r.path === "/about" || r.path === "/vault").map((r) => (
             <GhostRow key={r.path} title={r.title} subtitle={r.detail} chevron onPress={() => router.push(r.path as never)} />
           ))}
         </GhostList>

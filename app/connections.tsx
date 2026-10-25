@@ -14,7 +14,6 @@ import {
   type ConnectedAppInfo,
 } from "@/lib/ghostApi";
 import { useGhostStore } from "@/lib/store";
-import { WebsiteLogins } from "@/components/website-logins";
 import { EdgeScrollView } from "@/components/scroll-edge";
 
 const isOAuth = (a: ConnectedAppInfo) => a.auth_kind === "oauth" || a.setup === "console_oauth";
@@ -180,8 +179,6 @@ export default function ConnectionsScreen() {
               </React.Fragment>
             ),
           )}
-          <SectionHeader title="Website logins" />
-          <WebsiteLogins config={config} />
           </EdgeScrollView>
         </KeyboardAvoidingView>
       )}

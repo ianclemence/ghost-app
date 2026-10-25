@@ -12,7 +12,8 @@ export type CardKind =
   | "reminder"
   | "digest"
   | "question"
-  | "draft";
+  | "draft"
+  | "credentials";
 
 export interface CardAction {
   id: string;
@@ -52,14 +53,14 @@ export interface RichCard {
   created_at?: number;
 }
 
-const KNOWN_KINDS: CardKind[] = ["suggestion", "goal_update", "cart", "browser_view", "memory_receipt", "browser_recovery", "present", "reminder", "digest", "question", "draft"];
+const KNOWN_KINDS: CardKind[] = ["suggestion", "goal_update", "cart", "browser_view", "memory_receipt", "browser_recovery", "present", "reminder", "digest", "question", "draft", "credentials"];
 
 /**
  * Cards whose buttons are only ever a reply, a dismissal or (for the Pod's own
  * kinds) an act: they carry no authority, so the phone may draw and send them
  * without a broker request behind them.
  */
-const CHOICE_KINDS: CardKind[] = ["present", "reminder", "digest", "question", "draft"];
+const CHOICE_KINDS: CardKind[] = ["present", "reminder", "digest", "question", "draft", "credentials"];
 
 /** Cards that keep a one-line receipt once the owner has answered them. */
 export function keepsReceipt(card: Pick<RichCard, "kind">): boolean {
@@ -129,6 +130,12 @@ export function normalizeCard(raw: unknown): RichCard | null {
   if (present && (!blocks || blocks.length === 0)) return null;
   // A draft is its fields; one without a kind it knows is not drawn.
   if (kind === "draft" && !(isObj(raw.data) && ["email", "event", "sms", "alarm"].includes(String(raw.data.draft_kind)))) return null;
+  // A sign-in form names the one site it may be filled on. Without a site the
+  // form has nowhere safe to put a password, so it is not drawn.
+  if (kind === "credentials") {
+    const host = isObj(raw.data) && typeof raw.data.host === "string" ? raw.data.host.trim().toLowerCase() : "";
+    if (!host || !/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host)) return null;
+  }
   const res = isObj(raw.resolved) && typeof raw.resolved.action_id === "string"
     ? {
       action_id: raw.resolved.action_id,

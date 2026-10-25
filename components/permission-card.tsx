@@ -68,6 +68,7 @@ export function PermissionCard({
     >
     <GlassCard
       tone="attention"
+      solid
       accessibilityLabel={`Ghost is asking: ${title}`}
       accessibilityLiveRegion="polite"
     >

@@ -240,7 +240,7 @@ function LifeDoors() {
   }, [config]);
   const doors = [
     { key: "people", label: "People", line: lines.people, Icon: Users, tint: Ghost.accent.primary, go: "/people" },
-    { key: "vault", label: "Documents", line: lines.vault, Icon: FileText, tint: Ghost.status.warning, go: "/vault", alert: lines.vaultAlert },
+    { key: "vault", label: "Documents", line: lines.vault, Icon: FileText, tint: Ghost.status.warning, go: "/documents", alert: lines.vaultAlert },
     { key: "finances", label: "Finances", line: lines.finances, Icon: Wallet, tint: Ghost.status.success, go: "/finances" },
     { key: "trips", label: "Trips", line: lines.trips, Icon: Plane, tint: Ghost.status.info, go: "/trips" },
     { key: "knowledge", label: "Knowledge", line: lines.knowledge, Icon: BookOpen, tint: "#9C95FF", go: "/knowledge" },
